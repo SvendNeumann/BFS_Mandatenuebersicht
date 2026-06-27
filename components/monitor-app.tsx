@@ -453,8 +453,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
                 <th>Standort</th>
                 <th>Live seit</th>
                 <th>Letzter Import</th>
-                <th>Eingereicht</th>
-                <th>Gebühren</th>
+                <th>Umsatz eingereicht</th>
+                <th>Gesamtkosten BFS</th>
                 <th>Offene Fälle</th>
                 <th>Rückbelastungen offen</th>
                 <th>Ohne Ausfallschutz</th>
@@ -546,9 +546,11 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const periodLabel = importSummary.rows ? selectedPeriod.label : selectedPeriod.label;
   const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
   const locationKpis = [
-    ["Eingereicht", money.format(selectedMetrics.submitted), periodLabel],
-    ["BFS-Gebühren", money.format(selectedMetrics.fees), periodLabel],
-    ["Offene BFS-Klärfälle", String(openCases.length), "aktueller Datenstand"],
+    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel],
+    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel],
+    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel],
+    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel],
+    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel],
     ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel]
   ];
 
@@ -629,6 +631,8 @@ function AnswerCockpit({
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   const submitted = importSummary.rows ? importSummary.submitted : periodMetrics?.submitted ?? relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
   const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
+  const feeNet = importSummary.rows ? importSummary.feeNet : periodMetrics?.feeNet ?? fees;
+  const feeVat = importSummary.rows ? importSummary.feeVat : periodMetrics?.feeVat ?? 0;
   const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : periodMetrics?.noProtectionAmount ?? riskTotal;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
@@ -645,7 +649,7 @@ function AnswerCockpit({
       </div>
       <div className="answer-grid">
         <button onClick={() => onNavigate("claims")}>
-          <span>Wie viel wurde eingereicht?</span>
+          <span>Umsatz eingereicht?</span>
           <strong>{money.format(submitted)}</strong>
           <small>{resolvedPeriodLabel}</small>
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
@@ -675,9 +679,9 @@ function AnswerCockpit({
           <small className="period-note">Zeitraum: aktueller Datenstand</small>
         </button>
         <button onClick={() => onNavigate("claims")}>
-          <span>BFS-Gebühren?</span>
+          <span>BFS-Kosten?</span>
           <strong>{money.format(fees)}</strong>
-          <small>{resolvedPeriodLabel}</small>
+          <small>Gebühr {money.format(feeNet)} · MwSt {money.format(feeVat)}</small>
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
@@ -696,16 +700,33 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
-  const importSummary = summarizeImportRows(importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location)));
+  const scopedImportRows = importRows.filter((row) => {
+    const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  });
+  const allScopedLocationRows = importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location));
+  const importSummary = summarizeImportRows(scopedImportRows);
   const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod);
   const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id));
   const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id));
+  const recoveryMatches = resubmissionCandidatesFromImportRows(allScopedLocationRows)
+    .filter((candidate) => {
+      const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
+      return candidateStandort ? shortDateInPeriod(candidate.originalDate, selectedPeriod, candidateStandort) : false;
+    });
+  const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
+  const recoveredAmount = recoveryMatches.reduce((sum, candidate) => sum + candidate.newAmount, 0);
+  const stillOpenAmount = Math.max(deductionAmount - recoveredAmount, 0);
+  const recoveryRate = deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
 
   return (
     <div className="content-stack">
       <section className="priority-grid">
-        <PriorityCard label="Eingereicht" value={money.format(selectedMetrics.submitted)} hint={selectedPeriod.label} tone="blue" />
-        <PriorityCard label="BFS-Gebühren" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} tone="amber" />
+        <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint={selectedPeriod.label} tone="green" />
+        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} tone="amber" />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
       </section>
@@ -734,7 +755,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
           {rowsStandorte.map((entry) => {
             const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
-            const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name));
+            const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, selectedPeriod, entry)));
             const periodCashflow = rowImportSummary.rows ? cashflowFromImportSummary(rowImportSummary) : cashflowForPeriod(entry, selectedPeriod);
             const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
             const periodRiskAmount = periodCashflow.withoutProtection || Math.min(riskAmount, standort ? riskAmount : entry.withoutProtection);
@@ -747,9 +768,11 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
                   <small>{periodCashflow.activeMonths ? `${periodCashflow.activeMonths} aktive Monate ab ${periodCashflow.startLabel}` : `noch nicht live im Zeitraum, Start ${entry.goLiveLabel}`}</small>
                 </div>
                 <dl>
-                  <div><dt>Eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>
-                  <div><dt>geschätzt gutgeschrieben</dt><dd>{money.format(paidEstimate)}</dd></div>
-                  <div><dt>BFS-Gebühren</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
+                  <div><dt>Umsatz eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>
+                  <div><dt>Auszahlungsbetrag</dt><dd>{money.format(paidEstimate)}</dd></div>
+                  <div><dt>BFS-Gebühr netto</dt><dd>{money.format(periodCashflow.feeNet)}</dd></div>
+                  <div><dt>MwSt</dt><dd>{money.format(periodCashflow.feeVat)}</dd></div>
+                  <div><dt>Gesamtkosten BFS</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
                   <div><dt>offene Klärfälle</dt><dd>{money.format(openAmount)}</dd></div>
                   <div><dt>Rückläufer</dt><dd>{periodCashflow.returnCount} / {money.format(periodCashflow.returnAmount)}</dd></div>
                   <div><dt>Stornos</dt><dd>{periodCashflow.cancellationCount} / {money.format(periodCashflow.cancellationAmount)}</dd></div>
@@ -758,6 +781,53 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
               </article>
             );
           })}
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Storno/Rückgabe & Wiedereinholung</h2>
+            <p>Zeitraum: {selectedPeriod.label}. Abgezogene Fälle werden gegen spätere Einreichungen desselben Patienten gematcht.</p>
+          </div>
+        </div>
+        <div className="priority-grid compact-priority">
+          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" tone={deductionAmount ? "red" : "green"} />
+          <PriorityCard label="Wieder reingeholt" value={money.format(recoveredAmount)} hint={`${recoveryMatches.length} gematchte Neueinreichungen`} tone={recoveredAmount ? "green" : "amber"} />
+          <PriorityCard label="Noch nicht reingeholt" value={money.format(stillOpenAmount)} hint="Abzug minus gematchte Neueinreichung" tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Matchingquote" value={`${recoveryRate.toFixed(0)} %`} hint="bezogen auf Abzugssumme" tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+        </div>
+        <div className="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Standort</th>
+                <th>Ursprung</th>
+                <th>Grund</th>
+                <th>Abzug</th>
+                <th>Neue Einreichung</th>
+                <th>Wieder eingereicht</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recoveryMatches.slice(0, 50).map((candidate) => (
+                <tr key={`${candidate.patientName}-${candidate.originalDate}-${candidate.newDate}-${candidate.newBfsNo}`}>
+                  <td><strong>{candidate.patientName}</strong></td>
+                  <td>{candidate.locationName}</td>
+                  <td>{candidate.originalDate}</td>
+                  <td>{candidate.reason}</td>
+                  <td>{money.format(candidate.originalAmount)}</td>
+                  <td>{candidate.newDate}</td>
+                  <td>{money.format(candidate.newAmount)}</td>
+                </tr>
+              ))}
+              {!recoveryMatches.length && (
+                <tr>
+                  <td colSpan={7}>Noch keine späteren Neueinreichungen im Upload-Matching gefunden.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
       <section className="dashboard-grid">
@@ -773,8 +843,8 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
               <thead>
                 <tr>
                   <th>Monat</th>
-                  <th>Eingereicht</th>
-                  <th>Gebühren</th>
+                  <th>Umsatz eingereicht</th>
+                  <th>Gesamtkosten BFS</th>
                   <th>Rückläufer</th>
                   <th>Stornos</th>
                   <th>Ohne Schutz</th>
@@ -807,7 +877,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
               <thead>
                 <tr>
                   <th>Quartal</th>
-                  <th>Eingereicht</th>
+                  <th>Umsatz eingereicht</th>
                   <th>Delta</th>
                   <th>Rückläufer</th>
                   <th>Gebührenquote</th>
@@ -954,6 +1024,8 @@ function cashflowForPeriod(standort: Standort, period: PeriodOption) {
     submitted: metric.submitted,
     payout: metric.payout,
     fees: metric.fees,
+    feeNet: metric.fees,
+    feeVat: 0,
     returnCount: metric.returnCount,
     returnAmount: metric.returnAmount,
     cancellationCount: metric.cancellationCount,
@@ -970,6 +1042,8 @@ function aggregateMetrics(standortIds: string[], period: PeriodOption) {
     submitted,
     payout: selected.reduce((sum, metric) => sum + metric.payout, 0),
     fees,
+    feeNet: fees,
+    feeVat: 0,
     feeRate: submitted ? (fees / submitted) * 100 : 0,
     returnCount: selected.reduce((sum, metric) => sum + metric.returnCount, 0),
     returnAmount: selected.reduce((sum, metric) => sum + metric.returnAmount, 0),
@@ -990,6 +1064,8 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
   const cancellationMovements = relevantMovements.filter((movement) => movement.type.includes("storno"));
   const submitted = rows.reduce((sum, row) => sum + rowSubmittedAmount(row), 0);
   const fees = rows.reduce((sum, row) => sum + rowFeeAmount(row), 0);
+  const feeNet = rows.reduce((sum, row) => sum + rowFeeNetAmount(row), 0);
+  const feeVat = rows.reduce((sum, row) => sum + rowFeeVatAmount(row), 0);
   const payout = rows.reduce((sum, row) => sum + (row.payout ?? 0), 0);
   const noProtectionAmount = rows.reduce((sum, row) => sum + rowNoProtectionAmount(row), 0);
   const noProtectionCount = rows.reduce((sum, row) => sum + rowNoProtectionCount(row), 0);
@@ -999,6 +1075,8 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
     submitted,
     payout,
     fees,
+    feeNet,
+    feeVat,
     feeRate: submitted ? (fees / submitted) * 100 : 0,
     returnCount: returnMovements.length,
     returnAmount: returnMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0),
@@ -1016,6 +1094,28 @@ function rowSubmittedAmount(row: ImportPreviewRow) {
 }
 
 function rowFeeAmount(row: ImportPreviewRow) {
+  if (row.feeTotal && row.feeTotal > 0) return row.feeTotal;
+  const feeParts = rowFeeNetAmount(row) + rowFeeVatAmount(row);
+  if (feeParts > 0) return Math.round(feeParts * 100) / 100;
+  const submitted = rowSubmittedAmount(row);
+  if (submitted > 0 && row.payout && row.payout > 0 && submitted > row.payout) {
+    return Math.round((submitted - row.payout) * 100) / 100;
+  }
+  return 0;
+}
+
+function rowFeeNetAmount(row: ImportPreviewRow) {
+  if (row.feeNet && row.feeNet > 0) return row.feeNet;
+  if (row.feeTotal && row.feeVat && row.feeTotal > row.feeVat) return Math.round((row.feeTotal - row.feeVat) * 100) / 100;
+  return rowFeeAmountFallbackNet(row);
+}
+
+function rowFeeVatAmount(row: ImportPreviewRow) {
+  if (row.feeVat && row.feeVat > 0) return row.feeVat;
+  return 0;
+}
+
+function rowFeeAmountFallbackNet(row: ImportPreviewRow) {
   if (row.feeTotal && row.feeTotal > 0) return row.feeTotal;
   const submitted = rowSubmittedAmount(row);
   if (submitted > 0 && row.payout && row.payout > 0 && submitted > row.payout) {
@@ -1048,6 +1148,8 @@ function metricsFromImportSummary(summary: ImportSummary) {
     submitted: summary.submitted,
     payout: summary.payout,
     fees: summary.fees,
+    feeNet: summary.feeNet,
+    feeVat: summary.feeVat,
     feeRate: summary.feeRate,
     returnCount: summary.returnCount,
     returnAmount: summary.returnAmount,
@@ -1429,6 +1531,17 @@ function importRowInPeriod(row: ImportPreviewRow, period: PeriodOption, standort
   return true;
 }
 
+function shortDateInPeriod(value: string | undefined, period: PeriodOption, standort: Standort) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return true;
+  const month = `${match[3]}-${match[2]}`;
+  const metricDate = new Date(`${month}-01T00:00:00`);
+  if (!period.start && !period.end) return month >= standort.goLiveDate.slice(0, 7);
+  if (period.start && metricDate < new Date(period.start.getFullYear(), period.start.getMonth(), 1)) return false;
+  if (period.end && metricDate > new Date(period.end.getFullYear(), period.end.getMonth(), 1)) return false;
+  return true;
+}
+
 function metricInPeriod(metric: BfsPeriodMetric, period: PeriodOption) {
   const metricDate = new Date(`${metric.month}-01T00:00:00`);
   if (!period.start && !period.end) {
@@ -1534,7 +1647,7 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
   const cards = customCards ?? (standort
     ? [
         ["Eingereicht aktueller Monat", money.format(importSummary.rows ? importSummary.submitted : standort.submittedThisMonth), importSummary.rows ? "aus aktuellem Testupload" : "Aus BFS-Abrechnungen"],
-        ["BFS-Gebühren", money.format(importSummary.rows ? importSummary.fees : standort.feesThisMonth), "Netto und MwSt"],
+        ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : standort.feesThisMonth), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : "Gebühr netto und MwSt"],
         ["Offene BFS-Klärfälle", String(standort.openCases), "echte To-dos"],
         ["Laufend ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : standort.withoutProtection), importSummary.rows ? "aus aktuellem Testupload" : "Risikoüberwachung"]
       ]
@@ -1594,8 +1707,14 @@ function metricExplanation(label: string, value: string, hint: string) {
   if (normalized.includes("eingereicht") || normalized.includes("forderungen")) {
     return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
+  if (normalized.includes("mwst")) {
+    return `Herleitung: Separat erkannte Mehrwertsteuer auf BFS-Gebühren aus den Abrechnungen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("gesamtkosten")) {
+    return `Herleitung: BFS-Gebühr netto plus erkannte MwSt. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
   if (normalized.includes("gebühr")) {
-    return `Herleitung: Summe der in den Abrechnungen ausgewiesenen BFS-Gebühren inklusive erkannter Gebührenpositionen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("rückläufer") || normalized.includes("rückgaben")) {
     return `Herleitung: Gezählt werden Kontoauszug-Bewegungen mit Rückgabe, Rückbelastung oder vergleichbarer BFS-Bemerkung. Der Betrag kommt aus der jeweiligen Bewegungszeile. Aktueller Wert: ${value}. Bezug: ${hint}.`;
@@ -1839,7 +1958,13 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                     <td>
                       {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
                       {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
-                      {!!rowFeeAmount(row) && <span>Gebühren {money.format(rowFeeAmount(row))}</span>}
+                      {!!rowFeeAmount(row) && (
+                        <>
+                          <span>BFS-Gebühr netto {money.format(rowFeeNetAmount(row))}</span>
+                          <span>MwSt {money.format(rowFeeVatAmount(row))}</span>
+                          <span>Gesamtkosten {money.format(rowFeeAmount(row))}</span>
+                        </>
+                      )}
                       {!!rowReasons.length && (
                         <>
                           <span>{rowReasons.length} Storno-/Rückgabegründe</span>

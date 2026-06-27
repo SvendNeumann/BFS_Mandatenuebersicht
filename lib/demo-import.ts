@@ -79,6 +79,8 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     noProtectionCount: parsed.noProtectionCount,
     noProtectionAmount: parsed.noProtectionAmount,
     feeTotal: parsed.feeTotal,
+    feeNet: parsed.feeNet,
+    feeVat: parsed.feeVat,
     netRevenue: parsed.netRevenue,
     payout: parsed.payout,
     parsedClaims,

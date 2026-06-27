@@ -8,6 +8,8 @@ export type ParsedBfsDocument = {
   claimsHeader: number;
   claimsSum: number;
   feeTotal: number;
+  feeNet: number;
+  feeVat: number;
   netRevenue: number;
   payout: number;
   noProtectionCount: number;
@@ -36,6 +38,7 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
   const claims = parseClaims(lines);
   const movements = parseMovements(lines, claims);
   const noProtectionStats = parseNoProtectionStats(lines, claims);
+  const feeBreakdown = parseFeeBreakdown(text);
 
   return {
     mandantNo: text.match(/Mandant-Nr:?\s*(\d{4,6})/i)?.[1] ?? headerTriple?.[1],
@@ -44,7 +47,9 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
     statementDate: text.match(/Datum:\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1] ?? text.match(/Abrechnung Nr\.?\s*\d+\s+vom\s+(\d{2}\.\d{2}\.\d{4})/i)?.[1],
     claimsHeader: Number(headerLineMatch?.[1] ?? headerTriple?.[3] ?? 0),
     claimsSum: parseAmount(headerLineMatch?.[2] ?? "0,00"),
-    feeTotal: parseAmount(text.match(/Summe Gebühren\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00"),
+    feeTotal: feeBreakdown.total,
+    feeNet: feeBreakdown.net,
+    feeVat: feeBreakdown.vat,
     netRevenue: parseAmount(text.match(/Umsatz Netto\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00"),
     payout: parseAmount(text.match(/Auszahlung\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? text.match(/Regulierungsbetrag in Höhe von\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00"),
     noProtectionCount: noProtectionStats.count,
@@ -52,6 +57,23 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
     claims,
     movements,
     rawText: text
+  };
+}
+
+function parseFeeBreakdown(text: string) {
+  const total = parseAmount(text.match(/Summe Gebühren\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00");
+  const vatLine = text.split("\n").find((line) => /(?:MwSt\.?|MWST|Mehrwertsteuer|USt\.?|Umsatzsteuer)/i.test(line));
+  const vat = parseAmount(vatLine?.match(new RegExp(amountPattern, "g"))?.at(-1) ?? "0,00");
+  const explicitNet = parseAmount(
+    text.match(/(?:Gebühren\s+Netto|BFS-?Gebühren\s+Netto|Netto\s+Gebühren)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1]
+    ?? "0,00"
+  );
+  const net = explicitNet || (total && vat ? Math.round((total - vat) * 100) / 100 : total);
+
+  return {
+    total,
+    net,
+    vat
   };
 }
 

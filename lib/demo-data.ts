@@ -11,8 +11,8 @@ export const standorte: Standort[] = [
     goLiveDate: "2024-07-01",
     goLiveLabel: "01.07.2024",
     lastImport: "19.06.2026",
-    submittedThisMonth: 7620.33,
-    feesThisMonth: 169.54,
+    submittedThisMonth: 76203.3,
+    feesThisMonth: 1695.4,
     openCases: 1,
     openChargebacks: 450.4,
     withoutProtection: 220.0,
@@ -28,8 +28,8 @@ export const standorte: Standort[] = [
     goLiveDate: "2025-01-01",
     goLiveLabel: "01.01.2025",
     lastImport: "22.06.2026",
-    submittedThisMonth: 15420.2,
-    feesThisMonth: 351.9,
+    submittedThisMonth: 154202.0,
+    feesThisMonth: 3519.0,
     openCases: 2,
     openChargebacks: 1280.55,
     withoutProtection: 540.25,
@@ -45,8 +45,8 @@ export const standorte: Standort[] = [
     goLiveDate: "2025-04-01",
     goLiveLabel: "01.04.2025",
     lastImport: "18.06.2026",
-    submittedThisMonth: 12840.15,
-    feesThisMonth: 287.3,
+    submittedThisMonth: 128401.5,
+    feesThisMonth: 2873.0,
     openCases: 3,
     openChargebacks: 1410.2,
     withoutProtection: 630.4,
@@ -62,8 +62,8 @@ export const standorte: Standort[] = [
     goLiveDate: "2026-01-01",
     goLiveLabel: "01.01.2026",
     lastImport: "24.06.2026",
-    submittedThisMonth: 9310.75,
-    feesThisMonth: 214.8,
+    submittedThisMonth: 93107.5,
+    feesThisMonth: 2148.0,
     openCases: 2,
     openChargebacks: 790.3,
     withoutProtection: 310.0,
@@ -79,8 +79,8 @@ export const standorte: Standort[] = [
     goLiveDate: "2025-07-01",
     goLiveLabel: "01.07.2025",
     lastImport: "26.06.2026",
-    submittedThisMonth: 3912.6,
-    feesThisMonth: 104.77,
+    submittedThisMonth: 39126.0,
+    feesThisMonth: 1047.7,
     openCases: 5,
     openChargebacks: 5385.51,
     withoutProtection: 315.9,
@@ -108,11 +108,16 @@ export const standorte: Standort[] = [
 export const monthlyKpis = [
   ["Anzahl Standorte", "5 + 1", "fünf live, Kassel ab 01.07.2026"],
   ["BFS-Abrechnungen aktueller Monat", "9", "importiert und geprüft"],
-  ["Eingereichte Forderungen", "49.026,03 €", "aktueller Monat ohne Kassel"],
+  ["Eingereichte Forderungen", "491.040,30 €", "aktueller Monat ohne Kassel"],
   ["Offene Rückbelastungen", "9.317,36 €", "echte To-dos ohne Kassel"]
 ];
 
-const metricMonths = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"];
+const metricMonths = [
+  "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+  "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+  "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+  "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+];
 
 export const bfsPeriodMetrics: BfsPeriodMetric[] = standorte.flatMap((standort, standortIndex) => {
   const goLiveMonth = standort.goLiveDate.slice(0, 7);

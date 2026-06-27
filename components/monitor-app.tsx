@@ -5,7 +5,10 @@ import {
   AlertCircle,
   BarChart3,
   Building2,
+  CalendarClock,
   CheckCircle2,
+  CircleDollarSign,
+  ClipboardList,
   Download,
   FileArchive,
   FileText,
@@ -13,17 +16,19 @@ import {
   LayoutDashboard,
   LockKeyhole,
   Printer,
+  ReceiptText,
   RefreshCw,
   Search,
   Settings,
   ShieldCheck,
   Upload,
+  UserRoundCheck,
   Users
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   cases,
   dashboardSeries,
-  documents,
   importPreviewRows,
   monthlyKpis,
   riskClaims,
@@ -36,26 +41,91 @@ import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, 
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
-const superAdminNav = [
-  ["dashboard", "Gruppen-Dashboard", LayoutDashboard],
-  ["upload", "Abrechnungen importieren", FolderUp],
-  ["history", "Import-Historie", FileArchive],
-  ["cases", "Alle offenen Fälle", AlertCircle],
-  ["risks", "Ohne Ausfallschutz", ShieldCheck],
-  ["matches", "Neueinreichungen", RefreshCw],
-  ["reports", "Reports", FileText],
-  ["locations", "Standorte", Building2],
-  ["users", "Nutzer", Users],
-  ["settings", "Einstellungen", Settings]
-] as const;
+type NavItem = readonly [string, string, LucideIcon];
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
 
-const leadNav = [
-  ["dashboard", "Dashboard", LayoutDashboard],
-  ["cases", "Offene Fälle", AlertCircle],
-  ["risks", "Ohne Ausfallschutz", ShieldCheck],
-  ["matches", "Neueinreichungen", RefreshCw],
-  ["reports", "Reports", FileText]
-] as const;
+const superAdminNav: NavSection[] = [
+  {
+    title: "Überblick",
+    items: [
+      ["dashboard", "Gruppen-Dashboard", LayoutDashboard],
+      ["worklist", "Prioritäten heute", ClipboardList]
+    ]
+  },
+  {
+    title: "Import & Prüfung",
+    items: [
+      ["upload", "Monats-Sammelupload", FolderUp],
+      ["preview", "Import-Vorschau", ReceiptText],
+      ["history", "Import-Historie", FileArchive]
+    ]
+  },
+  {
+    title: "Klärfälle",
+    items: [
+      ["cases", "Offene BFS-Klärfälle", AlertCircle],
+      ["chargebacks", "Rückbelastungen", CircleDollarSign],
+      ["followups", "Wiedervorlagen", CalendarClock]
+    ]
+  },
+  {
+    title: "Risiko & Matching",
+    items: [
+      ["risks", "Ohne Ausfallschutz", ShieldCheck],
+      ["matches", "Neueinreichungen", RefreshCw]
+    ]
+  },
+  {
+    title: "Auswertung",
+    items: [
+      ["reports", "Report je Standort", FileText],
+      ["groupReports", "Gruppenreport", BarChart3]
+    ]
+  },
+  {
+    title: "Verwaltung",
+    items: [
+      ["locations", "Standorte", Building2],
+      ["users", "Nutzer & Rollen", Users],
+      ["settings", "Sicherheit & Regeln", Settings]
+    ]
+  }
+];
+
+const leadNav: NavSection[] = [
+  {
+    title: "Mein Standort",
+    items: [
+      ["dashboard", "Standort-Dashboard", LayoutDashboard],
+      ["worklist", "Meine Prioritäten", ClipboardList]
+    ]
+  },
+  {
+    title: "Klärfälle",
+    items: [
+      ["cases", "Offene Fälle", AlertCircle],
+      ["chargebacks", "Rückbelastungen", CircleDollarSign],
+      ["followups", "Wiedervorlagen", CalendarClock]
+    ]
+  },
+  {
+    title: "Risiko & Matching",
+    items: [
+      ["risks", "Ohne Ausfallschutz", ShieldCheck],
+      ["matches", "Neueinreichungen", RefreshCw]
+    ]
+  },
+  {
+    title: "Auswertung",
+    items: [
+      ["reports", "Standort-Reports", FileText],
+      ["settings", "Mein Profil & Sicherheit", UserRoundCheck]
+    ]
+  }
+];
 
 type MonitorAppProps = {
   lockedRole?: AppRole;
@@ -113,11 +183,16 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         )}
 
         <nav>
-          {nav.map(([key, label, Icon]) => (
-            <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => setActiveView(key)}>
-              <Icon size={18} />
-              <span>{label}</span>
-            </button>
+          {nav.map((section) => (
+            <div className="nav-section" key={section.title}>
+              <span className="nav-section-title">{section.title}</span>
+              {section.items.map(([key, label, Icon]) => (
+                <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => setActiveView(key)}>
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -154,14 +229,21 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </header>
 
         {activeView === "dashboard" && (
-          role === "super_admin" ? <GroupDashboard onOpenReports={() => setActiveView("reports")} /> : <LocationDashboard standort={selectedStandort} cases={visibleCases} />
+          role === "super_admin"
+            ? <GroupDashboard onNavigate={setActiveView} />
+            : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />
         )}
+        {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
         {activeView === "upload" && <UploadView />}
+        {activeView === "preview" && <ImportPreview rows={importPreviewRows} />}
         {activeView === "history" && <ImportHistory />}
         {activeView === "cases" && <CasesView cases={visibleCases} />}
+        {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
+        {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
         {activeView === "risks" && <RiskView standortId={role === "super_admin" ? undefined : selectedStandort.id} />}
         {activeView === "matches" && <MatchesView />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />}
+        {activeView === "groupReports" && <GroupReportsView onNavigate={setActiveView} />}
         {activeView === "locations" && <LocationsView />}
         {activeView === "users" && <UsersView />}
         {activeView === "settings" && <SettingsView />}
@@ -192,12 +274,17 @@ function AccessGate({ title, message }: { title: string; message: string }) {
 function titleFor(view: string, role: AppRole) {
   const titles: Record<string, string> = {
     dashboard: role === "super_admin" ? "Gruppen-Dashboard" : "Standort-Dashboard",
+    worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Monats-Sammelimport",
+    preview: "Import-Vorschau",
     history: "Import-Historie",
     cases: "Offene BFS-Klärfälle",
+    chargebacks: "Rückbelastungen",
+    followups: "Wiedervorlagen",
     risks: "Laufend ohne Ausfallschutz",
     matches: "Neueinreichungsvorschläge",
     reports: "Reports je Standort",
+    groupReports: "Gruppenreport",
     locations: "Standorte",
     users: "Nutzerverwaltung",
     settings: "Einstellungen"
@@ -205,17 +292,43 @@ function titleFor(view: string, role: AppRole) {
   return titles[view] ?? "Orisus BFS Monitor";
 }
 
-function GroupDashboard({ onOpenReports }: { onOpenReports: () => void }) {
+function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) {
+  const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
+  const overdueCases = openCases.filter((fall) => fall.ageDays > 30);
+  const chargebackTotal = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   return (
     <div className="content-stack">
       <KpiGrid />
+      <section className="dashboard-grid">
+        <article className="panel command-panel">
+          <div>
+            <span className="eyebrow">Heute zuerst</span>
+            <h2>{overdueCases.length} ältere Klärfälle und {money.format(chargebackTotal)} offen</h2>
+            <p>Beginne mit Rückbelastungen über 30 Tage, danach Wiedervorlagen und neue Importfehler prüfen.</p>
+          </div>
+          <div className="quick-actions">
+            <button className="primary-button" onClick={() => onNavigate("worklist")}><ClipboardList size={16} /> Prioritäten öffnen</button>
+            <button className="secondary-button" onClick={() => onNavigate("upload")}><Upload size={16} /> Monatsimport</button>
+            <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Standortreport</button>
+          </div>
+        </article>
+        <article className="panel process-panel">
+          <h2>Monatslauf</h2>
+          <div className="mini-process">
+            <button onClick={() => onNavigate("upload")}>Upload</button>
+            <button onClick={() => onNavigate("preview")}>Prüfen</button>
+            <button onClick={() => onNavigate("cases")}>Fälle</button>
+            <button onClick={() => onNavigate("reports")}>Reports</button>
+          </div>
+        </article>
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
             <h2>Standortübersicht</h2>
             <p>Offene To-dos, Rückbelastungen und Risikohinweise je Standort.</p>
           </div>
-          <button className="secondary-button" onClick={onOpenReports}>
+          <button className="secondary-button" onClick={() => onNavigate("reports")}>
             <Printer size={16} /> Reports
           </button>
         </div>
@@ -253,6 +366,11 @@ function GroupDashboard({ onOpenReports }: { onOpenReports: () => void }) {
           </table>
         </div>
       </section>
+      <section className="insight-grid">
+        <InsightCard title="Klärfälle nach Dringlichkeit" items={["Rot: älter als 30 Tage", "Orange: 15-30 Tage", "Gelb: 8-14 Tage"]} />
+        <InsightCard title="Importkontrolle" items={["Unbekannte Mandant-Nr. prüfen", "Summenabweichungen blockieren", "Dubletten nicht importieren"]} />
+        <InsightCard title="Reportversand" items={["Standort auswählen", "Nur offene Fälle filtern", "Druck/PDF oder CSV erzeugen"]} />
+      </section>
       <section className="chart-grid">
         {dashboardSeries.map((chart) => (
           <div className="panel mini-chart" key={chart.title}>
@@ -270,12 +388,77 @@ function GroupDashboard({ onOpenReports }: { onOpenReports: () => void }) {
   );
 }
 
-function LocationDashboard({ standort, cases }: { standort: Standort; cases: BfsCase[] }) {
+function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void }) {
   return (
     <div className="content-stack">
       <KpiGrid standort={standort} />
+      <section className="dashboard-grid">
+        <article className="panel command-panel">
+          <div>
+            <span className="eyebrow">Standortfokus</span>
+            <h2>{standort.openCases} offene Fälle am Standort {standort.name}</h2>
+            <p>Rückbelastungen zuerst prüfen, laufend ohne Ausfallschutz getrennt beobachten und Report für die Standortleitung erstellen.</p>
+          </div>
+          <div className="quick-actions">
+            <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Offene Fälle</button>
+            <button className="secondary-button" onClick={() => onNavigate("risks")}><ShieldCheck size={16} /> Risiko</button>
+            <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report</button>
+          </div>
+        </article>
+        <article className="panel process-panel">
+          <h2>Bearbeitungslogik</h2>
+          <div className="stacked-checks">
+            <span>1. echte Rückbelastungen klären</span>
+            <span>2. fehlerhafte Rechnungen neu einreichen</span>
+            <span>3. ohne Ausfallschutz beobachten</span>
+          </div>
+        </article>
+      </section>
       <CasesView cases={cases} compact />
     </div>
+  );
+}
+
+function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigate: (view: string) => void }) {
+  const sorted = [...rows].filter((fall) => !fall.status.includes("erledigt")).sort((a, b) => b.ageDays - a.ageDays);
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Sofort prüfen" value={String(sorted.filter((fall) => fall.ageDays > 30).length)} hint="älter als 30 Tage" tone="red" />
+        <PriorityCard label="Diese Woche" value={String(sorted.filter((fall) => fall.ageDays >= 8 && fall.ageDays <= 30).length)} hint="8-30 Tage offen" tone="amber" />
+        <PriorityCard label="Wiedervorlage" value={String(sorted.filter((fall) => fall.status === "wiedervorlage").length)} hint="mit Termin" tone="blue" />
+        <PriorityCard label="Offener Betrag" value={money.format(sorted.reduce((sum, fall) => sum + fall.amount, 0))} hint="alle offenen Fälle" tone="green" />
+      </section>
+      <section className="panel slim-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Arbeitsliste nach Priorität</h2>
+            <p>Die Liste ist so sortiert, wie ein Standort oder die Zentrale sinnvollerweise abarbeitet.</p>
+          </div>
+          <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report erzeugen</button>
+        </div>
+      </section>
+      <CasesView cases={sorted} compact />
+    </div>
+  );
+}
+
+function PriorityCard({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
+  return (
+    <article className={`priority-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
+    </article>
+  );
+}
+
+function InsightCard({ title, items }: { title: string; items: string[] }) {
+  return (
+    <article className="panel insight-card">
+      <h2>{title}</h2>
+      {items.map((item) => <span key={item}>{item}</span>)}
+    </article>
   );
 }
 
@@ -363,13 +546,13 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
   );
 }
 
-function CasesView({ cases: rows, compact = false }: { cases: BfsCase[]; compact?: boolean }) {
+function CasesView({ cases: rows, compact = false, title, description }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string }) {
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h2>{compact ? "Offene Fälle am Standort" : "Offene Rückbelastungen / Klärfälle"}</h2>
-          <p>Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt.</p>
+          <h2>{title ?? (compact ? "Offene Fälle am Standort" : "Offene Rückbelastungen / Klärfälle")}</h2>
+          <p>{description ?? "Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt."}</p>
         </div>
         <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
       </div>
@@ -491,6 +674,42 @@ function ReportsView({ role, standort, cases }: { role: AppRole; standort: Stand
         <CasesView cases={reportCases} compact />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
         <RiskView standortId={standort.id} />
+      </section>
+    </div>
+  );
+}
+
+function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }) {
+  return (
+    <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Gruppenreport</h2>
+            <p>Konsolidierte Auswertung über alle Standorte für Zentrale und Monatsabschluss.</p>
+          </div>
+          <button className="secondary-button" onClick={() => onNavigate("reports")}><FileText size={16} /> Report je Standort</button>
+        </div>
+        <div className="report-type-grid">
+          <button onClick={() => onNavigate("cases")}><AlertCircle size={18} /> Offene Klärfälle gruppiert</button>
+          <button onClick={() => onNavigate("chargebacks")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
+          <button onClick={() => onNavigate("risks")}><ShieldCheck size={18} /> Ohne Ausfallschutz laufend</button>
+          <button onClick={() => onNavigate("history")}><FileArchive size={18} /> Monatsimport-Status</button>
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Auswertungsfilter</h2>
+            <p>Vorbereitet für Zeitraum, Standort, Status, Falltyp und Sortierung.</p>
+          </div>
+        </div>
+        <div className="filter-grid">
+          <label>Zeitraum<select><option>Aktueller Monat</option><option>Letzte 3 Monate</option></select></label>
+          <label>Status<select><option>Nur offene Fälle</option><option>inkl. erledigte Fälle</option></select></label>
+          <label>Falltyp<select><option>Alle Falltypen</option><option>Rückbelastungen</option><option>Fehlerhafte Rechnungen</option></select></label>
+          <label>Sortierung<select><option>Alter absteigend</option><option>Betrag absteigend</option><option>Standort</option></select></label>
+        </div>
       </section>
     </div>
   );

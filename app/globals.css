@@ -108,7 +108,22 @@ td span,
 
 nav {
   display: grid;
+  gap: 16px;
+}
+
+.nav-section {
+  display: grid;
   gap: 5px;
+}
+
+.nav-section-title {
+  display: block;
+  padding: 0 12px 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .nav-item {
@@ -206,6 +221,146 @@ input {
 .kpi-card strong {
   font-size: 27px;
   line-height: 1.1;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.5fr);
+  gap: 14px;
+}
+
+.command-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+}
+
+.command-panel h2 {
+  margin: 4px 0 8px;
+  font-size: 24px;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.process-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.mini-process,
+.stacked-checks {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-process button,
+.stacked-checks span,
+.report-type-grid button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #344054;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.mini-process button:hover,
+.report-type-grid button:hover {
+  border-color: #8bb8ff;
+  background: #eaf2ff;
+}
+
+.insight-grid,
+.priority-grid,
+.report-type-grid,
+.filter-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.insight-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-card {
+  display: grid;
+  gap: 9px;
+}
+
+.insight-card span {
+  display: block;
+  color: #475467;
+}
+
+.priority-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.priority-card {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.priority-card strong {
+  font-size: 28px;
+}
+
+.priority-card span,
+.priority-card small {
+  color: var(--muted);
+}
+
+.priority-card.red {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.priority-card.amber {
+  border-color: #fedf89;
+  background: #fffbeb;
+}
+
+.priority-card.blue {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.priority-card.green {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.report-type-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.report-type-grid button {
+  display: grid;
+  gap: 8px;
+  min-height: 108px;
+}
+
+.filter-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .panel {
@@ -766,8 +921,21 @@ td span {
   .chart-grid,
   .cards-grid,
   .landing-cards,
-  .process-section {
+  .process-section,
+  .dashboard-grid,
+  .insight-grid,
+  .priority-grid,
+  .report-type-grid,
+  .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-panel {
+    display: grid;
+  }
+
+  .quick-actions {
+    justify-content: flex-start;
   }
 
   .landing-hero {
@@ -793,7 +961,12 @@ td span {
   .cards-grid,
   .landing-cards,
   .process-section,
-  .security-section {
+  .security-section,
+  .dashboard-grid,
+  .insight-grid,
+  .priority-grid,
+  .report-type-grid,
+  .filter-grid {
     grid-template-columns: 1fr;
   }
 }

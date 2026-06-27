@@ -555,11 +555,11 @@ input {
 }
 
 .metric-info-popover {
-  position: absolute;
-  top: 34px;
-  right: 0;
+  position: fixed;
   z-index: 90;
-  width: min(310px, calc(100vw - 40px));
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(420px, calc(100vh - 32px));
+  overflow: auto;
   border: 1px solid #d0d5dd;
   border-radius: 8px;
   background: #ffffff;
@@ -2767,6 +2767,7 @@ td small,
   border-color: rgba(178, 226, 229, 0.28);
   background: #ffffff;
   color: #102a3a;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
 }
 
 .metric-info-popover strong {

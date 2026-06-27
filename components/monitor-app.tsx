@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -2124,17 +2124,63 @@ function periodLabelFromHint(hint: string) {
 }
 
 function MetricInfo({ title, text }: { title: string; text: string }) {
+  const id = useId();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    function handleInfoOpen(event: Event) {
+      const detail = (event as CustomEvent<{ id?: string }>).detail;
+      if (detail?.id !== id) setOpen(false);
+    }
+
+    function close() {
+      setOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") close();
+    }
+
+    window.addEventListener("orisus:metric-info-open", handleInfoOpen);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("orisus:metric-info-open", handleInfoOpen);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [id]);
+
+  function toggleInfo() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const popoverWidth = Math.min(340, window.innerWidth - 32);
+      const left = Math.max(16, Math.min(rect.right - popoverWidth, window.innerWidth - popoverWidth - 16));
+      const top = Math.min(rect.bottom + 10, window.innerHeight - 180);
+      setPosition({ top: Math.max(16, top), left });
+    }
+    window.dispatchEvent(new CustomEvent("orisus:metric-info-open", { detail: { id } }));
+    setOpen(true);
+  }
 
   return (
     <div className="metric-info">
-      <button className="metric-info-button" aria-label={`Herleitung ${title}`} onClick={() => setOpen(true)}>
+      <button ref={buttonRef} className="metric-info-button" aria-label={`Herleitung ${title}`} onClick={toggleInfo}>
         <Info size={14} />
       </button>
       {open && (
         <>
           <button className="metric-info-backdrop" aria-label="Infobox schließen" onClick={() => setOpen(false)} />
-          <div className="metric-info-popover" role="dialog" aria-label={`Herleitung ${title}`}>
+          <div className="metric-info-popover" style={position} role="dialog" aria-label={`Herleitung ${title}`}>
             <div>
               <strong>{title}</strong>
               <button aria-label="Infobox schließen" onClick={() => setOpen(false)}>

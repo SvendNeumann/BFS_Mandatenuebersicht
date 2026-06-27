@@ -315,7 +315,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </div>
           <div className="topbar-actions desktop-page-actions">
             {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
-            {role === "super_admin" && activeView !== "dashboard" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
           </div>
         </header>
         <div className="mobile-page-heading">
@@ -325,7 +324,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </div>
           <div className="topbar-actions">
             {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
-            {role === "super_admin" && activeView !== "dashboard" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
           </div>
         </div>
 

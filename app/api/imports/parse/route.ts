@@ -206,6 +206,7 @@ async function findExistingDocumentId(
       .from("bfs_documents")
       .select("id")
       .eq("file_hash", row.fileHash)
+      .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate", "archived"])
       .maybeSingle();
     if (existingByHash?.id) return existingByHash.id as string;
   }
@@ -219,6 +220,7 @@ async function findExistingDocumentId(
     .eq("standort_id", standortId)
     .eq("bfs_mandant_nr", row.mandantNo)
     .eq("abrechnung_nr", row.statementNo)
+    .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate", "archived"])
     .limit(1)
     .maybeSingle();
   return existingByStatement?.id as string | null;
@@ -255,23 +257,72 @@ async function insertDocument(
 
   const { data: existing } = await supabase
     .from("bfs_documents")
-    .select("id")
+    .select("id, status")
     .eq("file_hash", row.fileHash)
     .maybeSingle();
-  if (existing?.id) return existing.id as string;
+  if (existing?.id) {
+    if (existing.status === "error") return replaceErroredDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
+    return existing.id as string;
+  }
 
   const businessIdentity = importRowBusinessIdentity(row);
   if (!businessIdentity) return undefined;
 
   const { data: existingByStatement } = await supabase
     .from("bfs_documents")
-    .select("id")
+    .select("id, status")
     .eq("standort_id", standortId)
     .eq("bfs_mandant_nr", row.mandantNo)
     .eq("abrechnung_nr", row.statementNo)
     .limit(1)
     .maybeSingle();
-  return existingByStatement?.id as string | undefined;
+  if (!existingByStatement?.id) return undefined;
+  if (existingByStatement.status === "error") {
+    return replaceErroredDocument(supabase, existingByStatement.id as string, batchId, standortId, storagePath, file, row);
+  }
+  return existingByStatement.id as string | undefined;
+}
+
+async function replaceErroredDocument(
+  supabase: SupabaseDbClient,
+  documentId: string,
+  batchId: string,
+  standortId: string,
+  storagePath: string,
+  file: File,
+  row: ImportPreviewRow
+) {
+  await clearDocumentChildren(supabase, documentId);
+  const { data, error } = await supabase
+    .from("bfs_documents")
+    .update({
+      batch_id: batchId,
+      standort_id: standortId,
+      storage_path: storagePath,
+      original_filename: row.file,
+      file_hash: row.fileHash,
+      file_size_bytes: row.fileSizeBytes ?? file.size,
+      mime_type: file.type || "application/pdf",
+      bfs_mandant_nr: row.mandantNo,
+      mandant_name: row.practice,
+      abrechnung_nr: row.statementNo,
+      abrechnung_datum: parseGermanDate(row.date),
+      status: "imported",
+      parse_error: null,
+      extracted_json: row
+    })
+    .eq("id", documentId)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+async function clearDocumentChildren(supabase: SupabaseDbClient, documentId: string) {
+  await supabase.from("bfs_cases").delete().eq("document_id", documentId);
+  await supabase.from("bfs_bewegungen").delete().eq("document_id", documentId);
+  await supabase.from("bfs_forderungen").delete().eq("document_id", documentId);
+  await supabase.from("bfs_abrechnungen").delete().eq("document_id", documentId);
 }
 
 async function insertAbrechnung(

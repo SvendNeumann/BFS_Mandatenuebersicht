@@ -1304,6 +1304,9 @@ type ImportPersistenceSummary = {
   errors?: Array<{ file: string; message: string }>;
 };
 
+const uploadChunkMaxFiles = 6;
+const uploadChunkMaxBytes = 3.5 * 1024 * 1024;
+
 function summarizeImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
@@ -2250,9 +2253,65 @@ async function parseImportFiles(
   files: File[],
   onProgress?: (processed: number, total: number, fileName: string) => void
 ) {
+  const chunks = chunkUploadFiles(files);
+  if (chunks.length <= 1) return parseImportFileChunk(files, onProgress, files.length, 0);
+
+  const rows: ImportPreviewRow[] = [];
+  const persistence: ImportPersistenceSummary = { batchId: "chunked", imported: 0, duplicates: 0, failed: 0, errors: [] };
+  let processed = 0;
+
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    const chunkResult = await parseImportChunkWithRetry(chunk, (chunkProcessed, _chunkTotal, fileName) => {
+      onProgress?.(processed + chunkProcessed, files.length, `Paket ${chunkIndex + 1}/${chunks.length}: ${fileName}`);
+    });
+    rows.push(...chunkResult.rows);
+    mergePersistenceSummary(persistence, chunkResult.persistence);
+    processed += chunk.length;
+    onProgress?.(processed, files.length, `Paket ${chunkIndex + 1}/${chunks.length} abgeschlossen`);
+  }
+
+  return { rows: reconcileImportRows(rows), persistence };
+}
+
+async function parseImportChunkWithRetry(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+): Promise<{ rows: ImportPreviewRow[]; persistence?: ImportPersistenceSummary }> {
+  try {
+    return await parseImportFileChunk(files, onProgress, files.length, 0);
+  } catch (error) {
+    if (error instanceof ImportChunkError && (error.status === 401 || error.status === 403)) throw error;
+    if (files.length > 1) {
+      const midpoint = Math.ceil(files.length / 2);
+      const left = await parseImportChunkWithRetry(files.slice(0, midpoint), onProgress);
+      const right = await parseImportChunkWithRetry(files.slice(midpoint), onProgress);
+      const persistence: ImportPersistenceSummary = { batchId: "split", imported: 0, duplicates: 0, failed: 0, errors: [] };
+      mergePersistenceSummary(persistence, left.persistence);
+      mergePersistenceSummary(persistence, right.persistence);
+      return { rows: [...left.rows, ...right.rows], persistence };
+    }
+    return {
+      rows: [],
+      persistence: {
+        batchId: "failed-single",
+        imported: 0,
+        duplicates: 0,
+        failed: 1,
+        errors: [{ file: uploadFilePath(files[0]), message: error instanceof Error ? error.message : "Serverseitiger Import fehlgeschlagen." }]
+      }
+    };
+  }
+}
+
+async function parseImportFileChunk(
+  files: File[],
+  onProgress: ((processed: number, total: number, fileName: string) => void) | undefined,
+  total: number,
+  offset: number
+) {
   const formData = new FormData();
   files.forEach((file) => {
-    const filePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    const filePath = uploadFilePath(file);
     formData.append("files", file, filePath);
     formData.append("paths", filePath);
   });
@@ -2265,7 +2324,7 @@ async function parseImportFiles(
 
   if (response.ok) {
     const payload = await response.json() as { rows: ImportPreviewRow[]; persistence?: ImportPersistenceSummary };
-    payload.rows.forEach((row, index) => onProgress?.(index + 1, payload.rows.length, row.file));
+    payload.rows.forEach((row, index) => onProgress?.(offset + index + 1, total, row.file));
     return { rows: payload.rows, persistence: payload.persistence };
   }
 
@@ -2274,7 +2333,46 @@ async function parseImportFiles(
   }
 
   const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
-  throw new Error(errorPayload?.error ?? "Serverseitiger Import fehlgeschlagen.");
+  throw new ImportChunkError(response.status, errorPayload?.error ?? "Serverseitiger Import fehlgeschlagen.");
+}
+
+function uploadFilePath(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+}
+
+function chunkUploadFiles(files: File[]) {
+  const chunks: File[][] = [];
+  let current: File[] = [];
+  let currentBytes = 0;
+
+  files.forEach((file) => {
+    const wouldExceedSize = current.length > 0 && currentBytes + file.size > uploadChunkMaxBytes;
+    const wouldExceedCount = current.length >= uploadChunkMaxFiles;
+    if (wouldExceedSize || wouldExceedCount) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(file);
+    currentBytes += file.size;
+  });
+
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
+function mergePersistenceSummary(target: ImportPersistenceSummary, next?: ImportPersistenceSummary) {
+  if (!next) return;
+  target.imported += next.imported;
+  target.duplicates += next.duplicates;
+  target.failed += next.failed;
+  target.errors = [...(target.errors ?? []), ...(next.errors ?? [])].slice(0, 20);
+}
+
+class ImportChunkError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
 }
 
 function importStatusMessage(parsedCount: number, persistence?: ImportPersistenceSummary) {

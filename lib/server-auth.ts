@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { appSessionCookie, verifyAppSession } from "./app-session";
 
 const accessCookie = "orisus_bfs_access_token";
 
@@ -33,6 +34,22 @@ export function createUserClient(accessToken: string) {
 export async function getRequestProfile(): Promise<{ accessToken: string; profile: ServerProfile } | { error: string; status: number }> {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get(accessCookie)?.value;
+  const appSession = verifyAppSession(cookieStore.get(appSessionCookie)?.value);
+
+  if (appSession) {
+    const serviceClient = createServiceClient();
+    if (!serviceClient) return { error: "Supabase ist nicht konfiguriert.", status: 500 };
+    const { data: profile, error } = await serviceClient
+      .from("profiles")
+      .select("id, email, role, active, must_change_password")
+      .eq("id", appSession.userId)
+      .maybeSingle();
+
+    if (error || !profile?.active) return { error: "Kein aktiver Zugriff.", status: 403 };
+    if (profile.role !== "super_admin" && profile.role !== "standortleitung") return { error: "Rolle nicht freigegeben.", status: 403 };
+    return { accessToken: "app-session", profile: profile as ServerProfile };
+  }
+
   if (!accessToken) return { error: "Nicht angemeldet.", status: 401 };
 
   const userClient = createUserClient(accessToken);

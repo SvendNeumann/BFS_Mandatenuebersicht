@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appSessionCookie } from "@/lib/app-session";
 
 const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
 
   response.cookies.set(accessCookie, body.accessToken, sessionCookieOptions(maxAge));
   response.cookies.set(refreshCookie, body.refreshToken, sessionCookieOptions(body.remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7));
+  response.cookies.set(appSessionCookie, "", sessionCookieOptions(0));
   return response;
 }
 
@@ -29,6 +31,7 @@ export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(accessCookie, "", sessionCookieOptions(0));
   response.cookies.set(refreshCookie, "", sessionCookieOptions(0));
+  response.cookies.set(appSessionCookie, "", sessionCookieOptions(0));
   return response;
 }
 

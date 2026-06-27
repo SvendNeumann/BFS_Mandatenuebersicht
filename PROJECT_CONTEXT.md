@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweis 19092/273
+Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweisen 19092/273 und 18504/249
 
 ## Prompt fuer den naechsten Chat
 
@@ -284,6 +284,16 @@ Letzte Parser-Verifikation:
 - Kontoauszug erkannt: Abrechnungsumsatz und Regulierung/Überweisung je `1.577,69 EUR`
 - Korrektur: `USt-ID-Nr.` darf nicht als MwSt-Zeile für Gebühren erkannt werden; Steuerzeile muss echte Beträge enthalten und Steuerbetrag positiv ausgewiesen werden.
 
+Weitere Parser-Verifikation:
+- Datei: `AbrechnungsNachweis_18504_249.pdf`
+- Mandant: `18504`, Standort Kirchberg / Dres. Kallweit MVZ
+- Abrechnung: `249` vom `22.05.2026`
+- Forderungen: `69`, Summe `37.724,18 EUR`, alle 69 Positionen erkannt
+- Auszahlung/Umsatz Netto: `36.714,12 EUR`
+- BFS-Gebühren: netto `848,79 EUR`, MwSt `161,27 EUR`, gesamt `1.010,06 EUR`
+- Ohne Ausfallschutz: 0 Forderungen, `0,00 EUR`
+- Kontoauszug erkannt: Abrechnungsumsatz und Regulierung/Überweisung je `36.714,12 EUR`
+
 EWMA:
 - EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
@@ -364,7 +374,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Korrektur BFS-Gebuehrenaufteilung bei MwSt-Zeilen nach Parser-Verifikation 19092/273
+- naechster Commit: Parser-Verifikation fuer Kirchberg-Abrechnung 18504/249 dokumentieren
+- `a3902584` - Fix BFS fee VAT parsing
 - Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden
 - `2261686e` - Use clickable Orisus logo and refresh navigation data
 - `aad283db` - Collapse sidebar sections on view change

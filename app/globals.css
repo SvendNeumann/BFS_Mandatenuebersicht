@@ -2527,6 +2527,8 @@ tbody tr:hover td {
     background: #ffffff;
     color: var(--primary-dark);
     box-shadow: var(--shadow-soft);
+    order: 2;
+    justify-self: end;
   }
 
   .drawer-close {
@@ -2762,11 +2764,17 @@ tbody tr:hover td {
   }
 
   .topbar {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
   }
 
+  .topbar > div:first-of-type {
+    order: 1;
+    min-width: 0;
+  }
+
   .topbar-actions {
+    order: 3;
     grid-column: 1 / -1;
   }
 

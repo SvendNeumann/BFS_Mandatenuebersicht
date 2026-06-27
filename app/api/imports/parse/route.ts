@@ -82,6 +82,52 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE() {
+  try {
+    const auth = await requireSuperAdmin();
+    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const supabase = createServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
+    }
+
+    const { data, error } = await supabase
+      .from("bfs_documents")
+      .select("id")
+      .eq("status", "imported");
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const documentIds = (data ?? []).map((entry: { id: string }) => entry.id);
+    if (!documentIds.length) {
+      return NextResponse.json({ reset: true, archived: 0 }, { headers: noStoreHeaders() });
+    }
+
+    await clearDocumentsChildren(supabase, documentIds);
+
+    for (const chunk of chunkArray(documentIds, 200)) {
+      const { error: updateError } = await supabase
+        .from("bfs_documents")
+        .update({
+          status: "archived",
+          extracted_json: null,
+          parse_error: "Vom Nutzer zurückgesetzter Importdatenstand."
+        })
+        .in("id", chunk);
+
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ reset: true, archived: documentIds.length }, { headers: noStoreHeaders() });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Importdaten konnten nicht zurückgesetzt werden." },
+      { status: 500 }
+    );
+  }
+}
+
 function fileWithUploadPath(file: File, uploadPath: string | undefined) {
   if (!uploadPath || uploadPath === file.name) return file;
   return new File([file], uploadPath, {
@@ -206,7 +252,7 @@ async function findExistingDocumentId(
       .from("bfs_documents")
       .select("id")
       .eq("file_hash", row.fileHash)
-      .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate", "archived"])
+      .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate"])
       .maybeSingle();
     if (existingByHash?.id) return existingByHash.id as string;
   }
@@ -220,7 +266,7 @@ async function findExistingDocumentId(
     .eq("standort_id", standortId)
     .eq("bfs_mandant_nr", row.mandantNo)
     .eq("abrechnung_nr", row.statementNo)
-    .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate", "archived"])
+    .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate"])
     .limit(1)
     .maybeSingle();
   return existingByStatement?.id as string | null;
@@ -261,7 +307,9 @@ async function insertDocument(
     .eq("file_hash", row.fileHash)
     .maybeSingle();
   if (existing?.id) {
-    if (existing.status === "error") return replaceErroredDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
+    if (existing.status === "error" || existing.status === "archived" || existing.status === "deleted") {
+      return replaceErroredDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
+    }
     return existing.id as string;
   }
 
@@ -277,7 +325,7 @@ async function insertDocument(
     .limit(1)
     .maybeSingle();
   if (!existingByStatement?.id) return undefined;
-  if (existingByStatement.status === "error") {
+  if (existingByStatement.status === "error" || existingByStatement.status === "archived" || existingByStatement.status === "deleted") {
     return replaceErroredDocument(supabase, existingByStatement.id as string, batchId, standortId, storagePath, file, row);
   }
   return existingByStatement.id as string | undefined;
@@ -319,10 +367,32 @@ async function replaceErroredDocument(
 }
 
 async function clearDocumentChildren(supabase: SupabaseDbClient, documentId: string) {
-  await supabase.from("bfs_cases").delete().eq("document_id", documentId);
-  await supabase.from("bfs_bewegungen").delete().eq("document_id", documentId);
-  await supabase.from("bfs_forderungen").delete().eq("document_id", documentId);
-  await supabase.from("bfs_abrechnungen").delete().eq("document_id", documentId);
+  await throwIfSupabaseError(supabase.from("bfs_cases").delete().eq("document_id", documentId));
+  await throwIfSupabaseError(supabase.from("bfs_bewegungen").delete().eq("document_id", documentId));
+  await throwIfSupabaseError(supabase.from("bfs_forderungen").delete().eq("document_id", documentId));
+  await throwIfSupabaseError(supabase.from("bfs_abrechnungen").delete().eq("document_id", documentId));
+}
+
+async function clearDocumentsChildren(supabase: SupabaseDbClient, documentIds: string[]) {
+  for (const chunk of chunkArray(documentIds, 200)) {
+    await throwIfSupabaseError(supabase.from("bfs_cases").delete().in("document_id", chunk));
+    await throwIfSupabaseError(supabase.from("bfs_bewegungen").delete().in("document_id", chunk));
+    await throwIfSupabaseError(supabase.from("bfs_forderungen").delete().in("document_id", chunk));
+    await throwIfSupabaseError(supabase.from("bfs_abrechnungen").delete().in("document_id", chunk));
+  }
+}
+
+async function throwIfSupabaseError(query: PromiseLike<{ error?: { message?: string } | null }>) {
+  const { error } = await query;
+  if (error) throw new Error(error.message ?? "Supabase-Operation fehlgeschlagen.");
+}
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 async function insertAbrechnung(

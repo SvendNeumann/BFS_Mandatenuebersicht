@@ -2172,11 +2172,19 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
   }
 
   async function resetUpload() {
-    onRowsChange([]);
-    setSelectedFileCount(0);
-    setUploadStatus("Upload wird vollständig gelöscht");
-    await clearStoredImportRows();
-    setUploadStatus("Kompletter Import gelöscht");
+    setIsProcessing(true);
+    setUploadStatus("Upload wird vollständig zurückgesetzt");
+    try {
+      await clearStoredImportRowsFromServer();
+      await clearStoredImportRows();
+      onRowsChange([]);
+      setSelectedFileCount(0);
+      setUploadStatus("Importdatenstand zurückgesetzt");
+    } catch (error) {
+      setUploadStatus(`Upload konnte nicht vollständig zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsProcessing(false);
+    }
   }
 
   return (
@@ -2950,6 +2958,13 @@ async function loadStoredImportRowsFromServer() {
   if (!response.ok) throw new Error("Server-Importdaten konnten nicht geladen werden.");
   const payload = await response.json() as { rows?: ImportPreviewRow[] };
   return reconcileImportRows(payload.rows ?? []);
+}
+
+async function clearStoredImportRowsFromServer() {
+  if (typeof window === "undefined") return;
+  const response = await fetch("/api/imports/parse", { method: "DELETE", cache: "no-store" });
+  const payload = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error ?? "Server-Importdaten konnten nicht zurückgesetzt werden.");
 }
 
 function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPreviewRow[]) {

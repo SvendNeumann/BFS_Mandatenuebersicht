@@ -51,6 +51,8 @@ import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, 
 import { parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
+const locationConfigStorageKey = "orisus_bfs_monitor_locations";
 
 type NavItem = readonly [string, string, LucideIcon];
 type NavSection = {
@@ -158,6 +160,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [session, setSession] = useState<DemoSession | null>(() => getDemoSession());
   const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(initialView);
+  const [, setLocationConfigVersion] = useState(0);
   const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -177,6 +180,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const manuallyExpandedSection = Object.entries(expandedSections).find(([, expanded]) => expanded)?.[0];
 
   useEffect(() => {
+    applyStoredStandorteConfig();
+    setLocationConfigVersion((version) => version + 1);
     let active = true;
     loadStoredImportRowsFromDb()
       .then((rows) => {
@@ -338,7 +343,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
-        {activeView === "locations" && <LocationsView />}
+        {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
         {activeView === "users" && <UsersView />}
         {activeView === "settings" && <SettingsView />}
       </section>
@@ -2791,18 +2796,176 @@ function ImportHistory({ rows }: { rows: ImportPreviewRow[] }) {
   return <ImportPreview rows={rows} />;
 }
 
-function LocationsView() {
+function cloneStandorteForEditing() {
+  return standorte.map((standort) => ({ ...standort, mandantNos: [...(standort.mandantNos ?? [standort.mandantNo])], locationHints: [...(standort.locationHints ?? [])] }));
+}
+
+function standorteDefaults() {
+  return defaultStandorteSnapshot.map((snapshot) => ({
+    ...standorte.find((standort) => standort.id === snapshot.id)!,
+    ...snapshot,
+    mandantNos: [...snapshot.mandantNos],
+    locationHints: [...snapshot.locationHints]
+  }));
+}
+
+function applyStoredStandorteConfig() {
+  if (typeof window === "undefined") return;
+  const raw = window.localStorage.getItem(locationConfigStorageKey);
+  if (!raw) return;
+  try {
+    applyStandorteConfig(JSON.parse(raw) as ReturnType<typeof locationConfigSnapshot>[]);
+  } catch {
+    window.localStorage.removeItem(locationConfigStorageKey);
+  }
+}
+
+function applyStandorteConfig(config: ReturnType<typeof locationConfigSnapshot>[]) {
+  config.forEach((snapshot) => {
+    const target = standorte.find((standort) => standort.id === snapshot.id);
+    if (!target) return;
+    const mandantNos = uniqueMandantNos(snapshot.mandantNos);
+    Object.assign(target, {
+      name: snapshot.name,
+      praxisname: snapshot.praxisname,
+      mandantNo: mandantNos[0] ?? target.mandantNo,
+      mandantNos,
+      locationHints: uniqueTextValues(snapshot.locationHints),
+      goLiveDate: snapshot.goLiveDate,
+      goLiveLabel: formatGermanDate(snapshot.goLiveDate)
+    });
+  });
+}
+
+function locationConfigSnapshot(standort: Standort) {
+  return {
+    id: standort.id,
+    name: standort.name,
+    praxisname: standort.praxisname,
+    mandantNo: standort.mandantNo,
+    mandantNos: uniqueMandantNos(standort.mandantNos ?? [standort.mandantNo]),
+    locationHints: uniqueTextValues(standort.locationHints ?? []),
+    goLiveDate: standort.goLiveDate,
+    goLiveLabel: formatGermanDate(standort.goLiveDate)
+  };
+}
+
+function uniqueMandantNos(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.replace(/\D/g, "").trim()).filter(Boolean)));
+}
+
+function uniqueTextValues(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function formatGermanDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : value;
+}
+
+function LocationsView({ onLocationsChange }: { onLocationsChange: () => void }) {
+  const [drafts, setDrafts] = useState(() => cloneStandorteForEditing());
+  const [message, setMessage] = useState("Änderungen werden lokal im Browser gespeichert und für die Demo-Zuordnung genutzt.");
+
+  function updateLocation(id: string, patch: Partial<Standort>) {
+    setDrafts((current) => current.map((standort) => standort.id === id ? { ...standort, ...patch } : standort));
+  }
+
+  function updateMandantNo(id: string, index: number, value: string) {
+    setDrafts((current) => current.map((standort) => {
+      if (standort.id !== id) return standort;
+      const mandantNos = [...(standort.mandantNos ?? [standort.mandantNo])];
+      mandantNos[index] = value.replace(/\D/g, "");
+      return { ...standort, mandantNos, mandantNo: mandantNos[0] ?? "" };
+    }));
+  }
+
+  function addMandantNo(id: string) {
+    setDrafts((current) => current.map((standort) => standort.id === id ? { ...standort, mandantNos: [...(standort.mandantNos ?? [standort.mandantNo]), ""] } : standort));
+  }
+
+  function removeMandantNo(id: string, index: number) {
+    setDrafts((current) => current.map((standort) => {
+      if (standort.id !== id) return standort;
+      const mandantNos = (standort.mandantNos ?? [standort.mandantNo]).filter((_, currentIndex) => currentIndex !== index);
+      const fallbackMandantNos = mandantNos.length ? mandantNos : [standort.mandantNo];
+      return { ...standort, mandantNos: fallbackMandantNos, mandantNo: fallbackMandantNos[0] ?? "" };
+    }));
+  }
+
+  function resetLocations() {
+    if (typeof window !== "undefined") window.localStorage.removeItem(locationConfigStorageKey);
+    applyStandorteConfig(standorteDefaults());
+    setDrafts(cloneStandorteForEditing());
+    setMessage("Standortverwaltung wurde auf den Projektstandard zurückgesetzt.");
+    onLocationsChange();
+  }
+
+  function saveLocations() {
+    const cleaned = drafts.map((standort) => {
+      const mandantNos = uniqueMandantNos(standort.mandantNos ?? [standort.mandantNo]);
+      return {
+        ...standort,
+        mandantNo: mandantNos[0] ?? standort.mandantNo,
+        mandantNos,
+        goLiveLabel: formatGermanDate(standort.goLiveDate)
+      };
+    });
+    applyStandorteConfig(cleaned);
+    if (typeof window !== "undefined") window.localStorage.setItem(locationConfigStorageKey, JSON.stringify(cleaned.map(locationConfigSnapshot)));
+    setDrafts(cloneStandorteForEditing());
+    setMessage("Standorte und BFS-Mandantennummern wurden gespeichert.");
+    onLocationsChange();
+  }
+
   return (
     <section className="panel">
-      <div className="panel-heading"><h2>Standorte</h2><button className="primary-button">Standort anlegen</button></div>
-      <div className="cards-grid">
-        {standorte.map((standort) => (
-          <article className="data-card" key={standort.id}>
-            <Building2 size={18} />
-            <strong>{standort.name}</strong>
-            <span>{standort.praxisname}</span>
-            <small>Mandant-Nr. {standort.mandantNo}</small>
-            <StatusBadge status={isStandortLive(standort) ? `live seit ${standort.goLiveLabel}` : `geplant ab ${standort.goLiveLabel}`} />
+      <div className="panel-heading">
+        <div>
+          <h2>Standorte verwalten</h2>
+          <p>{message}</p>
+        </div>
+        <div className="topbar-actions">
+          <button className="secondary-button" onClick={resetLocations}>Zurücksetzen</button>
+          <button className="primary-button" onClick={saveLocations}>Speichern</button>
+        </div>
+      </div>
+      <div className="location-editor-grid">
+        {drafts.map((standort) => (
+          <article className="location-editor-card" key={standort.id}>
+            <div className="location-editor-head">
+              <Building2 size={18} />
+              <div>
+                <strong>{standort.name}</strong>
+                <span>{standort.praxisname}</span>
+              </div>
+              <StatusBadge status={isStandortLive(standort) ? `live seit ${formatGermanDate(standort.goLiveDate)}` : `geplant ab ${formatGermanDate(standort.goLiveDate)}`} />
+            </div>
+            <label>
+              Standortname
+              <input value={standort.name} onChange={(event) => updateLocation(standort.id, { name: event.target.value })} />
+            </label>
+            <label>
+              Praxisname
+              <input value={standort.praxisname} onChange={(event) => updateLocation(standort.id, { praxisname: event.target.value })} />
+            </label>
+            <label>
+              Vertragsstart / Go-live
+              <input type="date" value={standort.goLiveDate} onChange={(event) => updateLocation(standort.id, { goLiveDate: event.target.value, goLiveLabel: formatGermanDate(event.target.value) })} />
+            </label>
+            <div className="mandant-editor">
+              <div>
+                <strong>BFS-Mandantennummern</strong>
+                <span>Hauptnummer zuerst, Aligner- und Zusatzkonten darunter.</span>
+              </div>
+              {(standort.mandantNos ?? [standort.mandantNo]).map((mandantNo, index) => (
+                <div className="mandant-row" key={`${standort.id}-${index}`}>
+                  <input inputMode="numeric" value={mandantNo} placeholder="z.B. 19260" onChange={(event) => updateMandantNo(standort.id, index, event.target.value)} />
+                  <button className="secondary-button" onClick={() => removeMandantNo(standort.id, index)} disabled={(standort.mandantNos ?? [standort.mandantNo]).length <= 1}>Entfernen</button>
+                </div>
+              ))}
+              <button className="secondary-button" onClick={() => addMandantNo(standort.id)}>Mandant-Nr. hinzufügen</button>
+            </div>
           </article>
         ))}
       </div>

@@ -429,6 +429,64 @@ input {
   box-shadow: var(--shadow);
 }
 
+.location-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.location-editor-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.location-editor-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.location-editor-head strong,
+.location-editor-head span {
+  display: block;
+}
+
+.location-editor-head span,
+.mandant-editor span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.location-editor-card label,
+.mandant-editor {
+  display: grid;
+  gap: 7px;
+  color: #d9e9ee;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mandant-editor {
+  margin-top: 4px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(4, 21, 33, 0.28);
+  padding: 12px;
+}
+
+.mandant-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .kpi-card {
   display: grid;
   gap: 8px;
@@ -2138,6 +2196,7 @@ th:first-child {
 .priority-card,
 .upload-zone,
 .data-card,
+.location-editor-card,
 .answer-cockpit,
 .cashflow-card,
 .risk-profile-card,
@@ -2931,6 +2990,15 @@ tbody tr:hover td {
   .report-toolbar .primary-button,
   .report-toolbar .secondary-button {
     width: 100%;
+  }
+
+  .location-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .location-editor-head,
+  .mandant-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .kpi-grid,

@@ -1569,6 +1569,13 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     }
   }
 
+  function resetUpload() {
+    onRowsChange([]);
+    setSelectedFileCount(0);
+    setUploadStatus("Kompletter Upload zurückgesetzt");
+    window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
+  }
+
   return (
     <div className="content-stack">
       <section className="upload-zone">
@@ -1600,6 +1607,10 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
+          <button className="secondary-button reset-upload-button" disabled={isProcessing || !liveRows.length} onClick={resetUpload}>
+            <X size={16} />
+            Upload zurücksetzen
+          </button>
         </div>
       </section>
       <section className="priority-grid">
@@ -1622,12 +1633,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
             </div>
             <button
               className="secondary-button"
-              onClick={() => {
-                onRowsChange([]);
-                setSelectedFileCount(0);
-                setUploadStatus("Testlauf zurückgesetzt");
-                window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
-              }}
+              onClick={resetUpload}
             >
               Testlauf zurücksetzen
             </button>
@@ -1853,9 +1859,16 @@ function loadStoredImportRows() {
 function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPreviewRow[]) {
   const rowsByKey = new Map<string, ImportPreviewRow>();
   [...existingRows, ...nextRows].forEach((row) => {
-    rowsByKey.set(row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`, row);
+    rowsByKey.set(importRowIdentity(row), row);
   });
   return [...rowsByKey.values()];
+}
+
+function importRowIdentity(row: ImportPreviewRow) {
+  if (row.mandantNo !== "-" && row.statementNo !== "-" && row.date !== "-") {
+    return `${row.mandantNo}:${row.statementNo}:${row.date}`;
+  }
+  return row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`;
 }
 
 function storeImportRows(rows: ImportPreviewRow[]) {

@@ -16,6 +16,9 @@ export type DemoSession = {
 };
 
 export async function loginWithEmail(email: string, password: string, remember: boolean) {
+  const serverSession = await loginWithServerAuth(email, password, remember);
+  if (serverSession) return persistSession({ ...serverSession, expiresAt: expiresAt(remember) });
+
   if (supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -36,6 +39,24 @@ export async function loginWithEmail(email: string, password: string, remember: 
     throw new Error("Login fehlgeschlagen. Bitte E-Mail und Passwort prüfen.");
   }
   return persistSession({ email: superUserEmail, role: "super_admin", active: true, mustChangePassword: false, expiresAt: expiresAt(remember) });
+}
+
+async function loginWithServerAuth(email: string, password: string, remember: boolean) {
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password, remember })
+  }).catch(() => null);
+
+  if (!response) return null;
+  const payload = await response.json().catch(() => null) as {
+    session?: Omit<DemoSession, "expiresAt">;
+    error?: string;
+  } | null;
+
+  if (response.ok && payload?.session) return payload.session;
+  if (response.status === 404) return null;
+  throw new Error(payload?.error ?? "Login fehlgeschlagen.");
 }
 
 export async function requestPasswordReset(email: string) {

@@ -924,6 +924,13 @@ input {
   color: #fff;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled,
+.text-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: #fff;

@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("Geschützter interner Bereich für berechtigte Nutzer der Orisus-Gruppe.");
 
   useEffect(() => {
@@ -17,6 +18,8 @@ export default function LoginPage() {
 
   async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSubmitting(true);
+    setMessage("Login wird geprüft...");
     try {
       const session = await loginWithEmail(email, password, remember);
       window.location.href = session.mustChangePassword
@@ -24,6 +27,7 @@ export default function LoginPage() {
         : nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login fehlgeschlagen.");
+      setIsSubmitting(false);
     }
   }
 
@@ -58,20 +62,20 @@ export default function LoginPage() {
         <form className="login-form" onSubmit={submitLogin}>
           <label>
             E-Mail
-            <span><Mail size={16} /><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></span>
+            <span><Mail size={16} /><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required disabled={isSubmitting} /></span>
           </label>
           <label>
             Passwort
-            <span><LockKeyhole size={16} /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required /></span>
+            <span><LockKeyhole size={16} /><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required disabled={isSubmitting} /></span>
           </label>
           <div className="login-row">
-            <label className="checkbox-label"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> angemeldet bleiben</label>
-            <button type="button" className="text-button" onClick={resetPassword}>Passwort vergessen</button>
+            <label className="checkbox-label"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} disabled={isSubmitting} /> angemeldet bleiben</label>
+            <button type="button" className="text-button" onClick={resetPassword} disabled={isSubmitting}>Passwort vergessen</button>
           </div>
-          <button className="primary-button wide-button" type="submit"><Eye size={16} /> Einloggen</button>
+          <button className="primary-button wide-button" type="submit" disabled={isSubmitting}><Eye size={16} /> {isSubmitting ? "Login wird geprüft" : "Einloggen"}</button>
         </form>
 
-        <button className="secondary-button wide-button" disabled={!passkeyAvailable} onClick={submitPasskeyLogin}>
+        <button className="secondary-button wide-button" disabled={!passkeyAvailable || isSubmitting} onClick={submitPasskeyLogin}>
           <Fingerprint size={16} /> Mit Face ID einloggen
         </button>
         {!passkeyAvailable && <small className="form-hint">Biometrischer Login auf diesem Gerät nicht verfügbar oder noch nicht aktiviert.</small>}

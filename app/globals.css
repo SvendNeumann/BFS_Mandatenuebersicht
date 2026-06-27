@@ -952,11 +952,13 @@ td small {
   border-bottom: 1px solid var(--line);
 }
 
-.bars span {
+.bars button {
   width: 100%;
   min-height: 18px;
+  border: 0;
   background: var(--blue);
   border-radius: 6px 6px 0 0;
+  cursor: pointer;
 }
 
 .axis {
@@ -1988,27 +1990,91 @@ th:first-child {
   border-bottom-color: var(--soft-line);
 }
 
-.bars span {
-  background: var(--primary);
-  box-shadow: 0 8px 16px rgba(8, 117, 111, 0.15);
-  transition: transform 140ms ease, filter 140ms ease;
+.interactive-chart {
+  position: relative;
+  padding-top: 44px;
 }
 
-.bars span:nth-child(2) {
+.chart-legend {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d9e9ee;
+  font-size: 13px;
+}
+
+.chart-legend span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #79eee7, #0f8b96);
+  box-shadow: 0 0 18px rgba(121, 238, 231, 0.28);
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 34px;
+  z-index: 4;
+  min-width: 178px;
+  max-width: min(240px, calc(100vw - 54px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(121, 238, 231, 0.22);
+  border-radius: 8px;
+  background: rgba(3, 17, 28, 0.94);
+  color: #eefbfb;
+  padding: 10px 12px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
+}
+
+.chart-tooltip strong,
+.chart-tooltip span {
+  display: block;
+}
+
+.chart-tooltip strong {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.chart-tooltip span {
+  color: #c6dbe2;
+  font-size: 13px;
+}
+
+.bars button {
+  background: var(--primary);
+  box-shadow: 0 8px 16px rgba(8, 117, 111, 0.15);
+  transition: transform 140ms ease, filter 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+}
+
+.bars button:nth-child(2) {
   background: var(--blue);
 }
 
-.bars span:nth-child(3) {
+.bars button:nth-child(3) {
   background: var(--cyan);
 }
 
-.bars span:nth-child(4) {
+.bars button:nth-child(4) {
   background: var(--amber);
 }
 
-.bars span:hover {
+.bars button:hover,
+.bars button:focus-visible,
+.bars button.active {
   transform: scaleY(1.04);
   filter: saturate(1.12);
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(121, 238, 231, 0.2), 0 14px 24px rgba(8, 117, 111, 0.2);
+  outline: none;
+}
+
+.bars:has(button.active) button:not(.active) {
+  opacity: 0.68;
 }
 
 .upload-zone {

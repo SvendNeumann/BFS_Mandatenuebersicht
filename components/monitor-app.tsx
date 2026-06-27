@@ -509,17 +509,63 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
           <div className="panel mini-chart" key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">Zeitraum: aktueller Trendvergleich</small>
-            <div className="bars">
-              {chart.values.map((value) => (
-                <span key={value.label} style={{ height: `${value.value}%` }} title={`${value.label}: ${value.value}`} />
-              ))}
-            </div>
-            <div className="axis">{chart.values.map((value) => <span key={value.label}>{value.label}</span>)}</div>
+            <InteractiveBars title={chart.title} values={chart.values} />
           </div>
         ))}
       </section>
     </div>
   );
+}
+
+function InteractiveBars({ title, values }: { title: string; values: { label: string; value: number }[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeValue = values[activeIndex] ?? values[0];
+  const valueLabel = formatChartValue(title, activeValue.value);
+  const maxValue = Math.max(...values.map((value) => value.value), 100);
+
+  return (
+    <div className="interactive-chart" onMouseLeave={() => setActiveIndex(0)}>
+      <div className="chart-legend">
+        <span />
+        <strong>{chartLegendLabel(title)}</strong>
+      </div>
+      <div className="chart-tooltip" style={{ left: `${chartTooltipLeft(activeIndex, values.length)}%` }}>
+        <strong>{activeValue.label}</strong>
+        <span>{chartLegendLabel(title)}: {valueLabel}</span>
+      </div>
+      <div className="bars" role="list" aria-label={title}>
+        {values.map((value, index) => (
+          <button
+            type="button"
+            key={value.label}
+            className={index === activeIndex ? "active" : ""}
+            style={{ height: `${Math.max(14, (value.value / maxValue) * 100)}%` }}
+            aria-label={`${value.label}: ${formatChartValue(title, value.value)}`}
+            onPointerEnter={() => setActiveIndex(index)}
+            onFocus={() => setActiveIndex(index)}
+            onClick={() => setActiveIndex(index)}
+          />
+        ))}
+      </div>
+      <div className="axis">{values.map((value) => <span key={value.label}>{value.label}</span>)}</div>
+    </div>
+  );
+}
+
+function chartTooltipLeft(index: number, count: number) {
+  if (count <= 1) return 50;
+  return 8 + (index / (count - 1)) * 84;
+}
+
+function chartLegendLabel(title: string) {
+  if (title.toLowerCase().includes("gebühr")) return "Gebührenindex";
+  if (title.toLowerCase().includes("rück")) return "Rückbelastungen";
+  return "Performanceindex";
+}
+
+function formatChartValue(title: string, value: number) {
+  if (title.toLowerCase().includes("rück")) return `${value} Fälle`;
+  return `${value} %`;
 }
 
 function GroupFilterBar({

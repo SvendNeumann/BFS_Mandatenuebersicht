@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, ca. 23:25 Uhr
+Stand: 27.06.2026, ca. 23:35 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `adb9511b Improve import confirmation contrast`
+Aktueller Head: `7b698194 Fix metric info popovers`
 
 ## Prompt fuer den naechsten Chat
 
@@ -59,6 +59,11 @@ Vercel:
 - Lokale Shell kann Vercel/Supabase DNS teilweise nicht per `curl` aufloesen. Das ist ein lokales Shell-/DNS-Problem; Browser/Live-App funktionierten beim User.
 
 ## Letzte wichtige Commits
+
+- `7b698194 Fix metric info popovers`
+  - KPI-/Metric-Infoboxen werden nicht mehr von Karten abgeschnitten.
+  - Es bleibt appweit nur eine Infobox offen; Klick auf das naechste `i` schliesst die vorherige.
+  - Infobox schliesst auch bei Escape, Scroll, Resize und Hintergrundklick.
 
 - `adb9511b Improve import confirmation contrast`
   - Import-Bestaetigungsdialog lesbar gemacht: dunkle Kacheln, helle Werte, kontrastreiche Labels.
@@ -330,6 +335,6 @@ git push
 ## Aktueller Status
 
 - GitHub `origin/main` war nach dem Push synchron mit lokalem `main`.
-- Letzter produktiver Code-Commit: `adb9511b Improve import confirmation contrast`.
-- Production-Deploy `dpl_Ahgb6WbLtEuJrYJ5oaz5BfGqB5DW` ist READY und auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
+- Letzter produktiver Code-Commit: `7b698194 Fix metric info popovers`.
+- Production-Deploy `dpl_7wEcxEsZZiHRgFKre5eUuBKj7tTZ` ist READY und auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
 - Vercel zeigt zwei Deployments fuer `adb9511b`, weil einmal der GitHub-Push und einmal ein direkter Vercel-CLI-Deploy gelaufen ist. Das ist unkritisch, beide basieren auf demselben Commit.

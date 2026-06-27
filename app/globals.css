@@ -142,12 +142,12 @@ td span,
 
 nav {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .nav-section {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .nav-section-toggle {
@@ -155,18 +155,18 @@ nav {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 44px;
-  border: 0;
+  min-height: 48px;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.04);
   color: #667085;
-  padding: 9px 10px;
+  padding: 11px 12px;
   text-align: left;
 }
 
 .nav-section-toggle span {
   flex: 1;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -1745,6 +1745,7 @@ td small {
   letter-spacing: 0;
 }
 
+.nav-section-toggle,
 .nav-item,
 .standort-tabs button,
 .filter-pill-row button,
@@ -2317,17 +2318,53 @@ td small,
 }
 
 .nav-section-toggle {
-  color: #9bb8c4;
+  border-color: rgba(178, 226, 229, 0.26);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+    rgba(12, 34, 49, 0.9);
+  color: #e5f7fa;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
 .nav-section-toggle.active,
 .nav-section-toggle:hover {
-  background: rgba(48, 213, 200, 0.1);
+  border-color: rgba(121, 238, 231, 0.55);
+  background:
+    linear-gradient(180deg, rgba(48, 213, 200, 0.22), rgba(48, 213, 200, 0.1)),
+    rgba(12, 34, 49, 0.96);
   color: #79eee7;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 32px rgba(48, 213, 200, 0.12);
+}
+
+.nav-section-toggle.active {
+  box-shadow:
+    inset 4px 0 0 #30d5c8,
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 34px rgba(48, 213, 200, 0.14);
+}
+
+.nav-section-toggle span {
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.nav-subitems {
+  gap: 7px;
+  padding: 2px 0 2px 13px;
+  margin-left: 12px;
+  border-left: 1px solid rgba(121, 238, 231, 0.18);
 }
 
 .nav-item {
   color: #d9e9ee;
+  border: 1px solid transparent;
+  background: transparent;
 }
 
 .nav-item.active,
@@ -2874,7 +2911,7 @@ tbody tr:hover td {
 
   nav {
     display: grid;
-    gap: 10px;
+    gap: 12px;
     overflow-x: visible;
     padding: 0;
     scrollbar-width: none;
@@ -2888,14 +2925,14 @@ tbody tr:hover td {
 
   .nav-section {
     display: grid;
-    gap: 6px;
+    gap: 8px;
   }
 
   .nav-subitems {
     display: none;
-    padding-left: 8px;
-    border-left: 2px solid #e4f2ef;
-    margin-left: 18px;
+    padding: 2px 0 2px 12px;
+    border-left: 1px solid rgba(121, 238, 231, 0.22);
+    margin-left: 14px;
   }
 
   .nav-section.expanded .nav-subitems {
@@ -2907,7 +2944,7 @@ tbody tr:hover td {
     min-height: 40px;
     flex: initial;
     border: 1px solid var(--soft-line);
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
     white-space: normal;
   }
 
@@ -3367,6 +3404,22 @@ tbody tr:hover td {
 
   .nav-subitems {
     border-left-color: rgba(121, 238, 231, 0.22);
+  }
+
+  .nav-section-toggle {
+    min-height: 50px;
+    border-color: rgba(178, 226, 229, 0.28);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035)),
+      rgba(12, 34, 49, 0.92);
+  }
+
+  .nav-section-toggle.active,
+  .nav-section-toggle:hover {
+    border-color: rgba(121, 238, 231, 0.55);
+    background:
+      linear-gradient(180deg, rgba(48, 213, 200, 0.24), rgba(48, 213, 200, 0.1)),
+      rgba(12, 34, 49, 0.98);
   }
 
   .nav-item {

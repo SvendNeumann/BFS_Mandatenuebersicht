@@ -2487,12 +2487,14 @@ td small,
 
 .case-summary-grid span {
   display: block;
+  max-width: 100%;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0;
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
 
 .case-summary-grid strong {

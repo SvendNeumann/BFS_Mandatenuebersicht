@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, Livegang auf Vercel nach erweitertem Parser-Batchtest mit fünfzehn BFS-Abrechnungsnachweisen
+Stand: 27.06.2026, Produktiv-Härtungsblock fuer Supabase Auth, geschuetzte Routen und serverseitigen Import
 
 ## Prompt fuer den naechsten Chat
 
@@ -42,7 +42,7 @@ Deployment:
 - Vercel-Projekt ist angebunden.
 - App ist live erreichbar unter `https://bfs-mandatenuebersicht.vercel.app`.
 - Livegang am 27.06.2026 nach grünem `pnpm run typecheck`, grünem `pnpm run build` und erfolgreichem HTTP-Smoke-Test der Produktions-URL.
-- Hinweis: Der Livegang ist ein clientseitiger Upload-/Auswertungsbetrieb. Supabase-Persistenz/Fallhistorie ist vorbereitet, aber noch nicht produktiv verdrahtet.
+- Hinweis: Nach dem Produktiv-Härtungsblock ist der Codepfad fuer Supabase Auth, geschuetzte Routen und serverseitige Import-Persistenz vorbereitet. Die Supabase-Migrationen muessen im echten Projekt angewendet sein.
 
 ## Technischer Stand
 
@@ -50,14 +50,19 @@ Framework:
 - Next.js App Router
 - React
 - TypeScript
-- Clientseitiger Demo-/Live-Testupload über Browser-Speicher
-- Keine echte Produktivdatenbanklogik aktiv
-- Supabase-Struktur ist vorbereitet, aber die Fachlogik läuft aktuell primär clientseitig
+- Supabase Auth ist im Code fuer Produktion verpflichtend; lokaler Demo-Fallback ist nur in `NODE_ENV !== "production"` erlaubt
+- Geschuetzte Routen werden serverseitig ueber `proxy.ts` gegen Supabase-Session-Cookies und `profiles.role` geprueft
+- Upload laeuft im Produktivpfad ueber `/api/imports/parse`: serverseitiges Parsing, privater Supabase-Storage `bfs-documents`, Postgres-Tabellen fuer Dokumente, Abrechnungen, Forderungen, Bewegungen und Faelle
+- Browser-Speicher bleibt als lokale UI-Vorschau/Cache bestehen, ist aber nicht mehr die einzige Datenhaltung im Produktivpfad
+- Supabase-Struktur ist vorbereitet; Migration `005_production_import_hardening.sql` muss im echten Supabase-Projekt angewendet sein, damit Mandantentabelle, Import-Events, Retention-Felder und Auth-Profiltrigger aktiv sind
 
 Wichtige Dateien:
 - `components/monitor-app.tsx`: Haupt-App, Navigation, Dashboards, KPIs, Upload, Tabellen, Reports, Matching-Views
 - `lib/bfs-parser.ts`: PDF-/BFS-Textparser
 - `lib/demo-import.ts`: Upload-Verarbeitung, Datei-/Ordnerimport, Vorschau, Matching-Hinweise
+- `app/api/auth/session/route.ts`: setzt/loescht serverseitige Supabase-Session-Cookies nach Login/Logout
+- `app/api/imports/parse/route.ts`: serverseitiger Importpfad fuer PDF-Parsing, privaten Storage und Postgres-Persistenz
+- `proxy.ts`: serverseitige Zugriffskontrolle fuer Dashboard-/Standort-/Admin-Routen
 - `lib/demo-data.ts`: Demo-Standorte, Perioden-/Standortdaten, Fallback-Daten
 - `lib/types.ts`: zentrale Typen
 - `app/globals.css`: komplettes Layout/Design/Responsive Styling
@@ -67,6 +72,8 @@ Wichtige Hinweise:
 - `pnpm run typecheck` funktioniert.
 - `pnpm run build` funktioniert.
 - `pnpm run lint` ist aktuell im Projekt falsch verdrahtet und sucht einen nicht existierenden Ordner `lint`.
+- Supabase-Projekt-Ref/URL liegt nicht im Repo; Migrationen konnten in diesem Chat nicht direkt gegen die echte Datenbank angewendet werden.
+- Fuer echten Produktivbetrieb muessen in Vercel `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY` gesetzt sein und die Supabase-Migrationen 001-005 muessen angewendet sein.
 
 ## Aktueller App-Zustand
 
@@ -407,7 +414,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Livegang auf Vercel dokumentieren
+- naechster Commit: Supabase Auth und serverseitigen Import haerten
+- `141f40f3` - Document Vercel live launch
 - `1252c1f4` - Document additional BFS parser batch
 - `f5e05726` - Support longer numeric BFS invoice numbers
 - `f3aa3f7d` - Classify generic BFS returns

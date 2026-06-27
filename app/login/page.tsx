@@ -19,7 +19,7 @@ export default function LoginPage() {
     event.preventDefault();
     try {
       const session = await loginWithEmail(email, password, remember);
-      window.location.href = session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
+      window.location.href = nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login fehlgeschlagen.");
     }
@@ -28,7 +28,7 @@ export default function LoginPage() {
   async function submitPasskeyLogin() {
     try {
       const session = await loginWithPasskey();
-      window.location.href = session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
+      window.location.href = nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Biometrischer Login nicht verfügbar.");
     }
@@ -76,4 +76,14 @@ export default function LoginPage() {
       </section>
     </main>
   );
+}
+
+function nextPathFromLocation() {
+  if (typeof window === "undefined") return null;
+  return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+}
+
+function safeNextPath(value: string | null) {
+  if (!value?.startsWith("/") || value.startsWith("//")) return null;
+  return value;
 }

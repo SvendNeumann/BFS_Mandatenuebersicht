@@ -16,6 +16,7 @@ export async function parseDemoImportFiles(files: File[], onProgress?: (processe
 }
 
 function yieldToBrowser() {
+  if (typeof window === "undefined") return Promise.resolve();
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0);
   });

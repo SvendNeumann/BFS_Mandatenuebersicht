@@ -42,7 +42,7 @@ import {
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, BfsPeriodMetric, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
-import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
+import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -150,7 +150,8 @@ type MonitorAppProps = {
 };
 
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
-  const [session, setSession] = useState<DemoSession | null>(() => getDemoSession());
+  const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
+  const [sessionChecked, setSessionChecked] = useState(false);
   const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(initialView);
   const [, setLocationConfigVersion] = useState(0);
@@ -173,6 +174,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const nav = role === "super_admin" ? superAdminNav : leadNav;
 
   useEffect(() => {
+    getCurrentSession()
+      .then((currentSession) => {
+        setSession(currentSession);
+        setSessionChecked(true);
+      })
+      .catch(() => setSessionChecked(true));
     applyStoredStandorteConfig();
     setLocationConfigVersion((version) => version + 1);
     let active = true;
@@ -191,6 +198,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setMobileNavOpen(false);
     refreshLocalAppData();
   }, [activeView]);
+
+  if (requireAuth && !session && !sessionChecked) {
+    return <AccessGate title="Session wird geprüft" message="Die Anmeldung wird serverseitig validiert." />;
+  }
 
   if (requireAuth && !session) {
     return <AccessGate title="Login erforderlich" message="Bitte melde dich an, um diesen geschützten Bereich zu öffnen." />;
@@ -2122,9 +2133,9 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       return;
     }
     setIsProcessing(true);
-    setUploadStatus(`${importableFiles.length} Dateien werden eingelesen`);
+    setUploadStatus(`${importableFiles.length} Dateien werden serverseitig eingelesen`);
     try {
-      const parsedRows = await parseDemoImportFiles(importableFiles, (processed, total, fileName) => {
+      const parsedRows = await parseImportFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setUploadStatus(`${processed} von ${total} Dateien eingelesen (${shortName})`);
       });
@@ -2132,9 +2143,9 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       onRowsChange(nextRows);
       try {
         await storeImportRows(nextRows);
-        setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen und lokal gespeichert`);
+        setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen und serverseitig gespeichert`);
       } catch (storageError) {
-        setUploadStatus(`${parsedRows.length} Dateien eingelesen; dauerhafte Speicherung nicht möglich: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+        setUploadStatus(`${parsedRows.length} Dateien serverseitig eingelesen; lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
       setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -2219,6 +2230,35 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       <ImportPreview rows={previewRows} />
     </div>
   );
+}
+
+async function parseImportFiles(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    const filePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    formData.append("files", file, filePath);
+  });
+
+  const response = await fetch("/api/imports/parse", {
+    method: "POST",
+    body: formData
+  });
+
+  if (response.ok) {
+    const payload = await response.json() as { rows: ImportPreviewRow[] };
+    payload.rows.forEach((row, index) => onProgress?.(index + 1, payload.rows.length, row.file));
+    return payload.rows;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return parseDemoImportFiles(files, onProgress);
+  }
+
+  const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
+  throw new Error(errorPayload?.error ?? "Serverseitiger Import fehlgeschlagen.");
 }
 
 function isImportableUploadFile(file: File) {

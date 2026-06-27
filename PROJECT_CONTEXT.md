@@ -48,7 +48,8 @@ Deployment:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Nach dem Setzen der Environment-Variablen wurde ein neuer Production-Deploy gestartet und erfolgreich auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
-- Noch offen fuer vollstaendigen Livebetrieb: Supabase Auth-User anlegen und Login/Upload mit echtem User testen.
+- Supabase Auth-User `svend.neumann@orisus.de` wurde am 27.06.2026 angelegt, E-Mail ist bestaetigt, Identity-Provider ist `email`, Profil ist `super_admin` und `active=true`.
+- Noch offen fuer vollstaendigen Livebetrieb: auf der Live-Loginseite `Passwort vergessen` ausloesen, eigenes Passwort setzen und Login/Upload mit echtem User testen.
 
 ## Technischer Stand
 
@@ -87,7 +88,8 @@ Wichtige Hinweise:
   - `production_import_hardening`
 - Verifiziert: alle 15 Public-Tabellen existieren, Storage-Bucket `bfs-documents` ist privat (`public=false`), 15 Mandantennummern sind Standort/Go-live-Datum zugeordnet.
 - Vercel Production Env ist gesetzt und redeployed. Smoke-Test: Landingpage erreichbar; `/dashboard` leitet ohne Session erwartungsgemaess auf `/login` um.
-- In Supabase Auth muss mindestens der Admin-User `svend.neumann@orisus.de` angelegt werden. Der Profiltrigger macht neue User mit dieser E-Mail automatisch zu `super_admin` und `active=true`. Falls der User bereits vorher existiert, muss das Profil manuell per SQL upserted werden.
+- Supabase Auth Admin-User ist angelegt: `svend.neumann@orisus.de`, `super_admin`, `active=true`.
+- Das Initialpasswort wurde nicht im Projekt oder Chat offengelegt. Fuer den ersten echten Login auf `https://bfs-mandatenuebersicht.vercel.app/login` die Funktion `Passwort vergessen` nutzen und ein eigenes Passwort setzen.
 
 ## Aktueller App-Zustand
 

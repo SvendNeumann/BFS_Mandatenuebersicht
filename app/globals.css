@@ -262,6 +262,14 @@ nav {
   margin-bottom: 14px;
 }
 
+.mobile-app-brand {
+  display: none;
+}
+
+.mobile-page-heading {
+  display: none;
+}
+
 .topbar h1 {
   font-size: 30px;
   line-height: 1.15;
@@ -2689,13 +2697,71 @@ tbody tr:hover td {
   }
 
   .topbar {
-    position: static;
-    padding-top: 0;
+    position: sticky;
+    top: 0;
+    z-index: 32;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    margin: -18px -18px 18px;
+    padding: 20px 18px 16px;
+    border-bottom: 1px solid rgba(178, 226, 229, 0.18);
+    background:
+      linear-gradient(180deg, rgba(8, 29, 44, 0.98), rgba(8, 29, 44, 0.94)),
+      var(--bg);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+  }
+
+  .mobile-app-brand {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .mobile-app-brand strong {
+    color: rgba(246, 255, 255, 0.72);
+    font-size: clamp(34px, 8.6vw, 54px);
+    font-weight: 300;
+    line-height: 0.9;
+    letter-spacing: 0.08em;
+  }
+
+  .mobile-app-brand span {
+    color: rgba(246, 255, 255, 0.58);
+    font-size: clamp(13px, 3vw, 20px);
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: 0.34em;
+  }
+
+  .desktop-page-title,
+  .desktop-page-actions {
+    display: none;
+  }
+
+  .mobile-page-heading {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 16px;
+  }
+
+  .mobile-page-heading h1 {
+    margin: 5px 0 0;
+    color: #f6ffff;
+    font-size: 28px;
+    line-height: 1.12;
+    letter-spacing: 0;
+  }
+
+  .mobile-page-heading > div:first-child {
+    min-width: 0;
   }
 
   .standort-tabs {
     position: sticky;
-    top: 0;
+    top: 102px;
     z-index: 20;
     margin-left: -4px;
     margin-right: -4px;
@@ -2799,16 +2865,18 @@ tbody tr:hover td {
 
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    align-items: center;
+    margin: -14px -10px 16px;
+    padding: 17px 14px 14px;
   }
 
-  .topbar > div:first-of-type {
-    order: 1;
-    min-width: 0;
+  .topbar-title {
+    order: 3;
+    grid-column: 1 / -1;
   }
 
   .topbar-actions {
-    order: 3;
+    order: 4;
     grid-column: 1 / -1;
   }
 
@@ -3044,12 +3112,11 @@ tbody tr:hover td {
   }
 
   .topbar {
-    border-bottom: 0;
-    background: transparent;
+    border-bottom: 1px solid rgba(178, 226, 229, 0.18);
   }
 
   .standort-tabs {
-    top: 0;
+    top: 94px;
     margin-left: 0;
     margin-right: 0;
   }

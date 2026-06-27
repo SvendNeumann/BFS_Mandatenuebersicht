@@ -292,9 +292,23 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
       <section className="workspace">
         <header className="topbar">
+          <div className="mobile-app-brand" aria-label="Orisus Zahnmedizin">
+            <strong>ORISUS</strong>
+            <span>ZAHNMEDIZIN</span>
+          </div>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
             <Menu size={18} />
           </button>
+          <div className="topbar-title desktop-page-title">
+            <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
+            <h1>{titleFor(activeView, role, isGroupScope)}</h1>
+          </div>
+          <div className="topbar-actions desktop-page-actions">
+            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
+            {role === "super_admin" && activeView !== "dashboard" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
+          </div>
+        </header>
+        <div className="mobile-page-heading">
           <div>
             <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
@@ -303,7 +317,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
             {role === "super_admin" && activeView !== "dashboard" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
           </div>
-        </header>
+        </div>
 
         <StandortTabs
           role={role}

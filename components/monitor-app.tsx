@@ -373,7 +373,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />
             )}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
-            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
+            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} />}
@@ -858,22 +858,54 @@ function AnswerCockpit({
   periodLabel?: string;
   hasImportDataset?: boolean;
 }) {
-  const relevantStandorte = standort ? [standort] : standorte;
-  const importSummary = summarizeImportRows(importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location)));
   const hasImportDataset = hasImportDatasetProp ?? importRows.length > 0;
-  const openCases = rows.filter((fall) => !fall.status.includes("erledigt"));
+  const periodOptions = buildCashflowPeriods();
+  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedAnswerStandortId, setSelectedAnswerStandortId] = useState(() => scope === "group" ? "alle" : standort?.id ?? "alle");
+  const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
+  const relevantStandorte = scope === "group"
+    ? selectedAnswerStandortId === "alle"
+      ? standorte
+      : standorte.filter((entry) => entry.id === selectedAnswerStandortId)
+    : standort
+      ? [standort]
+      : standorte;
+  const relevantStandortIds = new Set(relevantStandorte.map((entry) => entry.id));
+  const scopedImportRows = importRows.filter((row) => {
+    const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  });
+  const scopedRows = importRows.length
+    ? casesFromImportRows(scopedImportRows)
+    : rows.filter((fall) => relevantStandortIds.has(fall.standortId));
+  const importSummary = summarizeImportRows(scopedImportRows);
+  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics();
+  const openCases = scopedRows.filter((fall) => !fall.status.includes("erledigt"));
   const chargebacks = openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"));
-  const recurringRisks = getRecurringRiskProfiles(standort?.id, importRows, hasImportDataset).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
+  const recurringRisks = getRecurringRiskProfiles(
+    relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
+    scopedImportRows,
+    hasImportDataset
+  ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const submitted = importSummary.rows ? importSummary.submitted : periodMetrics?.submitted ?? 0;
-  const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? 0;
-  const feeNet = importSummary.rows ? importSummary.feeNet : periodMetrics?.feeNet ?? fees;
-  const feeVat = importSummary.rows ? importSummary.feeVat : periodMetrics?.feeVat ?? 0;
-  const ewmaTotal = importSummary.rows ? importSummary.ewmaTotal : periodMetrics?.ewmaTotal ?? 0;
-  const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : periodMetrics?.noProtectionAmount ?? 0;
+  const submitted = selectedMetrics.submitted;
+  const fees = selectedMetrics.fees;
+  const feeNet = selectedMetrics.feeNet || fees;
+  const feeVat = selectedMetrics.feeVat;
+  const ewmaTotal = selectedMetrics.ewmaTotal;
+  const noProtectionAmount = selectedMetrics.noProtectionAmount;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
-  const resolvedPeriodLabel = periodLabel ?? (importSummary.rows || hasImportDataset ? "aktueller Import" : "kein Datenstand");
+  const selectedStandortLabel = scope === "group"
+    ? selectedAnswerStandortId === "alle"
+      ? "Alle Standorte"
+      : relevantStandorte[0]?.name ?? "Alle Standorte"
+    : standort?.name ?? "Standort";
+  const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${selectedStandortLabel}`;
+  const resolvedPeriodLabel = periodLabel ?? selectedPeriod.label;
+
+  useEffect(() => {
+    if (scope === "location" && standort) setSelectedAnswerStandortId(standort.id);
+  }, [scope, standort?.id]);
 
   return (
     <section className={compact ? "answer-cockpit compact" : "answer-cockpit"}>
@@ -884,6 +916,31 @@ function AnswerCockpit({
         </div>
         {showReportAction && <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>}
       </div>
+      {!compact && (
+        <section className="period-filter answer-filter-panel">
+          <label className="select-label">
+            Zeitraum
+            <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Standort
+            <select value={selectedAnswerStandortId} onChange={(event) => setSelectedAnswerStandortId(event.target.value)} disabled={scope !== "group"}>
+              {scope === "group" && <option value="alle">Alle Standorte</option>}
+              {standorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{selectedStandortLabel} · {selectedPeriod.label}</strong>
+            <span>{scopedImportRows.length ? `${scopedImportRows.length} Importdatei(en) im Filter` : "Für diese Auswahl liegen keine importierten Werte vor."}</span>
+          </div>
+        </section>
+      )}
       <div className="answer-grid">
         <button onClick={() => onNavigate("claims")}>
           <span>Umsatz eingereicht?</span>
@@ -895,13 +952,13 @@ function AnswerCockpit({
           <span>Was ist noch offen?</span>
           <strong>{money.format(openAmount)}</strong>
           <small>{openCases.length} offene Klärfälle</small>
-          <small className="period-note">Zeitraum: aktueller Datenstand</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("chargebacks")}>
           <span>Wie viele Rückläufer?</span>
           <strong>{chargebacks.length}</strong>
           <small>{money.format(chargebacks.reduce((sum, fall) => sum + fall.amount, 0))}</small>
-          <small className="period-note">Zeitraum: aktueller Datenstand</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("risks")}>
           <span>Ohne Ausfallschutz?</span>
@@ -913,7 +970,7 @@ function AnswerCockpit({
           <span>Wiederholer?</span>
           <strong>{recurringRisks.length}</strong>
           <small>mehrfach ohne Ausfallschutz</small>
-          <small className="period-note">Zeitraum: aktueller Datenstand</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Kosten?</span>
@@ -925,7 +982,7 @@ function AnswerCockpit({
           <span>Ältester offener Fall?</span>
           <strong>{oldest} Tage</strong>
           <small>Priorität zuerst klären</small>
-          <small className="period-note">Zeitraum: aktueller Datenstand</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
       </div>
     </section>
@@ -2079,6 +2136,7 @@ function periodLabelFromHint(hint: string) {
   const normalized = cleanedHint.toLowerCase();
   if (normalized.includes("testupload") || normalized.includes("upload") || normalized.includes("import")) return "Zeitraum: aktueller Import";
   if (normalized.includes("monat")) return "Zeitraum: aktueller Monat";
+  if (normalized.includes("seit standortstart")) return `Zeitraum: ${cleanedHint}`;
   if (normalized.includes("jahr") || normalized.includes("quartal") || normalized.includes("q1") || normalized.includes("q2") || normalized.includes("q3") || normalized.includes("q4")) return `Zeitraum: ${cleanedHint}`;
   if (/\d{2}\.\d{2}\.\d{4}/.test(cleanedHint) || /\d{4}/.test(cleanedHint)) return `Zeitraum: ${cleanedHint}`;
   return "Zeitraum: aktueller Datenstand";

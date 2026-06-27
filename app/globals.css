@@ -1858,6 +1858,11 @@ td small {
   padding: 12px;
 }
 
+.answer-filter-panel {
+  grid-template-columns: minmax(180px, 0.24fr) minmax(180px, 0.24fr) minmax(0, 1fr);
+  margin-bottom: 0;
+}
+
 .period-filter select {
   min-height: 42px;
   background: #ffffff;

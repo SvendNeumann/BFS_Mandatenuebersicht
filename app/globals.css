@@ -803,6 +803,20 @@ input {
   padding: 16px;
 }
 
+.empty-data-panel {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.empty-data-panel > svg {
+  color: var(--primary);
+}
+
+.empty-data-panel .primary-button {
+  width: fit-content;
+}
+
 .report-type-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }

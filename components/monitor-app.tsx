@@ -33,9 +33,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  cases,
   bfsPeriodMetrics,
-  importPreviewRows,
   riskClaims,
   standorte,
   isStandortLive,
@@ -162,10 +160,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
-  const previewRows = liveImportRows.length ? liveImportRows : importPreviewRows;
+  const hasUploadData = liveImportRows.length > 0;
+  const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
+  const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
-    const importedCases = casesFromImportRows(liveImportRows);
-    return importedCases.length ? importedCases : cases;
+    return casesFromImportRows(liveImportRows);
   }, [liveImportRows]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
@@ -314,36 +313,43 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           role={role}
           selectedStandortId={selectedStandortId}
           onSelect={selectStandortTab}
+          hasUploadData={hasUploadData}
         />
 
-        {activeView === "dashboard" && (
-          role === "super_admin" && isGroupScope
-            ? <GroupDashboard onNavigate={setActiveView} importRows={liveImportRows} />
-            : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />
+        {showNoUploadData ? (
+          <NoUploadDataView onUpload={() => setActiveView("upload")} />
+        ) : (
+          <>
+            {activeView === "dashboard" && (
+              role === "super_admin" && isGroupScope
+                ? <GroupDashboard onNavigate={setActiveView} importRows={liveImportRows} />
+                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />
+            )}
+            {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
+            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />}
+            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
+            {activeView === "cases" && <CasesView cases={visibleCases} />}
+            {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
+            {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
+            {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
+            {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
+            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
+            {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
+            {activeView === "users" && <UsersView />}
+            {activeView === "settings" && <SettingsView />}
+          </>
         )}
-        {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
-        {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />}
-        {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-        {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
-        {activeView === "cases" && <CasesView cases={visibleCases} />}
-        {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
-        {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
-        {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
-        {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
-        {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-        {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
-        {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-        {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-        {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
-        {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
-        {activeView === "users" && <UsersView />}
-        {activeView === "settings" && <SettingsView />}
       </section>
     </main>
   );
 }
 
-function StandortTabs({ role, selectedStandortId, onSelect }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void }) {
+function StandortTabs({ role, selectedStandortId, onSelect, hasUploadData }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void; hasUploadData: boolean }) {
   const visibleStandorte = role === "super_admin" ? standorte : standorte.slice(0, 1);
   return (
     <section className="standort-tabs" aria-label="Standorte">
@@ -357,9 +363,31 @@ function StandortTabs({ role, selectedStandortId, onSelect }: { role: AppRole; s
         <button key={standort.id} className={selectedStandortId === standort.id ? "active" : ""} onClick={() => onSelect(standort.id)}>
           <Building2 size={16} />
           {standort.name}
-          <span>{isStandortLive(standort) ? `${standort.openCases} offen` : liveStatusLabel(standort)}</span>
+          <span>{hasUploadData ? (isStandortLive(standort) ? `${standort.openCases} offen` : liveStatusLabel(standort)) : "0 offen"}</span>
         </button>
       ))}
+    </section>
+  );
+}
+
+function NoUploadDataView({ onUpload }: { onUpload: () => void }) {
+  return (
+    <section className="panel empty-data-panel">
+      <HardDriveUpload size={28} />
+      <div>
+        <span className="eyebrow">Keine Importdaten</span>
+        <h2>Datenupload zurückgesetzt</h2>
+        <p>Aktuell sind keine BFS-Abrechnungen im Datenstand. Deshalb werden Cockpit, Auswertungen, Klärfälle, Risiko, Matching und Reports erst wieder befüllt, sobald ein neuer Upload verarbeitet wurde.</p>
+      </div>
+      <div className="case-summary-grid" aria-label="Leerer Datenstand">
+        <article><span>Dateien</span><strong>0</strong></article>
+        <article><span>Umsatz eingereicht</span><strong>{money.format(0)}</strong></article>
+        <article><span>Offene Klärfälle</span><strong>0</strong></article>
+        <article><span>Rückgaben/Stornos</span><strong>0</strong></article>
+      </div>
+      <button className="primary-button" onClick={onUpload}>
+        <FolderUp size={16} /> Zum Import-Center
+      </button>
     </section>
   );
 }
@@ -419,13 +447,14 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ? standorte
     : standorte.filter((standort) => standort.id === groupStandortFilter);
   const filteredStandortIds = new Set(filteredStandorte.map((standort) => standort.id));
-  const openCases = cases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId));
+  const dashboardCases = casesFromImportRows(importRows);
+  const openCases = dashboardCases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId));
   const focusedCases = openCases.filter((fall) => {
     if (groupFocus === "rueckbelastungen") return fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung");
     if (groupFocus === "wiedervorlagen") return fall.status === "wiedervorlage" || fall.dueDate !== "-";
     return true;
   });
-  const focusedRisks = riskClaims.filter((claim) => filteredStandortIds.has(claim.standortId));
+  const focusedRisks = riskClaimsFromImportRows(importRows).filter((claim) => filteredStandortIds.has(claim.standortId));
   const scopedImportRows = importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
@@ -2027,7 +2056,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Bereit für Testupload");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
-  const previewRows = liveRows.length ? liveRows : importPreviewRows;
+  const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
 
@@ -2106,7 +2135,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Dateien im Lauf" value={String(isProcessing ? selectedFileCount : previewRows.length)} hint={isProcessing ? "werden eingelesen" : liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
+        <PriorityCard label="Dateien im Lauf" value={String(isProcessing ? selectedFileCount : previewRows.length)} hint={isProcessing ? "werden eingelesen" : liveRows.length ? "aus deinem Testupload" : "kein Upload vorhanden"} tone="blue" />
         <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
         <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
         <PriorityCard label="Unterordner" value={String(countNestedUploadFolders(previewRows))} hint="rekursiv mitverarbeitet" tone="blue" />
@@ -2499,10 +2528,10 @@ function aggregateMovementReasons(rows: ImportPreviewRow[]) {
     .sort((a, b) => b.count - a.count || b.amount - a.amount);
 }
 
-const importStorageDbName = "orisus-bfs-monitor-imports";
+const importStorageDbName = "orisus-bfs-monitor-imports-v2-reset";
 const importStorageStoreName = "imports";
 const importStorageRowsKey = "current-preview";
-const importStorageLegacyKey = "orisus_bfs_monitor_import_preview";
+const importStorageLegacyKey = "orisus_bfs_monitor_import_preview_v2_reset";
 
 function loadStoredImportRows() {
   if (typeof window === "undefined") return [];

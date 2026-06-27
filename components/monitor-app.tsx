@@ -363,7 +363,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           role={role}
           selectedStandortId={selectedStandortId}
           onSelect={selectStandortTab}
-          hasUploadData={hasUploadData}
+          importRows={liveImportRows}
         />
 
         {showNoUploadData ? (
@@ -399,8 +399,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   );
 }
 
-function StandortTabs({ role, selectedStandortId, onSelect, hasUploadData }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void; hasUploadData: boolean }) {
+function StandortTabs({ role, selectedStandortId, onSelect, importRows }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void; importRows: ImportPreviewRow[] }) {
   const visibleStandorte = role === "super_admin" ? standorte : standorte.slice(0, 1);
+  const openCasesByStandort = countOpenCasesByStandort(importRows);
   return (
     <section className="standort-tabs" aria-label="Standorte">
       {role === "super_admin" && (
@@ -413,7 +414,7 @@ function StandortTabs({ role, selectedStandortId, onSelect, hasUploadData }: { r
         <button key={standort.id} className={selectedStandortId === standort.id ? "active" : ""} onClick={() => onSelect(standort.id)}>
           <Building2 size={16} />
           {standort.name}
-          <span>{hasUploadData ? (isStandortLive(standort) ? `${standort.openCases} offen` : liveStatusLabel(standort)) : "0 offen"}</span>
+          <span>{importRows.length ? `${openCasesByStandort.get(standort.id) ?? 0} offen` : "0 offen"}</span>
         </button>
       ))}
     </section>
@@ -557,11 +558,11 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   });
   const importSummary = summarizeImportRows(scopedImportRows);
-  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics(filteredStandorte.map((standort) => standort.id), selectedPeriod);
+  const selectedMetrics = metricsForImportOrDemo(importSummary, importRows.length > 0, () => aggregateMetrics(filteredStandorte.map((standort) => standort.id), selectedPeriod));
   const activeStandorte = filteredStandorte.filter((standort) => standortActiveInPeriod(standort, selectedPeriod));
   const inactiveStandorte = filteredStandorte.filter((standort) => !standortActiveInPeriod(standort, selectedPeriod));
-  const periodLabel = importSummary.rows ? "aktueller Import" : selectedPeriod.label;
-  const groupChartSeries = buildGroupDashboardSeries(filteredStandorte, selectedPeriod);
+  const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
+  const groupChartSeries = buildGroupDashboardSeries(filteredStandorte, selectedPeriod, importRows);
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const groupKpis: KpiCardTuple[] = [
     ["Standorte im Blick", groupStandortFilter === "alle" ? `${activeStandorte.length} im Zeitraum` : periodStatusLabel(filteredStandorte[0], selectedPeriod), inactiveStandorte.length ? `${inactiveStandorte.length} Standort(e) in diesem Zeitraum noch nicht aktiv` : "aktive BFS-Standorte"],
@@ -594,7 +595,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         </div>
       </section>
       <KpiGrid cards={groupKpis} />
-      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} />
+      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
       <section className="panel import-preview-panel">
         <div className="panel-heading import-preview-heading">
           <div>
@@ -620,8 +621,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
             <tbody>
               {filteredStandorte.map((standort) => {
                 const rowSummary = summarizeImportRows(scopedImportRows.filter((row) => row.location === standort.name));
-                const rowMetrics = rowSummary.rows ? metricsFromImportSummary(rowSummary) : aggregateMetrics([standort.id], selectedPeriod);
-                const rowCashflow = rowSummary.rows ? cashflowFromImportSummary(rowSummary) : cashflowForPeriod(standort, selectedPeriod);
+                const rowMetrics = metricsForImportOrDemo(rowSummary, importRows.length > 0, () => aggregateMetrics([standort.id], selectedPeriod));
+                const rowCashflow = cashflowForImportOrDemo(rowSummary, importRows.length > 0, () => cashflowForPeriod(standort, selectedPeriod));
                 return (
                   <tr key={standort.id}>
                     <td>
@@ -632,8 +633,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
                     <td>{standort.lastImport}</td>
                     <td>{rowCashflow.activeMonths ? money.format(rowMetrics.submitted) : "0,00 €"}</td>
                     <td>{rowCashflow.activeMonths ? money.format(rowMetrics.fees) : "0,00 €"}</td>
-                    <td>{rowCashflow.activeMonths ? standort.openCases : 0}</td>
-                    <td>{rowCashflow.activeMonths ? money.format(standort.openChargebacks) : "0,00 €"}</td>
+                    <td>{rowCashflow.activeMonths ? openCases.filter((fall) => fall.standortId === standort.id).length : 0}</td>
+                    <td>{rowCashflow.activeMonths ? money.format(openCases.filter((fall) => fall.standortId === standort.id).reduce((sum, fall) => sum + fall.amount, 0)) : "0,00 €"}</td>
                     <td>{rowCashflow.activeMonths ? money.format(rowMetrics.noProtectionAmount) : "0,00 €"}</td>
                     <td>{rowCashflow.activeMonths ? standort.olderThan30 : 0}</td>
                   </tr>
@@ -709,7 +710,7 @@ function formatChartValue(title: string, value: number) {
   return `${value} %`;
 }
 
-function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOption) {
+function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[] = []) {
   const activeRows = rowsStandorte.filter((standort) => standortActiveInPeriod(standort, period));
   const sourceRows = activeRows.length ? activeRows : rowsStandorte;
   return [
@@ -717,21 +718,21 @@ function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOpti
       title: "Umsatz eingereicht je Standort",
       values: sourceRows.map((standort) => ({
         label: standort.name,
-        value: aggregateMetrics([standort.id], period).submitted
+        value: metricsForImportOrDemo(summarizeImportRows(importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort))), importRows.length > 0, () => aggregateMetrics([standort.id], period)).submitted
       }))
     },
     {
       title: "Gesamtkosten BFS je Standort",
       values: sourceRows.map((standort) => ({
         label: standort.name,
-        value: aggregateMetrics([standort.id], period).fees
+        value: metricsForImportOrDemo(summarizeImportRows(importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort))), importRows.length > 0, () => aggregateMetrics([standort.id], period)).fees
       }))
     },
     {
       title: "Rückbelastungen je Standort",
       values: sourceRows.map((standort) => ({
         label: standort.name,
-        value: aggregateMetrics([standort.id], period).returnCount
+        value: metricsForImportOrDemo(summarizeImportRows(importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort))), importRows.length > 0, () => aggregateMetrics([standort.id], period)).returnCount
       }))
     }
   ];
@@ -778,9 +779,9 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
   const locationImportRows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort));
   const importSummary = summarizeImportRows(locationImportRows);
-  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics([standort.id], selectedPeriod);
-  const selectedCashflow = importSummary.rows ? cashflowFromImportSummary(importSummary) : cashflowForPeriod(standort, selectedPeriod);
-  const periodLabel = importSummary.rows ? selectedPeriod.label : selectedPeriod.label;
+  const selectedMetrics = metricsForImportOrDemo(importSummary, importRows.length > 0, () => aggregateMetrics([standort.id], selectedPeriod));
+  const selectedCashflow = cashflowForImportOrDemo(importSummary, importRows.length > 0, () => cashflowForPeriod(standort, selectedPeriod));
+  const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const locationKpis: KpiCardTuple[] = [
@@ -805,16 +806,16 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
         </label>
         <div>
           <strong>{periodLabel}</strong>
-          <span>{selectedCashflow.activeMonths ? `${selectedCashflow.activeMonths} aktive Monate ab ${selectedCashflow.startLabel}` : `${standort.name} ist in diesem Zeitraum noch nicht aktiv`}. Klärfälle ohne echtes Falldatum bleiben als aktueller Datenstand ausgewiesen.</span>
+          <span>{importRows.length && !importSummary.rows ? `Für ${standort.name} liegen im aktuellen Import keine Daten vor` : selectedCashflow.activeMonths ? `${selectedCashflow.activeMonths} aktive Monate ab ${selectedCashflow.startLabel}` : `${standort.name} ist in diesem Zeitraum noch nicht aktiv`}. Klärfälle ohne echtes Falldatum bleiben als aktueller Datenstand ausgewiesen.</span>
         </div>
       </section>
       <KpiGrid cards={locationKpis} />
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} />
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
             <span className="eyebrow">Standortfokus</span>
-            <h2>{standort.openCases} offene Fälle am Standort {standort.name}</h2>
+            <h2>{openCases.length} offene Fälle am Standort {standort.name}</h2>
             <p>Rückbelastungen zuerst prüfen, laufend ohne Ausfallschutz getrennt beobachten und Report für die Standortleitung erstellen.</p>
           </div>
           <div className="quick-actions">
@@ -846,7 +847,8 @@ function AnswerCockpit({
   showReportAction = false,
   importRows = [],
   periodMetrics,
-  periodLabel
+  periodLabel,
+  hasImportDataset: hasImportDatasetProp
 }: {
   scope: "group" | "location";
   standort?: Standort;
@@ -857,24 +859,26 @@ function AnswerCockpit({
   importRows?: ImportPreviewRow[];
   periodMetrics?: ReturnType<typeof aggregateMetrics>;
   periodLabel?: string;
+  hasImportDataset?: boolean;
 }) {
   const relevantStandorte = standort ? [standort] : standorte;
   const importSummary = summarizeImportRows(importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location)));
   const fallbackPeriod = buildCashflowPeriods()[0];
   const fallbackMetrics = aggregateMetrics(relevantStandorte.map((entry) => entry.id), fallbackPeriod);
+  const hasImportDataset = hasImportDatasetProp ?? importRows.length > 0;
   const openCases = rows.filter((fall) => !fall.status.includes("erledigt"));
   const chargebacks = openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"));
   const riskTotal = riskClaims
     .filter((claim) => relevantStandorte.some((entry) => entry.id === claim.standortId))
     .reduce((sum, claim) => sum + claim.amount, 0);
-  const recurringRisks = getRecurringRiskProfiles(standort?.id, importRows).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
+  const recurringRisks = getRecurringRiskProfiles(standort?.id, importRows, hasImportDataset).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const submitted = importSummary.rows ? importSummary.submitted : periodMetrics?.submitted ?? fallbackMetrics.submitted;
-  const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? fallbackMetrics.fees;
+  const submitted = importSummary.rows ? importSummary.submitted : periodMetrics?.submitted ?? (hasImportDataset ? 0 : fallbackMetrics.submitted);
+  const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? (hasImportDataset ? 0 : fallbackMetrics.fees);
   const feeNet = importSummary.rows ? importSummary.feeNet : periodMetrics?.feeNet ?? fees;
   const feeVat = importSummary.rows ? importSummary.feeVat : periodMetrics?.feeVat ?? 0;
   const ewmaTotal = importSummary.rows ? importSummary.ewmaTotal : periodMetrics?.ewmaTotal ?? 0;
-  const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : (periodMetrics?.noProtectionAmount ?? fallbackMetrics.noProtectionAmount) || riskTotal;
+  const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : periodMetrics?.noProtectionAmount ?? (hasImportDataset ? 0 : fallbackMetrics.noProtectionAmount || riskTotal);
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
   const resolvedPeriodLabel = periodLabel ?? (importSummary.rows ? "aktueller Import" : fallbackPeriod.label);
@@ -947,9 +951,9 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
   });
   const allScopedLocationRows = importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location));
   const importSummary = summarizeImportRows(scopedImportRows);
-  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod);
-  const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id), selectedPeriod);
-  const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id));
+  const selectedMetrics = metricsForImportOrDemo(importSummary, importRows.length > 0, () => aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod));
+  const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id), selectedPeriod, importRows);
+  const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id), importRows);
   const recoveryMatches = resubmissionCandidatesFromImportRows(allScopedLocationRows)
     .filter((candidate) => {
       const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
@@ -1050,9 +1054,9 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
             const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
             const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, selectedPeriod, entry)));
-            const periodCashflow = rowImportSummary.rows ? cashflowFromImportSummary(rowImportSummary) : cashflowForPeriod(entry, selectedPeriod);
+            const periodCashflow = cashflowForImportOrDemo(rowImportSummary, importRows.length > 0, () => cashflowForPeriod(entry, selectedPeriod));
             const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
-            const periodRiskAmount = periodCashflow.withoutProtection || Math.min(riskAmount, standort ? riskAmount : entry.withoutProtection);
+            const periodRiskAmount = periodCashflow.withoutProtection || (importRows.length ? 0 : Math.min(riskAmount, standort ? riskAmount : entry.withoutProtection));
             const paidEstimate = periodCashflow.payout || Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
             return (
               <article className="cashflow-card" key={entry.id}>
@@ -1359,6 +1363,46 @@ function aggregateMetrics(standortIds: string[], period: PeriodOption) {
   return totals;
 }
 
+function zeroMetrics(): ReturnType<typeof aggregateMetrics> {
+  return {
+    submitted: 0,
+    payout: 0,
+    fees: 0,
+    feeNet: 0,
+    feeVat: 0,
+    ewmaNet: 0,
+    ewmaVat: 0,
+    ewmaTotal: 0,
+    totalCost: 0,
+    feeRate: 0,
+    returnCount: 0,
+    returnAmount: 0,
+    cancellationCount: 0,
+    cancellationAmount: 0,
+    noProtectionCount: 0,
+    noProtectionAmount: 0
+  };
+}
+
+function metricsForImportOrDemo(summary: ImportSummary, hasImportDataset: boolean, fallback: () => ReturnType<typeof aggregateMetrics>) {
+  if (summary.rows) return metricsFromImportSummary(summary);
+  return hasImportDataset ? zeroMetrics() : fallback();
+}
+
+function zeroCashflow() {
+  return {
+    ...zeroMetrics(),
+    activeMonths: 0,
+    startLabel: "kein Import",
+    withoutProtection: 0
+  };
+}
+
+function cashflowForImportOrDemo(summary: ImportSummary, hasImportDataset: boolean, fallback: () => ReturnType<typeof cashflowForPeriod>) {
+  if (summary.rows) return cashflowFromImportSummary(summary);
+  return hasImportDataset ? zeroCashflow() : fallback();
+}
+
 type ImportSummary = ReturnType<typeof summarizeImportRows>;
 type ImportPersistenceSummary = {
   batchId: string;
@@ -1539,6 +1583,14 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
         } satisfies BfsCase;
       });
   });
+}
+
+function countOpenCasesByStandort(rows: ImportPreviewRow[]) {
+  const counts = new Map<string, number>();
+  casesFromImportRows(rows)
+    .filter((fall) => !fall.status.includes("erledigt"))
+    .forEach((fall) => counts.set(fall.standortId, (counts.get(fall.standortId) ?? 0) + 1));
+  return counts;
 }
 
 function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
@@ -1961,15 +2013,30 @@ function metricInPeriod(metric: BfsPeriodMetric, period: PeriodOption) {
   return true;
 }
 
-function buildRecentMonthlyTrend(standortIds: string[], period?: PeriodOption) {
+function buildRecentMonthlyTrend(standortIds: string[], period?: PeriodOption, importRows: ImportPreviewRow[] = []) {
+  if (importRows.length) {
+    const rows = importRows.filter((row) => {
+      const standort = standorte.find((entry) => entry.name === row.location);
+      return standort && standortIds.includes(standort.id) && (!period || importRowInPeriod(row, period, standort));
+    });
+    return groupImportRowsByMonth(rows)
+      .sort((a, b) => b.month.localeCompare(a.month))
+      .slice(0, period?.id === "since-start" ? 12 : 24)
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }
   return groupMetricsByMonth(bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId) && (!period || metricInPeriod(metric, period))))
     .sort((a, b) => b.month.localeCompare(a.month))
     .slice(0, period?.id === "since-start" ? 12 : 24)
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
-function buildQuarterComparison(standortIds: string[]) {
-  const quarters = groupMetricsByQuarter(bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId)))
+function buildQuarterComparison(standortIds: string[], importRows: ImportPreviewRow[] = []) {
+  const quarters = (importRows.length
+    ? groupImportRowsByQuarter(importRows.filter((row) => {
+        const standort = standorte.find((entry) => entry.name === row.location);
+        return standort && standortIds.includes(standort.id);
+      }))
+    : groupMetricsByQuarter(bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId))))
     .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
     .slice(0, 10);
 
@@ -1980,6 +2047,35 @@ function buildQuarterComparison(standortIds: string[]) {
       ...quarter,
       deltaPercent,
       feeRate: quarter.submitted ? (quarter.fees / quarter.submitted) * 100 : 0
+    };
+  });
+}
+
+function groupImportRowsByMonth(rows: ImportPreviewRow[]) {
+  const grouped = new Map<string, ImportPreviewRow[]>();
+  rows.forEach((row) => {
+    const month = importRowMonth(row);
+    if (month) grouped.set(month, [...(grouped.get(month) ?? []), row]);
+  });
+  return [...grouped.entries()].map(([month, entries]) => ({ month, ...metricsFromImportSummary(summarizeImportRows(entries)) }));
+}
+
+function groupImportRowsByQuarter(rows: ImportPreviewRow[]) {
+  const grouped = new Map<string, ImportPreviewRow[]>();
+  rows.forEach((row) => {
+    const monthKey = importRowMonth(row);
+    if (!monthKey) return;
+    const [year, month] = monthKey.split("-").map(Number);
+    const quarter = Math.floor((month - 1) / 3) + 1;
+    const key = `${year}-Q${quarter}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), row]);
+  });
+  return [...grouped.entries()].map(([key, entries]) => {
+    const [year, quarter] = key.split("-Q");
+    return {
+      label: `Q${quarter} ${year}`,
+      sortKey: `${year}-${quarter}`,
+      ...metricsFromImportSummary(summarizeImportRows(entries))
     };
   });
 }
@@ -3265,7 +3361,7 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
 
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
   const importedRisks = riskClaimsFromImportRows(importRows);
-  const sourceRows = importedRisks.length ? importedRisks : riskClaims;
+  const sourceRows = importRows.length ? importedRisks : riskClaims;
   const rows = sourceRows.filter((claim) => !standortId || claim.standortId === standortId);
   const reasonRows = aggregateNoProtectionReasons(rows);
   return (
@@ -3345,9 +3441,9 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
   );
 }
 
-function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreviewRow[] = []) {
+function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreviewRow[] = [], hasImportDataset = importRows.length > 0) {
   const importedRisks = riskClaimsFromImportRows(importRows);
-  const sourceRows = importedRisks.length ? importedRisks : riskClaims;
+  const sourceRows = hasImportDataset ? importedRisks : riskClaims;
   const rows = sourceRows.filter((claim) => !standortId || claim.standortId === standortId);
   const groups = new Map<string, RiskClaim[]>();
 

@@ -244,7 +244,7 @@ function movementType(line: string, previousLine?: string) {
   if (lower.includes("regulierung") || lower.includes("überweisung")) return "regulierung_ueberweisung";
   if (lower.includes("storno liquidation")) return "storno_liquidation_praxis";
   if (lower.includes("rückgabe") && (lower.includes("ausfallschutz") || lower.includes("rückgabe ohne"))) return "rueckgabe_ohne_ausfallschutz";
-  if (lower.includes("rückbelastung")) return "sonstige_rueckbelastung";
+  if (lower.includes("rückgabe") || lower.includes("rückbelastung")) return "sonstige_rueckbelastung";
   if (lower.includes("mwst") && previousLower.includes("ewma")) return "ewma_mwst";
   if (lower.includes("mwst")) return "mwst";
   if (lower.includes("ewma")) return "ewma_anfrage";

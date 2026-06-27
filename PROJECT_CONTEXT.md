@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweisen 19092/273 und 18504/249
+Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweisen 19092/273, 18504/249 und 19260/106
 
 ## Prompt fuer den naechsten Chat
 
@@ -294,6 +294,20 @@ Weitere Parser-Verifikation:
 - Ohne Ausfallschutz: 0 Forderungen, `0,00 EUR`
 - Kontoauszug erkannt: Abrechnungsumsatz und Regulierung/Überweisung je `36.714,12 EUR`
 
+Weitere Parser-Verifikation:
+- Datei: `AbrechnungsNachweis_19260_106.pdf`
+- Mandant: `19260`, Standort Ulmet / Praxis Dr. Hangx
+- Abrechnung: `106` vom `29.05.2026`
+- Forderungen: `91`, Summe `20.584,47 EUR`, alle 91 Positionen erkannt
+- Umsatz Netto: `20.033,32 EUR`, Auszahlung `18.844,04 EUR`
+- BFS-Gebühren: netto `463,15 EUR`, MwSt `88,00 EUR`, gesamt `551,15 EUR`
+- EWMA/Meldeamtabfrage: netto `1,35 EUR`, MwSt `0,26 EUR`, gesamt `1,61 EUR`
+- Ohne Ausfallschutz: 6 Forderungen, `1.145,92 EUR`, Marker `*KA`
+- `RS/A` wird korrekt als Risikoschuldner mit Ausfallschutz erkannt, nicht als ohne Ausfallschutz
+- Kontoauszug erkannt: 6 Storno-Liquidationen, 1 Rückgabe über `lt. iPortal-Rechnungsliste`, EWMA/MwSt, Abrechnungsumsatz und Regulierung
+- Storno-/Rückgabe-Summe im Kontoauszug: `1.187,67 EUR`; Geldfluss geht auf: `20.033,32 - 1.187,67 - 1,61 = 18.844,04`
+- Korrektur: generische `Rückgabe ...`-Zeilen ohne Ausfallschutz-Text werden als `sonstige_rueckbelastung` klassifiziert, damit sie in Rückgabe/Rückbelastungsauswertungen sichtbar sind.
+
 EWMA:
 - EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
@@ -374,7 +388,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Parser-Verifikation fuer Kirchberg-Abrechnung 18504/249 dokumentieren
+- naechster Commit: Generische BFS-Rueckgaben als Rueckbelastung klassifizieren
+- `d9c9e011` - Document Kirchberg parser verification
 - `a3902584` - Fix BFS fee VAT parsing
 - Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden
 - `2261686e` - Use clickable Orisus logo and refresh navigation data

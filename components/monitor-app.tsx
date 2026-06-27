@@ -186,6 +186,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     };
   }, []);
 
+  useEffect(() => {
+    setExpandedSections({});
+    setMobileNavOpen(false);
+  }, [activeView]);
+
   if (requireAuth && !session) {
     return <AccessGate title="Login erforderlich" message="Bitte melde dich an, um diesen geschützten Bereich zu öffnen." />;
   }

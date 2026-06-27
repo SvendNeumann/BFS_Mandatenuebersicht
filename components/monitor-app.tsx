@@ -94,8 +94,8 @@ const superAdminNav: NavSection[] = [
   {
     title: "Auswertung",
     items: [
-      ["reports", "Report je Standort", FileText],
-      ["groupReports", "Gruppenreport", BarChart3]
+      ["reports", "Report-Center", FileText],
+      ["groupReports", "Gruppenreports", BarChart3]
     ]
   },
   {
@@ -137,7 +137,7 @@ const leadNav: NavSection[] = [
   {
     title: "Auswertung",
     items: [
-      ["reports", "Standort-Reports", FileText],
+      ["reports", "Report-Center", FileText],
       ["settings", "Mein Profil & Sicherheit", UserRoundCheck]
     ]
   }
@@ -277,8 +277,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions">
-            <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>
-            {role === "super_admin" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
+            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
+            {role === "super_admin" && activeView !== "dashboard" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
           </div>
         </header>
 
@@ -370,8 +370,8 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     matches: "Neueinreichungsvorschläge",
-    reports: "Reports je Standort",
-    groupReports: "Gruppenreport",
+    reports: "Report-Center",
+    groupReports: "Gruppenreports",
     locations: "Standorte",
     users: "Nutzerverwaltung",
     settings: "Einstellungen"
@@ -393,8 +393,6 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
     return true;
   });
   const focusedRisks = riskClaims.filter((claim) => filteredStandortIds.has(claim.standortId));
-  const overdueCases = openCases.filter((fall) => fall.ageDays > 30);
-  const chargebackTotal = focusedCases.reduce((sum, fall) => sum + fall.amount, 0);
   const liveStandorte = filteredStandorte.filter((standort) => isStandortLive(standort));
   const plannedStandorte = filteredStandorte.filter((standort) => !isStandortLive(standort));
   const groupKpis = [
@@ -412,39 +410,13 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
         onFocusChange={setGroupFocus}
       />
       <KpiGrid cards={groupKpis} />
-      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact />
-      <section className="dashboard-grid">
-        <article className="panel command-panel">
-          <div>
-            <span className="eyebrow">Heute zuerst</span>
-            <h2>{overdueCases.length} ältere Klärfälle und {money.format(chargebackTotal)} im Fokus</h2>
-            <p>Beginne mit Rückbelastungen über 30 Tage, danach Wiedervorlagen und neue Importfehler prüfen.</p>
-          </div>
-          <div className="quick-actions">
-            <button className="primary-button" onClick={() => onNavigate("worklist")}><ClipboardList size={16} /> Prioritäten öffnen</button>
-            <button className="secondary-button" onClick={() => onNavigate("upload")}><Upload size={16} /> Monatsimport</button>
-            <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Standortreport</button>
-          </div>
-        </article>
-        <article className="panel process-panel">
-          <h2>Monatslauf</h2>
-          <div className="mini-process">
-            <button onClick={() => onNavigate("upload")}>Upload</button>
-            <button onClick={() => onNavigate("preview")}>Prüfen</button>
-            <button onClick={() => onNavigate("cases")}>Fälle</button>
-            <button onClick={() => onNavigate("reports")}>Reports</button>
-          </div>
-        </article>
-      </section>
+      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} />
       <section className="panel">
         <div className="panel-heading">
           <div>
             <h2>Standortübersicht</h2>
-            <p>Gefilterter Gruppenblick über Standorte, offene To-dos, Rückbelastungen und Risikohinweise.</p>
+            <p>Gefilterter Gruppenblick über Standorte, Eingänge, Gebühren, Rückbelastungen und Risikohinweise.</p>
           </div>
-          <button className="secondary-button" onClick={() => onNavigate("reports")}>
-            <Printer size={16} /> Reports
-          </button>
         </div>
         <div className="table-wrap">
           <table>
@@ -481,11 +453,6 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
             </tbody>
           </table>
         </div>
-      </section>
-      <section className="insight-grid">
-        <InsightCard title="Klärfälle nach Dringlichkeit" items={["Rot: älter als 30 Tage", "Orange: 15-30 Tage", "Gelb: 8-14 Tage"]} />
-        <InsightCard title="Importkontrolle" items={["Unbekannte Mandant-Nr. prüfen", "Summenabweichungen blockieren", "Dubletten nicht importieren"]} />
-        <InsightCard title="Reportversand" items={["Standort auswählen", "Nur offene Fälle filtern", "Druck/PDF oder CSV erzeugen"]} />
       </section>
       <section className="chart-grid">
         {dashboardSeries.map((chart) => (
@@ -543,7 +510,7 @@ function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort
   return (
     <div className="content-stack">
       <KpiGrid standort={standort} />
-      <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact />
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -554,7 +521,7 @@ function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort
           <div className="quick-actions">
             <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Offene Fälle</button>
             <button className="secondary-button" onClick={() => onNavigate("risks")}><ShieldCheck size={16} /> Risiko</button>
-            <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report</button>
+            <button className="secondary-button" onClick={() => onNavigate("claims")}><ReceiptText size={16} /> Geldfluss</button>
           </div>
         </article>
         <article className="panel process-panel">
@@ -576,13 +543,15 @@ function AnswerCockpit({
   standort,
   cases: rows,
   onNavigate,
-  compact = false
+  compact = false,
+  showReportAction = false
 }: {
   scope: "group" | "location";
   standort?: Standort;
   cases: BfsCase[];
   onNavigate: (view: string) => void;
   compact?: boolean;
+  showReportAction?: boolean;
 }) {
   const relevantStandorte = standort ? [standort] : standorte;
   const openCases = rows.filter((fall) => !fall.status.includes("erledigt"));
@@ -604,7 +573,7 @@ function AnswerCockpit({
           <span className="eyebrow">CFO-Schnellantworten</span>
           <h2>{title}</h2>
         </div>
-        <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>
+        {showReportAction && <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>}
       </div>
       <div className="answer-grid">
         <button onClick={() => onNavigate("claims")}>
@@ -803,8 +772,12 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
             <h2>Arbeitsliste nach Priorität</h2>
             <p>Die Liste ist so sortiert, wie ein Standort oder die Zentrale sinnvollerweise abarbeitet.</p>
           </div>
-          <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report erzeugen</button>
         </div>
+      </section>
+      <section className="insight-grid">
+        <InsightCard title="Klärfälle nach Dringlichkeit" items={["Rot: älter als 30 Tage", "Orange: 15-30 Tage", "Gelb: 8-14 Tage"]} />
+        <InsightCard title="Bearbeitung" items={["Rückbelastungen zuerst", "Wiedervorlagen fristgerecht klären", "Erledigte Neueinreichungen ausblenden"]} />
+        <InsightCard title="Standort-Rückfragen" items={["Patient, Re.-Nr. und BFS-Nr. nennen", "Grund aus BFS-Bemerkung übernehmen", "Maßnahme und Frist dokumentieren"]} />
       </section>
       <CasesView cases={sorted} compact />
     </div>
@@ -1157,6 +1130,11 @@ function UploadView() {
         <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
         <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
         <PriorityCard label="Verarbeitung" value={isProcessing ? "läuft" : "bereit"} hint="lokaler Demo-Import" tone={isProcessing ? "amber" : "green"} />
+      </section>
+      <section className="insight-grid">
+        <InsightCard title="Importkontrolle" items={["Mandant-Nr. muss Standort treffen", "Kopf- und Positionssumme müssen passen", "Dubletten werden über Hash erkannt"]} />
+        <InsightCard title="Kontoauszug-Prüfung" items={["Rückgaben und Stornos separat auslesen", "BFS-Nr. und Re.-Nr. historisch matchen", "BFS-Bemerkung als Originalgrund speichern"]} />
+        <InsightCard title="Freigabe vor Import" items={["Unbekannte Standorte prüfen", "Summenabweichungen klären", "Kassel erst ab 01.07.2026 erwarten"]} />
       </section>
       {liveRows.length > 0 && (
         <section className="panel slim-panel">
@@ -1528,13 +1506,24 @@ function ReportsView({ role, standort, cases }: { role: AppRole; standort: Stand
   }
   return (
     <div className="content-stack report-screen">
+      <section className="priority-grid">
+        <PriorityCard label="Reportfälle" value={String(reportCases.length)} hint="offen und reportfähig" tone={reportCases.length ? "amber" : "green"} />
+        <PriorityCard label="Offener Betrag" value={money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))} hint={standort.name} tone="blue" />
+        <PriorityCard label="Exportformate" value="2" hint="PDF/Druck und CSV" tone="green" />
+        <PriorityCard label="Empfängerlogik" value={role === "super_admin" ? "Standort" : "eigener"} hint="rollenbasiert gefiltert" tone="blue" />
+      </section>
       <section className="panel report-toolbar">
         <div>
-          <h2>Offene BFS-Klärfälle je Standort</h2>
-          <p>{role === "super_admin" ? "Super Admin kann Reports je Standort erzeugen." : "Standortleitung sieht nur den eigenen Standort."}</p>
+          <h2>Report-Center {standort.name}</h2>
+          <p>{role === "super_admin" ? "Reports werden je Standort erzeugt und können als PDF/Druck oder CSV exportiert werden." : "Standortleitung sieht und exportiert nur den eigenen Standort."}</p>
         </div>
         <button className="secondary-button" onClick={() => window.print()}><Printer size={16} /> Drucken / PDF</button>
         <button className="secondary-button" onClick={exportCsv}><Download size={16} /> CSV</button>
+      </section>
+      <section className="insight-grid">
+        <InsightCard title="Reportversand" items={["Standort auswählen", "Nur offene Fälle filtern", "PDF/Druck oder CSV erzeugen"]} />
+        <InsightCard title="Reportinhalte" items={["Offene Rückbelastungen", "Ohne Ausfallschutz laufend", "Wiederholer mit Maßnahme"]} />
+        <InsightCard title="Qualität vor Versand" items={["Import-Vorschau muss geprüft sein", "Unklare Mandanten vorher klären", "Historische Matches beachten"]} />
       </section>
       <section className="print-report">
         <header>

@@ -115,7 +115,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     status: statusFromNotes(notes),
     fileHash: hash,
     fileSizeBytes: file.size,
-    parseNotes: notes.length ? notes : ["Testdatei wurde für die Import-Vorschau verarbeitet."]
+    parseNotes: notes.length ? notes : ["Datei wurde für die Import-Vorschau verarbeitet."]
   };
 }
 
@@ -225,7 +225,7 @@ async function readLikelyText(file: File, bytes: ArrayBuffer) {
     return new TextDecoder("utf-8").decode(bytes);
   }
 
-  // Demo fallback: many BFS PDFs expose enough uncompressed text for early mapping checks.
+  // Fallback: many BFS PDFs expose enough uncompressed text for early mapping checks.
   const raw = new TextDecoder("latin1").decode(bytes);
   return raw
     .replace(/[^\x20-\x7EÄÖÜäöüß€\n\r\t.,;:/()-]/g, " ")

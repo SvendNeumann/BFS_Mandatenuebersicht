@@ -296,7 +296,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
               <UserRoundCheck size={18} />
               <div>
                 <strong>{role === "super_admin" ? "Zentrale / CFO" : selectedStandort.name}</strong>
-                <span>{session?.email ?? "Demo-Zugang"}</span>
+                <span>{session?.email ?? "Nicht angemeldet"}</span>
                 <small>{role === "super_admin" ? "Super Admin" : "Standortleitung"} · {isGroupScope ? "Alle Standorte" : selectedStandort.name}</small>
               </div>
             </div>
@@ -497,7 +497,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics(filteredStandorte.map((standort) => standort.id), selectedPeriod);
   const activeStandorte = filteredStandorte.filter((standort) => standortActiveInPeriod(standort, selectedPeriod));
   const inactiveStandorte = filteredStandorte.filter((standort) => !standortActiveInPeriod(standort, selectedPeriod));
-  const periodLabel = importSummary.rows ? "aktueller Testupload" : selectedPeriod.label;
+  const periodLabel = importSummary.rows ? "aktueller Import" : selectedPeriod.label;
   const groupChartSeries = buildGroupDashboardSeries(filteredStandorte, selectedPeriod);
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const groupKpis: KpiCardTuple[] = [
@@ -506,7 +506,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout],
     ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
-    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Testupload" : selectedPeriod.label]
+    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label]
   ];
   return (
     <div className="content-stack">
@@ -814,7 +814,7 @@ function AnswerCockpit({
   const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : (periodMetrics?.noProtectionAmount ?? fallbackMetrics.noProtectionAmount) || riskTotal;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
-  const resolvedPeriodLabel = periodLabel ?? (importSummary.rows ? "aktueller Testupload" : fallbackPeriod.label);
+  const resolvedPeriodLabel = periodLabel ?? (importSummary.rows ? "aktueller Import" : fallbackPeriod.label);
 
   return (
     <section className={compact ? "answer-cockpit compact" : "answer-cockpit"}>
@@ -1471,7 +1471,7 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
           traffic: ageDays > 30 ? "red" : ageDays >= 15 ? "orange" : ageDays >= 8 ? "yellow" : "green",
           status: movement.matchStatus === "unmatched" ? "historisches_match_offen" : "offen",
           dueDate: "-",
-          lastComment: movement.matchedFile ? `Gematcht mit ${movement.matchedFile}` : "Aus aktuellem Testupload erzeugt"
+          lastComment: movement.matchedFile ? `Gematcht mit ${movement.matchedFile}` : "Aus aktuellem Import erzeugt"
         } satisfies BfsCase;
       });
   });
@@ -1841,7 +1841,7 @@ function countImportMonths(rows: ImportPreviewRow[]) {
 
 function formatImportStart(rows: ImportPreviewRow[]) {
   const months = rows.map((row) => importRowMonth(row)).filter(Boolean).sort();
-  if (!months[0]) return "Testupload";
+  if (!months[0]) return "Importlauf";
   return formatMetricMonth(months[0]);
 }
 
@@ -1993,18 +1993,18 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
   const importSummary = summarizeImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows);
   const defaultPeriod = buildCashflowPeriods()[0];
   const defaultMetrics = standort ? aggregateMetrics([standort.id], defaultPeriod) : aggregateMetrics(standorte.map((entry) => entry.id), defaultPeriod);
-  const defaultInfo = buildKpiDerivationInfo(importSummary.rows ? metricsFromImportSummary(importSummary) : defaultMetrics, importSummary.rows ? "aktueller Testupload" : defaultPeriod.label);
+  const defaultInfo = buildKpiDerivationInfo(importSummary.rows ? metricsFromImportSummary(importSummary) : defaultMetrics, importSummary.rows ? "aktueller Import" : defaultPeriod.label);
   const cards = customCards ?? (standort
     ? [
-        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.submitted],
+        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : defaultPeriod.label, defaultInfo.submitted],
         ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label, defaultInfo.fees],
         ["Offene BFS-Klärfälle", String(standort.openCases), "echte To-dos"],
-        ["Laufend ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label]
+        ["Laufend ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Import" : defaultPeriod.label]
       ] satisfies KpiCardTuple[]
     : [
         ["Anzahl Standorte", `${standorte.filter((entry) => isStandortLive(entry, demoToday)).length} + ${standorte.filter((entry) => !isStandortLive(entry, demoToday)).length}`, "aktive und geplante Standorte"],
-        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.submitted],
-        ["Auszahlungsbetrag", money.format(importSummary.rows ? importSummary.payout : defaultMetrics.payout), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.payout],
+        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : defaultPeriod.label, defaultInfo.submitted],
+        ["Auszahlungsbetrag", money.format(importSummary.rows ? importSummary.payout : defaultMetrics.payout), importSummary.rows ? "aus aktuellem Import" : defaultPeriod.label, defaultInfo.payout],
         ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label, defaultInfo.fees]
       ] satisfies KpiCardTuple[]);
   return (
@@ -2053,7 +2053,7 @@ function buildKpiDerivationInfo(metrics: ReturnType<typeof aggregateMetrics>, pe
 
 function periodLabelFromHint(hint: string) {
   const normalized = hint.toLowerCase();
-  if (normalized.includes("testupload") || normalized.includes("upload")) return "Zeitraum: aktueller Testupload";
+  if (normalized.includes("testupload") || normalized.includes("upload") || normalized.includes("import")) return "Zeitraum: aktueller Import";
   if (normalized.includes("monat")) return "Zeitraum: aktueller Monat";
   if (normalized.includes("jahr") || normalized.includes("quartal") || normalized.includes("q1") || normalized.includes("q2") || normalized.includes("q3") || normalized.includes("q4")) return `Zeitraum: ${hint}`;
   if (/\d{2}\.\d{2}\.\d{4}/.test(hint) || /\d{4}/.test(hint)) return `Zeitraum: ${hint}`;
@@ -2125,14 +2125,14 @@ function metricExplanation(label: string, value: string, hint: string) {
     return `Herleitung: Alle noch nicht erledigten Klärfälle im aktuellen Standort- oder Gruppenfilter. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("import")) {
-    return `Herleitung: Status aus dem aktuellen Test- oder Demo-Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Status aus dem aktuellen Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
 }
 
 function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; onRowsChange: (rows: ImportPreviewRow[]) => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState("Bereit für Testupload");
+  const [uploadStatus, setUploadStatus] = useState("Bereit für Upload");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
@@ -2161,7 +2161,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         await storeImportRows(nextRows);
         setUploadStatus(importStatusMessage(parsedRows.length, result.persistence));
       } catch (storageError) {
-        setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence)} Lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+        setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence)} Import-Vorschau konnte nicht im Browser gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
       if (mode === "replace") onRowsChange([]);
@@ -2184,8 +2184,8 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       <section className="upload-zone">
         <HardDriveUpload size={28} />
         <div>
-          <h2>Testdateien für den Monats-Sammelimport hochladen</h2>
-          <p>Die Demo liest echte Dateien auch aus Unterordnern, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
+          <h2>BFS-Dateien für den Monats-Sammelimport hochladen</h2>
+          <p>Die App liest echte PDF-Dateien auch aus Unterordnern, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
           <div className={isProcessing ? "upload-status processing" : liveRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
             <RefreshCw size={14} />
             <span>{isProcessing ? "Wird eingelesen" : liveRows.length ? "Fertig" : "Bereit"}</span>
@@ -2217,7 +2217,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Dateien im Lauf" value={String(isProcessing ? selectedFileCount : previewRows.length)} hint={isProcessing ? "werden eingelesen" : liveRows.length ? "aus deinem Testupload" : "kein Upload vorhanden"} tone="blue" />
+        <PriorityCard label="Dateien im Lauf" value={String(isProcessing ? selectedFileCount : previewRows.length)} hint={isProcessing ? "werden eingelesen" : liveRows.length ? "aus aktuellem Upload" : "kein Upload vorhanden"} tone="blue" />
         <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
         <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
         <PriorityCard label="Unterordner" value={String(countNestedUploadFolders(previewRows))} hint="rekursiv mitverarbeitet" tone="blue" />
@@ -2231,14 +2231,14 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         <section className="panel slim-panel">
           <div className="panel-heading">
             <div>
-              <h2>Live-Testupload aktiv</h2>
-              <p>Diese Vorschau basiert auf deinen hochgeladenen Dateien und bleibt lokal im Browser gespeichert.</p>
+              <h2>Aktueller Upload aktiv</h2>
+              <p>Diese Vorschau basiert auf deinen hochgeladenen Dateien und bleibt für die Auswertung gespeichert.</p>
             </div>
             <button
               className="secondary-button"
               onClick={resetUpload}
             >
-              Testlauf zurücksetzen
+              Upload zurücksetzen
             </button>
           </div>
         </section>
@@ -2627,7 +2627,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
         <div className="panel-heading">
           <div>
             <h2>Prüfung & Detailvorschau</h2>
-            <p>Die Einzeldateien bleiben bis zur Bestätigung prüfbar; danach wertet die Demo diesen Datenstand aus.</p>
+            <p>Die Einzeldateien bleiben bis zur Bestätigung prüfbar; danach wertet die App diesen Datenstand aus.</p>
           </div>
           <div className="import-report-actions">
             <button className="secondary-button" disabled={!rows.length} onClick={() => printImportIssueReport(rows)}>
@@ -2704,7 +2704,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                     <td><StatusBadge status={row.status} /></td>
                     <td>
                       <div className="note-list">
-                        {(row.parseNotes ?? ["Demo-Datensatz"]).slice(0, 3).map((note) => (
+                        {(row.parseNotes ?? ["Keine Hinweise hinterlegt."]).slice(0, 3).map((note) => (
                           <span key={note}><AlertTriangle size={13} /> {note}</span>
                         ))}
                       </div>
@@ -2723,8 +2723,8 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
             <div className="confirmation-icon">
               <CheckCircle2 size={24} />
             </div>
-            <h2>Testimport bestätigt</h2>
-            <p>Die Import-Vorschau wurde für die Demo übernommen. Die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
+            <h2>Import bestätigt</h2>
+            <p>Die Import-Vorschau wurde übernommen. Die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
             <dl>
               <div><dt>Dateien</dt><dd>{rows.length}</dd></div>
               <div><dt>Importfähig</dt><dd>{rows.filter((row) => row.status === "OK").length}</dd></div>
@@ -2744,7 +2744,7 @@ function importRowNeedsReview(row: ImportPreviewRow) {
   if (!row.hasLedger) return true;
   if (row.claimsHeader !== row.claimsExtracted) return true;
   if (Math.abs(row.sumHeader - row.sumExtracted) > 0.02) return true;
-  return (row.parseNotes ?? []).some((note) => !note.toLowerCase().includes("testdatei wurde"));
+  return (row.parseNotes ?? []).some((note) => !note.toLowerCase().includes("datei wurde"));
 }
 
 function printImportIssueReport(rows: ImportPreviewRow[]) {
@@ -3710,7 +3710,7 @@ function formatGermanDate(value: string) {
 
 function LocationsView({ onLocationsChange }: { onLocationsChange: () => void }) {
   const [drafts, setDrafts] = useState(() => cloneStandorteForEditing());
-  const [message, setMessage] = useState("Änderungen werden lokal im Browser gespeichert und für die Demo-Zuordnung genutzt.");
+  const [message, setMessage] = useState("Änderungen werden lokal im Browser gespeichert und für die Standortzuordnung genutzt.");
 
   function updateLocation(id: string, patch: Partial<Standort>) {
     setDrafts((current) => current.map((standort) => standort.id === id ? { ...standort, ...patch } : standort));

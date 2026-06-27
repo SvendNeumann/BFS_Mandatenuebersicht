@@ -1,13 +1,13 @@
 import { isStandortLive, standorte } from "./demo-data";
 import { parseBfsPdfBytes, parseBfsText } from "./bfs-parser";
-import type { ImportPreviewRow } from "./types";
+import type { ImportPreviewRow, ParsedImportClaim, ParsedImportMovement } from "./types";
 
 const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
 const datePattern = /(\d{2}\.\d{2}\.\d{4})/;
 
 export async function parseDemoImportFiles(files: File[]) {
   const rows = await Promise.all(files.map(parseDemoImportFile));
-  return rows;
+  return reconcileImportRows(rows);
 }
 
 async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
@@ -42,8 +42,17 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (claimsHeader && parsed.claims.length && claimsHeader !== parsed.claims.length) notes.push(`Forderungsliste unvollständig: ${parsed.claims.length} von ${claimsHeader} Positionen erkannt.`);
   if (sumHeader && parsed.claims.length && Math.abs(sumHeader - sumExtracted) > 0.02) notes.push("Summenabweichung zwischen Kopf und Forderungsliste erkannt.");
 
+  const filePath = relativeFilePath(file);
+  const parsedClaims = parsed.claims.map((claim) => ({
+    ...claim,
+    sourceFile: filePath,
+    sourceLocation: standort?.name ?? "Unbekannt",
+    sourceStatementNo: statementNo || undefined,
+    sourceStatementDate: date || undefined
+  }));
+
   return {
-    file: relativeFilePath(file),
+    file: filePath,
     location: standort?.name ?? "Unbekannt",
     mandantNo: mandantNo || "-",
     practice: standort?.praxisname ?? "nicht zugeordnet",
@@ -60,13 +69,78 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     feeTotal: parsed.feeTotal,
     netRevenue: parsed.netRevenue,
     payout: parsed.payout,
-    parsedClaims: parsed.claims,
+    parsedClaims,
     parsedMovements: parsed.movements,
     status: statusFromNotes(notes),
     fileHash: hash,
     fileSizeBytes: file.size,
     parseNotes: notes.length ? notes : ["Testdatei wurde für die Import-Vorschau verarbeitet."]
   };
+}
+
+export function reconcileImportRows(rows: ImportPreviewRow[]) {
+  const byBfsNo = new Map<string, ParsedImportClaim>();
+  const byInvoiceNo = new Map<string, ParsedImportClaim>();
+
+  rows.forEach((row) => {
+    row.parsedClaims?.forEach((claim) => {
+      if (claim.bfsNo) byBfsNo.set(claim.bfsNo, claim);
+      if (claim.invoiceNo) byInvoiceNo.set(claim.invoiceNo, claim);
+    });
+  });
+
+  return rows.map((row) => {
+    const parsedMovements: ParsedImportMovement[] | undefined = row.parsedMovements?.map((movement) => {
+      const matchedClaim = findMovementClaim(movement, byBfsNo, byInvoiceNo);
+      const patientName = matchedClaim?.patientName ?? movement.patientName;
+      const matchStatus: ParsedImportMovement["matchStatus"] = matchedClaim
+        ? "matched_claim"
+        : patientName ? "patient_from_kontoauszug" : "unmatched";
+
+      return {
+        ...movement,
+        patientName,
+        matchedStatementNo: matchedClaim?.sourceStatementNo ?? movement.matchedStatementNo,
+        matchedStatementDate: matchedClaim?.sourceStatementDate ?? movement.matchedStatementDate,
+        matchedFile: matchedClaim?.sourceFile ?? movement.matchedFile,
+        matchStatus
+      };
+    });
+    const enrichedRow = { ...row, parsedMovements };
+    return {
+      ...enrichedRow,
+      parseNotes: addMatchingNotes(enrichedRow)
+    };
+  });
+}
+
+function findMovementClaim(
+  movement: ParsedImportMovement,
+  byBfsNo: Map<string, ParsedImportClaim>,
+  byInvoiceNo: Map<string, ParsedImportClaim>
+) {
+  if (movement.bfsNo) {
+    const claim = byBfsNo.get(movement.bfsNo);
+    if (claim) return claim;
+  }
+  if (movement.invoiceNo) {
+    return byInvoiceNo.get(movement.invoiceNo);
+  }
+  return undefined;
+}
+
+function addMatchingNotes(row: ImportPreviewRow) {
+  const notes = row.parseNotes ?? [];
+  const relevantMovements = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
+  if (!relevantMovements.length) return notes;
+
+  const unmatched = relevantMovements.filter((movement) => movement.matchStatus === "unmatched").length;
+  const matched = relevantMovements.length - unmatched;
+  const matchingNote = unmatched
+    ? `${matched} Rückgaben/Stornos gematcht, ${unmatched} brauchen historische Abrechnung.`
+    : `${matched} Rückgaben/Stornos mit Patient und Grund zugeordnet.`;
+
+  return [...notes.filter((note) => !note.includes("Rückgaben/Stornos")), matchingNote];
 }
 
 function relativeFilePath(file: File) {
@@ -119,7 +193,7 @@ function detectClaimCount(text: string) {
 }
 
 function detectExtractedClaims(text: string, fallback: number) {
-  const invoiceMatches = text.match(/\b\d{2,3}-\d{6}\b/g);
+  const invoiceMatches = text.match(/\b(?:\d{2,3}-\d{4,6}|\d{8})\b/g);
   return invoiceMatches?.length || fallback || 0;
 }
 

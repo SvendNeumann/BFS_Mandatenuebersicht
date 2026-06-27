@@ -1,4 +1,4 @@
-import type { BfsCase, ImportPreviewRow, RiskClaim, Standort } from "./types";
+import type { BfsCase, BfsPeriodMetric, ImportPreviewRow, RiskClaim, Standort } from "./types";
 
 export const standorte: Standort[] = [
   {
@@ -99,6 +99,46 @@ export const monthlyKpis = [
   ["Eingereichte Forderungen", "49.026,03 €", "aktueller Monat ohne Kassel"],
   ["Offene Rückbelastungen", "9.317,36 €", "echte To-dos ohne Kassel"]
 ];
+
+const metricMonths = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"];
+
+export const bfsPeriodMetrics: BfsPeriodMetric[] = standorte.flatMap((standort, standortIndex) => {
+  const goLiveMonth = standort.goLiveDate.slice(0, 7);
+  if (!isStandortLive(standort, new Date("2026-06-27T00:00:00"))) return [];
+
+  return metricMonths
+    .filter((month) => month >= goLiveMonth)
+    .map((month, monthIndex) => {
+      const wave = 0.78 + ((monthIndex + standortIndex) % 6) * 0.075;
+      const seasonal = month.endsWith("-03") || month.endsWith("-06") || month.endsWith("-09") || month.endsWith("-12") ? 1.08 : 1;
+      const submitted = roundMoney(standort.submittedThisMonth * wave * seasonal);
+      const fees = roundMoney(submitted * (standort.feesThisMonth / Math.max(standort.submittedThisMonth, 1)));
+      const cancellationCount = (monthIndex + standortIndex) % 5 === 0 ? 2 : (monthIndex + standortIndex) % 3 === 0 ? 1 : 0;
+      const returnCount = standort.openChargebacks > 0 && (monthIndex + standortIndex) % 4 === 0 ? Math.max(1, Math.round(standort.openCases / 2)) : cancellationCount ? 1 : 0;
+      const returnAmount = roundMoney(returnCount ? standort.openChargebacks * (0.16 + ((monthIndex + 1) % 4) * 0.04) : 0);
+      const cancellationAmount = roundMoney(cancellationCount ? submitted * (0.006 + (cancellationCount * 0.004)) : 0);
+      const noProtectionCount = (monthIndex + standortIndex) % 3 === 1 ? 2 : 1;
+      const noProtectionAmount = roundMoney(standort.withoutProtection * (0.45 + ((monthIndex + 2) % 5) * 0.08));
+
+      return {
+        standortId: standort.id,
+        month,
+        submitted,
+        payout: roundMoney(Math.max(submitted - fees - cancellationAmount, 0)),
+        fees,
+        returnCount,
+        returnAmount,
+        cancellationCount,
+        cancellationAmount,
+        noProtectionCount,
+        noProtectionAmount
+      };
+    });
+});
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
 export function isStandortLive(standort: Standort, referenceDate = new Date()) {
   const today = new Date(referenceDate);

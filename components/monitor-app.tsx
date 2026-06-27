@@ -33,6 +33,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   cases,
+  bfsPeriodMetrics,
   dashboardSeries,
   importPreviewRows,
   monthlyKpis,
@@ -42,10 +43,10 @@ import {
   liveStatusLabel,
   users
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, BfsPeriodMetric, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
-import { parseDemoImportFiles } from "@/lib/demo-import";
+import { parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
@@ -650,8 +651,18 @@ function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases:
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
+  const selectedMetrics = aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod);
+  const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id));
+  const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id));
+
   return (
     <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Eingereicht" value={money.format(selectedMetrics.submitted)} hint={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="BFS-Gebühren" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} tone="amber" />
+        <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} tone={selectedMetrics.returnCount ? "red" : "green"} />
+        <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -679,8 +690,8 @@ function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases:
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
             const periodCashflow = cashflowForPeriod(entry, selectedPeriod);
             const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
-            const periodRiskAmount = Math.min(riskAmount, periodCashflow.withoutProtection);
-            const paidEstimate = Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
+            const periodRiskAmount = periodCashflow.withoutProtection || Math.min(riskAmount, standort ? riskAmount : entry.withoutProtection);
+            const paidEstimate = periodCashflow.payout || Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
             return (
               <article className="cashflow-card" key={entry.id}>
                 <div>
@@ -693,13 +704,82 @@ function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases:
                   <div><dt>geschätzt gutgeschrieben</dt><dd>{money.format(paidEstimate)}</dd></div>
                   <div><dt>BFS-Gebühren</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
                   <div><dt>offene Klärfälle</dt><dd>{money.format(openAmount)}</dd></div>
-                  <div><dt>Rückläufer offen</dt><dd>{money.format(periodCashflow.openChargebacks)}</dd></div>
+                  <div><dt>Rückläufer</dt><dd>{periodCashflow.returnCount} / {money.format(periodCashflow.returnAmount)}</dd></div>
+                  <div><dt>Stornos</dt><dd>{periodCashflow.cancellationCount} / {money.format(periodCashflow.cancellationAmount)}</dd></div>
                   <div><dt>ohne Ausfallschutz</dt><dd>{money.format(periodRiskAmount)}</dd></div>
                 </dl>
               </article>
             );
           })}
         </div>
+      </section>
+      <section className="dashboard-grid">
+        <article className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Monatstrend</h2>
+              <p>Die letzten Monate aus dem ausgewählten Standortumfang.</p>
+            </div>
+          </div>
+          <div className="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Monat</th>
+                  <th>Eingereicht</th>
+                  <th>Gebühren</th>
+                  <th>Rückläufer</th>
+                  <th>Stornos</th>
+                  <th>Ohne Schutz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentMonths.map((metric) => (
+                  <tr key={metric.month}>
+                    <td><strong>{formatMetricMonth(metric.month)}</strong></td>
+                    <td>{money.format(metric.submitted)}</td>
+                    <td>{money.format(metric.fees)}</td>
+                    <td>{metric.returnCount} / {money.format(metric.returnAmount)}</td>
+                    <td>{metric.cancellationCount} / {money.format(metric.cancellationAmount)}</td>
+                    <td>{money.format(metric.noProtectionAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Quartalsvergleich</h2>
+              <p>Vergleich Q1/Q2/Q3/Q4 inklusive Veränderung zum Vorquartal.</p>
+            </div>
+          </div>
+          <div className="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Quartal</th>
+                  <th>Eingereicht</th>
+                  <th>Delta</th>
+                  <th>Rückläufer</th>
+                  <th>Gebührenquote</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quarterRows.map((metric) => (
+                  <tr key={metric.label}>
+                    <td><strong>{metric.label}</strong></td>
+                    <td>{money.format(metric.submitted)}</td>
+                    <td><StatusBadge status={formatDelta(metric.deltaPercent)} /></td>
+                    <td>{metric.returnCount} / {money.format(metric.returnAmount)}</td>
+                    <td>{metric.feeRate.toFixed(2)} %</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
       </section>
       <CasesView cases={rows.filter((fall) => !fall.status.includes("erledigt"))} title="Offene Positionen zu diesem Geldfluss" description="Alle offenen Fälle, die den Forderungs- und Rückläuferstand erklären." />
     </div>
@@ -813,16 +893,121 @@ function cashflowForPeriod(standort: Standort, period: PeriodOption) {
   const periodStart = period.start ? maxDate(period.start, goLive) : goLive;
   const periodEnd = period.end ? minDate(period.end, demoToday) : demoToday;
   const activeMonths = periodEnd < periodStart ? 0 : countStartedMonths(periodStart, periodEnd);
-  const scale = activeMonths;
+  const metric = aggregateMetrics([standort.id], period);
 
   return {
     activeMonths,
     startLabel: formatMonth(periodStart),
-    submitted: standort.submittedThisMonth * scale,
-    fees: standort.feesThisMonth * scale,
-    openChargebacks: standort.openChargebacks * Math.min(scale, 1),
-    withoutProtection: standort.withoutProtection * scale
+    submitted: metric.submitted,
+    payout: metric.payout,
+    fees: metric.fees,
+    returnCount: metric.returnCount,
+    returnAmount: metric.returnAmount,
+    cancellationCount: metric.cancellationCount,
+    cancellationAmount: metric.cancellationAmount,
+    withoutProtection: metric.noProtectionAmount
   };
+}
+
+function aggregateMetrics(standortIds: string[], period: PeriodOption) {
+  const selected = bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId) && metricInPeriod(metric, period));
+  const submitted = selected.reduce((sum, metric) => sum + metric.submitted, 0);
+  const fees = selected.reduce((sum, metric) => sum + metric.fees, 0);
+  const totals = {
+    submitted,
+    payout: selected.reduce((sum, metric) => sum + metric.payout, 0),
+    fees,
+    feeRate: submitted ? (fees / submitted) * 100 : 0,
+    returnCount: selected.reduce((sum, metric) => sum + metric.returnCount, 0),
+    returnAmount: selected.reduce((sum, metric) => sum + metric.returnAmount, 0),
+    cancellationCount: selected.reduce((sum, metric) => sum + metric.cancellationCount, 0),
+    cancellationAmount: selected.reduce((sum, metric) => sum + metric.cancellationAmount, 0),
+    noProtectionCount: selected.reduce((sum, metric) => sum + metric.noProtectionCount, 0),
+    noProtectionAmount: selected.reduce((sum, metric) => sum + metric.noProtectionAmount, 0)
+  };
+  return totals;
+}
+
+function metricInPeriod(metric: BfsPeriodMetric, period: PeriodOption) {
+  const metricDate = new Date(`${metric.month}-01T00:00:00`);
+  if (!period.start && !period.end) {
+    const standort = standorte.find((entry) => entry.id === metric.standortId);
+    return standort ? metric.month >= standort.goLiveDate.slice(0, 7) : true;
+  }
+  if (period.start && metricDate < new Date(period.start.getFullYear(), period.start.getMonth(), 1)) return false;
+  if (period.end && metricDate > new Date(period.end.getFullYear(), period.end.getMonth(), 1)) return false;
+  return true;
+}
+
+function buildRecentMonthlyTrend(standortIds: string[]) {
+  return groupMetricsByMonth(bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId)))
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .slice(0, 6);
+}
+
+function buildQuarterComparison(standortIds: string[]) {
+  const quarters = groupMetricsByQuarter(bfsPeriodMetrics.filter((metric) => standortIds.includes(metric.standortId)))
+    .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+    .slice(0, 8);
+
+  return quarters.map((quarter, index) => {
+    const previous = quarters[index + 1];
+    const deltaPercent = previous?.submitted ? ((quarter.submitted - previous.submitted) / previous.submitted) * 100 : 0;
+    return {
+      ...quarter,
+      deltaPercent,
+      feeRate: quarter.submitted ? (quarter.fees / quarter.submitted) * 100 : 0
+    };
+  });
+}
+
+function groupMetricsByMonth(metrics: BfsPeriodMetric[]) {
+  const grouped = new Map<string, BfsPeriodMetric[]>();
+  metrics.forEach((metric) => grouped.set(metric.month, [...(grouped.get(metric.month) ?? []), metric]));
+  return [...grouped.entries()].map(([month, entries]) => ({ month, ...sumMetricEntries(entries) }));
+}
+
+function groupMetricsByQuarter(metrics: BfsPeriodMetric[]) {
+  const grouped = new Map<string, BfsPeriodMetric[]>();
+  metrics.forEach((metric) => {
+    const [year, month] = metric.month.split("-").map(Number);
+    const quarter = Math.floor((month - 1) / 3) + 1;
+    const key = `${year}-Q${quarter}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), metric]);
+  });
+  return [...grouped.entries()].map(([key, entries]) => {
+    const [year, quarter] = key.split("-Q");
+    return {
+      label: `Q${quarter} ${year}`,
+      sortKey: `${year}-${quarter}`,
+      ...sumMetricEntries(entries)
+    };
+  });
+}
+
+function sumMetricEntries(entries: BfsPeriodMetric[]) {
+  return {
+    submitted: entries.reduce((sum, metric) => sum + metric.submitted, 0),
+    payout: entries.reduce((sum, metric) => sum + metric.payout, 0),
+    fees: entries.reduce((sum, metric) => sum + metric.fees, 0),
+    returnCount: entries.reduce((sum, metric) => sum + metric.returnCount, 0),
+    returnAmount: entries.reduce((sum, metric) => sum + metric.returnAmount, 0),
+    cancellationCount: entries.reduce((sum, metric) => sum + metric.cancellationCount, 0),
+    cancellationAmount: entries.reduce((sum, metric) => sum + metric.cancellationAmount, 0),
+    noProtectionCount: entries.reduce((sum, metric) => sum + metric.noProtectionCount, 0),
+    noProtectionAmount: entries.reduce((sum, metric) => sum + metric.noProtectionAmount, 0)
+  };
+}
+
+function formatMetricMonth(month: string) {
+  const [year, monthNo] = month.split("-");
+  return `${monthNo}.${year}`;
+}
+
+function formatDelta(value: number) {
+  if (!value) return "Vergleich startet";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)} %`;
 }
 
 function countStartedMonths(start: Date, end: Date) {
@@ -877,7 +1062,7 @@ function UploadView() {
     setIsProcessing(true);
     try {
       const parsedRows = await parseDemoImportFiles([...files]);
-      const nextRows = mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows;
+      const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
       setLiveRows(nextRows);
       storeImportRows(nextRows);
     } finally {
@@ -943,68 +1128,102 @@ function UploadView() {
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
+  const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
+    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+  const retainedAmount = relevantMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
+  const matchedMovements = relevantMovements.filter((movement) => movement.matchStatus !== "unmatched");
+  const reasonCount = new Set(relevantMovements.map((movement) => movement.reasonCategory)).size;
+
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h2>Import-Vorschau</h2>
-          <p>Import wird erst nach Prüfung und Bestätigung final geschrieben.</p>
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Rückgaben/Stornos" value={String(relevantMovements.length)} hint={`${matchedMovements.length} mit Patient zugeordnet`} tone={relevantMovements.length ? "amber" : "green"} />
+        <PriorityCard label="Einbehaltene Summe" value={money.format(retainedAmount)} hint="aus Kontoauszug-Bewegungen" tone={retainedAmount ? "amber" : "green"} />
+        <PriorityCard label="Grund-Klassen" value={String(reasonCount)} hint="z.B. unzustellbar, Ausfallschutz" tone="blue" />
+        <PriorityCard label="Historisch offen" value={String(relevantMovements.length - matchedMovements.length)} hint="braucht ältere Abrechnung zum Match" tone={relevantMovements.length - matchedMovements.length ? "red" : "green"} />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Import-Vorschau</h2>
+            <p>Import wird erst nach Prüfung und Bestätigung final geschrieben.</p>
+          </div>
+          <button className="primary-button">
+            <CheckCircle2 size={16} /> Import bestätigen
+          </button>
         </div>
-        <button className="primary-button">
-          <CheckCircle2 size={16} /> Import bestätigen
-        </button>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Datei</th>
-              <th>Standort</th>
-              <th>Mandant-Nr.</th>
-              <th>Abrechnung</th>
-              <th>Forderungen</th>
-              <th>Summe</th>
-              <th>Kontoauszug</th>
-              <th>Status</th>
-              <th>Hinweise</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
-                <td>
-                  <strong>{row.file}</strong>
-                  <span>{row.practice}</span>
-                  {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
-                  {!!row.parsedClaims?.length && (
-                    <small>{row.parsedClaims.length} Patientenpositionen · {row.noProtectionCount ?? 0} ohne Ausfallschutz</small>
-                  )}
-                </td>
-                <td>{row.location}</td>
-                <td>{row.mandantNo}</td>
-                <td>{row.statementNo} / {row.date}</td>
-                <td>{row.claimsHeader} / {row.claimsExtracted}</td>
-                <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
-                <td>
-                  {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
-                  {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
-                  {!!row.feeTotal && <span>Gebühren {money.format(row.feeTotal)}</span>}
-                </td>
-                <td><StatusBadge status={row.status} /></td>
-                <td>
-                  <div className="note-list">
-                    {(row.parseNotes ?? ["Demo-Datensatz"]).slice(0, 3).map((note) => (
-                      <span key={note}><AlertTriangle size={13} /> {note}</span>
-                    ))}
-                  </div>
-                </td>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Datei</th>
+                <th>Standort</th>
+                <th>Mandant-Nr.</th>
+                <th>Abrechnung</th>
+                <th>Forderungen</th>
+                <th>Summe</th>
+                <th>Kontoauszug</th>
+                <th>Status</th>
+                <th>Hinweise</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const rowReasons = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
+                return (
+                  <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
+                    <td>
+                      <strong>{row.file}</strong>
+                      <span>{row.practice}</span>
+                      {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
+                      {!!row.parsedClaims?.length && (
+                        <small>{row.parsedClaims.length} Patientenpositionen · {row.noProtectionCount ?? 0} ohne Ausfallschutz</small>
+                      )}
+                    </td>
+                    <td>{row.location}</td>
+                    <td>{row.mandantNo}</td>
+                    <td>{row.statementNo} / {row.date}</td>
+                    <td>{row.claimsHeader} / {row.claimsExtracted}</td>
+                    <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
+                    <td>
+                      {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
+                      {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
+                      {!!row.feeTotal && <span>Gebühren {money.format(row.feeTotal)}</span>}
+                      {!!rowReasons.length && (
+                        <>
+                          <span>{rowReasons.length} Storno-/Rückgabegründe</span>
+                          {rowReasons.slice(0, 3).map((movement) => (
+                            <small key={`${movement.rawText}-${movement.bfsNo ?? ""}`}>
+                              {formatMovementReason(movement)}
+                            </small>
+                          ))}
+                        </>
+                      )}
+                    </td>
+                    <td><StatusBadge status={row.status} /></td>
+                    <td>
+                      <div className="note-list">
+                        {(row.parseNotes ?? ["Demo-Datensatz"]).slice(0, 3).map((note) => (
+                          <span key={note}><AlertTriangle size={13} /> {note}</span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
+}
+
+function formatMovementReason(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  const patient = movement.patientName ?? "Patient noch nicht gematcht";
+  const reason = movement.reason ?? movement.reasonCategory ?? "Grund offen";
+  const amount = movement.amount ? ` · ${money.format(Math.abs(movement.amount))}` : "";
+  return `${patient}: ${reason}${amount}`;
 }
 
 function loadStoredImportRows() {

@@ -18,7 +18,7 @@ export type ParsedBfsDocument = {
 };
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
-const claimLinePattern = /^(.+?)\s+(\d{2,3}-\d{6})\s+(5-\d{5}-\d+)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\*[A-ZÄÖÜ]{2}|RS\/A))?$/;
+const claimLinePattern = /^(.+?)\s+(\d{2,3}-\d{4,6}|\d{8})\s+(5-\d{5}-\d+)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\*[A-ZÄÖÜ]{2}|RS\/A))?$/;
 const dateLinePattern = /\b\d{2}\.\d{2}\.\d{4}\b/;
 const shortDatePattern = /\b\d{2}\.\d{2}\.\d{2}\b/;
 
@@ -34,7 +34,7 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
   const headerLine = findLine(lines, /Forderungen\s+\d+\s+\d{1,3}(?:\.\d{3})*,\d{2}/i);
   const headerLineMatch = headerLine?.match(/Forderungen\s+(\d+)\s+(\d{1,3}(?:\.\d{3})*,\d{2})/i);
   const claims = parseClaims(lines);
-  const movements = parseMovements(lines);
+  const movements = parseMovements(lines, claims);
   const noProtectionStats = parseNoProtectionStats(lines, claims);
 
   return {
@@ -108,26 +108,42 @@ function parseClaims(lines: string[]): ParsedImportClaim[] {
   });
 }
 
-function parseMovements(lines: string[]): ParsedImportMovement[] {
+function parseMovements(lines: string[], claims: ParsedImportClaim[]): ParsedImportMovement[] {
   const kontoStart = lines.findIndex((line) => line.includes("Kontoauszug Mandant"));
   if (kontoStart < 0) return [];
   const kontoLines = lines.slice(kontoStart + 1);
+  const claimsByBfsNo = new Map(claims.map((claim) => [claim.bfsNo, claim]));
+  const claimsByInvoiceNo = new Map(claims.map((claim) => [claim.invoiceNo, claim]));
+  const movements: ParsedImportMovement[] = [];
 
-  return kontoLines.flatMap((line) => {
+  kontoLines.forEach((line, index) => {
     if (!shortDatePattern.test(line)) return [];
     const date = line.match(shortDatePattern)?.[0];
-    const bfsMatch = line.match(/(5-\d{5}-\d+)\s*\/\s*(\d{2,3}-\d{6})/);
+    const bfsMatch = line.match(/(5-\d{5}-\d+)\s*\/\s*(\d{2,3}-\d{4,6}|\d{8})/);
+    const matchedClaim = bfsMatch ? claimsByBfsNo.get(bfsMatch[1]) ?? claimsByInvoiceNo.get(bfsMatch[2]) : undefined;
     const amount = [...line.matchAll(new RegExp(amountPattern, "g"))].map((match) => parseAmount(match[0])).at(-1);
-    return [{
+    const reason = extractMovementReason(line, bfsMatch?.[0]);
+    const continuation = movementContinuation(kontoLines[index + 1]);
+    const finalReason = reason ?? continuation.reason;
+    const patientName = matchedClaim?.patientName ?? continuation.patientName ?? extractMovementPatient(line);
+    movements.push({
       date,
       type: movementType(line),
-      patientName: extractMovementPatient(line),
+      reason: finalReason,
+      reasonCategory: reasonCategory(finalReason, line),
+      patientName,
       invoiceNo: bfsMatch?.[2],
       bfsNo: bfsMatch?.[1],
       amount,
+      matchedStatementNo: matchedClaim?.sourceStatementNo,
+      matchedStatementDate: matchedClaim?.sourceStatementDate,
+      matchedFile: matchedClaim?.sourceFile,
+      matchStatus: matchedClaim ? "matched_claim" : patientName ? "patient_from_kontoauszug" : "unmatched",
       rawText: line
-    }];
+    });
   });
+
+  return movements;
 }
 
 function parseNoProtectionStats(lines: string[], claims: ParsedImportClaim[]) {
@@ -148,11 +164,37 @@ function movementType(line: string) {
   if (lower.includes("abr.-umsatz")) return "abr_umsatz";
   if (lower.includes("regulierung") || lower.includes("überweisung")) return "regulierung_ueberweisung";
   if (lower.includes("storno liquidation")) return "storno_liquidation_praxis";
-  if (lower.includes("rückgabe") && lower.includes("ausfallschutz")) return "rueckgabe_ohne_ausfallschutz";
+  if (lower.includes("rückgabe") && (lower.includes("ausfallschutz") || lower.includes("rückgabe ohne"))) return "rueckgabe_ohne_ausfallschutz";
   if (lower.includes("rückbelastung")) return "sonstige_rueckbelastung";
   if (lower.includes("mwst")) return "mwst";
   if (lower.includes("ewma")) return "ewma_anfrage";
   return "unbekannt";
+}
+
+function extractMovementReason(line: string, bfsAndInvoice?: string) {
+  if (!bfsAndInvoice) {
+    if (line.toLowerCase().includes("regulierung")) return "Überweisung";
+    if (line.toLowerCase().includes("abr.-umsatz")) return "Abrechnungsumsatz";
+    return undefined;
+  }
+
+  const afterReference = line.slice(line.indexOf(bfsAndInvoice) + bfsAndInvoice.length);
+  const withoutAmount = afterReference.replace(new RegExp(`${amountPattern.source}\\s*$`), "").trim();
+  const reason = withoutAmount.replace(/^lt\.\s*/i, "lt. ").trim();
+  return reason || undefined;
+}
+
+function reasonCategory(reason: string | undefined, line: string) {
+  const value = `${reason ?? ""} ${line}`.toLowerCase();
+  if (value.includes("unzustellbar")) return "unzustellbar";
+  if (value.includes("factoringvereinbarung")) return "factoringvereinbarung";
+  if (value.includes("nachricht")) return "nachricht_praxis";
+  if (value.includes("rückgabe") && value.includes("ausfallschutz")) return "rueckgabe_ohne_ausfallschutz";
+  if (value.includes("rückgabe ohne")) return "rueckgabe_ohne_ausfallschutz";
+  if (value.includes("iportal-rechnungsliste")) return "iportal_rechnungsliste";
+  if (value.includes("überweisung")) return "regulierung";
+  if (value.includes("abrechnungsumsatz") || value.includes("abr.-umsatz")) return "abrechnungsumsatz";
+  return reason ? "sonstiger_storno_grund" : undefined;
 }
 
 function extractMovementPatient(line: string) {
@@ -160,6 +202,23 @@ function extractMovementPatient(line: string) {
   if (praxisMatch) return praxisMatch[1].trim();
   return line.match(/EWMA-Anfrage\s+(.+?)\s+\d{1,3}(?:\.\d{3})*,\d{2}/)?.[1]?.trim()
     ?? line.match(/MwSt\.\s+19\s+%\s+(.+?)\s+\d{1,3}(?:\.\d{3})*,\d{2}/)?.[1]?.trim();
+}
+
+function movementContinuation(nextLine: string | undefined) {
+  if (!nextLine || shortDatePattern.test(nextLine)) return {};
+  if (/^(Kontostand|Bitte prüfen|Sollzinsen|Hinweis|Abrechnung|Überweisung)/i.test(nextLine)) return {};
+
+  const ausfallschutzMatch = nextLine.match(/^Ausfallschutz\s+(.+)$/i);
+  if (ausfallschutzMatch) {
+    return { patientName: ausfallschutzMatch[1].trim(), reason: "ohne Ausfallschutz" };
+  }
+
+  const praxisMatch = nextLine.match(/^Praxis\s+(.+)$/i);
+  if (praxisMatch) {
+    return { patientName: praxisMatch[1].trim() };
+  }
+
+  return { patientName: nextLine.trim() };
 }
 
 function findLine(lines: string[], pattern: RegExp) {

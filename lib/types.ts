@@ -16,6 +16,20 @@ export type Standort = {
   olderThan30: number;
 };
 
+export type BfsPeriodMetric = {
+  standortId: string;
+  month: string;
+  submitted: number;
+  payout: number;
+  fees: number;
+  returnCount: number;
+  returnAmount: number;
+  cancellationCount: number;
+  cancellationAmount: number;
+  noProtectionCount: number;
+  noProtectionAmount: number;
+};
+
 export type Traffic = "green" | "yellow" | "orange" | "red";
 
 export type BfsCase = {
@@ -79,14 +93,24 @@ export type ParsedImportClaim = {
   amount: number;
   marker?: string;
   protectionStatus: "mit_ausfallschutz" | "ohne_ausfallschutz" | "unbekannt";
+  sourceFile?: string;
+  sourceLocation?: string;
+  sourceStatementNo?: string;
+  sourceStatementDate?: string;
 };
 
 export type ParsedImportMovement = {
   date?: string;
   type: string;
+  reason?: string;
+  reasonCategory?: string;
   patientName?: string;
   invoiceNo?: string;
   bfsNo?: string;
   amount?: number;
+  matchedStatementNo?: string;
+  matchedStatementDate?: string;
+  matchedFile?: string;
+  matchStatus?: "matched_claim" | "patient_from_kontoauszug" | "unmatched";
   rawText: string;
 };

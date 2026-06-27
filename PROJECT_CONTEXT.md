@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach Umstellung des App-Logos auf SVG/Vektor
+Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweis 19092/273
 
 ## Prompt fuer den naechsten Chat
 
@@ -273,6 +273,17 @@ Parser soll erkennen:
 - Rückgaben/Stornos
 - Gründe/Bemerkungen
 
+Letzte Parser-Verifikation:
+- Datei: `AbrechnungsNachweis_19092_273.pdf`
+- Mandant: `19092`, Standort Kehl / Zahnarztpraxis Zorn de Bulach
+- Abrechnung: `273` vom `28.05.2026`
+- Forderungen: `8`, Summe `1.621,10 EUR`, alle 8 Positionen erkannt
+- Auszahlung/Umsatz Netto: `1.577,69 EUR`
+- BFS-Gebühren: netto `36,48 EUR`, MwSt `6,93 EUR`, gesamt `43,41 EUR`
+- Ohne Ausfallschutz: 1 Forderung, `218,12 EUR`, Patientin `Suominen-Picht, Irene`, Marker `*AA` / Auslandsadresse
+- Kontoauszug erkannt: Abrechnungsumsatz und Regulierung/Überweisung je `1.577,69 EUR`
+- Korrektur: `USt-ID-Nr.` darf nicht als MwSt-Zeile für Gebühren erkannt werden; Steuerzeile muss echte Beträge enthalten und Steuerbetrag positiv ausgewiesen werden.
+
 EWMA:
 - EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
@@ -353,7 +364,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden
+- naechster Commit: Korrektur BFS-Gebuehrenaufteilung bei MwSt-Zeilen nach Parser-Verifikation 19092/273
+- Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden
 - `2261686e` - Use clickable Orisus logo and refresh navigation data
 - `aad283db` - Collapse sidebar sections on view change
 - `21979e27` - Expand KPI derivation details

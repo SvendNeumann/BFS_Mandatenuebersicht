@@ -70,13 +70,16 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
 
 function parseFeeBreakdown(text: string) {
   const total = parseAmount(text.match(/Summe Gebühren\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00");
-  const vatLine = text.split("\n").find((line) => /(?:MwSt\.?|MWST|Mehrwertsteuer|USt\.?|Umsatzsteuer)/i.test(line));
-  const vat = parseAmount(vatLine?.match(new RegExp(amountPattern, "g"))?.at(-1) ?? "0,00");
+  const vatLine = text.split("\n").find((line) => {
+    const amounts = line.match(new RegExp(amountPattern, "g")) ?? [];
+    return amounts.length > 0 && /(?:MwSt\.?|MWST|Mehrwertsteuer|Umsatzsteuer)/i.test(line) && !/USt-ID/i.test(line);
+  });
+  const vat = Math.abs(parseAmount(vatLine?.match(new RegExp(amountPattern, "g"))?.at(-1) ?? "0,00"));
   const explicitNet = parseAmount(
     text.match(/(?:Gebühren\s+Netto|BFS-?Gebühren\s+Netto|Netto\s+Gebühren)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1]
     ?? "0,00"
   );
-  const net = explicitNet || (total && vat ? Math.round((total - vat) * 100) / 100 : total);
+  const net = explicitNet || (total && vat ? roundMoney(total - vat) : total);
 
   return {
     total,

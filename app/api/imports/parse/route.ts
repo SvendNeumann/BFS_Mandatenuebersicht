@@ -5,6 +5,47 @@ import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
 type SupabaseDbClient = any;
 
+type ImportPersistenceResult = {
+  batchId: string;
+  imported: number;
+  duplicates: number;
+  failed: number;
+  errors: Array<{ file: string; message: string }>;
+};
+
+export async function GET() {
+  try {
+    const auth = await requireSuperAdmin();
+    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const supabase = createServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
+    }
+
+    const { data, error } = await supabase
+      .from("bfs_documents")
+      .select("extracted_json, created_at")
+      .not("extracted_json", "is", null)
+      .eq("status", "imported")
+      .order("created_at", { ascending: true })
+      .limit(5000);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const rows = (data ?? [])
+      .map((entry: { extracted_json: unknown }) => entry.extracted_json)
+      .filter(isImportPreviewRow);
+
+    return NextResponse.json({ rows: reconcileRowsByBusinessIdentity(rows) });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Importdaten konnten nicht geladen werden." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireSuperAdmin();
@@ -38,7 +79,7 @@ async function persistImport(
   userId: string,
   files: File[],
   rows: ImportPreviewRow[]
-) {
+): Promise<ImportPersistenceResult> {
   const { data: standorte } = await supabase.from("standorte").select("id, name, bfs_mandant_nr");
   const { data: standortMandanten } = await supabase.from("standort_mandanten").select("standort_id, mandant_nr");
   const standortByName = new Map<string, string>((standorte ?? []).map((standort: { id: string; name: string }) => [standort.name, standort.id]));
@@ -65,8 +106,10 @@ async function persistImport(
   if (batchError || !batch) throw batchError ?? new Error("Import-Batch konnte nicht erstellt werden.");
   const batchId = String(batch.id);
 
-  let successful = 0;
+  let imported = 0;
+  let duplicates = 0;
   let failed = 0;
+  const errors: ImportPersistenceResult["errors"] = [];
   const fileByName = new Map(files.map((file) => [file.name, file]));
 
   for (const row of rows) {
@@ -74,47 +117,61 @@ async function persistImport(
     const standortId = standortByName.get(row.location) ?? standortByMandant.get(row.mandantNo) ?? null;
     if (!file || !standortId || !row.fileHash) {
       failed += 1;
+      errors.push({ file: row.file, message: "Datei, Standort oder Hash konnte nicht eindeutig ermittelt werden." });
       continue;
     }
 
+    let documentId: string | undefined;
     try {
       const existingDocumentId = await findExistingDocumentId(supabase, standortId, row);
       if (existingDocumentId) {
-        successful += 1;
+        duplicates += 1;
         continue;
       }
 
       const storagePath = `${batchId}/${safeStorageName(row.file)}`;
       const fileBuffer = Buffer.from(await file.arrayBuffer());
-      await supabase.storage.from("bfs-documents").upload(storagePath, fileBuffer, {
+      const { error: storageError } = await supabase.storage.from("bfs-documents").upload(storagePath, fileBuffer, {
         contentType: file.type || "application/pdf",
         upsert: false
       });
+      if (storageError) throw storageError;
 
-      const documentId = await insertDocument(supabase, batchId, standortId, storagePath, file, row);
-      if (!documentId) {
-        successful += 1;
-        continue;
-      }
+      documentId = await insertDocument(supabase, batchId, standortId, storagePath, file, row);
+      if (!documentId) throw new Error("Dokument konnte nicht gespeichert werden.");
       const abrechnungId = await insertAbrechnung(supabase, documentId, standortId, row);
       await insertForderungen(supabase, documentId, standortId, abrechnungId, row);
       await insertBewegungenAndCases(supabase, documentId, standortId, abrechnungId, row);
-      successful += 1;
-    } catch {
+      imported += 1;
+    } catch (error) {
       failed += 1;
+      const message = error instanceof Error ? error.message : "Unbekannter Importfehler";
+      if (documentId) {
+        await supabase
+          .from("bfs_documents")
+          .update({ status: "error", parse_error: message })
+          .eq("id", documentId);
+      }
+      errors.push({ file: row.file, message });
     }
   }
 
   await supabase
     .from("bfs_import_batches")
     .update({
-      status: failed ? (successful ? "partially_completed" : "failed") : "completed",
-      successful_files: successful,
-      failed_files: failed
+      status: failed ? (imported || duplicates ? "partially_completed" : "failed") : "completed",
+      successful_files: imported + duplicates,
+      failed_files: failed,
+      notes: [
+        "Serverseitiger Import aus Orisus BFS Monitor",
+        `${imported} neu importiert`,
+        `${duplicates} Dubletten übersprungen`,
+        `${failed} fehlgeschlagen`
+      ].join(" · ")
     })
     .eq("id", batchId);
 
-  return { batchId, successful, failed };
+  return { batchId, imported, duplicates, failed, errors };
 }
 
 async function findExistingDocumentId(
@@ -201,7 +258,7 @@ async function insertAbrechnung(
   standortId: string,
   row: ImportPreviewRow
 ) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("bfs_abrechnungen")
     .insert({
       document_id: documentId,
@@ -220,6 +277,7 @@ async function insertAbrechnung(
     })
     .select("id")
     .single();
+  if (error) throw error;
   return data?.id as string | undefined;
 }
 
@@ -232,7 +290,7 @@ async function insertForderungen(
 ) {
   const claims = row.parsedClaims ?? [];
   if (!claims.length) return;
-  await supabase.from("bfs_forderungen").insert(claims.map((claim) => ({
+  const { error } = await supabase.from("bfs_forderungen").insert(claims.map((claim) => ({
     standort_id: standortId,
     abrechnung_id: abrechnungId,
     document_id: documentId,
@@ -244,6 +302,7 @@ async function insertForderungen(
     kennzeichen: claim.marker,
     current_status: claim.protectionStatus === "ohne_ausfallschutz" ? "risiko" : "eingereicht"
   })));
+  if (error) throw error;
 }
 
 async function insertBewegungenAndCases(
@@ -254,7 +313,7 @@ async function insertBewegungenAndCases(
   row: ImportPreviewRow
 ) {
   for (const movement of row.parsedMovements ?? []) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("bfs_bewegungen")
       .insert({
         standort_id: standortId,
@@ -271,9 +330,10 @@ async function insertBewegungenAndCases(
       })
       .select("id")
       .single();
+    if (error) throw error;
 
     if (isCaseMovement(movement)) {
-      await supabase.from("bfs_cases").insert({
+      const { error: caseError } = await supabase.from("bfs_cases").insert({
         standort_id: standortId,
         bewegung_id: data?.id,
         document_id: documentId,
@@ -285,8 +345,27 @@ async function insertBewegungenAndCases(
         amount: Math.abs(movement.amount ?? 0),
         resolution_comment: null
       });
+      if (caseError) throw caseError;
     }
   }
+}
+
+function isImportPreviewRow(value: unknown): value is ImportPreviewRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Partial<ImportPreviewRow>;
+  return typeof row.file === "string"
+    && typeof row.location === "string"
+    && typeof row.mandantNo === "string"
+    && typeof row.statementNo === "string"
+    && typeof row.date === "string";
+}
+
+function reconcileRowsByBusinessIdentity(rows: ImportPreviewRow[]) {
+  const byIdentity = new Map<string, ImportPreviewRow>();
+  rows.forEach((row) => {
+    byIdentity.set(importRowBusinessIdentity(row) ?? row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`, row);
+  });
+  return [...byIdentity.values()];
 }
 
 function isCaseMovement(movement: ParsedImportMovement) {

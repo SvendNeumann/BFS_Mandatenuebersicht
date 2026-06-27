@@ -1296,6 +1296,13 @@ function aggregateMetrics(standortIds: string[], period: PeriodOption) {
 }
 
 type ImportSummary = ReturnType<typeof summarizeImportRows>;
+type ImportPersistenceSummary = {
+  batchId: string;
+  imported: number;
+  duplicates: number;
+  failed: number;
+  errors?: Array<{ file: string; message: string }>;
+};
 
 function summarizeImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
@@ -2139,17 +2146,18 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     setIsProcessing(true);
     setUploadStatus(`${importableFiles.length} PDF-Dateien werden serverseitig eingelesen`);
     try {
-      const parsedRows = await parseImportFiles(importableFiles, (processed, total, fileName) => {
+      const result = await parseImportFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setUploadStatus(`${processed} von ${total} Dateien eingelesen (${shortName})`);
       });
+      const parsedRows = result.rows;
       const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
       onRowsChange(nextRows);
       try {
         await storeImportRows(nextRows);
-        setUploadStatus(`${parsedRows.length} PDF-Dateien fertig eingelesen und serverseitig gespeichert`);
+        setUploadStatus(importStatusMessage(parsedRows.length, result.persistence));
       } catch (storageError) {
-        setUploadStatus(`${parsedRows.length} PDF-Dateien serverseitig eingelesen; lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+        setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence)} Lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
       setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -2252,17 +2260,25 @@ async function parseImportFiles(
   });
 
   if (response.ok) {
-    const payload = await response.json() as { rows: ImportPreviewRow[] };
+    const payload = await response.json() as { rows: ImportPreviewRow[]; persistence?: ImportPersistenceSummary };
     payload.rows.forEach((row, index) => onProgress?.(index + 1, payload.rows.length, row.file));
-    return payload.rows;
+    return { rows: payload.rows, persistence: payload.persistence };
   }
 
   if (process.env.NODE_ENV !== "production") {
-    return parseDemoImportFiles(files, onProgress);
+    return { rows: await parseDemoImportFiles(files, onProgress), persistence: undefined };
   }
 
   const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
   throw new Error(errorPayload?.error ?? "Serverseitiger Import fehlgeschlagen.");
+}
+
+function importStatusMessage(parsedCount: number, persistence?: ImportPersistenceSummary) {
+  if (!persistence) return `${parsedCount} PDF-Dateien fertig eingelesen`;
+  const base = `${parsedCount} PDF-Dateien verarbeitet: ${persistence.imported} neu gespeichert, ${persistence.duplicates} Dubletten übersprungen`;
+  if (!persistence.failed) return `${base}. Kacheln und Auswertungen wurden aktualisiert.`;
+  const firstError = persistence.errors?.[0];
+  return `${base}, ${persistence.failed} fehlgeschlagen${firstError ? ` (${firstError.file}: ${firstError.message})` : ""}.`;
 }
 
 function isImportableUploadFile(file: File) {
@@ -2645,6 +2661,8 @@ function loadStoredImportRows() {
 }
 
 async function loadStoredImportRowsFromDb() {
+  const serverRows = await loadStoredImportRowsFromServer().catch(() => null);
+  if (serverRows?.length) return serverRows;
   if (typeof window === "undefined" || !("indexedDB" in window)) return [];
   const db = await openImportDb();
   return new Promise<ImportPreviewRow[]>((resolve, reject) => {
@@ -2658,6 +2676,14 @@ async function loadStoredImportRowsFromDb() {
       reject(transaction.error);
     };
   });
+}
+
+async function loadStoredImportRowsFromServer() {
+  if (typeof window === "undefined") return [];
+  const response = await fetch("/api/imports/parse", { method: "GET" });
+  if (!response.ok) throw new Error("Server-Importdaten konnten nicht geladen werden.");
+  const payload = await response.json() as { rows?: ImportPreviewRow[] };
+  return reconcileImportRows(payload.rows ?? []);
 }
 
 function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPreviewRow[]) {

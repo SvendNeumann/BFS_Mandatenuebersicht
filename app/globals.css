@@ -714,9 +714,10 @@ input {
 
 .risk-profile-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 12px;
   margin-bottom: 14px;
+  min-width: 0;
 }
 
 .risk-profile-card {
@@ -726,6 +727,15 @@ input {
   border-radius: 8px;
   background: #ffffff;
   padding: 16px;
+  min-width: 0;
+  align-content: start;
+}
+
+.risk-profile-card > div:first-child {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  min-width: 0;
 }
 
 .risk-profile-card.red {
@@ -747,7 +757,11 @@ input {
 }
 
 .risk-profile-card strong {
-  font-size: 18px;
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.12;
 }
 
 .risk-profile-card dl {
@@ -757,14 +771,27 @@ input {
 }
 
 .risk-profile-card dl div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
   gap: 12px;
+  min-width: 0;
 }
 
 .risk-profile-card dd {
   margin: 0;
   font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.risk-profile-card .status {
+  width: 100%;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  border-radius: 8px;
 }
 
 .empty-state {

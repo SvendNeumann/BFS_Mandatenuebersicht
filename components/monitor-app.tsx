@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Building2,
   CalendarClock,
@@ -13,6 +14,7 @@ import {
   FileArchive,
   FileText,
   FolderUp,
+  HardDriveUpload,
   LayoutDashboard,
   LockKeyhole,
   Printer,
@@ -38,6 +40,7 @@ import {
 import type { AppRole, BfsCase, ImportPreviewRow, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
+import { parseDemoImportFiles } from "@/lib/demo-import";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
@@ -567,17 +570,64 @@ function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?
 }
 
 function UploadView() {
+  const [liveRows, setLiveRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
+  const [isProcessing, setIsProcessing] = useState(false);
+  const previewRows = liveRows.length ? liveRows : importPreviewRows;
+  const okRows = previewRows.filter((row) => row.status === "OK").length;
+  const warningRows = previewRows.length - okRows;
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    setIsProcessing(true);
+    try {
+      const parsedRows = await parseDemoImportFiles([...files]);
+      setLiveRows(parsedRows);
+      storeImportRows(parsedRows);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   return (
     <div className="content-stack">
       <section className="upload-zone">
-        <Upload size={28} />
+        <HardDriveUpload size={28} />
         <div>
-          <h2>PDFs, Ordner oder ZIP-Dateien für den Monats-Sammelimport ablegen</h2>
-          <p>Standorte werden später aus BFS-Mandant-Nr., Praxisname und Adresse erkannt. Dateinamen dienen nur als Hinweis.</p>
+          <h2>Testdateien für den Monats-Sammelimport hochladen</h2>
+          <p>Die Demo liest echte Dateien, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
         </div>
-        <input type="file" multiple accept=".pdf,.zip,application/pdf,application/zip" />
+        <label className="file-upload-button">
+          <Upload size={16} />
+          Dateien auswählen
+          <input type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files)} />
+        </label>
       </section>
-      <ImportPreview rows={importPreviewRows} />
+      <section className="priority-grid">
+        <PriorityCard label="Dateien im Lauf" value={String(previewRows.length)} hint={liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
+        <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
+        <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
+        <PriorityCard label="Verarbeitung" value={isProcessing ? "läuft" : "bereit"} hint="lokaler Demo-Import" tone={isProcessing ? "amber" : "green"} />
+      </section>
+      {liveRows.length > 0 && (
+        <section className="panel slim-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Live-Testupload aktiv</h2>
+              <p>Diese Vorschau basiert auf deinen hochgeladenen Dateien und bleibt lokal im Browser gespeichert.</p>
+            </div>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setLiveRows([]);
+                window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
+              }}
+            >
+              Testlauf zurücksetzen
+            </button>
+          </div>
+        </section>
+      )}
+      <ImportPreview rows={previewRows} />
     </div>
   );
 }
@@ -606,12 +656,17 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
               <th>Summe</th>
               <th>Kontoauszug</th>
               <th>Status</th>
+              <th>Hinweise</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.file}>
-                <td><strong>{row.file}</strong><span>{row.practice}</span></td>
+              <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
+                <td>
+                  <strong>{row.file}</strong>
+                  <span>{row.practice}</span>
+                  {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
+                </td>
                 <td>{row.location}</td>
                 <td>{row.mandantNo}</td>
                 <td>{row.statementNo} / {row.date}</td>
@@ -619,6 +674,13 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                 <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
                 <td>{row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}</td>
                 <td><StatusBadge status={row.status} /></td>
+                <td>
+                  <div className="note-list">
+                    {(row.parseNotes ?? ["Demo-Datensatz"]).slice(0, 3).map((note) => (
+                      <span key={note}><AlertTriangle size={13} /> {note}</span>
+                    ))}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -626,6 +688,27 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
       </div>
     </section>
   );
+}
+
+function loadStoredImportRows() {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem("orisus_bfs_monitor_import_preview");
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as ImportPreviewRow[];
+  } catch {
+    return [];
+  }
+}
+
+function storeImportRows(rows: ImportPreviewRow[]) {
+  window.localStorage.setItem("orisus_bfs_monitor_import_preview", JSON.stringify(rows));
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 KB";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function CasesView({ cases: rows, compact = false, title, description }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string }) {

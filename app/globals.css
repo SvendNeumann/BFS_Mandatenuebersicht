@@ -554,6 +554,27 @@ td span {
   display: block;
 }
 
+td small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.note-list {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.note-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475467;
+  font-size: 12px;
+}
+
 .status {
   display: inline-flex;
   align-items: center;
@@ -657,6 +678,26 @@ td span {
 .upload-zone p {
   margin: 0;
   color: var(--muted);
+}
+
+.file-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  padding: 10px 15px;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(8, 117, 111, 0.18);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.file-upload-button input {
+  display: none;
 }
 
 .cards-grid {

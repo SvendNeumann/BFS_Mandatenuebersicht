@@ -58,4 +58,7 @@ export type ImportPreviewRow = {
   hasLedger: boolean;
   movements: number;
   status: string;
+  fileHash?: string;
+  fileSizeBytes?: number;
+  parseNotes?: string[];
 };

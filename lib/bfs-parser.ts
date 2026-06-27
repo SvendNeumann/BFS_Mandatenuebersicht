@@ -57,7 +57,11 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
 
 async function extractPdfText(bytes: ArrayBuffer) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(bytes), disableWorker: true } as Record<string, unknown>).promise;
+  configurePdfWorker(pdfjs);
+  const pdf = await pdfjs.getDocument({
+    data: new Uint8Array(bytes),
+    disableWorker: typeof window === "undefined"
+  } as Record<string, unknown>).promise;
   const pages: string[] = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -68,6 +72,11 @@ async function extractPdfText(bytes: ArrayBuffer) {
   }
 
   return pages.join("\n");
+}
+
+function configurePdfWorker(pdfjs: { GlobalWorkerOptions?: { workerSrc?: string } }) {
+  if (typeof window === "undefined" || !pdfjs.GlobalWorkerOptions) return;
+  pdfjs.GlobalWorkerOptions.workerSrc ||= new URL("pdfjs-dist/legacy/build/pdf.worker.mjs", import.meta.url).toString();
 }
 
 function groupTextItemsIntoLines(items: Array<{ str?: string; transform?: number[] }>) {

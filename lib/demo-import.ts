@@ -18,8 +18,9 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     ? await parsePdfSafely(bytes, notes)
     : parseBfsText(await readLikelyText(file, bytes));
   const text = parsed.rawText;
+  const filePath = relativeFilePath(file);
   const mandantNo = parsed.mandantNo || detectMandantNo(file.name, text);
-  const standort = standorte.find((entry) => entry.mandantNo === mandantNo);
+  const standort = standorte.find((entry) => entry.mandantNo === mandantNo) ?? detectStandortFromFilePath(filePath);
   const statementNo = parsed.statementNo || detectStatementNo(file.name, text);
   const date = parsed.statementDate || detectDate(text);
   const claimsHeader = parsed.claimsHeader || detectClaimCount(text);
@@ -33,6 +34,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (!text.trim()) notes.push("Keine lesbaren Textdaten erkannt.");
   if (!mandantNo) notes.push("BFS-Mandant-Nr. nicht erkannt.");
   if (mandantNo && !standort) notes.push("Mandant-Nr. keinem Standort zugeordnet.");
+  if (mandantNo && standort && standort.mandantNo !== mandantNo) notes.push(`Standort über Ordnerpfad ${standort.name} zugeordnet; Mandant-Nr. ${mandantNo} bitte final hinterlegen.`);
   if (standort && !isStandortLive(standort)) notes.push(`${standort.name} ist erst ab ${standort.goLiveLabel} uploadpflichtig.`);
   if (!statementNo) notes.push("Abrechnungs-Nr. nicht erkannt.");
   if (!date) notes.push("Abrechnungsdatum nicht erkannt.");
@@ -42,7 +44,6 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (claimsHeader && parsed.claims.length && claimsHeader !== parsed.claims.length) notes.push(`Forderungsliste unvollständig: ${parsed.claims.length} von ${claimsHeader} Positionen erkannt.`);
   if (sumHeader && parsed.claims.length && Math.abs(sumHeader - sumExtracted) > 0.02) notes.push("Summenabweichung zwischen Kopf und Forderungsliste erkannt.");
 
-  const filePath = relativeFilePath(file);
   const parsedClaims = parsed.claims.map((claim) => ({
     ...claim,
     sourceFile: filePath,
@@ -145,6 +146,13 @@ function addMatchingNotes(row: ImportPreviewRow) {
 
 function relativeFilePath(file: File) {
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+}
+
+function detectStandortFromFilePath(filePath: string) {
+  const normalized = filePath.toLowerCase();
+  return standorte.find((standort) => normalized.includes(standort.name.toLowerCase()))
+    ?? (normalized.includes("huettenberg") ? standorte.find((standort) => standort.id === "huettenberg") : undefined)
+    ?? (normalized.includes("hüttenberg") ? standorte.find((standort) => standort.id === "huettenberg") : undefined);
 }
 
 async function parsePdfSafely(bytes: ArrayBuffer, notes: string[]) {

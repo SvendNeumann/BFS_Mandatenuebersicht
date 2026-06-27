@@ -20,7 +20,7 @@ export const standorte: Standort[] = [
     id: "essen",
     name: "Essen",
     praxisname: "Orisus MVZ Essen",
-    mandantNo: "22341",
+    mandantNo: "18790",
     goLiveDate: "2025-01-01",
     goLiveLabel: "01.01.2025",
     lastImport: "22.06.2026",

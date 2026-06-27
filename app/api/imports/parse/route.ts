@@ -38,7 +38,8 @@ export async function GET() {
 
     const rows = (data ?? [])
       .map((entry: { extracted_json: unknown }) => entry.extracted_json)
-      .filter(isImportPreviewRow);
+      .filter(isImportPreviewRow)
+      .filter((row: ImportPreviewRow) => !isBrokenImportedRow(row));
 
     return NextResponse.json({ rows: reconcileRowsByBusinessIdentity(rows) }, { headers: noStoreHeaders() });
   } catch (error) {
@@ -250,10 +251,11 @@ async function findExistingDocumentId(
   if (row.fileHash) {
     const { data: existingByHash } = await supabase
       .from("bfs_documents")
-      .select("id")
+      .select("id, status, parse_error, extracted_json")
       .eq("file_hash", row.fileHash)
       .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate"])
       .maybeSingle();
+    if (isReplaceableExistingDocument(existingByHash)) return null;
     if (existingByHash?.id) return existingByHash.id as string;
   }
 
@@ -262,13 +264,14 @@ async function findExistingDocumentId(
 
   const { data: existingByStatement } = await supabase
     .from("bfs_documents")
-    .select("id")
+    .select("id, status, parse_error, extracted_json")
     .eq("standort_id", standortId)
     .eq("bfs_mandant_nr", row.mandantNo)
     .eq("abrechnung_nr", row.statementNo)
     .in("status", ["uploaded", "parsed", "preview", "imported", "duplicate"])
     .limit(1)
     .maybeSingle();
+  if (isReplaceableExistingDocument(existingByStatement)) return null;
   return existingByStatement?.id as string | null;
 }
 
@@ -303,11 +306,11 @@ async function insertDocument(
 
   const { data: existing } = await supabase
     .from("bfs_documents")
-    .select("id, status")
+    .select("id, status, parse_error, extracted_json")
     .eq("file_hash", row.fileHash)
     .maybeSingle();
   if (existing?.id) {
-    if (existing.status === "error" || existing.status === "archived" || existing.status === "deleted") {
+    if (isReplaceableExistingDocument(existing)) {
       return replaceErroredDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
     }
     return existing.id as string;
@@ -318,17 +321,34 @@ async function insertDocument(
 
   const { data: existingByStatement } = await supabase
     .from("bfs_documents")
-    .select("id, status")
+    .select("id, status, parse_error, extracted_json")
     .eq("standort_id", standortId)
     .eq("bfs_mandant_nr", row.mandantNo)
     .eq("abrechnung_nr", row.statementNo)
     .limit(1)
     .maybeSingle();
   if (!existingByStatement?.id) return undefined;
-  if (existingByStatement.status === "error" || existingByStatement.status === "archived" || existingByStatement.status === "deleted") {
+  if (isReplaceableExistingDocument(existingByStatement)) {
     return replaceErroredDocument(supabase, existingByStatement.id as string, batchId, standortId, storagePath, file, row);
   }
   return existingByStatement.id as string | undefined;
+}
+
+function isReplaceableExistingDocument(document: { status?: string | null; parse_error?: string | null; extracted_json?: unknown } | null | undefined) {
+  if (!document) return false;
+  if (document.status === "error" || document.status === "archived" || document.status === "deleted") return true;
+  if (typeof document.parse_error === "string" && /PDF\.js|fake worker|pdf\.worker/i.test(document.parse_error)) return true;
+  return isImportPreviewRow(document.extracted_json) && isBrokenImportedRow(document.extracted_json);
+}
+
+function isBrokenImportedRow(row: ImportPreviewRow) {
+  const notes = row.parseNotes?.join(" ") ?? "";
+  return /PDF\.js|fake worker|pdf\.worker/i.test(notes)
+    || row.statementNo === "-"
+    || row.date === "-"
+    || !row.hasLedger
+    || row.claimsHeader <= 0
+    || row.claimsExtracted <= 0;
 }
 
 async function replaceErroredDocument(

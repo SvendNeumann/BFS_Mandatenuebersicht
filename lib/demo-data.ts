@@ -6,6 +6,8 @@ export const standorte: Standort[] = [
     name: "Kirchberg",
     praxisname: "Orisus MVZ Kirchberg",
     mandantNo: "21988",
+    goLiveDate: "2024-07-01",
+    goLiveLabel: "01.07.2024",
     lastImport: "19.06.2026",
     submittedThisMonth: 7620.33,
     feesThisMonth: 169.54,
@@ -19,6 +21,8 @@ export const standorte: Standort[] = [
     name: "Essen",
     praxisname: "Orisus MVZ Essen",
     mandantNo: "22341",
+    goLiveDate: "2025-01-01",
+    goLiveLabel: "01.01.2025",
     lastImport: "22.06.2026",
     submittedThisMonth: 15420.2,
     feesThisMonth: 351.9,
@@ -32,6 +36,8 @@ export const standorte: Standort[] = [
     name: "Kehl",
     praxisname: "Orisus MVZ Kehl",
     mandantNo: "20411",
+    goLiveDate: "2025-04-01",
+    goLiveLabel: "01.04.2025",
     lastImport: "18.06.2026",
     submittedThisMonth: 12840.15,
     feesThisMonth: 287.3,
@@ -45,6 +51,8 @@ export const standorte: Standort[] = [
     name: "Hüttenberg",
     praxisname: "Orisus MVZ Hüttenberg",
     mandantNo: "22674",
+    goLiveDate: "2026-01-01",
+    goLiveLabel: "01.01.2026",
     lastImport: "24.06.2026",
     submittedThisMonth: 9310.75,
     feesThisMonth: 214.8,
@@ -58,6 +66,8 @@ export const standorte: Standort[] = [
     name: "Ulmet",
     praxisname: "Praxis Dr. Hangx",
     mandantNo: "19260",
+    goLiveDate: "2025-07-01",
+    goLiveLabel: "01.07.2025",
     lastImport: "26.06.2026",
     submittedThisMonth: 3912.6,
     feesThisMonth: 104.77,
@@ -71,22 +81,34 @@ export const standorte: Standort[] = [
     name: "Kassel",
     praxisname: "Orisus MVZ Kassel",
     mandantNo: "20902",
-    lastImport: "21.06.2026",
-    submittedThisMonth: 18990.44,
-    feesThisMonth: 438.12,
-    openCases: 4,
-    openChargebacks: 2990.0,
-    withoutProtection: 920.1,
-    olderThan30: 1
+    goLiveDate: "2026-07-01",
+    goLiveLabel: "01.07.2026",
+    lastImport: "noch kein Import",
+    submittedThisMonth: 0,
+    feesThisMonth: 0,
+    openCases: 0,
+    openChargebacks: 0,
+    withoutProtection: 0,
+    olderThan30: 0
   }
 ];
 
 export const monthlyKpis = [
-  ["Anzahl Standorte", "6", "aktive BFS-Standorte"],
+  ["Anzahl Standorte", "5 + 1", "fünf live, Kassel ab 01.07.2026"],
   ["BFS-Abrechnungen aktueller Monat", "9", "importiert und geprüft"],
-  ["Eingereichte Forderungen", "68.016,47 €", "aktueller Monat"],
-  ["Offene Rückbelastungen", "12.307,36 €", "echte To-dos"]
+  ["Eingereichte Forderungen", "49.026,03 €", "aktueller Monat ohne Kassel"],
+  ["Offene Rückbelastungen", "9.317,36 €", "echte To-dos ohne Kassel"]
 ];
+
+export function isStandortLive(standort: Standort, referenceDate = new Date()) {
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+  return new Date(`${standort.goLiveDate}T00:00:00`) <= today;
+}
+
+export function liveStatusLabel(standort: Standort, referenceDate = new Date()) {
+  return isStandortLive(standort, referenceDate) ? "aktiv" : `ab ${standort.goLiveLabel}`;
+}
 
 export const cases: BfsCase[] = [
   {

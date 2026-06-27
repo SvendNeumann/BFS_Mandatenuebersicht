@@ -5,6 +5,8 @@ export type Standort = {
   name: string;
   praxisname: string;
   mandantNo: string;
+  goLiveDate: string;
+  goLiveLabel: string;
   lastImport: string;
   submittedThisMonth: number;
   feesThisMonth: number;

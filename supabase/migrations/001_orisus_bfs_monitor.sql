@@ -26,6 +26,7 @@ create table public.standorte (
   praxisname text,
   bfs_mandant_nr text unique,
   adresse text,
+  go_live_date date,
   active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -354,14 +355,14 @@ create trigger audit_case_status_change
 after update on public.bfs_cases
 for each row execute function public.audit_case_status_change();
 
-insert into public.standorte (id, name, praxisname, bfs_mandant_nr, adresse)
+insert into public.standorte (id, name, praxisname, bfs_mandant_nr, adresse, go_live_date)
 values
-  ('00000000-0000-0000-0000-000000000004', 'Kirchberg', 'Orisus MVZ Kirchberg', '21988', 'Kirchberg'),
-  ('00000000-0000-0000-0000-000000000005', 'Essen', 'Orisus MVZ Essen', '22341', 'Essen'),
-  ('00000000-0000-0000-0000-000000000002', 'Kehl', 'Orisus MVZ Kehl', '20411', 'Kehl'),
-  ('00000000-0000-0000-0000-000000000006', 'Hüttenberg', 'Orisus MVZ Hüttenberg', '22674', 'Hüttenberg'),
-  ('00000000-0000-0000-0000-000000000001', 'Ulmet', 'Praxis Dr. Hangx', '19260', 'Ulmet'),
-  ('00000000-0000-0000-0000-000000000003', 'Kassel', 'Orisus MVZ Kassel', '20902', 'Kassel')
+  ('00000000-0000-0000-0000-000000000004', 'Kirchberg', 'Orisus MVZ Kirchberg', '21988', 'Kirchberg', '2024-07-01'),
+  ('00000000-0000-0000-0000-000000000005', 'Essen', 'Orisus MVZ Essen', '22341', 'Essen', '2025-01-01'),
+  ('00000000-0000-0000-0000-000000000002', 'Kehl', 'Orisus MVZ Kehl', '20411', 'Kehl', '2025-04-01'),
+  ('00000000-0000-0000-0000-000000000006', 'Hüttenberg', 'Orisus MVZ Hüttenberg', '22674', 'Hüttenberg', '2026-01-01'),
+  ('00000000-0000-0000-0000-000000000001', 'Ulmet', 'Praxis Dr. Hangx', '19260', 'Ulmet', '2025-07-01'),
+  ('00000000-0000-0000-0000-000000000003', 'Kassel', 'Orisus MVZ Kassel', '20902', 'Kassel', '2026-07-01')
 on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)

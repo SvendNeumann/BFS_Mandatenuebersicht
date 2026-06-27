@@ -35,6 +35,8 @@ import {
   monthlyKpis,
   riskClaims,
   standorte,
+  isStandortLive,
+  liveStatusLabel,
   users
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, ImportPreviewRow, Standort } from "@/lib/types";
@@ -278,7 +280,7 @@ function StandortTabs({ role, selectedStandortId, onSelect }: { role: AppRole; s
         <button key={standort.id} className={selectedStandortId === standort.id ? "active" : ""} onClick={() => onSelect(standort.id)}>
           <Building2 size={16} />
           {standort.name}
-          <span>{standort.openCases} offen</span>
+          <span>{isStandortLive(standort) ? `${standort.openCases} offen` : liveStatusLabel(standort)}</span>
         </button>
       ))}
     </section>
@@ -343,8 +345,10 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
   const focusedRisks = riskClaims.filter((claim) => filteredStandortIds.has(claim.standortId));
   const overdueCases = openCases.filter((fall) => fall.ageDays > 30);
   const chargebackTotal = focusedCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const liveStandorte = filteredStandorte.filter((standort) => isStandortLive(standort));
+  const plannedStandorte = filteredStandorte.filter((standort) => !isStandortLive(standort));
   const groupKpis = [
-    ["Standorte im Blick", String(filteredStandorte.length), groupStandortFilter === "alle" ? "alle aktiven BFS-Standorte" : "ausgewählter Standort"],
+    ["Standorte im Blick", groupStandortFilter === "alle" ? `${liveStandorte.length} live` : liveStatusLabel(filteredStandorte[0]), plannedStandorte.length ? `${plannedStandorte.length} Standort ab 01.07.2026 vorbereitet` : "aktive BFS-Standorte"],
     ["Eingereichte Forderungen", money.format(filteredStandorte.reduce((sum, standort) => sum + standort.submittedThisMonth, 0)), "aktueller Monat"],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
     ["Ohne Ausfallschutz", money.format(focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), "laufende Risikohinweise"]
@@ -397,6 +401,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
             <thead>
               <tr>
                 <th>Standort</th>
+                <th>Live seit</th>
                 <th>Letzter Import</th>
                 <th>Eingereicht</th>
                 <th>Gebühren</th>
@@ -413,6 +418,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
                     <strong>{standort.name}</strong>
                     <span>{standort.praxisname}</span>
                   </td>
+                  <td><StatusBadge status={liveStatusLabel(standort)} /></td>
                   <td>{standort.lastImport}</td>
                   <td>{money.format(standort.submittedThisMonth)}</td>
                   <td>{money.format(standort.feesThisMonth)}</td>
@@ -470,6 +476,7 @@ function GroupFilterBar({
         {standorte.map((standort) => (
           <button key={standort.id} className={selectedStandort === standort.id ? "active" : ""} onClick={() => onStandortChange(standort.id)}>
             {standort.name}
+            <span>{liveStatusLabel(standort)}</span>
           </button>
         ))}
       </div>
@@ -1016,6 +1023,7 @@ function LocationsView() {
             <strong>{standort.name}</strong>
             <span>{standort.praxisname}</span>
             <small>Mandant-Nr. {standort.mandantNo}</small>
+            <StatusBadge status={isStandortLive(standort) ? `live seit ${standort.goLiveLabel}` : `geplant ab ${standort.goLiveLabel}`} />
           </article>
         ))}
       </div>

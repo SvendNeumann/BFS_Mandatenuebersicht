@@ -1,4 +1,4 @@
-import { standorte } from "./demo-data";
+import { isStandortLive, standorte } from "./demo-data";
 import type { ImportPreviewRow } from "./types";
 
 const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
@@ -27,6 +27,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (file.type === "application/pdf" && text.length < 250) notes.push("PDF-Text konnte im Browser nicht sicher extrahiert werden.");
   if (!mandantNo) notes.push("BFS-Mandant-Nr. nicht erkannt.");
   if (mandantNo && !standort) notes.push("Mandant-Nr. keinem Standort zugeordnet.");
+  if (standort && !isStandortLive(standort)) notes.push(`${standort.name} ist erst ab ${standort.goLiveLabel} uploadpflichtig.`);
   if (!statementNo) notes.push("Abrechnungs-Nr. nicht erkannt.");
   if (!date) notes.push("Abrechnungsdatum nicht erkannt.");
   if (!claimsHeader) notes.push("Anzahl Forderungen nicht erkannt.");
@@ -107,6 +108,7 @@ function detectMovements(text: string) {
 
 function statusFromNotes(notes: string[]) {
   if (!notes.length) return "OK";
+  if (notes.some((note) => note.includes("uploadpflichtig"))) return "Standort geplant";
   if (notes.some((note) => note.includes("keinem Standort") || note.includes("Mandant-Nr."))) return "Standort unbekannt";
   if (notes.some((note) => note.includes("PDF-Text"))) return "Parsing-Hinweis";
   return "Prüfen";

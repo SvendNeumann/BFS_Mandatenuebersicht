@@ -11,12 +11,14 @@ import {
   CircleDollarSign,
   ClipboardList,
   Download,
+  ChevronDown,
   FileArchive,
   FileText,
   FolderUp,
   HardDriveUpload,
   LayoutDashboard,
   LockKeyhole,
+  Menu,
   Printer,
   ReceiptText,
   RefreshCw,
@@ -25,7 +27,8 @@ import {
   ShieldCheck,
   Upload,
   UserRoundCheck,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -149,6 +152,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [role, setRole] = useState<AppRole>(lockedRole ?? session?.role ?? "super_admin");
   const [activeView, setActiveView] = useState(initialView);
   const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const visibleCases = useMemo(
@@ -176,56 +181,95 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     if (activeView === "groupReports" && nextStandortId !== "gruppe") setActiveView("dashboard");
   }
 
+  function toggleNavSection(title: string) {
+    setExpandedSections((current) => ({ ...current, [title]: !current[title] }));
+  }
+
+  function navigateTo(key: string) {
+    setActiveView(key);
+    setMobileNavOpen(false);
+  }
+
   return (
-    <main className="app-shell">
+    <main className={mobileNavOpen ? "app-shell nav-open" : "app-shell"}>
+      <button className="mobile-nav-overlay" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)} />
       <aside className="sidebar">
-        <div className="brand">
-          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
-          <div>
-            <strong>Orisus BFS Monitor</strong>
-            <span>Factoring-Kontrolle</span>
+        <div className="sidebar-inner">
+          <div className="sidebar-top">
+            <div className="brand">
+              <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
+              <div>
+                <strong>Orisus BFS Monitor</strong>
+                <span>Factoring-Kontrolle</span>
+              </div>
+            </div>
+            <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <nav>
+            {nav.map((section) => {
+              const sectionActive = section.items.some(([key]) => activeView === key);
+              const sectionExpanded = sectionActive || (expandedSections[section.title] ?? false);
+              const SectionIcon = section.items[0][2];
+              return (
+                <div className={sectionExpanded ? "nav-section expanded" : "nav-section"} key={section.title}>
+                  <button className={sectionActive ? "nav-section-toggle active" : "nav-section-toggle"} onClick={() => toggleNavSection(section.title)}>
+                    <SectionIcon size={17} />
+                    <span>{section.title}</span>
+                    <ChevronDown size={16} />
+                  </button>
+                  <div className="nav-subitems">
+                    {section.items.map(([key, label, Icon]) => (
+                      <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => navigateTo(key)}>
+                        <Icon size={18} />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-footer">
+            {!lockedRole && (
+              <div className="role-switch" aria-label="Rolle wählen">
+                <button className={role === "super_admin" ? "active" : ""} onClick={() => switchRole("super_admin")}>
+                  Super Admin
+                </button>
+                <button className={role === "standortleitung" ? "active" : ""} onClick={() => switchRole("standortleitung")}>
+                  Standortleitung
+                </button>
+              </div>
+            )}
+            <div className="user-box">
+              <UserRoundCheck size={18} />
+              <div>
+                <strong>{role === "super_admin" ? "Zentrale / CFO" : selectedStandort.name}</strong>
+                <span>{session?.email ?? "Demo-Zugang"}</span>
+              </div>
+            </div>
+            <button
+              className="logout-button"
+              onClick={() => {
+                logout();
+                setSession(null);
+                window.location.href = "/login";
+              }}
+            >
+              Abmelden
+            </button>
           </div>
         </div>
-
-        {!lockedRole && (
-          <div className="role-switch" aria-label="Rolle wählen">
-            <button className={role === "super_admin" ? "active" : ""} onClick={() => switchRole("super_admin")}>
-              Super Admin
-            </button>
-            <button className={role === "standortleitung" ? "active" : ""} onClick={() => switchRole("standortleitung")}>
-              Standortleitung
-            </button>
-          </div>
-        )}
-
-        <nav>
-          {nav.map((section) => (
-            <div className="nav-section" key={section.title}>
-              <span className="nav-section-title">{section.title}</span>
-              {section.items.map(([key, label, Icon]) => (
-                <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => setActiveView(key)}>
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <button
-          className="logout-button"
-          onClick={() => {
-            logout();
-            setSession(null);
-            window.location.href = "/login";
-          }}
-        >
-          Abmelden
-        </button>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
+          <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
+            <Menu size={18} />
+          </button>
           <div>
             <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>

@@ -486,6 +486,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         {dashboardSeries.map((chart) => (
           <div className="panel mini-chart" key={chart.title}>
             <h2>{chart.title}</h2>
+            <small className="period-note">Zeitraum: aktueller Trendvergleich</small>
             <div className="bars">
               {chart.values.map((value) => (
                 <span key={value.label} style={{ height: `${value.value}%` }} title={`${value.label}: ${value.value}`} />
@@ -611,36 +612,43 @@ function AnswerCockpit({
           <span>Wie viel wurde eingereicht?</span>
           <strong>{money.format(submitted)}</strong>
           <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
+          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Monat")}</small>
         </button>
         <button onClick={() => onNavigate("cases")}>
           <span>Was ist noch offen?</span>
           <strong>{money.format(openAmount)}</strong>
           <small>{openCases.length} offene Klärfälle</small>
+          <small className="period-note">Zeitraum: aktueller Datenstand</small>
         </button>
         <button onClick={() => onNavigate("chargebacks")}>
           <span>Wie viele Rückläufer?</span>
           <strong>{chargebacks.length}</strong>
           <small>{money.format(chargebacks.reduce((sum, fall) => sum + fall.amount, 0))}</small>
+          <small className="period-note">Zeitraum: aktueller Datenstand</small>
         </button>
         <button onClick={() => onNavigate("risks")}>
           <span>Ohne Ausfallschutz?</span>
           <strong>{money.format(importSummary.rows ? importSummary.noProtectionAmount : riskTotal)}</strong>
           <small>{importSummary.rows ? "aus Testupload" : "laufende Risikohinweise"}</small>
+          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Datenstand")}</small>
         </button>
         <button onClick={() => onNavigate("repeatRisks")}>
           <span>Wiederholer?</span>
           <strong>{recurringRisks.length}</strong>
           <small>mehrfach ohne Ausfallschutz</small>
+          <small className="period-note">Zeitraum: aktueller Datenstand</small>
         </button>
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Gebühren?</span>
           <strong>{money.format(fees)}</strong>
           <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
+          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Monat")}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
           <span>Ältester offener Fall?</span>
           <strong>{oldest} Tage</strong>
           <small>Priorität zuerst klären</small>
+          <small className="period-note">Zeitraum: aktueller Datenstand</small>
         </button>
       </div>
     </section>
@@ -721,7 +729,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
           <div className="panel-heading">
             <div>
               <h2>Monatstrend</h2>
-              <p>Die letzten Monate aus dem ausgewählten Standortumfang.</p>
+              <p>Zeitraum: letzte Monate aus dem ausgewählten Standortumfang.</p>
             </div>
           </div>
           <div className="table-wrap compact-table">
@@ -755,7 +763,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
           <div className="panel-heading">
             <div>
               <h2>Quartalsvergleich</h2>
-              <p>Vergleich Q1/Q2/Q3/Q4 inklusive Veränderung zum Vorquartal.</p>
+              <p>Zeitraum: Quartale im Vergleich, inklusive Veränderung zum Vorquartal.</p>
             </div>
           </div>
           <div className="table-wrap compact-table">
@@ -824,6 +832,7 @@ function PriorityCard({ label, value, hint, tone, info }: { label: string; value
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{hint}</small>
+      <small className="period-note">{periodLabelFromHint(hint)}</small>
     </article>
   );
 }
@@ -1492,10 +1501,20 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{hint}</small>
+          <small className="period-note">{periodLabelFromHint(hint)}</small>
         </article>
       ))}
     </section>
   );
+}
+
+function periodLabelFromHint(hint: string) {
+  const normalized = hint.toLowerCase();
+  if (normalized.includes("testupload") || normalized.includes("upload")) return "Zeitraum: aktueller Testupload";
+  if (normalized.includes("monat")) return "Zeitraum: aktueller Monat";
+  if (normalized.includes("jahr") || normalized.includes("quartal") || normalized.includes("q1") || normalized.includes("q2") || normalized.includes("q3") || normalized.includes("q4")) return `Zeitraum: ${hint}`;
+  if (/\d{2}\.\d{2}\.\d{4}/.test(hint) || /\d{4}/.test(hint)) return `Zeitraum: ${hint}`;
+  return "Zeitraum: aktueller Datenstand";
 }
 
 function MetricInfo({ title, text }: { title: string; text: string }) {

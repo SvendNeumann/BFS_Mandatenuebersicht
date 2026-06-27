@@ -484,6 +484,15 @@ input {
   line-height: 1.1;
 }
 
+.period-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.5fr);
@@ -2460,6 +2469,47 @@ tbody tr:hover td {
   color: #79eee7;
 }
 
+/* Mobile compatibility guardrails */
+.workspace,
+.content-stack,
+.panel,
+.panel-heading,
+.dashboard-grid,
+.command-panel,
+.command-panel > div,
+.process-panel,
+.answer-cockpit,
+.answer-header,
+.answer-grid,
+.answer-grid button,
+.priority-card,
+.kpi-card,
+.cashflow-card,
+.risk-profile-card,
+.upload-zone,
+.table-wrap,
+.search-box {
+  min-width: 0;
+}
+
+.panel h2,
+.panel p,
+.command-panel h2,
+.command-panel p,
+.answer-header h2,
+.priority-card span,
+.priority-card strong,
+.priority-card small,
+.kpi-card span,
+.kpi-card strong,
+.kpi-card small,
+.stacked-checks span,
+.primary-button,
+.secondary-button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -2756,6 +2806,27 @@ tbody tr:hover td {
     width: 100%;
   }
 
+  .primary-button,
+  .secondary-button,
+  .file-upload-button {
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .quick-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .command-panel,
+  .process-panel,
+  .answer-cockpit,
+  .panel {
+    overflow: hidden;
+  }
+
   .standort-tabs {
     gap: 6px;
     padding: 6px;
@@ -2800,6 +2871,7 @@ tbody tr:hover td {
 
   .command-panel h2 {
     font-size: 22px;
+    line-height: 1.16;
   }
 
   .group-filter-bar {
@@ -2829,6 +2901,7 @@ tbody tr:hover td {
     margin-left: -6px;
     margin-right: -6px;
     border-radius: 8px;
+    max-width: calc(100vw - 8px);
   }
 
   table {
@@ -2853,6 +2926,15 @@ tbody tr:hover td {
     width: 100%;
     display: grid;
     justify-content: stretch;
+  }
+
+  .search-box {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .search-box input {
+    min-width: 0;
   }
 
   .cashflow-card dl div {

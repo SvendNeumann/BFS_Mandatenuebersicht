@@ -23,7 +23,8 @@ export type ParsedBfsDocument = {
 };
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
-const claimLinePattern = /^(.+?)\s+(\d{2,3}-\d{4,6}|\d{8})\s+(5-\d{5}-\d+)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\*[A-ZÄÖÜ]{2}|RS\/A))?$/;
+const invoiceNoPattern = String.raw`(?:\d{2,3}-\d{4,6}|\d{8}|\d+(?:\/\d+)+)`;
+const claimLinePattern = new RegExp(String.raw`^(.+?)\s+(${invoiceNoPattern})\s+(5-\d{5}-\d+)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\*[A-ZÄÖÜ]{2}|RS\/A))?$`);
 const dateLinePattern = /\b\d{2}\.\d{2}\.\d{4}\b/;
 const shortDatePattern = /\b\d{2}\.\d{2}\.\d{2}\b/;
 
@@ -176,7 +177,7 @@ function parseMovements(lines: string[], claims: ParsedImportClaim[]): ParsedImp
   kontoLines.forEach((line, index) => {
     if (!shortDatePattern.test(line)) return [];
     const date = line.match(shortDatePattern)?.[0];
-    const bfsMatch = line.match(/(5-\d{5}-\d+)\s*\/\s*(\d{2,3}-\d{4,6}|\d{8})/);
+    const bfsMatch = line.match(new RegExp(String.raw`(5-\d{5}-\d+)\s*\/\s*(${invoiceNoPattern})`));
     const matchedClaim = bfsMatch ? claimsByBfsNo.get(bfsMatch[1]) ?? claimsByInvoiceNo.get(bfsMatch[2]) : undefined;
     const amount = [...line.matchAll(new RegExp(amountPattern, "g"))].map((match) => parseAmount(match[0])).at(-1);
     const reason = extractMovementReason(line, bfsMatch?.[0]);

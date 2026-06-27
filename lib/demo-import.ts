@@ -247,7 +247,7 @@ function detectClaimCount(text: string) {
 }
 
 function detectExtractedClaims(text: string, fallback: number) {
-  const invoiceMatches = text.match(/\b(?:\d{2,3}-\d{4,6}|\d{8})\b/g);
+  const invoiceMatches = text.match(/\b(?:\d{2,3}-\d{4,6}|\d{8}|\d+(?:\/\d+)+)\b/g);
   return invoiceMatches?.length || fallback || 0;
 }
 

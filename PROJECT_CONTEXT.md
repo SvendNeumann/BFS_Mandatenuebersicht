@@ -4,7 +4,8 @@ Stand: 28.06.2026, ca. 00:30 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `9809bf05 Fix imported dataset metric fallbacks`
+Aktueller Code-Fix: `9809bf05 Fix imported dataset metric fallbacks`  
+Aktueller Head: per `git log -1 --oneline` pruefen
 
 ## Prompt fuer den naechsten Chat
 

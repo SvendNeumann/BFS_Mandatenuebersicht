@@ -36,6 +36,7 @@ export type Traffic = "green" | "yellow" | "orange" | "red";
 
 export type BfsCase = {
   id: string;
+  resolutionKey?: string;
   standortId: string;
   locationName: string;
   patientName: string;

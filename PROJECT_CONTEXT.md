@@ -4,7 +4,7 @@ Stand: 28.06.2026, ca. 01:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Code-Fix: Storno-Quercheck fuer Gesamt- und Standortauswertung  
+Aktueller Code-Fix: Manuelle Klärfall-Erledigung mit Import-übergreifendem Ausblenden  
 Aktueller Head: per `git log -1 --oneline` pruefen
 
 ## Prompt fuer den naechsten Chat
@@ -51,6 +51,9 @@ Aktuelle Zusatzlogik:
 - `Forderungsqualitaet` und `Massnahmenkontrolle` zeigen einen Storno-Quercheck.
 - Ausgewertet wird: Stornos gesamt, davon erledigt, noch offen, Erledigungsquote gesamt und je Standort.
 - Als erledigt zaehlt ein Storno, wenn im Datenstand `Zahlung nach Storno`, eine direkte Erledigung oder eine spaetere Neueinreichung/Matching desselben Patienten erkannt wird.
+- Klärfälle können in der Falltabelle manuell als bezahlt markiert werden.
+- Die manuelle Erledigung wird serverseitig im `audit_log` als `manual_case_resolved` mit stabilem Fall-Schluessel gespeichert.
+- Der Fall-Schluessel basiert auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund. Dadurch wird derselbe Fall bei spaeteren Importen wieder ausgeblendet.
 
 ## Aktueller Live-Stand
 

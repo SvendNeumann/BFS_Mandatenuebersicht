@@ -873,6 +873,12 @@ input {
   color: var(--muted);
 }
 
+.resolve-case-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
 .risk-profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));

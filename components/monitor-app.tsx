@@ -144,6 +144,20 @@ type MonitorAppProps = {
   requireAuth?: boolean;
 };
 
+type ManualCaseResolution = {
+  caseKey: string;
+  standortId: string;
+  patientName: string;
+  invoiceNo: string;
+  bfsNo: string;
+  amount: number;
+  reason: string;
+  status: "paid_manual";
+  comment: string;
+  resolvedAt: string;
+  resolvedBy: string;
+};
+
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -160,14 +174,16 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
+  const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const hasUploadData = liveImportRows.length > 0;
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
-    return casesFromImportRows(liveImportRows);
-  }, [liveImportRows]);
+    const resolvedKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
+    return casesFromImportRows(liveImportRows).filter((fall) => !resolvedKeys.has(caseResolutionKey(fall)));
+  }, [liveImportRows, manualCaseResolutions]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [appCases, isGroupScope, selectedStandort.id]
@@ -187,6 +203,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     loadStoredImportRowsFromDb()
       .then((rows) => {
         if (active) setLiveImportRows(rows);
+      })
+      .catch(() => undefined);
+    loadManualCaseResolutions()
+      .then((resolutions) => {
+        if (active) setManualCaseResolutions(resolutions);
       })
       .catch(() => undefined);
     return () => {
@@ -255,6 +276,16 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     void loadStoredImportRowsFromDb()
       .then((rows) => setLiveImportRows(rows))
       .catch(() => undefined);
+    void loadManualCaseResolutions()
+      .then((resolutions) => setManualCaseResolutions(resolutions))
+      .catch(() => undefined);
+  }
+
+  async function resolveCaseAsPaid(fall: BfsCase) {
+    const confirmed = window.confirm(`${fall.patientName} als bezahlt markieren?\n\nDer Fall wird danach importübergreifend ausgeblendet, wenn derselbe Vorgang wieder auftaucht.`);
+    if (!confirmed) return;
+    const resolution = await saveManualCaseResolution(fall);
+    setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
   }
 
   function hardReload() {
@@ -372,18 +403,18 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "benchmark" && <BenchmarkView onNavigate={navigateTo} importRows={liveImportRows} />}
-            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} />}
+            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
-            {activeView === "cases" && <CasesView cases={visibleCases} />}
-            {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
-            {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
+            {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
+            {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." onResolvePaid={resolveCaseAsPaid} />}
+            {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
@@ -870,14 +901,14 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
   );
 }
 
-function QualityView({ standort, cases: rows, importRows = [], onNavigate }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void }) {
+function QualityView({ standort, cases: rows, importRows = [], onNavigate, manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void; manualCaseResolutions?: ManualCaseResolution[] }) {
   const scopedRows = standort ? importRows.filter((row) => row.location === standort.name) : importRows;
   const summary = summarizeImportRows(scopedRows);
   const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
   const riskRows = riskClaimsFromImportRows(scopedRows);
   const recurring = getRecurringRiskProfiles(standort?.id, scopedRows);
   const unresolved = openUnresolvedMovementsFromImportRows(scopedRows, standort?.id);
-  const stornoReview = stornoReviewFromImportRows(scopedRows, standort?.id);
+  const stornoReview = stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions);
   const chargebackCases = rows.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung") || fall.reason.includes("Storno"));
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
   const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
@@ -1880,6 +1911,14 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
         const amount = Math.abs(movement.amount ?? 0);
         return {
           id: `import-${row.fileHash ?? row.file}-${movement.bfsNo ?? index}`,
+          resolutionKey: caseResolutionKeyFromParts({
+            standortId: standort.id,
+            patientName: movement.patientName ?? "Patient noch nicht gematcht",
+            invoiceNo: movement.invoiceNo ?? "-",
+            bfsNo: movement.bfsNo ?? "-",
+            amount,
+            reason: movement.reason ?? reasonLabel(movement.reasonCategory)
+          }),
           standortId: standort.id,
           locationName: standort.name,
           patientName: movement.patientName ?? "Patient noch nicht gematcht",
@@ -1895,6 +1934,30 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
         } satisfies BfsCase;
       });
   });
+}
+
+function caseResolutionKey(fall: BfsCase) {
+  return fall.resolutionKey ?? caseResolutionKeyFromParts(fall);
+}
+
+function caseResolutionKeyFromParts(parts: Pick<BfsCase, "standortId" | "patientName" | "invoiceNo" | "bfsNo" | "amount" | "reason">) {
+  return [
+    parts.standortId,
+    normalizeResolutionPart(parts.patientName),
+    normalizeResolutionPart(parts.invoiceNo),
+    normalizeResolutionPart(parts.bfsNo),
+    Math.round(parts.amount * 100),
+    normalizeResolutionPart(parts.reason)
+  ].join("|");
+}
+
+function normalizeResolutionPart(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim() || "-";
 }
 
 function countOpenCasesByStandort(rows: ImportPreviewRow[]) {
@@ -2177,9 +2240,10 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
   }).sort((a, b) => b.amount - a.amount);
 }
 
-function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
+  const manualKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
   const stornoRows = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort || (standortId && standort.id !== standortId)) return [];
@@ -2190,9 +2254,19 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         const patientName = movement.patientName ?? "Patient noch nicht gematcht";
         const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
         const reasonText = movement.reason?.toLowerCase() ?? "";
+        const reason = movement.reason ?? reasonLabel(movement.reasonCategory);
+        const manualKey = caseResolutionKeyFromParts({
+          standortId: standort.id,
+          patientName,
+          invoiceNo: movement.invoiceNo ?? "-",
+          bfsNo: movement.bfsNo ?? "-",
+          amount: Math.abs(movement.amount ?? 0),
+          reason
+        });
         const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         const doneByResubmission = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const done = doneByPayment || doneByResubmission;
+        const doneByManualResolution = manualKeys.has(manualKey);
+        const done = doneByPayment || doneByResubmission || doneByManualResolution;
         return {
           id: `${row.fileHash ?? row.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
           standortId: standort.id,
@@ -2202,9 +2276,9 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
           invoiceNo: movement.invoiceNo ?? "-",
           bfsNo: movement.bfsNo ?? "-",
           amount: Math.abs(movement.amount ?? 0),
-          reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+          reason,
           done,
-          doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : "offen"
+          doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : doneByManualResolution ? "Manuell als bezahlt markiert" : "offen"
         };
       });
   });
@@ -3486,6 +3560,35 @@ async function loadStoredImportRowsFromServer() {
   return reconcileImportRows(payload.rows ?? []);
 }
 
+async function loadManualCaseResolutions() {
+  if (typeof window === "undefined") return [];
+  const response = await fetch("/api/cases/resolutions", { method: "GET", cache: "no-store" });
+  if (!response.ok) throw new Error("Manuelle Erledigungen konnten nicht geladen werden.");
+  const payload = await response.json() as { resolutions?: ManualCaseResolution[] };
+  return payload.resolutions ?? [];
+}
+
+async function saveManualCaseResolution(fall: BfsCase) {
+  const response = await fetch("/api/cases/resolutions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      caseKey: caseResolutionKey(fall),
+      standortId: fall.standortId,
+      patientName: fall.patientName,
+      invoiceNo: fall.invoiceNo,
+      bfsNo: fall.bfsNo,
+      amount: fall.amount,
+      reason: fall.reason,
+      comment: "Manuell geprüft: bezahlt."
+    })
+  });
+  const payload = await response.json().catch(() => null) as { resolution?: ManualCaseResolution; error?: string } | null;
+  if (!response.ok || !payload?.resolution) throw new Error(payload?.error ?? "Klärfall konnte nicht erledigt werden.");
+  return payload.resolution;
+}
+
 async function clearStoredImportRowsFromServer() {
   if (typeof window === "undefined") return;
   const response = await fetch("/api/imports/parse", { method: "DELETE", cache: "no-store" });
@@ -3596,7 +3699,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function CasesView({ cases: rows, compact = false, title, description }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string }) {
+function CasesView({ cases: rows, compact = false, title, description, onResolvePaid }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string; onResolvePaid?: (fall: BfsCase) => void | Promise<void> }) {
   const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
   const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const highestCase = rows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined);
@@ -3642,6 +3745,7 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
               <th>Status</th>
               <th>Wiedervorlage</th>
               <th>Kommentar</th>
+              {onResolvePaid && <th>Aktion</th>}
             </tr>
           </thead>
           <tbody>
@@ -3657,11 +3761,18 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
                 <td><StatusBadge status={fall.status} /></td>
                 <td>{fall.dueDate}</td>
                 <td>{fall.lastComment}</td>
+                {onResolvePaid && (
+                  <td>
+                    <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
+                      <CheckCircle2 size={15} /> Bezahlt markieren
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={10}>Keine Klärfälle für den aktuellen Datenstand.</td>
+                <td colSpan={onResolvePaid ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>
@@ -3935,10 +4046,10 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
   );
 }
 
-function OutcomeControlView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+function OutcomeControlView({ standort, cases: rows, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const outcomeRows = outcomeRowsFromImportRows(importRows, standort?.id);
   const openItems = openUnresolvedMovementsFromImportRows(importRows, standort?.id);
-  const stornoReview = stornoReviewFromImportRows(importRows, standort?.id);
+  const stornoReview = stornoReviewFromImportRows(importRows, standort?.id, manualCaseResolutions);
   const totals = outcomeRows.reduce((sum, row) => ({
     total: sum.total + row.total,
     reworked: sum.reworked + row.reworked,

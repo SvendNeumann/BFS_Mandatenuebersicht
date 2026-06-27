@@ -16,6 +16,7 @@ import {
   FileText,
   FolderUp,
   HardDriveUpload,
+  Info,
   LayoutDashboard,
   LockKeyhole,
   Menu,
@@ -810,9 +811,10 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
   );
 }
 
-function PriorityCard({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
+function PriorityCard({ label, value, hint, tone, info }: { label: string; value: string; hint: string; tone: string; info?: string }) {
   return (
     <article className={`priority-card ${tone}`}>
+      <MetricInfo title={label} text={info ?? metricExplanation(label, value, hint)} />
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{hint}</small>
@@ -1041,6 +1043,7 @@ function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?
     <section className="kpi-grid">
       {cards.map(([label, value, hint]) => (
         <article className="kpi-card" key={label}>
+          <MetricInfo title={label} text={metricExplanation(label, value, hint)} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{hint}</small>
@@ -1048,6 +1051,58 @@ function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?
       ))}
     </section>
   );
+}
+
+function MetricInfo({ title, text }: { title: string; text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="metric-info">
+      <button className="metric-info-button" aria-label={`Herleitung ${title}`} onClick={() => setOpen(true)}>
+        <Info size={14} />
+      </button>
+      {open && (
+        <>
+          <button className="metric-info-backdrop" aria-label="Infobox schließen" onClick={() => setOpen(false)} />
+          <div className="metric-info-popover" role="dialog" aria-label={`Herleitung ${title}`}>
+            <div>
+              <strong>{title}</strong>
+              <button aria-label="Infobox schließen" onClick={() => setOpen(false)}>
+                <X size={14} />
+              </button>
+            </div>
+            <p>{text}</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function metricExplanation(label: string, value: string, hint: string) {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("eingereicht") || normalized.includes("forderungen")) {
+    return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("gebühr")) {
+    return `Herleitung: Summe der in den Abrechnungen ausgewiesenen BFS-Gebühren inklusive erkannter Gebührenpositionen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("rückläufer") || normalized.includes("rückgaben")) {
+    return `Herleitung: Gezählt werden Kontoauszug-Bewegungen mit Rückgabe, Rückbelastung oder vergleichbarer BFS-Bemerkung. Der Betrag kommt aus der jeweiligen Bewegungszeile. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("storno")) {
+    return `Herleitung: Gezählt werden Kontoauszug-Zeilen vom Typ Storno Liquidation. Der Originalgrund aus der BFS-Bemerkung bleibt zusätzlich gespeichert. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("ausfallschutz") || normalized.includes("schutz")) {
+    return `Herleitung: Summe der Forderungen, die in der Forderungsliste ohne Ausfallschutz markiert sind oder als spätere Rückgabe ohne Ausfallschutz auftauchen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("offen") || normalized.includes("klä") || normalized.includes("prüfen")) {
+    return `Herleitung: Alle noch nicht erledigten Klärfälle im aktuellen Standort- oder Gruppenfilter. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("import")) {
+    return `Herleitung: Status aus dem aktuellen Test- oder Demo-Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
 }
 
 function UploadView() {

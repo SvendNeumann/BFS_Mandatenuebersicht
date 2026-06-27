@@ -396,6 +396,81 @@ input {
   padding: 18px;
 }
 
+.metric-info {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+}
+
+.metric-info-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #475467;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.metric-info-button:hover {
+  border-color: #8bb8ff;
+  color: #1d4ed8;
+}
+
+.metric-info-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: 0;
+  background: transparent;
+}
+
+.metric-info-popover {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 90;
+  width: min(310px, calc(100vw - 40px));
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  color: #344054;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.metric-info-popover div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric-info-popover strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.metric-info-popover button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #e4e7ec;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475467;
+}
+
+.metric-info-popover p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .kpi-card strong {
   font-size: 27px;
   line-height: 1.1;
@@ -489,6 +564,8 @@ input {
   background: #fff;
   box-shadow: var(--shadow);
   padding: 18px;
+  position: relative;
+  overflow: visible;
 }
 
 .priority-card strong {
@@ -1490,7 +1567,7 @@ td small {
 
 .kpi-card {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   min-height: 142px;
 }
 
@@ -1649,7 +1726,7 @@ th:first-child {
 
 .priority-card {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .priority-card::after {

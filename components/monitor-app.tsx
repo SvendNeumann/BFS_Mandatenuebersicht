@@ -1230,14 +1230,15 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
 }
 
 function PriorityCard({ label, value, hint, tone, info, period }: { label: string; value: string; hint: string; tone: string; info?: string; period?: string }) {
-  const periodText = period ? periodLabelFromHint(period) : periodLabelFromHint(hint);
+  const displayHint = normalizeProductCopy(hint);
+  const periodText = period ? periodLabelFromHint(period) : periodLabelFromHint(displayHint);
 
   return (
     <article className={`priority-card ${tone}`}>
-      <MetricInfo title={label} text={info ?? metricExplanation(label, value, hint)} />
+      <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, displayHint))} />
       <span>{label}</span>
       <strong>{value}</strong>
-      <small>{hint}</small>
+      <small>{displayHint}</small>
       <small className="period-note">{periodText}</small>
     </article>
   );
@@ -2074,10 +2075,10 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
     <section className="kpi-grid">
       {cards.map(([label, value, hint, info]) => (
         <article className="kpi-card" key={label}>
-          <MetricInfo title={label} text={info ?? metricExplanation(label, value, hint)} />
+          <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint)))} />
           <span>{label}</span>
           <strong>{value}</strong>
-          <small>{hint}</small>
+          <small>{normalizeProductCopy(hint)}</small>
           <small className="period-note">{periodLabelFromHint(hint)}</small>
         </article>
       ))}
@@ -2115,12 +2116,25 @@ function buildKpiDerivationInfo(metrics: ReturnType<typeof aggregateMetrics>, pe
 }
 
 function periodLabelFromHint(hint: string) {
-  const normalized = hint.toLowerCase();
+  const cleanedHint = normalizeProductCopy(hint);
+  const normalized = cleanedHint.toLowerCase();
   if (normalized.includes("testupload") || normalized.includes("upload") || normalized.includes("import")) return "Zeitraum: aktueller Import";
   if (normalized.includes("monat")) return "Zeitraum: aktueller Monat";
-  if (normalized.includes("jahr") || normalized.includes("quartal") || normalized.includes("q1") || normalized.includes("q2") || normalized.includes("q3") || normalized.includes("q4")) return `Zeitraum: ${hint}`;
-  if (/\d{2}\.\d{2}\.\d{4}/.test(hint) || /\d{4}/.test(hint)) return `Zeitraum: ${hint}`;
+  if (normalized.includes("jahr") || normalized.includes("quartal") || normalized.includes("q1") || normalized.includes("q2") || normalized.includes("q3") || normalized.includes("q4")) return `Zeitraum: ${cleanedHint}`;
+  if (/\d{2}\.\d{2}\.\d{4}/.test(cleanedHint) || /\d{4}/.test(cleanedHint)) return `Zeitraum: ${cleanedHint}`;
   return "Zeitraum: aktueller Datenstand";
+}
+
+function normalizeProductCopy(text: string) {
+  return text
+    .replace(/aktueller\s+Testupload/gi, "aktueller Import")
+    .replace(/aus\s+deinem\s+Testupload/gi, "aus aktuellem Import")
+    .replace(/aus\s+aktuellem\s+Testupload/gi, "aus aktuellem Import")
+    .replace(/Testupload/gi, "Import")
+    .replace(/Testlauf/gi, "Upload")
+    .replace(/Testimport/gi, "Import")
+    .replace(/Testdateien/gi, "BFS-Dateien")
+    .replace(/Testdatei/gi, "BFS-Datei");
 }
 
 function MetricInfo({ title, text }: { title: string; text: string }) {

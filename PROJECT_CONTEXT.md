@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, ca. 23:58 Uhr
+Stand: 28.06.2026, ca. 00:20 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `17de9a71 Replace stale failed PDF imports`
+Aktueller Head: `0fecca1d Update import fix project context`
 
 ## Prompt fuer den naechsten Chat
 
@@ -33,6 +33,10 @@ Die App ist live auf Vercel und mit Supabase verbunden.
 Supabase:
 - Project ref: `dozcaktodvogbkiomcqo`
 - URL: `https://dozcaktodvogbkiomcqo.supabase.co`
+- Supabase-Verbindung wurde am 28.06.2026 erneut geprueft:
+  - Supabase MCP/SQL erreichbar.
+  - REST-Zugriff mit Publishable Key und Secret Key erfolgreich.
+  - API-Logs zeigen erfolgreiche App-Schreibzugriffe auf Storage, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen` und `bfs_bewegungen`.
 - Auth laeuft wieder sauber ueber Supabase Auth.
 - Super-Admin: `svend.neumann@orisus.de`
 - Supabase bestaetigte zuletzt:
@@ -47,18 +51,26 @@ Vercel:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` / Publishable Key
   - `SUPABASE_SERVICE_ROLE_KEY`
+- Lokale `.env.local` wurde am 28.06.2026 wiederhergestellt, damit lokale Tests und Builds dieselbe Supabase-Umgebung nutzen. Datei ist per `.gitignore` ausgeschlossen und wird nicht gepusht.
 - Dieses Repo ist lokal mit dem Vercel-Projekt `bfs-mandatenuebersicht` verknuepft.
 - Nicht verwechseln mit dem separaten Vercel-Projekt `orisus-cfo-dashboard`.
-- Letzter Production-Deploy: `dpl_DYt8714ViG7mbkxQ2VnCKzEzRRtA`.
+- Letzter Production-Deploy: `dpl_9WhLeNvoQKxUdZsQV5RDzrGzKRUS`.
 - Alias: `https://bfs-mandatenuebersicht.vercel.app`.
-- Deploy-URL: `https://bfs-mandatenuebersicht-4uvscd76v-orisus.vercel.app`.
-- Smoke-Test nach Deploy: Startseite erreichbar, `/dashboard` leitet ohne Session erwartungsgemaess auf `/login`.
+- Deploy-URL: `https://bfs-mandatenuebersicht-app55433c-orisus.vercel.app`.
+- Smoke-Test nach Deploy: `/login` erreichbar mit HTTP 200; lokale Supabase-REST-Pruefung mit `.env.local` erfolgreich.
 - Deploys laufen ueber Git push auf `main` oder direkt per Vercel CLI.
 - GitHub-Push war kurz blockiert, weil Git keinen Credential-Helper nutzte. Reparatur: Repo-lokaler Credential-Helper `/Library/Developer/CommandLineTools/usr/libexec/git-core/git-credential-osxkeychain`.
 - Danach funktionierte `git push origin main` wieder.
-- Lokale Shell kann Vercel/Supabase DNS teilweise nicht per `curl` aufloesen. Das ist ein lokales Shell-/DNS-Problem; Browser/Live-App funktionierten beim User.
+- GitHub, Vercel und Supabase wurden am 28.06.2026 aus diesem Projekt heraus geprueft:
+  - GitHub Remote erreichbar, `origin/main` zeigt auf `0fecca1d`.
+  - Vercel CLI eingeloggt als `svendneumann-8070`, Projektlink zeigt auf `bfs-mandatenuebersicht`.
+  - Vercel Production Env wurde explizit neu gesetzt und danach neu deployed.
+  - Supabase CLI ist nicht eingeloggt; Supabase MCP funktioniert aber fuer Projektverwaltung/SQL.
 
 ## Letzte wichtige Commits
+
+- `0fecca1d Update import fix project context`
+  - Projektkontext nach Import- und Deployment-Fixes aktualisiert.
 
 - `17de9a71 Replace stale failed PDF imports`
   - Alte fehlerhafte PDF.js-Importe werden nicht mehr als gueltige Dubletten behandelt.

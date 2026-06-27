@@ -740,6 +740,135 @@ input {
   background: #f0fdf4;
 }
 
+.location-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.location-card-grid.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.location-benchmark-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+.location-benchmark-card.red {
+  border-color: #fecaca;
+}
+
+.location-benchmark-card.amber {
+  border-color: #fedf89;
+}
+
+.location-benchmark-card.green {
+  border-color: #bbf7d0;
+}
+
+.location-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.location-card-head div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.location-card-head span,
+.location-metric-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.location-card-head strong {
+  color: var(--ink);
+  font-size: 21px;
+}
+
+.location-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.location-metric-grid span {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 9px;
+}
+
+.location-metric-grid b {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.case-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.case-board-column {
+  align-content: start;
+  gap: 10px;
+}
+
+.case-board-column > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.case-board-column > div span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.case-board-column > div strong {
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.case-board-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink-soft);
+  padding: 10px;
+  text-align: left;
+}
+
+.case-board-item strong {
+  color: var(--ink);
+}
+
+.case-board-item span,
+.case-board-item small {
+  color: var(--muted);
+}
+
 .risk-profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
@@ -2456,9 +2585,12 @@ th:first-child {
 .answer-cockpit,
 .cashflow-card,
 .risk-profile-card,
+.location-benchmark-card,
+.case-board-column,
 .table-wrap,
 .standort-tabs,
 .filter-pill-row button,
+.case-board-item,
 .report-type-grid button,
 .mini-process button,
 .stacked-checks span,
@@ -2490,6 +2622,10 @@ th:first-child {
 .kpi-card strong,
 .answer-grid strong,
 .cashflow-card dd,
+.location-card-head strong,
+.location-metric-grid b,
+.case-board-column > div strong,
+.case-board-item strong,
 td strong,
 .confirmation-dialog dd,
 .confirmation-dialog h2 {
@@ -2508,6 +2644,11 @@ td small,
 .insight-card span,
 .cashflow-card dt,
 .cashflow-card > div:first-child span,
+.location-card-head span,
+.location-metric-grid span,
+.case-board-column > div span,
+.case-board-item span,
+.case-board-item small,
 .period-filter span,
 .period-filter label,
 .risk-profile-card span,
@@ -2939,6 +3080,10 @@ tbody tr:hover td {
 .answer-grid button,
 .cashflow-card,
 .risk-profile-card,
+.location-benchmark-card,
+.case-board-column,
+.case-board-item,
+.location-metric-grid span,
 .data-card {
   border-color: var(--line);
   background: rgba(4, 21, 33, 0.24);
@@ -3378,6 +3523,9 @@ tbody tr:hover td {
   .dashboard-grid,
   .insight-grid,
   .priority-grid,
+  .location-card-grid,
+  .location-card-grid.compact,
+  .case-board,
   .report-type-grid,
   .filter-grid,
   .answer-grid,

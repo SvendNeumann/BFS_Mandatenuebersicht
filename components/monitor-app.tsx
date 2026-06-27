@@ -55,37 +55,36 @@ type NavSection = {
 
 const superAdminNav: NavSection[] = [
   {
-    title: "Überblick",
+    title: "Management",
     items: [
-      ["dashboard", "Zusammenfassung", LayoutDashboard],
+      ["dashboard", "Cockpit", LayoutDashboard],
       ["answers", "Schnellantworten", ClipboardList],
-      ["claims", "Forderungen & Geldfluss", ReceiptText],
       ["worklist", "Prioritäten heute", AlertCircle]
     ]
   },
   {
-    title: "Klärfälle",
+    title: "Analyse & Benchmarking",
     items: [
-      ["cases", "Offene BFS-Klärfälle", AlertCircle],
+      ["benchmark", "Standorte", Building2],
+      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["quality", "Forderungsqualität", ShieldCheck]
+    ]
+  },
+  {
+    title: "Operative Fallarbeit",
+    items: [
+      ["cases", "Klärfälle", AlertCircle],
+      ["matches", "Matching & Neueinreichungen", RefreshCw],
       ["chargebacks", "Rückbelastungen", CircleDollarSign],
       ["followups", "Wiedervorlagen", CalendarClock]
     ]
   },
   {
-    title: "Risiko & Matching",
-    items: [
-      ["risks", "Ohne Ausfallschutz", ShieldCheck],
-      ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
-      ["patientClasses", "Patientenklassifizierung", Users],
-      ["matches", "Neueinreichungen", RefreshCw]
-    ]
-  },
-  {
-    title: "Auswertung",
+    title: "Reports",
     items: [
       ["reports", "Report-Center", FileText],
-      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
-      ["groupReports", "Gruppenreports", BarChart3]
+      ["groupReports", "Gruppenreports", BarChart3],
+      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
     ]
   },
   {
@@ -108,31 +107,29 @@ const leadNav: NavSection[] = [
   {
     title: "Mein Standort",
     items: [
-      ["dashboard", "Standort-Dashboard", LayoutDashboard],
+      ["dashboard", "Cockpit", LayoutDashboard],
       ["answers", "Schnellantworten", ClipboardList],
-      ["claims", "Forderungen & Geldfluss", ReceiptText],
       ["worklist", "Meine Prioritäten", AlertCircle]
     ]
   },
   {
-    title: "Klärfälle",
+    title: "Analyse",
     items: [
-      ["cases", "Offene Fälle", AlertCircle],
+      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["quality", "Forderungsqualität", ShieldCheck]
+    ]
+  },
+  {
+    title: "Operative Fallarbeit",
+    items: [
+      ["cases", "Klärfälle", AlertCircle],
+      ["matches", "Matching & Neueinreichungen", RefreshCw],
       ["chargebacks", "Rückbelastungen", CircleDollarSign],
       ["followups", "Wiedervorlagen", CalendarClock]
     ]
   },
   {
-    title: "Risiko & Matching",
-    items: [
-      ["risks", "Ohne Ausfallschutz", ShieldCheck],
-      ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
-      ["patientClasses", "Patientenklassifizierung", Users],
-      ["matches", "Neueinreichungen", RefreshCw]
-    ]
-  },
-  {
-    title: "Auswertung",
+    title: "Reports",
     items: [
       ["reports", "Report-Center", FileText],
       ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
@@ -374,6 +371,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             )}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
+            {activeView === "benchmark" && <BenchmarkView onNavigate={navigateTo} importRows={liveImportRows} />}
+            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} />}
@@ -508,14 +507,16 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
 
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
-    dashboard: role === "super_admin" && isGroupScope ? "Zusammenfassung" : "Standort-Dashboard",
+    dashboard: role === "super_admin" && isGroupScope ? "Cockpit" : "Standort-Cockpit",
     answers: "Schnellantworten",
+    benchmark: "Standorte",
+    quality: "Forderungsqualität",
     claims: "Forderungen & Geldfluss",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Import-Center",
     preview: "Import-Center",
     history: "Import-Center",
-    cases: "Offene BFS-Klärfälle",
+    cases: "Klärfälle",
     chargebacks: "Rückbelastungen",
     followups: "Wiedervorlagen",
     risks: "Laufend ohne Ausfallschutz",
@@ -556,19 +557,23 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   });
   const importSummary = summarizeImportRows(scopedImportRows);
   const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics();
-  const activeStandorte = filteredStandorte.filter((standort) => standortActiveInPeriod(standort, selectedPeriod));
-  const inactiveStandorte = filteredStandorte.filter((standort) => !standortActiveInPeriod(standort, selectedPeriod));
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const groupChartSeries = buildGroupDashboardSeries(filteredStandorte, selectedPeriod, importRows);
+  const locationSnapshots = buildLocationSnapshots(filteredStandorte, selectedPeriod, scopedImportRows, openCases);
+  const oldestOpenCase = focusedCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const chargebackRate = selectedMetrics.submitted ? ((selectedMetrics.returnAmount + selectedMetrics.cancellationAmount) / selectedMetrics.submitted) * 100 : 0;
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const groupKpis: KpiCardTuple[] = [
-    ["Standorte im Blick", groupStandortFilter === "alle" ? `${activeStandorte.length} im Zeitraum` : periodStatusLabel(filteredStandorte[0], selectedPeriod), inactiveStandorte.length ? `${inactiveStandorte.length} Standort(e) in diesem Zeitraum noch nicht aktiv` : "aktive BFS-Standorte"],
     ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted],
     ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout],
     ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees],
+    ["Gebührenquote", `${selectedMetrics.feeRate.toFixed(2)} %`, periodLabel],
+    ["Rückbelastungsquote", `${chargebackRate.toFixed(2)} %`, "Rückgaben und Stornos am Eingang"],
+    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
-    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label]
+    ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position"]
   ];
+  const cockpitAlerts = buildCockpitAlerts(locationSnapshots, selectedMetrics, focusedCases);
   return (
     <div className="content-stack">
       <GroupFilterBar
@@ -592,54 +597,25 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         </div>
       </section>
       <KpiGrid cards={groupKpis} />
-      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
-      <section className="panel import-preview-panel">
-        <div className="panel-heading import-preview-heading">
+      <section className="dashboard-grid cockpit-action-grid">
+        <article className="panel command-panel">
           <div>
-            <h2>Standortübersicht</h2>
-            <p>Gefilterter Gruppenblick über Standorte, Eingänge, Gebühren, Rückbelastungen und Risikohinweise im Zeitraum {selectedPeriod.label}.</p>
+            <span className="eyebrow">Was ist auffällig?</span>
+            <h2>{cockpitAlerts.headline}</h2>
+            <p>{cockpitAlerts.detail}</p>
           </div>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Standort</th>
-                <th>Live seit</th>
-                <th>Letzter Import</th>
-                <th>Umsatz eingereicht</th>
-                <th>Gesamtkosten BFS</th>
-                <th>Offene Fälle</th>
-                <th>Rückbelastungen offen</th>
-                <th>Ohne Ausfallschutz</th>
-                <th>&gt; 30 Tage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStandorte.map((standort) => {
-                const rowSummary = summarizeImportRows(scopedImportRows.filter((row) => row.location === standort.name));
-                const rowMetrics = rowSummary.rows ? metricsFromImportSummary(rowSummary) : zeroMetrics();
-                const rowCashflow = rowSummary.rows ? cashflowFromImportSummary(rowSummary) : zeroCashflow();
-                return (
-                  <tr key={standort.id}>
-                    <td>
-                      <strong>{standort.name}</strong>
-                      <span>{standort.praxisname}</span>
-                    </td>
-                    <td><StatusBadge status={periodStatusLabel(standort, selectedPeriod)} /></td>
-                    <td>{latestImportDateForStandort(scopedImportRows.filter((row) => row.location === standort.name))}</td>
-                    <td>{rowCashflow.activeMonths ? money.format(rowMetrics.submitted) : "0,00 €"}</td>
-                    <td>{rowCashflow.activeMonths ? money.format(rowMetrics.fees) : "0,00 €"}</td>
-                    <td>{rowCashflow.activeMonths ? openCases.filter((fall) => fall.standortId === standort.id).length : 0}</td>
-                    <td>{rowCashflow.activeMonths ? money.format(openCases.filter((fall) => fall.standortId === standort.id).reduce((sum, fall) => sum + fall.amount, 0)) : "0,00 €"}</td>
-                    <td>{rowCashflow.activeMonths ? money.format(rowMetrics.noProtectionAmount) : "0,00 €"}</td>
-                    <td>{rowCashflow.activeMonths ? openCases.filter((fall) => fall.standortId === standort.id && fall.ageDays > 30).length : 0}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+          <div className="quick-actions">
+            <button className="primary-button" onClick={() => onNavigate(cockpitAlerts.primaryView)}><AlertCircle size={16} /> Jetzt prüfen</button>
+            <button className="secondary-button" onClick={() => onNavigate("benchmark")}><Building2 size={16} /> Standorte vergleichen</button>
+            <button className="secondary-button" onClick={() => onNavigate("quality")}><ShieldCheck size={16} /> Qualität ansehen</button>
+          </div>
+        </article>
+        <article className="panel process-panel">
+          <h2>Was muss geprüft werden?</h2>
+          <div className="stacked-checks">
+            {cockpitAlerts.actions.map((action) => <span key={action}>{action}</span>)}
+          </div>
+        </article>
       </section>
       <section className="chart-grid">
         {groupChartSeries.map((chart) => (
@@ -650,6 +626,17 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
           </div>
         ))}
       </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Standort-Benchmark</h2>
+            <p>Ranking statt Tabelle: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
+          </div>
+          <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
+        </div>
+        <LocationBenchmarkCards snapshots={locationSnapshots} onNavigate={onNavigate} compact />
+      </section>
+      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
     </div>
   );
 }
@@ -702,8 +689,9 @@ function chartLegendLabel(title: string) {
 }
 
 function formatChartValue(title: string, value: number) {
-  if (title.toLowerCase().includes("gebühr") || title.toLowerCase().includes("umsatz")) return money.format(value);
-  if (title.toLowerCase().includes("rück")) return `${value} Fälle`;
+  const normalizedTitle = title.toLowerCase();
+  if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
+  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität")) return `${value} Fälle`;
   return `${value} %`;
 }
 
@@ -733,6 +721,218 @@ function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOpti
       }))
     }
   ];
+}
+
+type LocationSnapshot = ReturnType<typeof buildLocationSnapshots>[number];
+
+function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[], openCases: BfsCase[] = []) {
+  return rowsStandorte.map((standort) => {
+    const locationRows = importRows.filter((row) => row.location === standort.name);
+    const summary = summarizeImportRows(locationRows);
+    const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+    const locationCases = openCases.filter((fall) => fall.standortId === standort.id);
+    const openAmount = locationCases.reduce((sum, fall) => sum + fall.amount, 0);
+    const oldest = locationCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+    const chargebackAmount = metrics.returnAmount + metrics.cancellationAmount;
+    const chargebackRate = metrics.submitted ? (chargebackAmount / metrics.submitted) * 100 : 0;
+    const riskScore = chargebackRate * 2 + (metrics.noProtectionAmount ? Math.min(35, (metrics.noProtectionAmount / Math.max(metrics.submitted, 1)) * 100) : 0) + (oldest > 30 ? 20 : oldest > 14 ? 10 : 0);
+    return {
+      standort,
+      metrics,
+      rows: summary.rows,
+      latestImport: latestImportDateForStandort(locationRows),
+      status: periodStatusLabel(standort, period),
+      openCases: locationCases.length,
+      openAmount,
+      oldest,
+      chargebackRate,
+      riskScore
+    };
+  }).sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted);
+}
+
+function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, focusedCases: BfsCase[]) {
+  const riskyLocation = snapshots.find((entry) => entry.riskScore > 0);
+  const oldCases = focusedCases.filter((fall) => fall.ageDays > 30);
+  if (oldCases.length) {
+    return {
+      headline: `${oldCases.length} Klärfall(e) über 30 Tage offen`,
+      detail: "Die operative Fallarbeit hat Vorrang, weil alte Rückbelastungen und Stornos sonst in der Steuerung hängen bleiben.",
+      primaryView: "cases",
+      actions: ["Älteste offenen Fälle zuerst prüfen", "Rückbelastung/Storno von Risiko ohne Ausfallschutz trennen", "Neueinreichungen gegen offene Fälle matchen"]
+    };
+  }
+  if (riskyLocation) {
+    return {
+      headline: `${riskyLocation.standort.name} ist im Benchmark auffällig`,
+      detail: `Risiko entsteht aktuell vor allem aus ${money.format(riskyLocation.metrics.noProtectionAmount)} ohne Ausfallschutz und ${riskyLocation.openCases} offenen Klärfällen.`,
+      primaryView: "benchmark",
+      actions: ["Standort im Ranking prüfen", "Gebührenquote und Rückbelastungsquote vergleichen", "Forderungsqualität nach Patient und Ursache ansehen"]
+    };
+  }
+  if (metrics.submitted > 0) {
+    return {
+      headline: "Datenstand wirkt aktuell unauffällig",
+      detail: "Es liegen importierte BFS-Werte vor, aber keine dominante Sofortauffälligkeit im aktuellen Filter.",
+      primaryView: "quality",
+      actions: ["Gebührenquote regelmäßig vergleichen", "Ohne-Ausfallschutz als Risiko beobachten", "Reports nach Monatsabschluss erzeugen"]
+    };
+  }
+  return {
+    headline: "Für diese Auswahl liegen keine Werte vor",
+    detail: "Sobald ein Importdatenstand vorhanden ist, füllt das Cockpit KPIs, Rankings und Hinweise automatisch.",
+    primaryView: "upload",
+    actions: ["BFS-Abrechnungen importieren", "Mandantenmapping prüfen", "Fehlerbericht nach Upload kontrollieren"]
+  };
+}
+
+function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { snapshots: LocationSnapshot[]; onNavigate: (view: string) => void; compact?: boolean }) {
+  const visible = compact ? snapshots.slice(0, 4) : snapshots;
+  return (
+    <div className={compact ? "location-card-grid compact" : "location-card-grid"}>
+      {visible.map((entry, index) => (
+        <article className={`location-benchmark-card ${entry.riskScore >= 35 ? "red" : entry.riskScore > 0 ? "amber" : "green"}`} key={entry.standort.id}>
+          <div className="location-card-head">
+            <div>
+              <span>#{index + 1} · {entry.status}</span>
+              <strong>{entry.standort.name}</strong>
+            </div>
+            <StatusBadge status={entry.riskScore >= 35 ? "prüfen" : entry.riskScore > 0 ? "beobachten" : "OK"} />
+          </div>
+          <div className="location-metric-grid">
+            <span><b>{money.format(entry.metrics.submitted)}</b> Umsatz</span>
+            <span><b>{entry.metrics.feeRate.toFixed(2)} %</b> Gebühr</span>
+            <span><b>{entry.chargebackRate.toFixed(2)} %</b> Rückbelastung</span>
+            <span><b>{money.format(entry.metrics.noProtectionAmount)}</b> ohne Schutz</span>
+            <span><b>{entry.openCases}</b> Klärfälle</span>
+            <span><b>{entry.oldest} Tage</b> ältester Fall</span>
+          </div>
+          <button className="secondary-button" onClick={() => onNavigate("claims")}>Details ansehen</button>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
+  const periodOptions = buildCashflowPeriods();
+  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
+  const scopedRows = importRows.filter((row) => {
+    const rowStandort = standorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  });
+  const openCases = casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt"));
+  const snapshots = buildLocationSnapshots(standorte, selectedPeriod, scopedRows, openCases);
+  const highestVolume = [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0];
+  const highestFees = [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0];
+  const highestRisk = snapshots[0];
+
+  return (
+    <div className="content-stack">
+      <section className="panel period-filter">
+        <label className="select-label">
+          Zeitraum Standort-Benchmark
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => <option key={period.id} value={period.id}>{period.label}</option>)}
+          </select>
+        </label>
+        <div>
+          <strong>{selectedPeriod.label}</strong>
+          <span>Standorte werden nach Volumen, Gebührenquote, Rückbelastungen, Ohne-Ausfallschutz und offenen Fällen bewertet.</span>
+        </div>
+      </section>
+      <section className="priority-grid">
+        <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={`${(highestFees?.metrics.feeRate ?? 0).toFixed(2)} %`} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
+        <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
+        <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Standorte im Vergleich</h2>
+            <p>Karten statt Tabellen: zuerst erkennen, welcher Standort warum auffällig ist.</p>
+          </div>
+        </div>
+        <LocationBenchmarkCards snapshots={snapshots} onNavigate={onNavigate} />
+      </section>
+      <section className="chart-grid">
+        {buildGroupDashboardSeries(standorte, selectedPeriod, scopedRows).map((chart) => (
+          <div className="panel mini-chart" key={chart.title}>
+            <h2>{chart.title}</h2>
+            <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
+            <InteractiveBars title={chart.title} values={chart.values} />
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function QualityView({ standort, cases: rows, importRows = [], onNavigate }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void }) {
+  const scopedRows = standort ? importRows.filter((row) => row.location === standort.name) : importRows;
+  const summary = summarizeImportRows(scopedRows);
+  const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+  const riskRows = riskClaimsFromImportRows(scopedRows);
+  const recurring = getRecurringRiskProfiles(standort?.id, scopedRows);
+  const unresolved = openUnresolvedMovementsFromImportRows(scopedRows, standort?.id);
+  const chargebackCases = rows.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung") || fall.reason.includes("Storno"));
+  const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
+  const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
+
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${noProtectionShare.toFixed(2)} % vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
+        <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${chargebackShare.toFixed(2)} % vom Eingang`} tone={chargebackShare ? "red" : "green"} />
+        <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
+        <PriorityCard label="Operativ offen" value={String(unresolved.length || chargebackCases.length)} hint="echte Fallarbeit" tone={(unresolved.length || chargebackCases.length) ? "red" : "green"} />
+      </section>
+      <section className="dashboard-grid">
+        <article className="panel command-panel">
+          <div>
+            <span className="eyebrow">Forderungsqualität</span>
+            <h2>Risiko und Klärfall sauber trennen</h2>
+            <p>Ohne Ausfallschutz ist ein Risikobestand. Rückgabe, Rückbelastung und Storno sind operative Arbeit.</p>
+          </div>
+          <div className="quick-actions">
+            <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Klärfälle öffnen</button>
+            <button className="secondary-button" onClick={() => onNavigate("matches")}><RefreshCw size={16} /> Matching prüfen</button>
+          </div>
+        </article>
+        <article className="panel process-panel">
+          <h2>Prüflogik</h2>
+          <div className="stacked-checks">
+            <span>1. Ohne Ausfallschutz beobachten, nicht als To-do zählen</span>
+            <span>2. Rückbelastung/Storno als Klärfall priorisieren</span>
+            <span>3. Wiederholer und spätere Neueinreichungen matchen</span>
+          </div>
+        </article>
+      </section>
+      <section className="chart-grid">
+        <div className="panel mini-chart">
+          <h2>Risikoarten</h2>
+          <InteractiveBars title="Risikoarten" values={[
+            { label: "ohne Schutz", value: metrics.noProtectionAmount },
+            { label: "Rückgabe", value: metrics.returnAmount },
+            { label: "Storno", value: metrics.cancellationAmount },
+            { label: "EWMA", value: metrics.ewmaTotal }
+          ]} />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Patientenqualität</h2>
+          <InteractiveBars title="Patientenqualität" values={[
+            { label: "Risiken", value: riskRows.length },
+            { label: "Wiederholer", value: recurring.length },
+            { label: "offen", value: unresolved.length },
+            { label: "Klärfälle", value: chargebackCases.length }
+          ]} />
+        </div>
+      </section>
+      <RiskView standortId={standort?.id} importRows={scopedRows} />
+    </div>
+  );
 }
 
 function GroupFilterBar({
@@ -1276,8 +1476,51 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
         <InsightCard title="Bearbeitung" items={["Rückbelastungen zuerst", "Wiedervorlagen fristgerecht klären", "Erledigte Neueinreichungen ausblenden"]} />
         <InsightCard title="Standort-Rückfragen" items={["Patient, Re.-Nr. und BFS-Nr. nennen", "Grund aus BFS-Bemerkung übernehmen", "Maßnahme und Frist dokumentieren"]} />
       </section>
+      <CaseWorkflowBoard cases={sorted} />
       <CasesView cases={sorted} compact />
     </div>
+  );
+}
+
+function CaseWorkflowBoard({ cases: rows }: { cases: BfsCase[] }) {
+  const columns = [
+    {
+      title: "Offen",
+      rows: rows.filter((fall) => fall.status === "offen" || fall.status === "historisches_match_offen")
+    },
+    {
+      title: "In Prüfung",
+      rows: rows.filter((fall) => fall.ageDays >= 8 && fall.ageDays <= 30)
+    },
+    {
+      title: "Wiedervorlage",
+      rows: rows.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")
+    },
+    {
+      title: "Kein Match",
+      rows: rows.filter((fall) => fall.status === "historisches_match_offen")
+    }
+  ];
+
+  return (
+    <section className="case-board" aria-label="Klärfälle Arbeitsboard">
+      {columns.map((column) => (
+        <article className="panel case-board-column" key={column.title}>
+          <div>
+            <span>{column.title}</span>
+            <strong>{column.rows.length}</strong>
+          </div>
+          {column.rows.slice(0, 4).map((fall) => (
+            <button key={`${column.title}-${fall.id}`} className="case-board-item" type="button">
+              <strong>{fall.patientName}</strong>
+              <span>{fall.locationName} · {money.format(fall.amount)}</span>
+              <small>{fall.reason}</small>
+            </button>
+          ))}
+          {!column.rows.length && <p className="empty-state">Keine Fälle.</p>}
+        </article>
+      ))}
+    </section>
   );
 }
 
@@ -3273,6 +3516,11 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
                 <td>{fall.lastComment}</td>
               </tr>
             ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={10}>Keine Klärfälle für den aktuellen Datenstand.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

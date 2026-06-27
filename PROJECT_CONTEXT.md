@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 00:55 Uhr
+Stand: 28.06.2026, ca. 01:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Code-Fix: `9809bf05 Fix imported dataset metric fallbacks`  
+Aktueller Code-Fix: Zielbild-Umbau Management/Analyse/operative Fallarbeit  
 Aktueller Head: per `git log -1 --oneline` pruefen
 
 ## Prompt fuer den naechsten Chat
@@ -26,6 +26,26 @@ Wichtige Dateien:
 
 App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen fuer Orisus-Standorte produktiv importieren, auswerten und statistisch analysieren: Umsatz eingereicht, Auszahlung, BFS-Gebuehr netto, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Reports.
 ```
+
+## Produktstruktur / Zielbild
+
+Die App ist fachlich als Steuerungsprodukt aufgebaut, nicht als reine Tabellenauswertung:
+
+1. Management-Cockpit
+   - Startseite nach Login.
+   - Zeitraum-/Standortbezug, zentrale KPI-Kacheln, Charts, Standort-Benchmark und klare Hinweise: was ist auffaellig, was muss geprueft werden.
+   - Tabellen erst nachgelagert.
+
+2. Analyse & Benchmarking
+   - Standortvergleich als Karten/Ranking statt Tabellenfriedhof.
+   - Forderungen & Geldfluss fuer Kosten, Gebuehren, Rueckgaben, Stornos und Auszahlung.
+   - Forderungsqualitaet trennt Risiko und Fallarbeit: `Ohne Ausfallschutz` ist Risikobestand, `Rueckbelastung/Storno` ist operativer Klaerfall.
+
+3. Operative Fallarbeit
+   - Klaerfaelle, Matching/Neueinreichungen, Rueckbelastungen und Wiedervorlagen.
+   - Tabellen sind hier erlaubt und sinnvoll, aber mit vorgelagertem Arbeitsboard/KPI-Ueberblick.
+
+Grundsatz: Hauptseiten sollen zuerst Lage, Auffaelligkeit und Handlung zeigen. Detailtabellen stehen unten oder auf operativen Drilldown-Seiten.
 
 ## Aktueller Live-Stand
 

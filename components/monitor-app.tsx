@@ -194,7 +194,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }, []);
 
   useEffect(() => {
-    setExpandedSections({});
     setMobileNavOpen(false);
     refreshLocalAppData();
   }, [activeView]);
@@ -225,15 +224,20 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     refreshLocalAppData();
     setActiveView(key);
     setMobileNavOpen(false);
-    setExpandedSections({});
+    openNavSectionForView(key);
   }
 
   function goToSummary() {
     if (role === "super_admin") setSelectedStandortId("gruppe");
     setActiveView("dashboard");
     setMobileNavOpen(false);
-    setExpandedSections({});
+    openNavSectionForView("dashboard");
     refreshLocalAppData();
+  }
+
+  function openNavSectionForView(key: string) {
+    const section = nav.find((entry) => entry.items.some(([itemKey]) => itemKey === key));
+    setExpandedSections(section ? { [section.title]: true } : {});
   }
 
   function refreshLocalAppData() {

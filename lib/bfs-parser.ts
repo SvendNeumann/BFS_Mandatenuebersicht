@@ -104,6 +104,7 @@ function parseEwmaBreakdown(movements: ParsedImportMovement[]) {
 }
 
 async function extractPdfText(bytes: ArrayBuffer) {
+  ensurePdfJsServerPolyfills();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   configurePdfWorker(pdfjs);
   const pdf = await pdfjs.getDocument({
@@ -120,6 +121,93 @@ async function extractPdfText(bytes: ArrayBuffer) {
   }
 
   return pages.join("\n");
+}
+
+function ensurePdfJsServerPolyfills() {
+  if (typeof window !== "undefined") return;
+  const globalScope = globalThis as Record<string, unknown>;
+  globalScope.DOMMatrix ??= SimpleDOMMatrix;
+  globalScope.ImageData ??= SimpleImageData;
+  globalScope.Path2D ??= SimplePath2D;
+}
+
+class SimpleDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  is2D = true;
+  isIdentity = true;
+
+  constructor(init?: string | number[]) {
+    if (Array.isArray(init)) {
+      [this.a, this.b, this.c, this.d, this.e, this.f] = [
+        init[0] ?? 1,
+        init[1] ?? 0,
+        init[2] ?? 0,
+        init[3] ?? 1,
+        init[4] ?? 0,
+        init[5] ?? 0
+      ];
+      this.isIdentity = this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0;
+    }
+  }
+
+  multiplySelf() {
+    return this;
+  }
+
+  preMultiplySelf() {
+    return this;
+  }
+
+  translateSelf(x = 0, y = 0) {
+    this.e += x;
+    this.f += y;
+    this.isIdentity = false;
+    return this;
+  }
+
+  scaleSelf(scaleX = 1, scaleY = scaleX) {
+    this.a *= scaleX;
+    this.d *= scaleY;
+    this.isIdentity = false;
+    return this;
+  }
+
+  rotateSelf() {
+    return this;
+  }
+
+  inverse() {
+    return new SimpleDOMMatrix([this.a, this.b, this.c, this.d, this.e, this.f]);
+  }
+}
+
+class SimpleImageData {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+
+  constructor(dataOrWidth: Uint8ClampedArray | number, widthOrHeight: number, height?: number) {
+    if (typeof dataOrWidth === "number") {
+      this.width = dataOrWidth;
+      this.height = widthOrHeight;
+      this.data = new Uint8ClampedArray(this.width * this.height * 4);
+    } else {
+      this.data = dataOrWidth;
+      this.width = widthOrHeight;
+      this.height = height ?? 0;
+    }
+  }
+}
+
+class SimplePath2D {
+  addPath() {
+    return undefined;
+  }
 }
 
 function configurePdfWorker(pdfjs: { GlobalWorkerOptions?: { workerSrc?: string } }) {

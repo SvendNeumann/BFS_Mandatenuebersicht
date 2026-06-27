@@ -120,7 +120,7 @@ button {
 
 .orisus-wordmark {
   display: block;
-  width: min(100%, 230px);
+  width: min(100%, 210px);
   height: auto;
 }
 
@@ -209,8 +209,12 @@ nav {
 }
 
 .nav-subitems {
-  display: grid;
+  display: none;
   gap: 5px;
+}
+
+.nav-section.expanded .nav-subitems {
+  display: grid;
 }
 
 .nav-item {
@@ -2984,7 +2988,7 @@ tbody tr:hover td {
   }
 
   .brand .orisus-wordmark {
-    width: min(100%, 220px);
+    width: min(100%, 190px);
   }
 
   .role-switch {
@@ -3073,7 +3077,7 @@ tbody tr:hover td {
   }
 
   .mobile-app-brand .orisus-wordmark {
-    width: clamp(178px, 42vw, 246px);
+    width: clamp(132px, 34vw, 180px);
   }
 
   .desktop-page-title,

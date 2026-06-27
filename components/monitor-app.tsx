@@ -265,7 +265,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <nav>
             {nav.map((section) => {
               const sectionActive = section.items.some(([key]) => activeView === key);
-              const sectionExpanded = expandedSections[section.title] || sectionActive;
+              const sectionExpanded = Boolean(expandedSections[section.title]);
               const SectionIcon = section.items[0][2];
               return (
                 <div className={sectionExpanded ? "nav-section expanded" : "nav-section"} key={section.title}>

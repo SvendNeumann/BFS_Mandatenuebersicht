@@ -877,6 +877,7 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate }: { s
   const riskRows = riskClaimsFromImportRows(scopedRows);
   const recurring = getRecurringRiskProfiles(standort?.id, scopedRows);
   const unresolved = openUnresolvedMovementsFromImportRows(scopedRows, standort?.id);
+  const stornoReview = stornoReviewFromImportRows(scopedRows, standort?.id);
   const chargebackCases = rows.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung") || fall.reason.includes("Storno"));
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
   const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
@@ -886,6 +887,7 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate }: { s
       <section className="priority-grid">
         <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${noProtectionShare.toFixed(2)} % vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
         <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${chargebackShare.toFixed(2)} % vom Eingang`} tone={chargebackShare ? "red" : "green"} />
+        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.doneRate.toFixed(0)} % erledigt`} tone={stornoReview.open ? "amber" : "green"} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
         <PriorityCard label="Operativ offen" value={String(unresolved.length || chargebackCases.length)} hint="echte Fallarbeit" tone={(unresolved.length || chargebackCases.length) ? "red" : "green"} />
       </section>
@@ -930,8 +932,82 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate }: { s
           ]} />
         </div>
       </section>
+      <StornoReviewSection review={stornoReview} />
       <RiskView standortId={standort?.id} importRows={scopedRows} />
     </div>
+  );
+}
+
+function StornoReviewSection({ review }: { review: ReturnType<typeof stornoReviewFromImportRows> }) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Quercheck</span>
+          <h2>Stornierungen gesamt und je Standort</h2>
+          <p>Gezählt werden erkannte Storno-Zeilen. Als erledigt gelten Stornos mit Zahlung nach Storno, direkter Erledigung oder erkannter späterer Neueinreichung.</p>
+        </div>
+      </div>
+      <div className="priority-grid compact-priority">
+        <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} tone={review.total ? "amber" : "green"} />
+        <PriorityCard label="Davon erledigt" value={String(review.done)} hint={`${review.doneRate.toFixed(0)} % Erledigungsquote`} tone={review.done ? "green" : "blue"} />
+        <PriorityCard label="Noch offen" value={String(review.open)} hint="ohne erkennbare Erledigung" tone={review.open ? "red" : "green"} />
+      </div>
+      <div className="location-card-grid storno-review-grid">
+        {review.byLocation.map((entry) => (
+          <article className={`location-benchmark-card ${entry.open ? "amber" : entry.total ? "green" : "blue"}`} key={entry.standort.id}>
+            <div className="location-card-head">
+              <div>
+                <span>Storno-Quercheck</span>
+                <strong>{entry.standort.name}</strong>
+              </div>
+              <StatusBadge status={entry.open ? `${entry.open} offen` : entry.total ? "erledigt" : "keine Stornos"} />
+            </div>
+            <div className="location-metric-grid">
+              <span><b>{entry.total}</b> Stornos gesamt</span>
+              <span><b>{entry.done}</b> erledigt</span>
+              <span><b>{entry.open}</b> offen</span>
+              <span><b>{entry.doneRate.toFixed(0)} %</b> Quote</span>
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Standort</th>
+              <th>Patient</th>
+              <th>Datum</th>
+              <th>Re.-Nr.</th>
+              <th>BFS-Nr.</th>
+              <th>Betrag</th>
+              <th>Erledigungsgrund</th>
+            </tr>
+          </thead>
+          <tbody>
+            {review.rows.slice(0, 120).map((row) => (
+              <tr key={row.id}>
+                <td><StatusBadge status={row.done ? "erledigt" : "offen"} /></td>
+                <td>{row.locationName}</td>
+                <td><strong>{row.patientName}</strong><span>{row.reason}</span></td>
+                <td>{row.date}</td>
+                <td>{row.invoiceNo}</td>
+                <td>{row.bfsNo}</td>
+                <td>{money.format(row.amount)}</td>
+                <td>{row.doneReason}</td>
+              </tr>
+            ))}
+            {!review.rows.length && (
+              <tr>
+                <td colSpan={8}>Keine Stornierungen im aktuellen Datenstand erkannt.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -2099,6 +2175,73 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
         }];
       });
   }).sort((a, b) => b.amount - a.amount);
+}
+
+function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+  const candidates = resubmissionCandidatesFromImportRows(rows);
+  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
+  const stornoRows = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return [];
+
+    return (row.parsedMovements ?? [])
+      .filter((movement) => isStornoMovement(movement))
+      .map((movement, index) => {
+        const patientName = movement.patientName ?? "Patient noch nicht gematcht";
+        const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
+        const reasonText = movement.reason?.toLowerCase() ?? "";
+        const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        const doneByResubmission = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
+        const done = doneByPayment || doneByResubmission;
+        return {
+          id: `${row.fileHash ?? row.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
+          standortId: standort.id,
+          locationName: standort.name,
+          patientName,
+          date: movement.date ?? row.date,
+          invoiceNo: movement.invoiceNo ?? "-",
+          bfsNo: movement.bfsNo ?? "-",
+          amount: Math.abs(movement.amount ?? 0),
+          reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+          done,
+          doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : "offen"
+        };
+      });
+  });
+  const byLocation = standorte
+    .filter((standort) => !standortId || standort.id === standortId)
+    .map((standort) => {
+      const locationRows = stornoRows.filter((row) => row.standortId === standort.id);
+      const done = locationRows.filter((row) => row.done).length;
+      const total = locationRows.length;
+      return {
+        standort,
+        total,
+        done,
+        open: total - done,
+        amount: locationRows.reduce((sum, row) => sum + row.amount, 0),
+        doneRate: total ? (done / total) * 100 : 0,
+        rows: locationRows
+      };
+    });
+  const done = stornoRows.filter((row) => row.done).length;
+  const total = stornoRows.length;
+
+  return {
+    total,
+    done,
+    open: total - done,
+    amount: stornoRows.reduce((sum, row) => sum + row.amount, 0),
+    doneRate: total ? (done / total) * 100 : 0,
+    byLocation,
+    rows: stornoRows.sort((a, b) => Number(a.done) - Number(b.done) || b.amount - a.amount)
+  };
+}
+
+function isStornoMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  const type = movement.type.toLowerCase();
+  const reason = `${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
+  return type.includes("storno") || reason.includes("storno");
 }
 
 function groupOutcomeRows(rows: Array<{ month: string; locationName: string; patientName: string; amount: number; reworked: boolean; paid: boolean; open: boolean }>) {
@@ -3795,6 +3938,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
 function OutcomeControlView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const outcomeRows = outcomeRowsFromImportRows(importRows, standort?.id);
   const openItems = openUnresolvedMovementsFromImportRows(importRows, standort?.id);
+  const stornoReview = stornoReviewFromImportRows(importRows, standort?.id);
   const totals = outcomeRows.reduce((sum, row) => ({
     total: sum.total + row.total,
     reworked: sum.reworked + row.reworked,
@@ -3811,8 +3955,10 @@ function OutcomeControlView({ standort, cases: rows, importRows = [] }: { stando
         <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
         <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
         <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${successRate} % Erfolgsquote`} tone="green" />
+        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.doneRate.toFixed(0)} % Erledigungsquote`} tone={stornoReview.open ? "amber" : "green"} />
         <PriorityCard label="Noch offen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
       </section>
+      <StornoReviewSection review={stornoReview} />
       <section className="panel">
         <div className="panel-heading">
           <div>

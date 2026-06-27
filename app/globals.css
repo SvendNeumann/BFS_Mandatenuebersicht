@@ -769,6 +769,10 @@ input {
   border-color: #fedf89;
 }
 
+.location-benchmark-card.blue {
+  border-color: #bfdbfe;
+}
+
 .location-benchmark-card.green {
   border-color: #bbf7d0;
 }

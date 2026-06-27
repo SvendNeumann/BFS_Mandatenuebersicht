@@ -4,7 +4,7 @@ Stand: 28.06.2026, ca. 01:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Code-Fix: Zielbild-Umbau Management/Analyse/operative Fallarbeit  
+Aktueller Code-Fix: Storno-Quercheck fuer Gesamt- und Standortauswertung  
 Aktueller Head: per `git log -1 --oneline` pruefen
 
 ## Prompt fuer den naechsten Chat
@@ -46,6 +46,11 @@ Die App ist fachlich als Steuerungsprodukt aufgebaut, nicht als reine Tabellenau
    - Tabellen sind hier erlaubt und sinnvoll, aber mit vorgelagertem Arbeitsboard/KPI-Ueberblick.
 
 Grundsatz: Hauptseiten sollen zuerst Lage, Auffaelligkeit und Handlung zeigen. Detailtabellen stehen unten oder auf operativen Drilldown-Seiten.
+
+Aktuelle Zusatzlogik:
+- `Forderungsqualitaet` und `Massnahmenkontrolle` zeigen einen Storno-Quercheck.
+- Ausgewertet wird: Stornos gesamt, davon erledigt, noch offen, Erledigungsquote gesamt und je Standort.
+- Als erledigt zaehlt ein Storno, wenn im Datenstand `Zahlung nach Storno`, eine direkte Erledigung oder eine spaetere Neueinreichung/Matching desselben Patienten erkannt wird.
 
 ## Aktueller Live-Stand
 

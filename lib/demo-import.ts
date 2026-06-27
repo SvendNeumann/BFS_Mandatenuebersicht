@@ -20,7 +20,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   const text = parsed.rawText;
   const filePath = relativeFilePath(file);
   const mandantNo = parsed.mandantNo || detectMandantNo(file.name, text);
-  const standort = standorte.find((entry) => entry.mandantNo === mandantNo) ?? detectStandortFromFilePath(filePath);
+  const standort = detectStandortFromMandantNo(mandantNo) ?? detectStandortFromText(text) ?? detectStandortFromFilePath(filePath);
   const statementNo = parsed.statementNo || detectStatementNo(file.name, text);
   const date = parsed.statementDate || detectDate(text);
   const claimsHeader = parsed.claimsHeader || detectClaimCount(text);
@@ -34,7 +34,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (!text.trim()) notes.push("Keine lesbaren Textdaten erkannt.");
   if (!mandantNo) notes.push("BFS-Mandant-Nr. nicht erkannt.");
   if (mandantNo && !standort) notes.push("Mandant-Nr. keinem Standort zugeordnet.");
-  if (mandantNo && standort && standort.mandantNo !== mandantNo) notes.push(`Standort über Ordnerpfad ${standort.name} zugeordnet; Mandant-Nr. ${mandantNo} bitte final hinterlegen.`);
+  if (mandantNo && standort && !standortMandantNos(standort).includes(mandantNo)) notes.push(`Standort über Anschrift/Ordnerpfad ${standort.name} zugeordnet; Mandant-Nr. ${mandantNo} bitte final hinterlegen.`);
   if (standort && !isStandortLive(standort)) notes.push(`${standort.name} ist erst ab ${standort.goLiveLabel} uploadpflichtig.`);
   if (!statementNo) notes.push("Abrechnungs-Nr. nicht erkannt.");
   if (!date) notes.push("Abrechnungsdatum nicht erkannt.");
@@ -148,11 +148,27 @@ function relativeFilePath(file: File) {
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
+function detectStandortFromMandantNo(mandantNo: string) {
+  if (!mandantNo) return undefined;
+  return standorte.find((standort) => standortMandantNos(standort).includes(mandantNo));
+}
+
+function detectStandortFromText(text: string) {
+  const normalized = normalizeLookupText(text);
+  return standorte.find((standort) => [
+    standort.name,
+    standort.praxisname,
+    ...(standort.locationHints ?? [])
+  ].some((hint) => normalized.includes(normalizeLookupText(hint))));
+}
+
 function detectStandortFromFilePath(filePath: string) {
-  const normalized = filePath.toLowerCase();
-  return standorte.find((standort) => normalized.includes(standort.name.toLowerCase()))
-    ?? (normalized.includes("huettenberg") ? standorte.find((standort) => standort.id === "huettenberg") : undefined)
-    ?? (normalized.includes("hüttenberg") ? standorte.find((standort) => standort.id === "huettenberg") : undefined);
+  const normalized = normalizeLookupText(filePath);
+  return standorte.find((standort) => [
+    standort.name,
+    standort.praxisname,
+    ...(standort.locationHints ?? [])
+  ].some((hint) => normalized.includes(normalizeLookupText(hint))));
 }
 
 async function parsePdfSafely(bytes: ArrayBuffer, notes: string[]) {
@@ -178,11 +194,25 @@ async function readLikelyText(file: File, bytes: ArrayBuffer) {
 }
 
 function detectMandantNo(filename: string, text: string) {
-  const known = standorte.find((standort) => filename.includes(standort.mandantNo) || text.includes(standort.mandantNo));
-  if (known) return known.mandantNo;
+  const knownMandantNo = standorte.flatMap(standortMandantNos).find((mandantNo) => filename.includes(mandantNo) || text.includes(mandantNo));
+  if (knownMandantNo) return knownMandantNo;
   return text.match(/Mandant(?:en)?(?:-|\s)?(?:Nr\.?|nummer)?\D{0,24}(\d{4,6})/i)?.[1]
     ?? filename.match(/(?:^|[_\-\s])(\d{4,6})(?:[_\-\s.]|$)/)?.[1]
     ?? "";
+}
+
+function standortMandantNos(standort: { mandantNo: string; mandantNos?: string[] }) {
+  return [...new Set([standort.mandantNo, ...(standort.mandantNos ?? [])])];
+}
+
+function normalizeLookupText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ü/g, "u")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function detectStatementNo(filename: string, text: string) {
@@ -219,7 +249,8 @@ function detectMovements(text: string) {
 function statusFromNotes(notes: string[]) {
   if (!notes.length) return "OK";
   if (notes.some((note) => note.includes("uploadpflichtig"))) return "Standort geplant";
-  if (notes.some((note) => note.includes("keinem Standort") || note.includes("Mandant-Nr."))) return "Standort unbekannt";
+  if (notes.some((note) => note.includes("keinem Standort") || note.includes("BFS-Mandant-Nr. nicht erkannt"))) return "Standort unbekannt";
+  if (notes.some((note) => note.includes("bitte final hinterlegen"))) return "Mapping prüfen";
   if (notes.some((note) => note.includes("PDF-Text"))) return "Parsing-Hinweis";
   return "Prüfen";
 }

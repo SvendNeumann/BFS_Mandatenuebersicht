@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { appSessionCookie, verifyAppSession } from "@/lib/app-session";
 
 const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
@@ -19,9 +18,9 @@ export async function proxy(request: NextRequest) {
   const session = await resolveSession(request, supabaseUrl, supabaseAnonKey);
   if (!session.userId || !session.accessToken) return redirectToLogin(request, session.response);
 
-  const supabase = createClient(supabaseUrl, session.isAppSession ? process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey : supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: session.isAppSession ? undefined : { headers: { Authorization: `Bearer ${session.accessToken}` } }
+    global: { headers: { Authorization: `Bearer ${session.accessToken}` } }
   });
 
   const { data: profile, error } = await supabase
@@ -72,17 +71,14 @@ function isProtectedPath(pathname: string) {
 async function resolveSession(request: NextRequest, supabaseUrl: string, supabaseAnonKey: string) {
   const accessToken = request.cookies.get(accessCookie)?.value;
   const refreshToken = request.cookies.get(refreshCookie)?.value;
-  const appSession = verifyAppSession(request.cookies.get(appSessionCookie)?.value);
   const response = NextResponse.next();
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 
-  if (appSession) return { userId: appSession.userId, accessToken: "app-session", isAppSession: true, response };
-
   if (accessToken) {
     const { data } = await supabase.auth.getUser(accessToken);
-    if (data.user) return { userId: data.user.id, accessToken, isAppSession: false, response };
+    if (data.user) return { userId: data.user.id, accessToken, response };
   }
 
   if (!refreshToken) return { response };
@@ -93,7 +89,7 @@ async function resolveSession(request: NextRequest, supabaseUrl: string, supabas
   const maxAge = Math.max(60, (data.session.expires_at ?? Math.floor(Date.now() / 1000) + 60 * 60) - Math.floor(Date.now() / 1000));
   response.cookies.set(accessCookie, data.session.access_token, sessionCookieOptions(maxAge));
   response.cookies.set(refreshCookie, data.session.refresh_token, sessionCookieOptions(60 * 60 * 24 * 30));
-  return { userId: data.user.id, accessToken: data.session.access_token, isAppSession: false, response };
+  return { userId: data.user.id, accessToken: data.session.access_token, response };
 }
 
 function redirectToLogin(request: NextRequest, response = NextResponse.next()) {

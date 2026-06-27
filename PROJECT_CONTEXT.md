@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach Commit `2261686e`
+Stand: 27.06.2026, nach Umstellung des App-Logos auf SVG/Vektor
 
 ## Prompt fuer den naechsten Chat
 
@@ -59,7 +59,7 @@ Wichtige Dateien:
 - `lib/demo-data.ts`: Demo-Standorte, Perioden-/Standortdaten, Fallback-Daten
 - `lib/types.ts`: zentrale Typen
 - `app/globals.css`: komplettes Layout/Design/Responsive Styling
-- `public/orisus-zahnmedizin-logo.png`: aktuelles transparentes Orisus-Logo fuer App-Header/Sidebar
+- `public/orisus-zahnmedizin-logo.svg`: aktuelles transparentes Orisus-Logo fuer App-Header/Sidebar, bewusst als SVG/Vektor damit es auf Mobile/Desktop nicht verpixelt
 
 Wichtige Hinweise:
 - `pnpm run typecheck` funktioniert.
@@ -161,7 +161,8 @@ Accordion-Verhalten:
 - Desktop: Sidebar dauerhaft sichtbar.
 
 Logo:
-- Oben links steht das reguläre transparente Orisus-Zahnmedizin-Logo aus `public/orisus-zahnmedizin-logo.png`.
+- Oben links steht das reguläre transparente Orisus-Zahnmedizin-Logo aus `public/orisus-zahnmedizin-logo.svg`.
+- Das Logo muss als SVG/Vektor eingebunden bleiben, weil die PNG-Version auf Mobile sichtbar verpixelt wirkte.
 - Nicht das quadratische App-Logo.
 - Klick auf das Logo führt immer zur **Zusammenfassung**.
 
@@ -352,6 +353,7 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
+- naechster Commit: Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden
 - `2261686e` - Use clickable Orisus logo and refresh navigation data
 - `aad283db` - Collapse sidebar sections on view change
 - `21979e27` - Expand KPI derivation details

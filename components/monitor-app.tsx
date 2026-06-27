@@ -1476,6 +1476,8 @@ function metricExplanation(label: string, value: string, hint: string) {
 
 function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; onRowsChange: (rows: ImportPreviewRow[]) => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("Bereit für Testupload");
+  const [selectedFileCount, setSelectedFileCount] = useState(0);
   const previewRows = liveRows.length ? liveRows : importPreviewRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
@@ -1483,13 +1485,21 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
     const importableFiles = [...files].filter(isImportableUploadFile);
-    if (!importableFiles.length) return;
+    setSelectedFileCount(importableFiles.length);
+    if (!importableFiles.length) {
+      setUploadStatus("Keine importfähigen Dateien gefunden");
+      return;
+    }
     setIsProcessing(true);
+    setUploadStatus(`${importableFiles.length} Dateien werden eingelesen`);
     try {
       const parsedRows = await parseDemoImportFiles(importableFiles);
       const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
       onRowsChange(nextRows);
       storeImportRows(nextRows);
+      setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen`);
+    } catch (error) {
+      setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -1502,17 +1512,23 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         <div>
           <h2>Testdateien für den Monats-Sammelimport hochladen</h2>
           <p>Die Demo liest echte Dateien auch aus Unterordnern, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
+          <div className={isProcessing ? "upload-status processing" : liveRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
+            <RefreshCw size={14} />
+            <span>{isProcessing ? "Wird eingelesen" : liveRows.length ? "Fertig" : "Bereit"}</span>
+            <strong>{uploadStatus}</strong>
+          </div>
         </div>
         <div className="upload-actions">
-          <label className="file-upload-button">
+          <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
             Dateien auswählen
-            <input type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files, "replace")} />
+            <input disabled={isProcessing} type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files, "replace")} />
           </label>
-          <label className="file-upload-button secondary-upload">
+          <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
             Ordner inkl. Unterordner
             <input
+              disabled={isProcessing}
               type="file"
               multiple
               accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*"
@@ -1523,7 +1539,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Dateien im Lauf" value={String(previewRows.length)} hint={liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
+        <PriorityCard label="Dateien im Lauf" value={String(isProcessing ? selectedFileCount : previewRows.length)} hint={isProcessing ? "werden eingelesen" : liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
         <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
         <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
         <PriorityCard label="Unterordner" value={String(countNestedUploadFolders(previewRows))} hint="rekursiv mitverarbeitet" tone="blue" />
@@ -1544,6 +1560,8 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
               className="secondary-button"
               onClick={() => {
                 onRowsChange([]);
+                setSelectedFileCount(0);
+                setUploadStatus("Testlauf zurückgesetzt");
                 window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
               }}
             >
@@ -1571,6 +1589,7 @@ function countNestedUploadFolders(rows: ImportPreviewRow[]) {
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
   const retainedAmount = relevantMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
@@ -1626,7 +1645,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
             <h2>Import-Vorschau</h2>
             <p>Import wird erst nach Prüfung und Bestätigung final geschrieben.</p>
           </div>
-          <button className="primary-button">
+          <button className="primary-button" onClick={() => setConfirmOpen(true)}>
             <CheckCircle2 size={16} /> Import bestätigen
           </button>
         </div>
@@ -1693,6 +1712,25 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
           </table>
         </div>
       </section>
+      {confirmOpen && (
+        <div className="confirmation-overlay" role="dialog" aria-modal="true" aria-label="Import bestätigt">
+          <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={() => setConfirmOpen(false)} />
+          <section className="confirmation-dialog">
+            <div className="confirmation-icon">
+              <CheckCircle2 size={24} />
+            </div>
+            <h2>Testimport bestätigt</h2>
+            <p>Die Import-Vorschau wurde für die Demo übernommen. Die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
+            <dl>
+              <div><dt>Dateien</dt><dd>{rows.length}</dd></div>
+              <div><dt>Importfähig</dt><dd>{rows.filter((row) => row.status === "OK").length}</dd></div>
+              <div><dt>Rückgaben/Stornos</dt><dd>{relevantMovements.length}</dd></div>
+              <div><dt>Einbehalten</dt><dd>{money.format(retainedAmount)}</dd></div>
+            </dl>
+            <button className="primary-button" onClick={() => setConfirmOpen(false)}>Verstanden</button>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -905,6 +905,51 @@ td small {
   color: var(--muted);
 }
 
+.upload-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475467;
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+.upload-status span {
+  font-weight: 800;
+  color: #344054;
+}
+
+.upload-status strong {
+  font-weight: 700;
+}
+
+.upload-status.processing {
+  border-color: #fedf89;
+  background: #fffbeb;
+  color: #b54708;
+}
+
+.upload-status.processing svg {
+  animation: spin 1s linear infinite;
+}
+
+.upload-status.done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #067647;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .file-upload-button {
   display: inline-flex;
   align-items: center;
@@ -921,11 +966,91 @@ td small {
   white-space: nowrap;
 }
 
+.file-upload-button.disabled {
+  opacity: 0.55;
+  cursor: wait;
+  pointer-events: none;
+}
+
 .upload-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.confirmation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.confirmation-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.confirmation-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+  padding: 22px;
+}
+
+.confirmation-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #dcfae6;
+  color: #067647;
+}
+
+.confirmation-dialog h2 {
+  margin: 14px 0 8px;
+}
+
+.confirmation-dialog p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.confirmation-dialog dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.confirmation-dialog dl div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.confirmation-dialog dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.confirmation-dialog dd {
+  margin: 4px 0 0;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .file-upload-button.secondary-upload {

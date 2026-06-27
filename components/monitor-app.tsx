@@ -61,14 +61,6 @@ const superAdminNav: NavSection[] = [
     ]
   },
   {
-    title: "Import & Prüfung",
-    items: [
-      ["upload", "Monats-Sammelupload", FolderUp],
-      ["preview", "Import-Vorschau", ReceiptText],
-      ["history", "Import-Historie", FileArchive]
-    ]
-  },
-  {
     title: "Klärfälle",
     items: [
       ["cases", "Offene BFS-Klärfälle", AlertCircle],
@@ -81,6 +73,14 @@ const superAdminNav: NavSection[] = [
     items: [
       ["risks", "Ohne Ausfallschutz", ShieldCheck],
       ["matches", "Neueinreichungen", RefreshCw]
+    ]
+  },
+  {
+    title: "Import & Prüfung",
+    items: [
+      ["upload", "Monats-Sammelupload", FolderUp],
+      ["preview", "Import-Vorschau", ReceiptText],
+      ["history", "Import-Historie", FileArchive]
     ]
   },
   {

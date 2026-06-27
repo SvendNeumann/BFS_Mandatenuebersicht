@@ -355,6 +355,7 @@ nav {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2887,9 +2888,15 @@ tbody tr:hover td {
 .command-panel p,
 .answer-header h2,
 .priority-card span,
+.kpi-card span {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+}
+
+.priority-card span,
 .priority-card strong,
 .priority-card small,
-.kpi-card span,
 .kpi-card strong,
 .kpi-card small,
 .stacked-checks span,
@@ -3108,6 +3115,8 @@ tbody tr:hover td {
     position: sticky;
     top: 124px;
     z-index: 20;
+    flex-wrap: wrap;
+    overflow-x: visible;
     margin-left: -4px;
     margin-right: -4px;
     background: rgba(255, 255, 255, 0.94);
@@ -3523,6 +3532,8 @@ tbody tr:hover td {
 
   .standort-tabs {
     top: 86px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-left: 0;
     margin-right: 0;
   }

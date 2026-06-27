@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 00:30 Uhr
+Stand: 28.06.2026, ca. 00:55 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -69,6 +69,11 @@ Vercel:
   - Supabase CLI ist nicht eingeloggt; Supabase MCP funktioniert aber fuer Projektverwaltung/SQL.
 
 ## Letzte wichtige Commits
+
+- `82322927 Remove remaining live demo values`
+  - Live-App zeigt keine Demo-, Beispiel- oder Planwerte mehr.
+  - Standort-Stammdaten bleiben fuer Mapping/Navigation erhalten, aber alle Kennzahlen/Risiken/Nutzer/Reports kommen nur aus Supabase bzw. aktuellem Import.
+  - Bei fehlenden Daten werden `0`, `-` oder leere Tabellen mit Hinweis angezeigt.
 
 - `9809bf05 Fix imported dataset metric fallbacks`
   - Nach echtem Import werden fehlende Standortdaten nicht mehr mit Demo-/Planwerten aufgefuellt.
@@ -195,6 +200,11 @@ Aktueller Datenbefund nach Kirchberg-Upload:
 - Supabase enthaelt aktuell `252` importierte Kirchberg-Dokumente mit ca. `1.854.921,52 EUR` eingereichtem Umsatz.
 - Essen, Kehl, Ulmet, Huettenberg und Kassel enthalten `0` importierte Dokumente und `0,00 EUR` Umsatz.
 - Falls andere Standorte dennoch Werte zeigen, ist das UI-Demo-Fallback und kein Datenbankinhalt. Fix dafuer: `9809bf05 Fix imported dataset metric fallbacks`.
+
+Live-Daten-Grundsatz:
+- Es duerfen nirgends Demo- oder Beispielwerte angezeigt werden.
+- Ohne Datenquelle gilt: `0`, `-` oder ein leerer Zustand mit Hinweis.
+- `lib/demo-data.ts` enthaelt nur noch Standort-Stammdaten; alle Beispielkennzahlen, Beispielrisiken, Beispielnutzer und Beispielimportzeilen sind leer.
 
 ## Bekannter alter Fehler und Bereinigung
 

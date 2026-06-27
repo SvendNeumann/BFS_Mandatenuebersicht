@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, ca. 22:25 Uhr  
+Stand: 27.06.2026, ca. 23:25 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `9c43431a Chunk large folder imports`
+Aktueller Head: `adb9511b Improve import confirmation contrast`
 
 ## Prompt fuer den naechsten Chat
 
@@ -47,10 +47,39 @@ Vercel:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` / Publishable Key
   - `SUPABASE_SERVICE_ROLE_KEY`
-- Deploys laufen ueber Git push auf `main`.
+- Dieses Repo ist lokal mit dem Vercel-Projekt `bfs-mandatenuebersicht` verknuepft.
+- Nicht verwechseln mit dem separaten Vercel-Projekt `orisus-cfo-dashboard`.
+- Letzter Production-Deploy: `dpl_Ahgb6WbLtEuJrYJ5oaz5BfGqB5DW`.
+- Alias: `https://bfs-mandatenuebersicht.vercel.app`.
+- Deploy-URL: `https://bfs-mandatenuebersicht-3zhiunnr7-orisus.vercel.app`.
+- Smoke-Test nach Deploy: Startseite erreichbar, `/dashboard` leitet ohne Session erwartungsgemaess auf `/login`.
+- Deploys laufen ueber Git push auf `main` oder direkt per Vercel CLI.
+- GitHub-Push war kurz blockiert, weil Git keinen Credential-Helper nutzte. Reparatur: Repo-lokaler Credential-Helper `/Library/Developer/CommandLineTools/usr/libexec/git-core/git-credential-osxkeychain`.
+- Danach funktionierte `git push origin main` wieder.
 - Lokale Shell kann Vercel/Supabase DNS teilweise nicht per `curl` aufloesen. Das ist ein lokales Shell-/DNS-Problem; Browser/Live-App funktionierten beim User.
 
 ## Letzte wichtige Commits
+
+- `adb9511b Improve import confirmation contrast`
+  - Import-Bestaetigungsdialog lesbar gemacht: dunkle Kacheln, helle Werte, kontrastreiche Labels.
+
+- `4a8df726 Preserve monitor view on reload`
+  - Browser-Refresh und Button `Neu laden` behalten aktuelle Ansicht und Standortauswahl bei.
+  - Datenstand wird trotzdem vollstaendig neu geladen.
+
+- `e2259a6f Reset server import data with upload reset`
+  - Upload-Reset archiviert serverseitig importierte Dokumente.
+  - Tabwechsel/Refresh holt danach nicht wieder alte Importdaten zurueck.
+
+- `68a5a1c8 Remove test wording from import flow`
+  - Sichtbare Test-/Demo-Begriffe im Import-Center entfernt.
+
+- `a255e908 Add import issue report and preserve failed files`
+  - Fehlerbericht/Druck-PDF fuer Importanalyse ergaenzt.
+  - Einzelne fehlerhafte Importdateien bleiben sichtbar.
+
+- `afc8e68d Redesign BFS landing login page`
+  - Startseite nach Referenzaufbau neu gestaltet mit BFS-/Orisus-Inhalten und Login-Panel.
 
 - `9c43431a Chunk large folder imports`
   - grosser Ordnerupload wird clientseitig in kleine Chunks gesplittet
@@ -272,7 +301,7 @@ git push
 
 ## Offene Risiken / Naechste sinnvolle Checks
 
-1. Grossen Ordner nach Deploy von `9c43431a` erneut testen.
+1. Grossen Ordner nach Deploy von `adb9511b` erneut testen.
    - Erwartung: Status zeigt `Paket x/y`.
    - Keine 542-MB-Einzelrequest mehr.
 
@@ -300,6 +329,7 @@ git push
 
 ## Aktueller Status
 
-- Git working tree war vor dieser Context-Aktualisierung sauber.
-- Letzter produktiver Code-Commit: `9c43431a Chunk large folder imports`.
-- Diese Context-Datei wurde danach neu erstellt und sollte noch committed/gepusht werden, wenn der Nutzer das will oder wenn im aktuellen Turn committet wird.
+- GitHub `origin/main` war nach dem Push synchron mit lokalem `main`.
+- Letzter produktiver Code-Commit: `adb9511b Improve import confirmation contrast`.
+- Production-Deploy `dpl_Ahgb6WbLtEuJrYJ5oaz5BfGqB5DW` ist READY und auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
+- Vercel zeigt zwei Deployments fuer `adb9511b`, weil einmal der GitHub-Push und einmal ein direkter Vercel-CLI-Deploy gelaufen ist. Das ist unkritisch, beide basieren auf demselben Commit.

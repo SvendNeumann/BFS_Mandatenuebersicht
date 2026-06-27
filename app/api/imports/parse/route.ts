@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { parseDemoImportFiles } from "@/lib/demo-import";
+import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
 const accessCookie = "orisus_bfs_access_token";
@@ -32,8 +32,11 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
-  const files = formData.getAll("files").filter((entry): entry is File => entry instanceof File);
-  if (!files.length) return NextResponse.json({ error: "Keine Dateien übermittelt." }, { status: 400 });
+  const files = formData
+    .getAll("files")
+    .filter((entry): entry is File => entry instanceof File)
+    .filter(isBfsPdfUploadFile);
+  if (!files.length) return NextResponse.json({ error: "Keine PDF-Dateien übermittelt." }, { status: 400 });
 
   const rows = await parseDemoImportFiles(files);
   const persistence = await persistImport(supabase, userData.user.id, files, rows);
@@ -85,12 +88,8 @@ async function persistImport(
     }
 
     try {
-      const { data: existingDocument } = await supabase
-        .from("bfs_documents")
-        .select("id")
-        .eq("file_hash", row.fileHash)
-        .maybeSingle();
-      if (existingDocument?.id) {
+      const existingDocumentId = await findExistingDocumentId(supabase, standortId, row);
+      if (existingDocumentId) {
         successful += 1;
         continue;
       }
@@ -128,6 +127,34 @@ async function persistImport(
   return { batchId, successful, failed };
 }
 
+async function findExistingDocumentId(
+  supabase: SupabaseDbClient,
+  standortId: string,
+  row: ImportPreviewRow
+) {
+  if (row.fileHash) {
+    const { data: existingByHash } = await supabase
+      .from("bfs_documents")
+      .select("id")
+      .eq("file_hash", row.fileHash)
+      .maybeSingle();
+    if (existingByHash?.id) return existingByHash.id as string;
+  }
+
+  const businessIdentity = importRowBusinessIdentity(row);
+  if (!businessIdentity) return null;
+
+  const { data: existingByStatement } = await supabase
+    .from("bfs_documents")
+    .select("id")
+    .eq("standort_id", standortId)
+    .eq("bfs_mandant_nr", row.mandantNo)
+    .eq("abrechnung_nr", row.statementNo)
+    .limit(1)
+    .maybeSingle();
+  return existingByStatement?.id as string | null;
+}
+
 async function insertDocument(
   supabase: SupabaseDbClient,
   batchId: string,
@@ -162,7 +189,20 @@ async function insertDocument(
     .select("id")
     .eq("file_hash", row.fileHash)
     .maybeSingle();
-  return existing?.id as string | undefined;
+  if (existing?.id) return existing.id as string;
+
+  const businessIdentity = importRowBusinessIdentity(row);
+  if (!businessIdentity) return undefined;
+
+  const { data: existingByStatement } = await supabase
+    .from("bfs_documents")
+    .select("id")
+    .eq("standort_id", standortId)
+    .eq("bfs_mandant_nr", row.mandantNo)
+    .eq("abrechnung_nr", row.statementNo)
+    .limit(1)
+    .maybeSingle();
+  return existingByStatement?.id as string | undefined;
 }
 
 async function insertAbrechnung(

@@ -6,13 +6,36 @@ const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
 const datePattern = /(\d{2}\.\d{2}\.\d{4})/;
 
 export async function parseDemoImportFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
+  const pdfFiles = files.filter(isBfsPdfUploadFile);
   const rows: ImportPreviewRow[] = [];
-  for (const [index, file] of files.entries()) {
+  for (const [index, file] of pdfFiles.entries()) {
     rows.push(await parseDemoImportFile(file));
-    onProgress?.(index + 1, files.length, file.name);
+    onProgress?.(index + 1, pdfFiles.length, file.name);
     if ((index + 1) % 8 === 0) await yieldToBrowser();
   }
-  return reconcileImportRows(rows);
+  return reconcileImportRows(dedupeImportRows(rows));
+}
+
+export function isBfsPdfUploadFile(file: File) {
+  return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+}
+
+export function dedupeImportRows(rows: ImportPreviewRow[]) {
+  const rowsByIdentity = new Map<string, ImportPreviewRow>();
+  for (const row of rows) {
+    const identity = importRowBusinessIdentity(row) ?? row.fileHash ?? row.file;
+    if (!rowsByIdentity.has(identity)) {
+      rowsByIdentity.set(identity, row);
+    }
+  }
+  return [...rowsByIdentity.values()];
+}
+
+export function importRowBusinessIdentity(row: Pick<ImportPreviewRow, "mandantNo" | "statementNo">) {
+  if (row.mandantNo !== "-" && row.statementNo !== "-") {
+    return `${row.mandantNo}:${row.statementNo}`;
+  }
+  return null;
 }
 
 function yieldToBrowser() {

@@ -43,7 +43,7 @@ import {
 import type { AppRole, BfsCase, BfsPeriodMetric, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
-import { parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
+import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
@@ -2133,7 +2133,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       return;
     }
     setIsProcessing(true);
-    setUploadStatus(`${importableFiles.length} Dateien werden serverseitig eingelesen`);
+    setUploadStatus(`${importableFiles.length} PDF-Dateien werden serverseitig eingelesen`);
     try {
       const parsedRows = await parseImportFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
@@ -2143,9 +2143,9 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       onRowsChange(nextRows);
       try {
         await storeImportRows(nextRows);
-        setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen und serverseitig gespeichert`);
+        setUploadStatus(`${parsedRows.length} PDF-Dateien fertig eingelesen und serverseitig gespeichert`);
       } catch (storageError) {
-        setUploadStatus(`${parsedRows.length} Dateien serverseitig eingelesen; lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+        setUploadStatus(`${parsedRows.length} PDF-Dateien serverseitig eingelesen; lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
       setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -2179,7 +2179,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
           <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
             Dateien auswählen
-            <input disabled={isProcessing} type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files, "replace")} />
+            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleFiles(event.target.files, "replace")} />
           </label>
           <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
@@ -2188,7 +2188,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
               disabled={isProcessing}
               type="file"
               multiple
-              accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*"
+              accept=".pdf,application/pdf"
               onChange={(event) => handleFiles(event.target.files, liveRows.length ? "append" : "replace")}
               {...{ webkitdirectory: "", directory: "" }}
             />
@@ -2262,7 +2262,7 @@ async function parseImportFiles(
 }
 
 function isImportableUploadFile(file: File) {
-  return /\.(pdf|csv|txt|json)$/i.test(file.name) || file.type === "application/pdf" || file.type.startsWith("text/");
+  return isBfsPdfUploadFile(file);
 }
 
 function countNestedUploadFolders(rows: ImportPreviewRow[]) {
@@ -2665,9 +2665,8 @@ function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPrevi
 }
 
 function importRowIdentity(row: ImportPreviewRow) {
-  if (row.mandantNo !== "-" && row.statementNo !== "-" && row.date !== "-") {
-    return `${row.mandantNo}:${row.statementNo}:${row.date}`;
-  }
+  const businessIdentity = importRowBusinessIdentity(row);
+  if (businessIdentity) return businessIdentity;
   return row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`;
 }
 

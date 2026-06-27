@@ -48,6 +48,7 @@ import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, re
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
 const locationConfigStorageKey = "orisus_bfs_monitor_locations";
+const viewStateStorageKey = "orisus_bfs_monitor_view_state";
 
 type NavItem = readonly [string, string, LucideIcon];
 type NavSection = {
@@ -153,9 +154,15 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
   const [sessionChecked, setSessionChecked] = useState(false);
   const role = lockedRole ?? session?.role ?? "super_admin";
-  const [activeView, setActiveView] = useState(initialView);
+  const [activeView, setActiveView] = useState(() => {
+    const storedView = readStoredViewState()?.activeView;
+    return storedView && isKnownViewForRole(storedView, role) ? storedView : initialView;
+  });
   const [, setLocationConfigVersion] = useState(0);
-  const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
+  const [selectedStandortId, setSelectedStandortId] = useState(() => {
+    const storedStandortId = readStoredViewState()?.selectedStandortId;
+    return storedStandortId && isKnownStandortScopeForRole(storedStandortId, role) ? storedStandortId : role === "super_admin" ? "gruppe" : standorte[0].id;
+  });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
@@ -197,6 +204,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setMobileNavOpen(false);
     refreshLocalAppData();
   }, [activeView]);
+
+  useEffect(() => {
+    if (role !== "super_admin" && selectedStandortId === "gruppe") {
+      setSelectedStandortId(standorte[0].id);
+      return;
+    }
+    writeStoredViewState(activeView, selectedStandortId, role);
+  }, [activeView, selectedStandortId, role]);
 
   if (requireAuth && !session && !sessionChecked) {
     return <AccessGate title="Session wird geprüft" message="Die Anmeldung wird serverseitig validiert." />;
@@ -249,6 +264,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function hardReload() {
+    writeStoredViewState(activeView, selectedStandortId, role);
     window.location.reload();
   }
 
@@ -443,6 +459,53 @@ function AccessGate({ title, message }: { title: string; message: string }) {
       </section>
     </main>
   );
+}
+
+function readStoredViewState() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(currentViewStateStorageKey());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<{ activeView: string; selectedStandortId: string }>;
+    return {
+      activeView: typeof parsed.activeView === "string" && isKnownView(parsed.activeView) ? parsed.activeView : undefined,
+      selectedStandortId: typeof parsed.selectedStandortId === "string" && isKnownStandortScope(parsed.selectedStandortId)
+        ? parsed.selectedStandortId
+        : undefined
+    };
+  } catch {
+    window.localStorage.removeItem(currentViewStateStorageKey());
+    return null;
+  }
+}
+
+function writeStoredViewState(activeView: string, selectedStandortId: string, role: AppRole) {
+  if (typeof window === "undefined") return;
+  if (!isKnownViewForRole(activeView, role) || !isKnownStandortScopeForRole(selectedStandortId, role)) return;
+  window.localStorage.setItem(currentViewStateStorageKey(), JSON.stringify({ activeView, selectedStandortId }));
+}
+
+function currentViewStateStorageKey() {
+  if (typeof window === "undefined") return viewStateStorageKey;
+  return `${viewStateStorageKey}:${window.location.pathname}`;
+}
+
+function isKnownView(view: string) {
+  return [...superAdminNav, ...leadNav].some((section) => section.items.some(([key]) => key === view));
+}
+
+function isKnownViewForRole(view: string, role: AppRole) {
+  const nav = role === "super_admin" ? superAdminNav : leadNav;
+  return nav.some((section) => section.items.some(([key]) => key === view));
+}
+
+function isKnownStandortScope(standortId: string) {
+  return standortId === "gruppe" || standorte.some((standort) => standort.id === standortId);
+}
+
+function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
+  if (role !== "super_admin" && standortId === "gruppe") return false;
+  return isKnownStandortScope(standortId);
 }
 
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {

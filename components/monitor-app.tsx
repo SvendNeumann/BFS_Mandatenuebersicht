@@ -404,7 +404,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "benchmark" && <BenchmarkView onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." onResolvePaid={resolveCaseAsPaid} />}
@@ -1296,7 +1296,7 @@ function AnswerCockpit({
   );
 }
 
-function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const rowsStandorte = standort ? [standort] : standorte;
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
@@ -1315,8 +1315,15 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
       const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
       return candidateStandort ? shortDateInPeriod(candidate.originalDate, selectedPeriod, candidateStandort) : false;
     });
+  const recoveredByResubmission = uniqueRecoveryCandidates(recoveryMatches);
+  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+  const manualResolutionKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
+  const manuallyPaidCases = casesFromImportRows(scopedImportRows)
+    .filter((fall) => manualResolutionKeys.has(caseResolutionKey(fall)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
-  const recoveredAmount = recoveryMatches.reduce((sum, candidate) => sum + candidate.newAmount, 0);
+  const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.originalAmount, 0);
+  const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const recoveredAmount = Math.min(deductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
   const stillOpenAmount = Math.max(deductionAmount - recoveredAmount, 0);
   const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
   const deductionBreakdown = [
@@ -1442,16 +1449,16 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
         <div className="panel-heading">
           <div>
             <h2>Storno/Rückgabe & Wiedereinholung</h2>
-            <p>Zeitraum: {selectedPeriod.label}. Abgezogene Fälle werden gegen spätere Einreichungen desselben Patienten gematcht.</p>
+            <p>Zeitraum: {selectedPeriod.label}. Abgezogene Fälle werden gegen spätere Einreichungen oder manuell als bezahlt markierte Fälle geprüft.</p>
           </div>
         </div>
         <div className="priority-grid compact-priority">
           <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
           <PriorityCard label="Abzugsquote" value={`${deductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={selectedPeriod.label} tone={deductionRate ? "red" : "green"} />
-          <PriorityCard label="Wieder reingeholt" value={money.format(recoveredAmount)} hint={`${recoveryMatches.length} gematchte Neueinreichungen`} period={selectedPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
-          <PriorityCard label="Noch nicht reingeholt" value={money.format(stillOpenAmount)} hint="Abzug minus gematchte Neueinreichung" period={selectedPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Wieder erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Neueinreichungen · ${manuallyPaidCases.length} manuell bezahlt`} period={selectedPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
+          <PriorityCard label="Noch nicht erledigt" value={money.format(stillOpenAmount)} hint="Abzug minus Neueinreichung/manuelle Zahlung" period={selectedPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
           <PriorityCard label="Nicht reingeholt Quote" value={`${notRecoveredRate.toFixed(2)} %`} hint="noch offen vom eingereichten Umsatz" period={selectedPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
-          <PriorityCard label="Matchingquote" value={`${recoveryRate.toFixed(0)} %`} hint="bezogen auf Abzugssumme" period={selectedPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Erledigungsquote" value={`${recoveryRate.toFixed(0)} %`} hint="Neueinreichung plus manuelle Zahlung" period={selectedPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
           <table>
@@ -1462,25 +1469,39 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
                 <th>Ursprung</th>
                 <th>Grund</th>
                 <th>Abzug</th>
-                <th>Neue Einreichung</th>
-                <th>Wieder eingereicht</th>
+                <th>Erledigt durch</th>
+                <th>Erledigter Betrag</th>
               </tr>
             </thead>
             <tbody>
-              {recoveryMatches.slice(0, 50).map((candidate) => (
+              {recoveredByResubmission.slice(0, 50).map((candidate) => (
                 <tr key={`${candidate.patientName}-${candidate.originalDate}-${candidate.newDate}-${candidate.newBfsNo}`}>
                   <td><strong>{candidate.patientName}</strong></td>
                   <td>{candidate.locationName}</td>
                   <td>{candidate.originalDate}</td>
                   <td>{candidate.reason}</td>
                   <td>{money.format(candidate.originalAmount)}</td>
-                  <td>{candidate.newDate}</td>
+                  <td>Neueinreichung {candidate.newDate}</td>
                   <td>{money.format(candidate.newAmount)}</td>
                 </tr>
               ))}
-              {!recoveryMatches.length && (
+              {manuallyPaidCases.slice(0, Math.max(0, 50 - recoveredByResubmission.length)).map((fall) => {
+                const StandortName = standorte.find((entry) => entry.id === fall.standortId)?.name ?? fall.standortId;
+                return (
+                  <tr key={`manual-${fall.resolutionKey ?? caseResolutionKey(fall)}`}>
+                    <td><strong>{fall.patientName}</strong></td>
+                    <td>{StandortName}</td>
+                    <td>{fall.lastComment}</td>
+                    <td>{fall.reason}</td>
+                    <td>{money.format(fall.amount)}</td>
+                    <td>manuell bezahlt markiert</td>
+                    <td>{money.format(fall.amount)}</td>
+                  </tr>
+                );
+              })}
+              {!recoveredByResubmission.length && !manuallyPaidCases.length && (
                 <tr>
-                  <td colSpan={7}>Noch keine späteren Neueinreichungen im Upload-Matching gefunden.</td>
+                  <td colSpan={7}>Noch keine späteren Neueinreichungen oder manuell bezahlten Fälle im Zeitraum gefunden.</td>
                 </tr>
               )}
             </tbody>
@@ -2083,6 +2104,32 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
         newAmount: claim.amount,
         newFile: claim.file
       }));
+  });
+}
+
+type ResubmissionCandidate = ReturnType<typeof resubmissionCandidatesFromImportRows>[number];
+
+function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {
+  const byKey = new Map<string, ResubmissionCandidate>();
+  candidates.forEach((candidate) => {
+    const key = resubmissionResolutionKey(candidate);
+    const current = byKey.get(key);
+    if (!current || candidate.newAmount > current.newAmount) {
+      byKey.set(key, candidate);
+    }
+  });
+  return [...byKey.values()];
+}
+
+function resubmissionResolutionKey(candidate: ResubmissionCandidate) {
+  const standort = standorte.find((entry) => entry.name === candidate.locationName);
+  return caseResolutionKeyFromParts({
+    standortId: standort?.id ?? candidate.locationName,
+    patientName: candidate.patientName,
+    invoiceNo: candidate.invoiceNo,
+    bfsNo: candidate.bfsNo,
+    amount: candidate.originalAmount,
+    reason: candidate.reason
   });
 }
 
@@ -2701,13 +2748,16 @@ function metricExplanation(label: string, value: string, hint: string) {
     return `Herleitung: Rückläufer- plus Storno-/Rückgabebeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("nicht reingeholt")) {
-    return `Herleitung: Noch nicht durch spätere Neueinreichungen gematchter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Noch nicht durch spätere Neueinreichungen oder manuelle Zahlung erledigter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("stornoquote")) {
     return `Herleitung: Stornobeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("matchingquote")) {
     return `Herleitung: Wieder eingereichte beziehungsweise gematchte Beträge geteilt durch die gesamte Storno-/Rückgabe-Abzugssumme. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("erledigungsquote") || normalized.includes("wieder erledigt") || normalized.includes("noch nicht erledigt")) {
+    return `Herleitung: Als erledigt zählen spätere Neueinreichungen sowie Klärfälle, die manuell als bezahlt markiert wurden. Die Quote bezieht diese erledigten Beträge auf die gesamte Storno-/Rückgabe-Abzugssumme. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("gebühr")) {
     return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. Aktueller Wert: ${value}. Bezug: ${hint}.`;

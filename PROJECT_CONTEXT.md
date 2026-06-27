@@ -50,7 +50,8 @@ Grundsatz: Hauptseiten sollen zuerst Lage, Auffaelligkeit und Handlung zeigen. D
 Aktuelle Zusatzlogik:
 - `Forderungsqualitaet` und `Massnahmenkontrolle` zeigen einen Storno-Quercheck.
 - Ausgewertet wird: Stornos gesamt, davon erledigt, noch offen, Erledigungsquote gesamt und je Standort.
-- Als erledigt zaehlt ein Storno, wenn im Datenstand `Zahlung nach Storno`, eine direkte Erledigung oder eine spaetere Neueinreichung/Matching desselben Patienten erkannt wird.
+- Als erledigt zaehlt ein Storno, wenn im Datenstand `Zahlung nach Storno`, eine direkte Erledigung, eine spaetere Neueinreichung/Matching desselben Patienten oder eine manuelle Markierung als bezahlt erkannt wird.
+- Die Erledigungs-/Recovery-Quote in `Forderungen & Geldfluss` zaehlt automatische Neueinreichungen und manuell bezahlte Klaerfaelle zusammen, entdoppelt aber denselben Ursprungsfall.
 - Klärfälle können in der Falltabelle manuell als bezahlt markiert werden.
 - Die manuelle Erledigung wird serverseitig im `audit_log` als `manual_case_resolved` mit stabilem Fall-Schluessel gespeichert.
 - Der Fall-Schluessel basiert auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund. Dadurch wird derselbe Fall bei spaeteren Importen wieder ausgeblendet.

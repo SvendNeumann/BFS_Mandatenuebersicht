@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, Produktiv-Härtungsblock fuer Supabase Auth, geschuetzte Routen und serverseitigen Import
+Stand: 27.06.2026, Supabase-Produktivschema angewendet; Vercel-Env und Auth-User noch final setzen
 
 ## Prompt fuer den naechsten Chat
 
@@ -42,7 +42,9 @@ Deployment:
 - Vercel-Projekt ist angebunden.
 - App ist live erreichbar unter `https://bfs-mandatenuebersicht.vercel.app`.
 - Livegang am 27.06.2026 nach grünem `pnpm run typecheck`, grünem `pnpm run build` und erfolgreichem HTTP-Smoke-Test der Produktions-URL.
-- Hinweis: Nach dem Produktiv-Härtungsblock ist der Codepfad fuer Supabase Auth, geschuetzte Routen und serverseitige Import-Persistenz vorbereitet. Die Supabase-Migrationen muessen im echten Projekt angewendet sein.
+- Supabase-Projekt: `dozcaktodvogbkiomcqo`.
+- Die Supabase-Migrationen 001-005 wurden am 27.06.2026 erfolgreich auf das Projekt angewendet.
+- Noch offen fuer vollstaendigen Livebetrieb: Vercel-Environment setzen und Supabase Auth-User anlegen.
 
 ## Technischer Stand
 
@@ -54,7 +56,7 @@ Framework:
 - Geschuetzte Routen werden serverseitig ueber `proxy.ts` gegen Supabase-Session-Cookies und `profiles.role` geprueft
 - Upload laeuft im Produktivpfad ueber `/api/imports/parse`: serverseitiges Parsing, privater Supabase-Storage `bfs-documents`, Postgres-Tabellen fuer Dokumente, Abrechnungen, Forderungen, Bewegungen und Faelle
 - Browser-Speicher bleibt als lokale UI-Vorschau/Cache bestehen, ist aber nicht mehr die einzige Datenhaltung im Produktivpfad
-- Supabase-Struktur ist vorbereitet; Migration `005_production_import_hardening.sql` muss im echten Supabase-Projekt angewendet sein, damit Mandantentabelle, Import-Events, Retention-Felder und Auth-Profiltrigger aktiv sind
+- Supabase-Struktur ist im echten Projekt angewendet; Migration `005_production_import_hardening.sql` ist aktiv, damit Mandantentabelle, Import-Events, Retention-Felder und Auth-Profiltrigger vorhanden sind
 
 Wichtige Dateien:
 - `components/monitor-app.tsx`: Haupt-App, Navigation, Dashboards, KPIs, Upload, Tabellen, Reports, Matching-Views
@@ -72,8 +74,16 @@ Wichtige Hinweise:
 - `pnpm run typecheck` funktioniert.
 - `pnpm run build` funktioniert.
 - `pnpm run lint` ist aktuell im Projekt falsch verdrahtet und sucht einen nicht existierenden Ordner `lint`.
-- Supabase-Projekt-Ref/URL liegt nicht im Repo; Migrationen konnten in diesem Chat nicht direkt gegen die echte Datenbank angewendet werden.
-- Fuer echten Produktivbetrieb muessen in Vercel `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY` gesetzt sein und die Supabase-Migrationen 001-005 muessen angewendet sein.
+- Supabase-Projekt-Ref: `dozcaktodvogbkiomcqo`, URL: `https://dozcaktodvogbkiomcqo.supabase.co`.
+- Migrationen in Supabase angewendet:
+  - `orisus_bfs_monitor`
+  - `user_passkeys`
+  - `seed_required_locations`
+  - `location_go_live_dates`
+  - `production_import_hardening`
+- Verifiziert: alle 15 Public-Tabellen existieren, Storage-Bucket `bfs-documents` ist privat (`public=false`), 15 Mandantennummern sind Standort/Go-live-Datum zugeordnet.
+- Fuer echten Produktivbetrieb muessen in Vercel noch `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY` gesetzt und danach ein Redeploy gestartet werden.
+- In Supabase Auth muss mindestens der Admin-User `svend.neumann@orisus.de` angelegt werden. Der Profiltrigger macht neue User mit dieser E-Mail automatisch zu `super_admin` und `active=true`. Falls der User bereits vorher existiert, muss das Profil manuell per SQL upserted werden.
 
 ## Aktueller App-Zustand
 

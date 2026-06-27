@@ -81,6 +81,7 @@ const superAdminNav: NavSection[] = [
     items: [
       ["risks", "Ohne Ausfallschutz", ShieldCheck],
       ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
+      ["patientClasses", "Patientenklassifizierung", Users],
       ["matches", "Neueinreichungen", RefreshCw]
     ]
   },
@@ -133,6 +134,7 @@ const leadNav: NavSection[] = [
     items: [
       ["risks", "Ohne Ausfallschutz", ShieldCheck],
       ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
+      ["patientClasses", "Patientenklassifizierung", Users],
       ["matches", "Neueinreichungen", RefreshCw]
     ]
   },
@@ -313,6 +315,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
         {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
         {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
+        {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
@@ -379,6 +382,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     followups: "Wiedervorlagen",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
+    patientClasses: "Patientenklassifizierung",
     matches: "Neueinreichungsvorschläge",
     reports: "Report-Center",
     outcomes: "Maßnahmenkontrolle",
@@ -1068,6 +1072,112 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
         newFile: claim.file
       }));
   });
+}
+
+function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+  const groups = new Map<string, {
+    patientName: string;
+    locationName: string;
+    claimCount: number;
+    claimAmount: number;
+    badEventCount: number;
+    badAmount: number;
+    noProtectionCount: number;
+    noProtectionAmount: number;
+    examples: Set<string>;
+  }>();
+
+  rows.forEach((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return;
+
+    (row.parsedClaims ?? []).forEach((claim) => {
+      const key = `${standort.id}:${normalizePatientName(claim.patientName)}`;
+      const current = groups.get(key) ?? emptyPatientProfile(claim.patientName, standort.name);
+      current.claimCount += 1;
+      current.claimAmount += claim.amount;
+      current.examples.add(claim.invoiceNo);
+      if (claim.protectionStatus === "ohne_ausfallschutz") {
+        current.noProtectionCount += 1;
+        current.noProtectionAmount += claim.amount;
+      }
+      groups.set(key, current);
+    });
+
+    (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .forEach((movement) => {
+        const patientName = movement.patientName ?? "Patient noch nicht gematcht";
+        const key = `${standort.id}:${normalizePatientName(patientName)}`;
+        const current = groups.get(key) ?? emptyPatientProfile(patientName, standort.name);
+        current.badEventCount += 1;
+        current.badAmount += Math.abs(movement.amount ?? 0);
+        current.examples.add(movement.invoiceNo ?? movement.bfsNo ?? reasonLabel(movement.reasonCategory));
+        groups.set(key, current);
+      });
+  });
+
+  return [...groups.values()].map(classifyPatientProfile).sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade) || b.riskAmount - a.riskAmount || b.badEventCount - a.badEventCount);
+}
+
+function patientProfilesFromCases(rows: BfsCase[], standortId?: string) {
+  const groups = new Map<string, ReturnType<typeof emptyPatientProfile>>();
+  rows.filter((row) => !standortId || row.standortId === standortId).forEach((row) => {
+    const key = `${row.standortId}:${normalizePatientName(row.patientName)}`;
+    const current = groups.get(key) ?? emptyPatientProfile(row.patientName, row.locationName);
+    current.badEventCount += row.reason.includes("Rückgabe") || row.reason.includes("Rückbelastung") || row.reason.includes("Storno") ? 1 : 0;
+    current.badAmount += row.amount;
+    current.examples.add(row.invoiceNo);
+    groups.set(key, current);
+  });
+  return [...groups.values()].map(classifyPatientProfile).sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade) || b.riskAmount - a.riskAmount);
+}
+
+function emptyPatientProfile(patientName: string, locationName: string) {
+  return {
+    patientName,
+    locationName,
+    claimCount: 0,
+    claimAmount: 0,
+    badEventCount: 0,
+    badAmount: 0,
+    noProtectionCount: 0,
+    noProtectionAmount: 0,
+    examples: new Set<string>()
+  };
+}
+
+function classifyPatientProfile(profile: ReturnType<typeof emptyPatientProfile>) {
+  const riskAmount = profile.badAmount + profile.noProtectionAmount;
+  const denominator = Math.max(profile.claimCount, profile.badEventCount, 1);
+  const badRate = (profile.badEventCount / denominator) * 100;
+  const grade = profile.badEventCount >= 5 || profile.noProtectionCount >= 4 || riskAmount >= 2500
+    ? "D"
+    : profile.badEventCount >= 2 || profile.noProtectionCount >= 2 || riskAmount >= 500
+      ? "C"
+      : profile.badEventCount === 1 || profile.noProtectionCount === 1
+        ? "B"
+        : "A";
+  const recommendation = grade === "D"
+    ? "BFS-Sperrhinweis / Vorkasseprozess prüfen"
+    : grade === "C"
+      ? "Standort aktiv informieren und Behandlung/Factoring prüfen"
+      : grade === "B"
+        ? "Beobachten und bei Neueinreichung prüfen"
+        : "Unauffällig";
+
+  return {
+    ...profile,
+    grade,
+    badRate,
+    riskAmount,
+    examples: [...profile.examples].slice(0, 4),
+    recommendation
+  };
+}
+
+function gradeRank(grade: string) {
+  return { A: 1, B: 2, C: 3, D: 4 }[grade as "A" | "B" | "C" | "D"] ?? 0;
 }
 
 function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
@@ -1859,6 +1969,72 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
         ) : (
           <p className="empty-state">Keine mehrfachen Patienten ohne Ausfallschutz im aktuellen Datenstand.</p>
         )}
+      </section>
+    </div>
+  );
+}
+
+function PatientClassificationView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+  const profiles = patientProfilesFromImportRows(importRows, standort?.id);
+  const fallbackProfiles = profiles.length ? profiles : patientProfilesFromCases(rows, standort?.id);
+  const counts = ["A", "B", "C", "D"].map((grade) => ({
+    grade,
+    count: fallbackProfiles.filter((profile) => profile.grade === grade).length
+  }));
+  const total = fallbackProfiles.length || 1;
+
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        {counts.map(({ grade, count }) => (
+          <PriorityCard
+            key={grade}
+            label={`Klasse ${grade}`}
+            value={`${Math.round((count / total) * 100)} %`}
+            hint={`${count} Patienten`}
+            tone={grade === "A" ? "green" : grade === "B" ? "blue" : grade === "C" ? "amber" : "red"}
+          />
+        ))}
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{standort ? `Patientenklassifizierung ${standort.name}` : "Patientenklassifizierung Gruppe"}</h2>
+            <p>Patienten werden je Standort anhand von Zahlungsverhalten, Stornos/Rückgaben, Ausfallschutz und Wiederholungen klassifiziert.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Klasse</th>
+                <th>Patient</th>
+                <th>Standort</th>
+                <th>Einreichungen</th>
+                <th>Storno/Rückgabe</th>
+                <th>Ohne Schutz</th>
+                <th>Risikosumme</th>
+                <th>Quote</th>
+                <th>Empfehlung</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fallbackProfiles.slice(0, 100).map((profile) => (
+                <tr key={`${profile.locationName}-${profile.patientName}`}>
+                  <td><StatusBadge status={`Klasse ${profile.grade}`} /></td>
+                  <td><strong>{profile.patientName}</strong><span>{profile.examples.join(", ")}</span></td>
+                  <td>{profile.locationName}</td>
+                  <td>{profile.claimCount}</td>
+                  <td>{profile.badEventCount}</td>
+                  <td>{profile.noProtectionCount}</td>
+                  <td>{money.format(profile.riskAmount)}</td>
+                  <td>{profile.badRate.toFixed(1)} %</td>
+                  <td>{profile.recommendation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

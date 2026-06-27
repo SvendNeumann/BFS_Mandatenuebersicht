@@ -844,6 +844,20 @@ td small {
   white-space: nowrap;
 }
 
+.upload-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.file-upload-button.secondary-upload {
+  border: 1px solid #9bd2c1;
+  background: #ffffff;
+  color: var(--primary-dark);
+  box-shadow: var(--shadow-soft);
+}
+
 .file-upload-button input {
   display: none;
 }
@@ -2132,6 +2146,12 @@ th:first-child {
 
   .file-upload-button {
     width: 100%;
+  }
+
+  .upload-actions {
+    width: 100%;
+    display: grid;
+    justify-content: stretch;
   }
 
   .cashflow-card dl div {

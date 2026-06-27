@@ -872,13 +872,14 @@ function UploadView() {
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
     setIsProcessing(true);
     try {
       const parsedRows = await parseDemoImportFiles([...files]);
-      setLiveRows(parsedRows);
-      storeImportRows(parsedRows);
+      const nextRows = mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows;
+      setLiveRows(nextRows);
+      storeImportRows(nextRows);
     } finally {
       setIsProcessing(false);
     }
@@ -892,11 +893,24 @@ function UploadView() {
           <h2>Testdateien für den Monats-Sammelimport hochladen</h2>
           <p>Die Demo liest echte Dateien, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
         </div>
-        <label className="file-upload-button">
-          <Upload size={16} />
-          Dateien auswählen
-          <input type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files)} />
-        </label>
+        <div className="upload-actions">
+          <label className="file-upload-button">
+            <Upload size={16} />
+            Dateien auswählen
+            <input type="file" multiple accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*" onChange={(event) => handleFiles(event.target.files, "replace")} />
+          </label>
+          <label className="file-upload-button secondary-upload">
+            <FolderUp size={16} />
+            Ordner auswählen
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.zip,.csv,.txt,.json,application/pdf,application/zip,text/*"
+              onChange={(event) => handleFiles(event.target.files, liveRows.length ? "append" : "replace")}
+              {...{ webkitdirectory: "", directory: "" }}
+            />
+          </label>
+        </div>
       </section>
       <section className="priority-grid">
         <PriorityCard label="Dateien im Lauf" value={String(previewRows.length)} hint={liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
@@ -1002,6 +1016,14 @@ function loadStoredImportRows() {
   } catch {
     return [];
   }
+}
+
+function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPreviewRow[]) {
+  const rowsByKey = new Map<string, ImportPreviewRow>();
+  [...existingRows, ...nextRows].forEach((row) => {
+    rowsByKey.set(row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`, row);
+  });
+  return [...rowsByKey.values()];
 }
 
 function storeImportRows(rows: ImportPreviewRow[]) {

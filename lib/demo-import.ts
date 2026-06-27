@@ -43,7 +43,7 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (sumHeader && parsed.claims.length && Math.abs(sumHeader - sumExtracted) > 0.02) notes.push("Summenabweichung zwischen Kopf und Forderungsliste erkannt.");
 
   return {
-    file: file.name,
+    file: relativeFilePath(file),
     location: standort?.name ?? "Unbekannt",
     mandantNo: mandantNo || "-",
     practice: standort?.praxisname ?? "nicht zugeordnet",
@@ -67,6 +67,10 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     fileSizeBytes: file.size,
     parseNotes: notes.length ? notes : ["Testdatei wurde für die Import-Vorschau verarbeitet."]
   };
+}
+
+function relativeFilePath(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
 async function parsePdfSafely(bytes: ArrayBuffer, notes: string[]) {

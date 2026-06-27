@@ -427,8 +427,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
       />
       <KpiGrid cards={groupKpis} />
       <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} />
-      <section className="panel">
-        <div className="panel-heading">
+      <section className="panel import-preview-panel">
+        <div className="panel-heading import-preview-heading">
           <div>
             <h2>Standortübersicht</h2>
             <p>Gefilterter Gruppenblick über Standorte, Eingänge, Gebühren, Rückbelastungen und Risikohinweise.</p>

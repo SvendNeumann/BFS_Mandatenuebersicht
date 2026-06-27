@@ -53,23 +53,6 @@ export const standorte: Standort[] = [
     olderThan30: 0
   },
   {
-    id: "huettenberg",
-    name: "Hüttenberg",
-    praxisname: "Praxis Dr. Krauthausen",
-    mandantNo: "19804",
-    mandantNos: ["19804", "22674"],
-    locationHints: ["Hüttenberg", "Huettenberg", "Krauthausen"],
-    goLiveDate: "2026-01-01",
-    goLiveLabel: "01.01.2026",
-    lastImport: "24.06.2026",
-    submittedThisMonth: 93107.5,
-    feesThisMonth: 2148.0,
-    openCases: 2,
-    openChargebacks: 790.3,
-    withoutProtection: 310.0,
-    olderThan30: 1
-  },
-  {
     id: "ulmet",
     name: "Ulmet",
     praxisname: "Praxis Dr. Hangx",
@@ -85,6 +68,23 @@ export const standorte: Standort[] = [
     openChargebacks: 5385.51,
     withoutProtection: 315.9,
     olderThan30: 2
+  },
+  {
+    id: "huettenberg",
+    name: "Hüttenberg",
+    praxisname: "Praxis Dr. Krauthausen",
+    mandantNo: "19804",
+    mandantNos: ["19804", "22674"],
+    locationHints: ["Hüttenberg", "Huettenberg", "Krauthausen"],
+    goLiveDate: "2026-01-01",
+    goLiveLabel: "01.01.2026",
+    lastImport: "24.06.2026",
+    submittedThisMonth: 93107.5,
+    feesThisMonth: 2148.0,
+    openCases: 2,
+    openChargebacks: 790.3,
+    withoutProtection: 310.0,
+    olderThan30: 1
   },
   {
     id: "kassel",

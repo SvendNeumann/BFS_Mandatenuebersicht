@@ -912,6 +912,31 @@ input {
   margin-left: auto;
 }
 
+.import-report-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.import-review-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: -4px 0 14px;
+  border: 1px solid rgba(246, 197, 111, 0.34);
+  border-radius: 8px;
+  background: rgba(246, 197, 111, 0.12);
+  color: #f8dfaa;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.import-review-summary svg {
+  flex: 0 0 auto;
+}
+
 .primary-button,
 .secondary-button {
   display: inline-flex;

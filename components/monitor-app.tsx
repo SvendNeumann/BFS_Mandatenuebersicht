@@ -2291,7 +2291,7 @@ async function parseImportChunkWithRetry(
       return { rows: [...left.rows, ...right.rows], persistence };
     }
     return {
-      rows: [],
+      rows: [failedImportRow(files[0], error instanceof Error ? error.message : "Serverseitiger Import fehlgeschlagen.")],
       persistence: {
         batchId: "failed-single",
         imported: 0,
@@ -2366,7 +2366,7 @@ function mergePersistenceSummary(target: ImportPersistenceSummary, next?: Import
   target.imported += next.imported;
   target.duplicates += next.duplicates;
   target.failed += next.failed;
-  target.errors = [...(target.errors ?? []), ...(next.errors ?? [])].slice(0, 20);
+  target.errors = [...(target.errors ?? []), ...(next.errors ?? [])];
 }
 
 class ImportChunkError extends Error {
@@ -2381,6 +2381,29 @@ function importStatusMessage(parsedCount: number, persistence?: ImportPersistenc
   if (!persistence.failed) return `${base}. Kacheln und Auswertungen wurden aktualisiert.`;
   const firstError = persistence.errors?.[0];
   return `${base}, ${persistence.failed} fehlgeschlagen${firstError ? ` (${firstError.file}: ${firstError.message})` : ""}.`;
+}
+
+function failedImportRow(file: File, message: string): ImportPreviewRow {
+  return {
+    file: uploadFilePath(file),
+    location: "Unbekannt",
+    mandantNo: "-",
+    practice: "nicht gespeichert",
+    statementNo: "-",
+    date: "-",
+    claimsHeader: 0,
+    claimsExtracted: 0,
+    sumHeader: 0,
+    sumExtracted: 0,
+    hasLedger: false,
+    movements: 0,
+    status: "Fehler",
+    fileSizeBytes: file.size,
+    parseNotes: [
+      message,
+      "Diese Datei wurde vom Server nicht gespeichert und muss erneut geprüft werden."
+    ]
+  };
 }
 
 function isImportableUploadFile(file: File) {
@@ -2550,6 +2573,7 @@ function buildImportHistoryMonths(rows: ImportPreviewRow[]) {
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const reviewRows = rows.filter(importRowNeedsReview);
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
   const retainedAmount = relevantMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
@@ -2605,10 +2629,21 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
             <h2>Prüfung & Detailvorschau</h2>
             <p>Die Einzeldateien bleiben bis zur Bestätigung prüfbar; danach wertet die Demo diesen Datenstand aus.</p>
           </div>
-          <button className="primary-button" onClick={() => setConfirmOpen(true)}>
-            <CheckCircle2 size={16} /> Import bestätigen
-          </button>
+          <div className="import-report-actions">
+            <button className="secondary-button" disabled={!rows.length} onClick={() => printImportIssueReport(rows)}>
+              <Printer size={16} /> Fehlerbericht als PDF
+            </button>
+            <button className="primary-button" onClick={() => setConfirmOpen(true)}>
+              <CheckCircle2 size={16} /> Import bestätigen
+            </button>
+          </div>
         </div>
+        {!!rows.length && (
+          <div className="import-review-summary">
+            <AlertTriangle size={16} />
+            <span>{reviewRows.length} von {rows.length} Importzeilen brauchen Prüfung. Der PDF-Bericht enthält alle Hinweise und vollständige Dateipfade.</span>
+          </div>
+        )}
         <div className="table-wrap">
           <table>
             <thead>
@@ -2702,6 +2737,135 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
       )}
     </div>
   );
+}
+
+function importRowNeedsReview(row: ImportPreviewRow) {
+  if (row.status !== "OK") return true;
+  if (!row.hasLedger) return true;
+  if (row.claimsHeader !== row.claimsExtracted) return true;
+  if (Math.abs(row.sumHeader - row.sumExtracted) > 0.02) return true;
+  return (row.parseNotes ?? []).some((note) => !note.toLowerCase().includes("testdatei wurde"));
+}
+
+function printImportIssueReport(rows: ImportPreviewRow[]) {
+  const reviewRows = rows.filter(importRowNeedsReview);
+  const reportRows = reviewRows.length ? reviewRows : rows;
+  const summary = {
+    total: rows.length,
+    ok: rows.filter((row) => row.status === "OK").length,
+    review: reviewRows.length,
+    failed: rows.filter((row) => row.status.toLowerCase().includes("fehler")).length,
+    missingLedger: rows.filter((row) => !row.hasLedger).length,
+    claimMismatch: rows.filter((row) => row.claimsHeader !== row.claimsExtracted).length,
+    sumMismatch: rows.filter((row) => Math.abs(row.sumHeader - row.sumExtracted) > 0.02).length
+  };
+  const html = `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Orisus BFS Import-Fehlerbericht</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 10px; margin-bottom: 12px; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    h2 { margin: 16px 0 8px; font-size: 15px; }
+    p { margin: 0; color: #48606c; line-height: 1.35; }
+    .meta { text-align: right; color: #48606c; }
+    .summary { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 10px 0 12px; }
+    .summary div { border: 1px solid #c8d7dc; border-radius: 6px; padding: 8px; }
+    .summary span { display: block; color: #607783; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .summary strong { display: block; margin-top: 4px; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #d7e3e7; padding: 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+    th { background: #eaf7f6; color: #0f5360; font-size: 9px; text-transform: uppercase; }
+    tr:nth-child(even) td { background: #f8fbfc; }
+    .file { width: 30%; }
+    .small { color: #607783; font-size: 9px; }
+    .status { display: inline-block; border-radius: 999px; background: #fee4e2; color: #b42318; padding: 2px 6px; font-weight: 700; }
+    .status.ok { background: #dcfae6; color: #067647; }
+    .notes { margin: 0; padding-left: 14px; }
+    .notes li { margin: 0 0 3px; }
+    footer { margin-top: 12px; color: #607783; font-size: 9px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Orisus BFS Import-Fehlerbericht</h1>
+      <p>Analysebericht fuer Importzeilen mit Fehlern, Warnungen, fehlendem Kontoauszug oder Summen-/Positionsabweichungen.</p>
+    </div>
+    <div class="meta">
+      <strong>${escapeHtml(new Date().toLocaleString("de-DE"))}</strong><br />
+      ${escapeHtml(reportRows.length.toString())} Detailzeilen im Bericht
+    </div>
+  </header>
+  <section class="summary">
+    <div><span>Importzeilen</span><strong>${summary.total}</strong></div>
+    <div><span>OK</span><strong>${summary.ok}</strong></div>
+    <div><span>Zu pruefen</span><strong>${summary.review}</strong></div>
+    <div><span>Fehler</span><strong>${summary.failed}</strong></div>
+    <div><span>Kontoauszug fehlt</span><strong>${summary.missingLedger}</strong></div>
+    <div><span>Positionsabweichung</span><strong>${summary.claimMismatch}</strong></div>
+    <div><span>Summenabweichung</span><strong>${summary.sumMismatch}</strong></div>
+  </section>
+  <h2>Detailanalyse</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="file">Datei</th>
+        <th>Standort</th>
+        <th>Mandant</th>
+        <th>Abrechnung</th>
+        <th>Forderungen</th>
+        <th>Summe</th>
+        <th>Kontoauszug</th>
+        <th>Status</th>
+        <th>Hinweise</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${reportRows.map(importReportRowHtml).join("")}
+    </tbody>
+  </table>
+  <footer>Hinweis: Nicht-PDF-Dateien aus dem Ordner werden vom Upload bewusst ignoriert. Der Bericht bildet die aktuell in der App vorhandenen Importzeilen ab.</footer>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 150));</script>
+</body>
+</html>`;
+  const reportWindow = window.open("", "_blank", "width=1200,height=900");
+  if (!reportWindow) {
+    downloadTextFile("orisus-bfs-import-fehlerbericht.html", html);
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+}
+
+function importReportRowHtml(row: ImportPreviewRow) {
+  const notes = row.parseNotes?.length ? row.parseNotes : ["Keine Hinweise hinterlegt."];
+  const statusClass = row.status === "OK" ? "status ok" : "status";
+  return `<tr>
+    <td class="file"><strong>${escapeHtml(row.file)}</strong><br /><span class="small">${escapeHtml(row.practice)}${row.fileSizeBytes ? ` · ${escapeHtml(formatBytes(row.fileSizeBytes))}` : ""}${row.fileHash ? ` · Hash ${escapeHtml(row.fileHash.slice(0, 10))}` : ""}</span></td>
+    <td>${escapeHtml(row.location)}</td>
+    <td>${escapeHtml(row.mandantNo)}</td>
+    <td>${escapeHtml(row.statementNo)} / ${escapeHtml(row.date)}</td>
+    <td>${row.claimsHeader} / ${row.claimsExtracted}</td>
+    <td>${escapeHtml(money.format(row.sumHeader))}<br />${escapeHtml(money.format(row.sumExtracted))}</td>
+    <td>${row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}</td>
+    <td><span class="${statusClass}">${escapeHtml(row.status)}</span></td>
+    <td><ul class="notes">${notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul></td>
+  </tr>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatMovementReason(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {

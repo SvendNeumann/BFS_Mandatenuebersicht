@@ -156,11 +156,17 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
+  const previewRows = liveImportRows.length ? liveImportRows : importPreviewRows;
+  const appCases = useMemo(() => {
+    const importedCases = casesFromImportRows(liveImportRows);
+    return importedCases.length ? importedCases : cases;
+  }, [liveImportRows]);
   const visibleCases = useMemo(
-    () => cases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
-    [isGroupScope, selectedStandort.id]
+    () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
+    [appCases, isGroupScope, selectedStandort.id]
   );
   const nav = role === "super_admin" ? superAdminNav : leadNav;
 
@@ -290,23 +296,23 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
         {activeView === "dashboard" && (
           role === "super_admin" && isGroupScope
-            ? <GroupDashboard onNavigate={setActiveView} />
-            : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />
+            ? <GroupDashboard onNavigate={setActiveView} importRows={liveImportRows} />
+            : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />
         )}
         {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
-        {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />}
-        {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} />}
-        {activeView === "upload" && <UploadView />}
-        {activeView === "preview" && <ImportPreview rows={importPreviewRows} />}
-        {activeView === "history" && <ImportHistory />}
+        {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />}
+        {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+        {activeView === "upload" && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
+        {activeView === "preview" && <ImportPreview rows={previewRows} />}
+        {activeView === "history" && <ImportHistory rows={previewRows} />}
         {activeView === "cases" && <CasesView cases={visibleCases} />}
         {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
-        {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} />}
-        {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} />}
+        {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
+        {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
         {activeView === "matches" && <MatchesView cases={visibleCases} />}
-        {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />}
-        {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />)}
+        {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+        {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
         {activeView === "locations" && <LocationsView />}
         {activeView === "users" && <UsersView />}
         {activeView === "settings" && <SettingsView />}
@@ -379,7 +385,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   return titles[view] ?? "Orisus BFS Monitor";
 }
 
-function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) {
+function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const [groupFocus, setGroupFocus] = useState("gesamt");
   const filteredStandorte = groupStandortFilter === "alle"
@@ -393,13 +399,14 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
     return true;
   });
   const focusedRisks = riskClaims.filter((claim) => filteredStandortIds.has(claim.standortId));
+  const importSummary = summarizeImportRows(importRows.filter((row) => filteredStandorte.some((standort) => standort.name === row.location)));
   const liveStandorte = filteredStandorte.filter((standort) => isStandortLive(standort));
   const plannedStandorte = filteredStandorte.filter((standort) => !isStandortLive(standort));
   const groupKpis = [
     ["Standorte im Blick", groupStandortFilter === "alle" ? `${liveStandorte.length} live` : liveStatusLabel(filteredStandorte[0]), plannedStandorte.length ? `${plannedStandorte.length} Standort ab 01.07.2026 vorbereitet` : "aktive BFS-Standorte"],
-    ["Eingereichte Forderungen", money.format(filteredStandorte.reduce((sum, standort) => sum + standort.submittedThisMonth, 0)), "aktueller Monat"],
+    ["Eingereichte Forderungen", money.format(importSummary.rows ? importSummary.submitted : filteredStandorte.reduce((sum, standort) => sum + standort.submittedThisMonth, 0)), importSummary.rows ? "aus aktuellem Testupload" : "aktueller Monat"],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
-    ["Ohne Ausfallschutz", money.format(focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), "laufende Risikohinweise"]
+    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Testupload" : "laufende Risikohinweise"]
   ];
   return (
     <div className="content-stack">
@@ -410,7 +417,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
         onFocusChange={setGroupFocus}
       />
       <KpiGrid cards={groupKpis} />
-      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} />
+      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} />
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -506,11 +513,11 @@ function GroupFilterBar({
   );
 }
 
-function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void }) {
+function LocationDashboard({ standort, cases, onNavigate, importRows }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
   return (
     <div className="content-stack">
-      <KpiGrid standort={standort} />
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} />
+      <KpiGrid standort={standort} importRows={importRows} />
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -544,7 +551,8 @@ function AnswerCockpit({
   cases: rows,
   onNavigate,
   compact = false,
-  showReportAction = false
+  showReportAction = false,
+  importRows = []
 }: {
   scope: "group" | "location";
   standort?: Standort;
@@ -552,17 +560,19 @@ function AnswerCockpit({
   onNavigate: (view: string) => void;
   compact?: boolean;
   showReportAction?: boolean;
+  importRows?: ImportPreviewRow[];
 }) {
   const relevantStandorte = standort ? [standort] : standorte;
+  const importSummary = summarizeImportRows(importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location)));
   const openCases = rows.filter((fall) => !fall.status.includes("erledigt"));
   const chargebacks = openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"));
   const riskTotal = riskClaims
     .filter((claim) => relevantStandorte.some((entry) => entry.id === claim.standortId))
     .reduce((sum, claim) => sum + claim.amount, 0);
-  const recurringRisks = getRecurringRiskProfiles(standort?.id).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
+  const recurringRisks = getRecurringRiskProfiles(standort?.id, importRows).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const submitted = relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
-  const fees = relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
+  const submitted = importSummary.rows ? importSummary.submitted : relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
+  const fees = importSummary.rows ? importSummary.fees : relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
 
@@ -579,7 +589,7 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("claims")}>
           <span>Wie viel wurde eingereicht?</span>
           <strong>{money.format(submitted)}</strong>
-          <small>aktueller Monat</small>
+          <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
         </button>
         <button onClick={() => onNavigate("cases")}>
           <span>Was ist noch offen?</span>
@@ -593,8 +603,8 @@ function AnswerCockpit({
         </button>
         <button onClick={() => onNavigate("risks")}>
           <span>Ohne Ausfallschutz?</span>
-          <strong>{money.format(riskTotal)}</strong>
-          <small>laufende Risikohinweise</small>
+          <strong>{money.format(importSummary.rows ? importSummary.noProtectionAmount : riskTotal)}</strong>
+          <small>{importSummary.rows ? "aus Testupload" : "laufende Risikohinweise"}</small>
         </button>
         <button onClick={() => onNavigate("repeatRisks")}>
           <span>Wiederholer?</span>
@@ -604,7 +614,7 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Gebühren?</span>
           <strong>{money.format(fees)}</strong>
-          <small>aktueller Monat</small>
+          <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
           <span>Ältester offener Fall?</span>
@@ -616,12 +626,13 @@ function AnswerCockpit({
   );
 }
 
-function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases: BfsCase[] }) {
+function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const rowsStandorte = standort ? [standort] : standorte;
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
-  const selectedMetrics = aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod);
+  const importSummary = summarizeImportRows(importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location)));
+  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics(rowsStandorte.map((entry) => entry.id), selectedPeriod);
   const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id));
   const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id));
 
@@ -658,7 +669,8 @@ function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases:
           {rowsStandorte.map((entry) => {
             const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
-            const periodCashflow = cashflowForPeriod(entry, selectedPeriod);
+            const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name));
+            const periodCashflow = rowImportSummary.rows ? cashflowFromImportSummary(rowImportSummary) : cashflowForPeriod(entry, selectedPeriod);
             const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
             const periodRiskAmount = periodCashflow.withoutProtection || Math.min(riskAmount, standort ? riskAmount : entry.withoutProtection);
             const paidEstimate = periodCashflow.payout || Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
@@ -903,6 +915,144 @@ function aggregateMetrics(standortIds: string[], period: PeriodOption) {
   return totals;
 }
 
+type ImportSummary = ReturnType<typeof summarizeImportRows>;
+
+function summarizeImportRows(rows: ImportPreviewRow[]) {
+  const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
+    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+  const returnMovements = relevantMovements.filter((movement) => movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung"));
+  const cancellationMovements = relevantMovements.filter((movement) => movement.type.includes("storno"));
+  const submitted = rows.reduce((sum, row) => sum + (row.sumExtracted || row.sumHeader || 0), 0);
+  const fees = rows.reduce((sum, row) => sum + (row.feeTotal ?? 0), 0);
+  const payout = rows.reduce((sum, row) => sum + (row.payout ?? 0), 0);
+  const noProtectionAmount = rows.reduce((sum, row) => sum + (row.noProtectionAmount ?? 0), 0);
+  const noProtectionCount = rows.reduce((sum, row) => sum + (row.noProtectionCount ?? 0), 0);
+
+  return {
+    rows: rows.length,
+    submitted,
+    payout,
+    fees,
+    feeRate: submitted ? (fees / submitted) * 100 : 0,
+    returnCount: returnMovements.length,
+    returnAmount: returnMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0),
+    cancellationCount: cancellationMovements.length,
+    cancellationAmount: cancellationMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0),
+    noProtectionCount,
+    noProtectionAmount,
+    activeMonths: countImportMonths(rows),
+    startLabel: formatImportStart(rows)
+  };
+}
+
+function metricsFromImportSummary(summary: ImportSummary) {
+  return {
+    submitted: summary.submitted,
+    payout: summary.payout,
+    fees: summary.fees,
+    feeRate: summary.feeRate,
+    returnCount: summary.returnCount,
+    returnAmount: summary.returnAmount,
+    cancellationCount: summary.cancellationCount,
+    cancellationAmount: summary.cancellationAmount,
+    noProtectionCount: summary.noProtectionCount,
+    noProtectionAmount: summary.noProtectionAmount
+  };
+}
+
+function cashflowFromImportSummary(summary: ImportSummary) {
+  return {
+    ...metricsFromImportSummary(summary),
+    activeMonths: summary.activeMonths,
+    startLabel: summary.startLabel,
+    withoutProtection: summary.noProtectionAmount
+  };
+}
+
+function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
+  return rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort) return [];
+    return (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .map((movement, index) => {
+        const ageDays = movement.date ? ageFromShortDate(movement.date) : 0;
+        const amount = Math.abs(movement.amount ?? 0);
+        return {
+          id: `import-${row.fileHash ?? row.file}-${movement.bfsNo ?? index}`,
+          standortId: standort.id,
+          locationName: standort.name,
+          patientName: movement.patientName ?? "Patient noch nicht gematcht",
+          invoiceNo: movement.invoiceNo ?? "-",
+          bfsNo: movement.bfsNo ?? "-",
+          amount,
+          reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+          ageDays,
+          traffic: ageDays > 30 ? "red" : ageDays >= 15 ? "orange" : ageDays >= 8 ? "yellow" : "green",
+          status: movement.matchStatus === "unmatched" ? "historisches_match_offen" : "offen",
+          dueDate: "-",
+          lastComment: movement.matchedFile ? `Gematcht mit ${movement.matchedFile}` : "Aus aktuellem Testupload erzeugt"
+        } satisfies BfsCase;
+      });
+  });
+}
+
+function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
+  return rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort) return [];
+    return (row.parsedClaims ?? [])
+      .filter((claim) => claim.protectionStatus === "ohne_ausfallschutz")
+      .map((claim, index) => ({
+        id: `import-risk-${row.fileHash ?? row.file}-${claim.bfsNo}-${index}`,
+        standortId: standort.id,
+        patientName: claim.patientName,
+        invoiceNo: claim.invoiceNo,
+        bfsNo: claim.bfsNo,
+        amount: claim.amount,
+        statementNo: row.statementNo,
+        date: row.date,
+        marker: claim.marker ?? "*KA"
+      }));
+  });
+}
+
+function ageFromShortDate(value: string) {
+  const [day, month, year] = value.split(".").map(Number);
+  const fullYear = year < 100 ? 2000 + year : year;
+  const date = new Date(fullYear, month - 1, day);
+  return Math.max(0, Math.floor((demoToday.getTime() - date.getTime()) / 86400000));
+}
+
+function reasonLabel(reasonCategory?: string) {
+  const labels: Record<string, string> = {
+    unzustellbar: "Unzustellbar",
+    factoringvereinbarung: "lt. Factoringvereinbarung",
+    nachricht_praxis: "lt. Nachricht / Praxisanweisung",
+    rueckgabe_ohne_ausfallschutz: "Rückgabe ohne Ausfallschutz",
+    iportal_rechnungsliste: "lt. iPortal-Rechnungsliste",
+    sonstiger_storno_grund: "Sonstiger Storno-/Rückgabegrund"
+  };
+  return reasonCategory ? labels[reasonCategory] ?? reasonCategory : "Klärfall";
+}
+
+function countImportMonths(rows: ImportPreviewRow[]) {
+  const months = new Set(rows.map((row) => importRowMonth(row)).filter(Boolean));
+  return months.size;
+}
+
+function formatImportStart(rows: ImportPreviewRow[]) {
+  const months = rows.map((row) => importRowMonth(row)).filter(Boolean).sort();
+  if (!months[0]) return "Testupload";
+  return formatMetricMonth(months[0]);
+}
+
+function importRowMonth(row: ImportPreviewRow) {
+  const match = row.date.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}`;
+}
+
 function metricInPeriod(metric: BfsPeriodMetric, period: PeriodOption) {
   const metricDate = new Date(`${metric.month}-01T00:00:00`);
   if (!period.start && !period.end) {
@@ -1003,13 +1153,14 @@ function formatMonth(date: Date) {
   return new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(date);
 }
 
-function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?: string[][] }) {
+function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?: Standort; cards?: string[][]; importRows?: ImportPreviewRow[] }) {
+  const importSummary = summarizeImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows);
   const cards = customCards ?? (standort
     ? [
-        ["Eingereicht aktueller Monat", money.format(standort.submittedThisMonth), "Aus BFS-Abrechnungen"],
-        ["BFS-Gebühren", money.format(standort.feesThisMonth), "Netto und MwSt"],
+        ["Eingereicht aktueller Monat", money.format(importSummary.rows ? importSummary.submitted : standort.submittedThisMonth), importSummary.rows ? "aus aktuellem Testupload" : "Aus BFS-Abrechnungen"],
+        ["BFS-Gebühren", money.format(importSummary.rows ? importSummary.fees : standort.feesThisMonth), "Netto und MwSt"],
         ["Offene BFS-Klärfälle", String(standort.openCases), "echte To-dos"],
-        ["Laufend ohne Ausfallschutz", money.format(standort.withoutProtection), "Risikoüberwachung"]
+        ["Laufend ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : standort.withoutProtection), importSummary.rows ? "aus aktuellem Testupload" : "Risikoüberwachung"]
       ]
     : monthlyKpis);
   return (
@@ -1078,8 +1229,7 @@ function metricExplanation(label: string, value: string, hint: string) {
   return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
 }
 
-function UploadView() {
-  const [liveRows, setLiveRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
+function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; onRowsChange: (rows: ImportPreviewRow[]) => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const previewRows = liveRows.length ? liveRows : importPreviewRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
@@ -1087,11 +1237,13 @@ function UploadView() {
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
+    const importableFiles = [...files].filter(isImportableUploadFile);
+    if (!importableFiles.length) return;
     setIsProcessing(true);
     try {
-      const parsedRows = await parseDemoImportFiles([...files]);
+      const parsedRows = await parseDemoImportFiles(importableFiles);
       const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
-      setLiveRows(nextRows);
+      onRowsChange(nextRows);
       storeImportRows(nextRows);
     } finally {
       setIsProcessing(false);
@@ -1104,7 +1256,7 @@ function UploadView() {
         <HardDriveUpload size={28} />
         <div>
           <h2>Testdateien für den Monats-Sammelimport hochladen</h2>
-          <p>Die Demo liest echte Dateien, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
+          <p>Die Demo liest echte Dateien auch aus Unterordnern, berechnet Hashes, erkennt Mandant-Nr. und zeigt sofort, wo Zuordnung oder Parsing noch geprüft werden müssen.</p>
         </div>
         <div className="upload-actions">
           <label className="file-upload-button">
@@ -1114,7 +1266,7 @@ function UploadView() {
           </label>
           <label className="file-upload-button secondary-upload">
             <FolderUp size={16} />
-            Ordner auswählen
+            Ordner inkl. Unterordner
             <input
               type="file"
               multiple
@@ -1129,11 +1281,11 @@ function UploadView() {
         <PriorityCard label="Dateien im Lauf" value={String(previewRows.length)} hint={liveRows.length ? "aus deinem Testupload" : "Demo-Vorschau"} tone="blue" />
         <PriorityCard label="Importfähig" value={String(okRows)} hint="ohne harte Hinweise" tone="green" />
         <PriorityCard label="Zu prüfen" value={String(warningRows)} hint="Mapping oder Parsing" tone="amber" />
-        <PriorityCard label="Verarbeitung" value={isProcessing ? "läuft" : "bereit"} hint="lokaler Demo-Import" tone={isProcessing ? "amber" : "green"} />
+        <PriorityCard label="Unterordner" value={String(countNestedUploadFolders(previewRows))} hint="rekursiv mitverarbeitet" tone="blue" />
       </section>
       <section className="insight-grid">
         <InsightCard title="Importkontrolle" items={["Mandant-Nr. muss Standort treffen", "Kopf- und Positionssumme müssen passen", "Dubletten werden über Hash erkannt"]} />
-        <InsightCard title="Kontoauszug-Prüfung" items={["Rückgaben und Stornos separat auslesen", "BFS-Nr. und Re.-Nr. historisch matchen", "BFS-Bemerkung als Originalgrund speichern"]} />
+        <InsightCard title="Ordnerstruktur" items={["Standortordner dürfen Jahresordner enthalten", "Monatsordner werden automatisch mitgelesen", "PDF-Pfade bleiben in der Vorschau sichtbar"]} />
         <InsightCard title="Freigabe vor Import" items={["Unbekannte Standorte prüfen", "Summenabweichungen klären", "Kassel erst ab 01.07.2026 erwarten"]} />
       </section>
       {liveRows.length > 0 && (
@@ -1146,7 +1298,7 @@ function UploadView() {
             <button
               className="secondary-button"
               onClick={() => {
-                setLiveRows([]);
+                onRowsChange([]);
                 window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
               }}
             >
@@ -1158,6 +1310,19 @@ function UploadView() {
       <ImportPreview rows={previewRows} />
     </div>
   );
+}
+
+function isImportableUploadFile(file: File) {
+  return /\.(pdf|csv|txt|json)$/i.test(file.name) || file.type === "application/pdf" || file.type.startsWith("text/");
+}
+
+function countNestedUploadFolders(rows: ImportPreviewRow[]) {
+  const folders = new Set<string>();
+  rows.forEach((row) => {
+    const pathParts = row.file.split("/");
+    pathParts.slice(0, -1).forEach((_, index) => folders.add(pathParts.slice(0, index + 1).join("/")));
+  });
+  return folders.size;
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
@@ -1336,8 +1501,10 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
   );
 }
 
-function RiskView({ standortId }: { standortId?: string }) {
-  const rows = riskClaims.filter((claim) => !standortId || claim.standortId === standortId);
+function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
+  const importedRisks = riskClaimsFromImportRows(importRows);
+  const sourceRows = importedRisks.length ? importedRisks : riskClaims;
+  const rows = sourceRows.filter((claim) => !standortId || claim.standortId === standortId);
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -1378,8 +1545,10 @@ function RiskView({ standortId }: { standortId?: string }) {
   );
 }
 
-function getRecurringRiskProfiles(standortId?: string) {
-  const rows = riskClaims.filter((claim) => !standortId || claim.standortId === standortId);
+function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreviewRow[] = []) {
+  const importedRisks = riskClaimsFromImportRows(importRows);
+  const sourceRows = importedRisks.length ? importedRisks : riskClaims;
+  const rows = sourceRows.filter((claim) => !standortId || claim.standortId === standortId);
   const groups = new Map<string, RiskClaim[]>();
 
   rows.forEach((claim) => {
@@ -1417,8 +1586,8 @@ function parseGermanDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
-function RecurringRiskView({ standortId, compact = false }: { standortId?: string; compact?: boolean }) {
-  const profiles = getRecurringRiskProfiles(standortId);
+function RecurringRiskView({ standortId, compact = false, importRows = [] }: { standortId?: string; compact?: boolean; importRows?: ImportPreviewRow[] }) {
+  const profiles = getRecurringRiskProfiles(standortId, importRows);
   const urgent = profiles.filter((profile) => profile.tone === "red");
   const total = profiles.reduce((sum, profile) => sum + profile.total, 0);
 
@@ -1499,7 +1668,7 @@ function MatchesView({ cases: rows }: { cases: BfsCase[] }) {
   );
 }
 
-function ReportsView({ role, standort, cases }: { role: AppRole; standort: Standort; cases: BfsCase[] }) {
+function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const reportCases = cases.filter((fall) => fall.status !== "erledigt_automatisch");
   function exportCsv() {
     downloadTextFile(`offene-bfs-klaerfaelle-${standort.name.toLowerCase()}.csv`, createCasesCsv(reportCases));
@@ -1540,9 +1709,9 @@ function ReportsView({ role, standort, cases }: { role: AppRole; standort: Stand
         <h3>Abschnitt 1: Offene Rückbelastungen / Klärfälle</h3>
         <CasesView cases={reportCases} compact />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
-        <RiskView standortId={standort.id} />
+        <RiskView standortId={standort.id} importRows={importRows} />
         <h3>Abschnitt 3: Wiederholer ohne Ausfallschutz</h3>
-        <RecurringRiskView standortId={standort.id} compact />
+        <RecurringRiskView standortId={standort.id} compact importRows={importRows} />
       </section>
     </div>
   );
@@ -1584,8 +1753,8 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
   );
 }
 
-function ImportHistory() {
-  return <ImportPreview rows={importPreviewRows} />;
+function ImportHistory({ rows }: { rows: ImportPreviewRow[] }) {
+  return <ImportPreview rows={rows} />;
 }
 
 function LocationsView() {

@@ -59,7 +59,7 @@ const superAdminNav: NavSection[] = [
   {
     title: "Überblick",
     items: [
-      ["dashboard", "CFO-Cockpit", LayoutDashboard],
+      ["dashboard", "Zusammenfassung", LayoutDashboard],
       ["answers", "Schnellantworten", ClipboardList],
       ["claims", "Forderungen & Geldfluss", ReceiptText],
       ["worklist", "Prioritäten heute", AlertCircle]
@@ -408,7 +408,7 @@ function AccessGate({ title, message }: { title: string; message: string }) {
 
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
-    dashboard: role === "super_admin" && isGroupScope ? "CFO-Cockpit" : "Standort-Dashboard",
+    dashboard: role === "super_admin" && isGroupScope ? "Zusammenfassung" : "Standort-Dashboard",
     answers: "Schnellantworten",
     claims: "Forderungen & Geldfluss",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
@@ -478,7 +478,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
       />
       <section className="panel period-filter">
         <label className="select-label">
-          Zeitraum CFO-Cockpit
+          Zeitraum Zusammenfassung
           <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
             {periodOptions.map((period) => (
               <option key={period.id} value={period.id}>{period.label}</option>

@@ -4,7 +4,7 @@ Stand: 28.06.2026, ca. 00:30 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `07df0fbd Fix imported dataset metric fallbacks`
+Aktueller Head: `9809bf05 Fix imported dataset metric fallbacks`
 
 ## Prompt fuer den naechsten Chat
 
@@ -69,7 +69,7 @@ Vercel:
 
 ## Letzte wichtige Commits
 
-- `07df0fbd Fix imported dataset metric fallbacks`
+- `9809bf05 Fix imported dataset metric fallbacks`
   - Nach echtem Import werden fehlende Standortdaten nicht mehr mit Demo-/Planwerten aufgefuellt.
   - Wenn nur Kirchberg importiert ist, zeigen Kehl/Ulmet/Essen/Huettenberg/Kassel in Schnellantworten, Tabs, Standortdashboard, Geldfluss und Risiko 0 statt Demo-Werte.
 
@@ -193,7 +193,7 @@ Wenn der grosse Ordner weiter scheitert:
 Aktueller Datenbefund nach Kirchberg-Upload:
 - Supabase enthaelt aktuell `252` importierte Kirchberg-Dokumente mit ca. `1.854.921,52 EUR` eingereichtem Umsatz.
 - Essen, Kehl, Ulmet, Huettenberg und Kassel enthalten `0` importierte Dokumente und `0,00 EUR` Umsatz.
-- Falls andere Standorte dennoch Werte zeigen, ist das UI-Demo-Fallback und kein Datenbankinhalt. Fix dafuer: `07df0fbd Fix imported dataset metric fallbacks`.
+- Falls andere Standorte dennoch Werte zeigen, ist das UI-Demo-Fallback und kein Datenbankinhalt. Fix dafuer: `9809bf05 Fix imported dataset metric fallbacks`.
 
 ## Bekannter alter Fehler und Bereinigung
 

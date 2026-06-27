@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, ca. 23:40 Uhr
+Stand: 27.06.2026, ca. 23:58 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Head: `fd43d82c Normalize import wording in metric cards`
+Aktueller Head: `17de9a71 Replace stale failed PDF imports`
 
 ## Prompt fuer den naechsten Chat
 
@@ -49,9 +49,9 @@ Vercel:
   - `SUPABASE_SERVICE_ROLE_KEY`
 - Dieses Repo ist lokal mit dem Vercel-Projekt `bfs-mandatenuebersicht` verknuepft.
 - Nicht verwechseln mit dem separaten Vercel-Projekt `orisus-cfo-dashboard`.
-- Letzter Production-Deploy: `dpl_Ahgb6WbLtEuJrYJ5oaz5BfGqB5DW`.
+- Letzter Production-Deploy: `dpl_DYt8714ViG7mbkxQ2VnCKzEzRRtA`.
 - Alias: `https://bfs-mandatenuebersicht.vercel.app`.
-- Deploy-URL: `https://bfs-mandatenuebersicht-3zhiunnr7-orisus.vercel.app`.
+- Deploy-URL: `https://bfs-mandatenuebersicht-4uvscd76v-orisus.vercel.app`.
 - Smoke-Test nach Deploy: Startseite erreichbar, `/dashboard` leitet ohne Session erwartungsgemaess auf `/login`.
 - Deploys laufen ueber Git push auf `main` oder direkt per Vercel CLI.
 - GitHub-Push war kurz blockiert, weil Git keinen Credential-Helper nutzte. Reparatur: Repo-lokaler Credential-Helper `/Library/Developer/CommandLineTools/usr/libexec/git-core/git-credential-osxkeychain`.
@@ -59,6 +59,17 @@ Vercel:
 - Lokale Shell kann Vercel/Supabase DNS teilweise nicht per `curl` aufloesen. Das ist ein lokales Shell-/DNS-Problem; Browser/Live-App funktionierten beim User.
 
 ## Letzte wichtige Commits
+
+- `17de9a71 Replace stale failed PDF imports`
+  - Alte fehlerhafte PDF.js-Importe werden nicht mehr als gueltige Dubletten behandelt.
+  - Persistierte kaputte Vorschauzeilen mit fehlender PDF-Extraktion werden ausgeblendet bzw. beim Reupload ersetzt.
+
+- `41c5e37b Fix Vercel PDF worker loading`
+  - Vercel/Node PDF.js Fehler `Setting up fake worker failed` behoben.
+  - Server-PDF-Extraktion laedt den PDF.js Worker vor und funktioniert wieder mit echten BFS-PDFs.
+
+- `2280eb6b Document metric wording normalization`
+  - Projektkontext nach Kacheltext-Fix aktualisiert.
 
 - `fd43d82c Normalize import wording in metric cards`
   - Kachel-Hinweise und Zeitraum-Badges normalisieren alte gespeicherte Testupload-Wortlaute zu produktiven Begriffen.
@@ -144,6 +155,7 @@ Wichtig:
 - Fachliche Identitaet: Mandant-Nr. + Abrechnungs-Nr. + Standort.
 - Eine Abrechnung mit gleicher Abrechnungsnummer darf nicht doppelt gerechnet werden.
 - Alte fehlgeschlagene `error`-Dokumente blockieren erneuten Upload nicht mehr.
+- Alte fehlgeschlagene PDF.js-/Fake-Worker-Importe blockieren erneuten Upload nicht mehr, auch wenn sie vorher faelschlich als `imported` gespeichert wurden.
 
 Grosser Ordner:
 - User-Ordner: `/Users/svendneumann/Desktop/BFS Uploads/`
@@ -156,7 +168,7 @@ Grosser Ordner:
   - Fortschritt zeigt `Paket x/y`
 
 Wenn der grosse Ordner weiter scheitert:
-- zuerst pruefen, ob der aktuellste Vercel-Deploy mit `9c43431a` aktiv ist.
+- zuerst pruefen, ob der aktuellste Vercel-Deploy mit `17de9a71` aktiv ist.
 - hart neu laden.
 - Browser-Konsole/Network fuer `/api/imports/parse` pruefen.
 - Wenn einzelne Chunks scheitern, sollte Status die konkrete Einzeldatei nennen.
@@ -164,15 +176,18 @@ Wenn der grosse Ordner weiter scheitert:
 
 ## Bekannter alter Fehler und Bereinigung
 
-Alter Fehler:
+Alte Fehler:
 - Server-PDF-Parsing scheiterte mit `DOMMatrix is not defined`.
 - Dadurch wurden zwei Dokumente ohne Summen gespeichert.
+- Server-PDF-Parsing scheiterte spaeter auf Vercel mit `Setting up fake worker failed`.
+- Dadurch wurden viele Dokumente ohne Abrechnungsdaten, ohne Kontoauszug und mit PDF.js-Parse-Notiz gespeichert.
 
 Bereinigt:
 - Diese alten Dokumente wurden in Supabase auf `status='error'` gesetzt.
 - Zugehoerige Batches wurden auf `failed` korrigiert.
 - Dashboard-Quelle liest nur `bfs_documents.status='imported'`.
 - Nach Reupload werden diese PDFs neu verarbeitet.
+- Seit `17de9a71` werden kaputte PDF.js-Importe beim Laden der Vorschau herausgefiltert und beim Reupload ersetzt, statt als Dubletten uebersprungen zu werden.
 
 ## Auth / Nutzer
 

@@ -493,12 +493,20 @@ input {
 }
 
 .period-note {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 4px;
+  border: 1px solid rgba(121, 238, 231, 0.2);
+  border-radius: 999px;
+  background: rgba(48, 213, 200, 0.1);
+  color: #bdf7f2;
+  padding: 4px 8px;
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
+  line-height: 1.2;
 }
 
 .dashboard-grid {
@@ -2984,7 +2992,7 @@ tbody tr:hover td {
   }
 
   .answer-grid button {
-    min-height: 112px;
+    min-height: 132px;
   }
 
   .answer-grid strong {

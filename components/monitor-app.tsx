@@ -736,13 +736,13 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
   return (
     <div className="content-stack">
       <section className="priority-grid">
-        <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint={selectedPeriod.label} tone="blue" />
-        <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint={selectedPeriod.label} tone="amber" />
-        <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint={selectedPeriod.label} tone="amber" />
-        <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint={selectedPeriod.label} tone="green" />
-        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} tone="amber" />
-        <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} tone={selectedMetrics.returnCount ? "red" : "green"} />
-        <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
+        <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint="Summe aus Abrechnungen" period={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint="nach BFS-Abzug" period={selectedPeriod.label} tone="green" />
+        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
+        <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -805,10 +805,10 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
           </div>
         </div>
         <div className="priority-grid compact-priority">
-          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" tone={deductionAmount ? "red" : "green"} />
-          <PriorityCard label="Wieder reingeholt" value={money.format(recoveredAmount)} hint={`${recoveryMatches.length} gematchte Neueinreichungen`} tone={recoveredAmount ? "green" : "amber"} />
-          <PriorityCard label="Noch nicht reingeholt" value={money.format(stillOpenAmount)} hint="Abzug minus gematchte Neueinreichung" tone={stillOpenAmount ? "amber" : "green"} />
-          <PriorityCard label="Matchingquote" value={`${recoveryRate.toFixed(0)} %`} hint="bezogen auf Abzugssumme" tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
+          <PriorityCard label="Wieder reingeholt" value={money.format(recoveredAmount)} hint={`${recoveryMatches.length} gematchte Neueinreichungen`} period={selectedPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
+          <PriorityCard label="Noch nicht reingeholt" value={money.format(stillOpenAmount)} hint="Abzug minus gematchte Neueinreichung" period={selectedPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Matchingquote" value={`${recoveryRate.toFixed(0)} %`} hint="bezogen auf Abzugssumme" period={selectedPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
           <table>
@@ -945,14 +945,16 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
   );
 }
 
-function PriorityCard({ label, value, hint, tone, info }: { label: string; value: string; hint: string; tone: string; info?: string }) {
+function PriorityCard({ label, value, hint, tone, info, period }: { label: string; value: string; hint: string; tone: string; info?: string; period?: string }) {
+  const periodText = period ? periodLabelFromHint(period) : periodLabelFromHint(hint);
+
   return (
     <article className={`priority-card ${tone}`}>
       <MetricInfo title={label} text={info ?? metricExplanation(label, value, hint)} />
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{hint}</small>
-      <small className="period-note">{periodLabelFromHint(hint)}</small>
+      <small className="period-note">{periodText}</small>
     </article>
   );
 }

@@ -137,12 +137,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [session, setSession] = useState<DemoSession | null>(() => getDemoSession());
   const [role, setRole] = useState<AppRole>(lockedRole ?? session?.role ?? "super_admin");
   const [activeView, setActiveView] = useState(initialView);
-  const [selectedStandortId, setSelectedStandortId] = useState(standorte[0].id);
+  const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
-  const visibleStandorte = role === "super_admin" ? standorte : standorte.filter((standort) => standort.id === selectedStandort.id);
+  const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const visibleCases = useMemo(
-    () => cases.filter((fall) => role === "super_admin" || fall.standortId === selectedStandort.id),
-    [role, selectedStandort.id]
+    () => cases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
+    [isGroupScope, selectedStandort.id]
   );
   const nav = role === "super_admin" ? superAdminNav : leadNav;
 
@@ -157,7 +157,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   function switchRole(nextRole: AppRole) {
     setRole(nextRole);
     setActiveView("dashboard");
-    if (nextRole === "standortleitung") setSelectedStandortId(standorte[0].id);
+    setSelectedStandortId(nextRole === "standortleitung" ? standorte[0].id : "gruppe");
+  }
+
+  function selectStandortTab(nextStandortId: string) {
+    setSelectedStandortId(nextStandortId);
+    if (activeView === "groupReports" && nextStandortId !== "gruppe") setActiveView("dashboard");
   }
 
   return (
@@ -211,25 +216,23 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <section className="workspace">
         <header className="topbar">
           <div>
-            <span className="eyebrow">{role === "super_admin" ? "Zentrale Ansicht" : selectedStandort.name}</span>
-            <h1>{titleFor(activeView, role)}</h1>
+            <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
+            <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions">
-            <label className="select-label">
-              Standort
-              <select value={selectedStandortId} disabled={role === "standortleitung"} onChange={(event) => setSelectedStandortId(event.target.value)}>
-                {visibleStandorte.map((standort) => (
-                  <option key={standort.id} value={standort.id}>
-                    {standort.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>
+            {role === "super_admin" && <button className="primary-button" onClick={() => setActiveView("upload")}><Upload size={16} /> Upload</button>}
           </div>
         </header>
 
+        <StandortTabs
+          role={role}
+          selectedStandortId={selectedStandortId}
+          onSelect={selectStandortTab}
+        />
+
         {activeView === "dashboard" && (
-          role === "super_admin"
+          role === "super_admin" && isGroupScope
             ? <GroupDashboard onNavigate={setActiveView} />
             : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />
         )}
@@ -240,15 +243,36 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "cases" && <CasesView cases={visibleCases} />}
         {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
-        {activeView === "risks" && <RiskView standortId={role === "super_admin" ? undefined : selectedStandort.id} />}
-        {activeView === "matches" && <MatchesView />}
+        {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} />}
+        {activeView === "matches" && <MatchesView cases={visibleCases} />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />}
-        {activeView === "groupReports" && <GroupReportsView onNavigate={setActiveView} />}
+        {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />)}
         {activeView === "locations" && <LocationsView />}
         {activeView === "users" && <UsersView />}
         {activeView === "settings" && <SettingsView />}
       </section>
     </main>
+  );
+}
+
+function StandortTabs({ role, selectedStandortId, onSelect }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void }) {
+  const visibleStandorte = role === "super_admin" ? standorte : standorte.slice(0, 1);
+  return (
+    <section className="standort-tabs" aria-label="Standorte">
+      {role === "super_admin" && (
+        <button className={selectedStandortId === "gruppe" ? "active" : ""} onClick={() => onSelect("gruppe")}>
+          <BarChart3 size={16} />
+          Gruppe
+        </button>
+      )}
+      {visibleStandorte.map((standort) => (
+        <button key={standort.id} className={selectedStandortId === standort.id ? "active" : ""} onClick={() => onSelect(standort.id)}>
+          <Building2 size={16} />
+          {standort.name}
+          <span>{standort.openCases} offen</span>
+        </button>
+      ))}
+    </section>
   );
 }
 
@@ -271,9 +295,9 @@ function AccessGate({ title, message }: { title: string; message: string }) {
   );
 }
 
-function titleFor(view: string, role: AppRole) {
+function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
-    dashboard: role === "super_admin" ? "Gruppen-Dashboard" : "Standort-Dashboard",
+    dashboard: role === "super_admin" && isGroupScope ? "Gruppen-Dashboard" : "Standort-Dashboard",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Monats-Sammelimport",
     preview: "Import-Vorschau",
@@ -636,10 +660,10 @@ function RiskView({ standortId }: { standortId?: string }) {
   );
 }
 
-function MatchesView() {
-  const matched = cases.filter((fall) => fall.status.includes("automatisch"));
+function MatchesView({ cases: rows }: { cases: BfsCase[] }) {
+  const matched = rows.filter((fall) => fall.status.includes("automatisch"));
   return (
-    <CasesView cases={matched.length ? matched : cases.slice(0, 2).map((fall) => ({ ...fall, status: "neueinreichung_vorschlag", reason: "Neueinreichungsvorschlag" }))} />
+    <CasesView cases={matched.length ? matched : rows.slice(0, 2).map((fall) => ({ ...fall, status: "neueinreichung_vorschlag", reason: "Neueinreichungsvorschlag" }))} />
   );
 }
 

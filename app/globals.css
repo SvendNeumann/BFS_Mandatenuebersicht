@@ -2516,6 +2516,19 @@ td small,
   color: var(--muted);
 }
 
+.confirmation-dialog dl div {
+  border-color: rgba(178, 226, 229, 0.22);
+  background: rgba(7, 27, 41, 0.74);
+}
+
+.confirmation-dialog dt {
+  color: #b7cbd3;
+}
+
+.confirmation-dialog dd {
+  color: #f6ffff;
+}
+
 .brand-mark {
   box-shadow: 0 14px 32px rgba(48, 213, 200, 0.22);
 }

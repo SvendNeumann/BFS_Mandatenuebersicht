@@ -85,17 +85,17 @@ const superAdminNav: NavSection[] = [
     ]
   },
   {
-    title: "Import & Prüfung",
-    items: [
-      ["upload", "Import-Center", FolderUp]
-    ]
-  },
-  {
     title: "Auswertung",
     items: [
       ["reports", "Report-Center", FileText],
       ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
       ["groupReports", "Gruppenreports", BarChart3]
+    ]
+  },
+  {
+    title: "Import & Prüfung",
+    items: [
+      ["upload", "Import-Center", FolderUp]
     ]
   },
   {

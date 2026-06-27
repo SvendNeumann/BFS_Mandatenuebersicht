@@ -931,11 +931,11 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
   const returnMovements = relevantMovements.filter((movement) => movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung"));
   const cancellationMovements = relevantMovements.filter((movement) => movement.type.includes("storno"));
-  const submitted = rows.reduce((sum, row) => sum + (row.sumExtracted || row.sumHeader || 0), 0);
-  const fees = rows.reduce((sum, row) => sum + (row.feeTotal ?? 0), 0);
+  const submitted = rows.reduce((sum, row) => sum + rowSubmittedAmount(row), 0);
+  const fees = rows.reduce((sum, row) => sum + rowFeeAmount(row), 0);
   const payout = rows.reduce((sum, row) => sum + (row.payout ?? 0), 0);
-  const noProtectionAmount = rows.reduce((sum, row) => sum + (row.noProtectionAmount ?? 0), 0);
-  const noProtectionCount = rows.reduce((sum, row) => sum + (row.noProtectionCount ?? 0), 0);
+  const noProtectionAmount = rows.reduce((sum, row) => sum + rowNoProtectionAmount(row), 0);
+  const noProtectionCount = rows.reduce((sum, row) => sum + rowNoProtectionCount(row), 0);
 
   return {
     rows: rows.length,
@@ -952,6 +952,38 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
     activeMonths: countImportMonths(rows),
     startLabel: formatImportStart(rows)
   };
+}
+
+function rowSubmittedAmount(row: ImportPreviewRow) {
+  return row.sumExtracted || row.sumHeader || row.parsedClaims?.reduce((sum, claim) => sum + claim.amount, 0) || 0;
+}
+
+function rowFeeAmount(row: ImportPreviewRow) {
+  if (row.feeTotal && row.feeTotal > 0) return row.feeTotal;
+  const submitted = rowSubmittedAmount(row);
+  if (submitted > 0 && row.payout && row.payout > 0 && submitted > row.payout) {
+    return Math.round((submitted - row.payout) * 100) / 100;
+  }
+  return 0;
+}
+
+function rowNoProtectionClaims(row: ImportPreviewRow) {
+  return row.parsedClaims?.filter((claim) => claim.protectionStatus === "ohne_ausfallschutz") ?? [];
+}
+
+function rowNoProtectionMovements(row: ImportPreviewRow) {
+  return row.parsedMovements?.filter((movement) => movement.reasonCategory === "rueckgabe_ohne_ausfallschutz") ?? [];
+}
+
+function rowNoProtectionAmount(row: ImportPreviewRow) {
+  const fromStats = row.noProtectionAmount ?? 0;
+  const fromClaims = rowNoProtectionClaims(row).reduce((sum, claim) => sum + claim.amount, 0);
+  const fromMovements = rowNoProtectionMovements(row).reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
+  return Math.max(fromStats, fromClaims, fromMovements);
+}
+
+function rowNoProtectionCount(row: ImportPreviewRow) {
+  return Math.max(row.noProtectionCount ?? 0, rowNoProtectionClaims(row).length, rowNoProtectionMovements(row).length);
 }
 
 function metricsFromImportSummary(summary: ImportSummary) {
@@ -1674,7 +1706,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                       <span>{row.practice}</span>
                       {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
                       {!!row.parsedClaims?.length && (
-                        <small>{row.parsedClaims.length} Patientenpositionen · {row.noProtectionCount ?? 0} ohne Ausfallschutz</small>
+                        <small>{row.parsedClaims.length} Patientenpositionen · {rowNoProtectionCount(row)} ohne Ausfallschutz</small>
                       )}
                     </td>
                     <td>{row.location}</td>
@@ -1685,7 +1717,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                     <td>
                       {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
                       {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
-                      {!!row.feeTotal && <span>Gebühren {money.format(row.feeTotal)}</span>}
+                      {!!rowFeeAmount(row) && <span>Gebühren {money.format(rowFeeAmount(row))}</span>}
                       {!!rowReasons.length && (
                         <>
                           <span>{rowReasons.length} Storno-/Rückgabegründe</span>

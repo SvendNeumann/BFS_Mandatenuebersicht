@@ -1423,9 +1423,59 @@ function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
         amount: claim.amount,
         statementNo: row.statementNo,
         date: row.date,
-        marker: claim.marker ?? "*KA"
+        marker: claim.marker ?? "*KA",
+        markerReason: claim.markerReason ?? protectionMarkerLabel(claim.marker),
+        markerCategory: claim.markerCategory ?? protectionMarkerCategory(claim.marker)
       }));
   });
+}
+
+function protectionMarkerLabel(marker?: string) {
+  const labels: Record<string, string> = {
+    "*NB": "Negative Bonität",
+    "*RS": "Risikoschuldner",
+    "*AA": "Auslandsadresse",
+    "*PM": "Schuldner minderjährig",
+    "*FÜ": "Fristüberschreitung",
+    "*KA": "Kein Ausfallschutz",
+    "RS/A": "Risikoschuldner mit Ausfallschutz"
+  };
+  return labels[marker ?? ""] ?? (marker ? `Unbekannter Marker ${marker}` : "Kein Ausfallschutz");
+}
+
+function protectionMarkerCategory(marker?: string) {
+  const categories: Record<string, string> = {
+    "*NB": "negative_bonitaet",
+    "*RS": "risikoschuldner",
+    "*AA": "auslandsadresse",
+    "*PM": "minderjaehrig",
+    "*FÜ": "fristueberschreitung",
+    "*KA": "kein_ausfallschutz",
+    "RS/A": "risikoschuldner_mit_ausfallschutz"
+  };
+  return categories[marker ?? ""] ?? "sonstiger_marker";
+}
+
+function aggregateNoProtectionReasons(rows: RiskClaim[]) {
+  const groups = new Map<string, { label: string; category: string; count: number; amount: number; markers: Set<string> }>();
+  rows.forEach((claim) => {
+    const category = claim.markerCategory ?? protectionMarkerCategory(claim.marker);
+    const current = groups.get(category) ?? {
+      label: claim.markerReason ?? protectionMarkerLabel(claim.marker),
+      category,
+      count: 0,
+      amount: 0,
+      markers: new Set<string>()
+    };
+    current.count += 1;
+    current.amount += claim.amount;
+    current.markers.add(claim.marker);
+    groups.set(category, current);
+  });
+
+  return [...groups.values()]
+    .map((group) => ({ ...group, amount: Math.round(group.amount * 100) / 100, markers: [...group.markers].join(", ") }))
+    .sort((a, b) => b.amount - a.amount || b.count - a.count);
 }
 
 function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
@@ -2498,43 +2548,81 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
   const importedRisks = riskClaimsFromImportRows(importRows);
   const sourceRows = importedRisks.length ? importedRisks : riskClaims;
   const rows = sourceRows.filter((claim) => !standortId || claim.standortId === standortId);
+  const reasonRows = aggregateNoProtectionReasons(rows);
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h2>Laufend ohne Ausfallschutz</h2>
-          <p>Risikohinweise, noch keine offenen To-dos. Erst eine Rückgabe erzeugt einen Klärfall.</p>
+    <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Gründe ohne Ausfallschutz</h2>
+            <p>Mandantenübergreifend aus allen hochgeladenen Abrechnungen gruppiert: warum Forderungen ohne Ausfallschutz angekauft wurden.</p>
+          </div>
         </div>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Patient</th>
-              <th>Re.-Nr.</th>
-              <th>BFS-Nr.</th>
-              <th>Betrag</th>
-              <th>Abrechnung</th>
-              <th>Kennzeichen</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((claim) => (
-              <tr key={claim.id}>
-                <td><strong>{claim.patientName}</strong></td>
-                <td>{claim.invoiceNo}</td>
-                <td>{claim.bfsNo}</td>
-                <td>{money.format(claim.amount)}</td>
-                <td>{claim.statementNo} / {claim.date}</td>
-                <td>{claim.marker}</td>
-                <td><StatusBadge status="Ausgezahlt ohne Ausfallschutz" /></td>
+        <div className="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Grund</th>
+                <th>Kennzeichen</th>
+                <th>Anzahl</th>
+                <th>Summe</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              {reasonRows.map((reason) => (
+                <tr key={reason.category}>
+                  <td><strong>{reason.label}</strong></td>
+                  <td>{reason.markers}</td>
+                  <td>{reason.count}</td>
+                  <td>{money.format(reason.amount)}</td>
+                </tr>
+              ))}
+              {!reasonRows.length && (
+                <tr><td colSpan={4}>Keine Fälle ohne Ausfallschutz im aktuellen Datenstand.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Laufend ohne Ausfallschutz</h2>
+            <p>Risikohinweise, noch keine offenen To-dos. Erst eine Rückgabe erzeugt einen Klärfall.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Re.-Nr.</th>
+                <th>BFS-Nr.</th>
+                <th>Betrag</th>
+                <th>Abrechnung</th>
+                <th>Kennzeichen</th>
+                <th>Grund</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((claim) => (
+                <tr key={claim.id}>
+                  <td><strong>{claim.patientName}</strong></td>
+                  <td>{claim.invoiceNo}</td>
+                  <td>{claim.bfsNo}</td>
+                  <td>{money.format(claim.amount)}</td>
+                  <td>{claim.statementNo} / {claim.date}</td>
+                  <td>{claim.marker}</td>
+                  <td>{claim.markerReason ?? protectionMarkerLabel(claim.marker)}</td>
+                  <td><StatusBadge status="Ausgezahlt ohne Ausfallschutz" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 

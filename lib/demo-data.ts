@@ -276,17 +276,17 @@ export const cases: BfsCase[] = [
 ];
 
 export const riskClaims: RiskClaim[] = [
-  { id: "risk-1", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-026607", bfsNo: "BFS-717-026607", amount: 101.9, statementNo: "116", date: "17.06.2026", marker: "*KA" },
-  { id: "risk-1b", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-026104", bfsNo: "BFS-717-026104", amount: 128.4, statementNo: "114", date: "03.06.2026", marker: "*KA" },
-  { id: "risk-1c", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-025882", bfsNo: "BFS-717-025882", amount: 94.6, statementNo: "111", date: "14.05.2026", marker: "*KA" },
-  { id: "risk-2", standortId: "ulmet", patientName: "Horvath, Kevin", invoiceNo: "176-026622", bfsNo: "BFS-176-026622", amount: 99, statementNo: "116", date: "17.06.2026", marker: "*KA" },
-  { id: "risk-2b", standortId: "ulmet", patientName: "Horvath, Kevin", invoiceNo: "176-026211", bfsNo: "BFS-176-026211", amount: 220.5, statementNo: "115", date: "10.06.2026", marker: "*KA" },
-  { id: "risk-3", standortId: "ulmet", patientName: "Kischkat, Selin", invoiceNo: "220-026605", bfsNo: "BFS-220-026605", amount: 115, statementNo: "116", date: "17.06.2026", marker: "*KA" },
-  { id: "risk-4", standortId: "kehl", patientName: "Roth, Milan", invoiceNo: "512-026310", bfsNo: "BFS-512-026310", amount: 630.4, statementNo: "91", date: "18.06.2026", marker: "*KA" },
-  { id: "risk-4b", standortId: "kehl", patientName: "Roth, Milan", invoiceNo: "512-025944", bfsNo: "BFS-512-025944", amount: 410.2, statementNo: "89", date: "21.05.2026", marker: "*KA" },
-  { id: "risk-5", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-026512", bfsNo: "BFS-681-026512", amount: 315.8, statementNo: "62", date: "20.06.2026", marker: "*KA" },
-  { id: "risk-5b", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-026205", bfsNo: "BFS-681-026205", amount: 287.6, statementNo: "61", date: "06.06.2026", marker: "*KA" },
-  { id: "risk-5c", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-025870", bfsNo: "BFS-681-025870", amount: 190.4, statementNo: "59", date: "09.05.2026", marker: "*KA" }
+  { id: "risk-1", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-026607", bfsNo: "BFS-717-026607", amount: 101.9, statementNo: "116", date: "17.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-1b", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-026104", bfsNo: "BFS-717-026104", amount: 128.4, statementNo: "114", date: "03.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-1c", standortId: "ulmet", patientName: "Bachtler, Luisa Marie", invoiceNo: "717-025882", bfsNo: "BFS-717-025882", amount: 94.6, statementNo: "111", date: "14.05.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-2", standortId: "ulmet", patientName: "Horvath, Kevin", invoiceNo: "176-026622", bfsNo: "BFS-176-026622", amount: 99, statementNo: "116", date: "17.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-2b", standortId: "ulmet", patientName: "Horvath, Kevin", invoiceNo: "176-026211", bfsNo: "BFS-176-026211", amount: 220.5, statementNo: "115", date: "10.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-3", standortId: "ulmet", patientName: "Kischkat, Selin", invoiceNo: "220-026605", bfsNo: "BFS-220-026605", amount: 115, statementNo: "116", date: "17.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-4", standortId: "kehl", patientName: "Roth, Milan", invoiceNo: "512-026310", bfsNo: "BFS-512-026310", amount: 630.4, statementNo: "91", date: "18.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-4b", standortId: "kehl", patientName: "Roth, Milan", invoiceNo: "512-025944", bfsNo: "BFS-512-025944", amount: 410.2, statementNo: "89", date: "21.05.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-5", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-026512", bfsNo: "BFS-681-026512", amount: 315.8, statementNo: "62", date: "20.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-5b", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-026205", bfsNo: "BFS-681-026205", amount: 287.6, statementNo: "61", date: "06.06.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" },
+  { id: "risk-5c", standortId: "essen", patientName: "Meyer, Thomas", invoiceNo: "681-025870", bfsNo: "BFS-681-025870", amount: 190.4, statementNo: "59", date: "09.05.2026", marker: "*KA", markerReason: "Kein Ausfallschutz", markerCategory: "kein_ausfallschutz" }
 ];
 
 export const importPreviewRows: ImportPreviewRow[] = [

@@ -60,6 +60,8 @@ export type RiskClaim = {
   statementNo: string;
   date: string;
   marker: string;
+  markerReason?: string;
+  markerCategory?: string;
 };
 
 export type ImportPreviewRow = {
@@ -99,6 +101,8 @@ export type ParsedImportClaim = {
   bfsNo: string;
   amount: number;
   marker?: string;
+  markerReason?: string;
+  markerCategory?: string;
   protectionStatus: "mit_ausfallschutz" | "ohne_ausfallschutz" | "unbekannt";
   sourceFile?: string;
   sourceLocation?: string;

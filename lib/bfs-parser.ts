@@ -151,19 +151,36 @@ function parseClaims(lines: string[]): ParsedImportClaim[] {
     const match = line.match(claimLinePattern);
     if (!match) return [];
     const marker = match[5];
+    const markerInfo = protectionMarkerInfo(marker);
     return [{
       patientName: match[1].trim(),
       invoiceNo: match[2],
       bfsNo: match[3],
       amount: parseAmount(match[4]),
       marker,
-      protectionStatus: isNoProtectionMarker(marker) ? "ohne_ausfallschutz" : "mit_ausfallschutz"
+      markerReason: markerInfo.reason,
+      markerCategory: markerInfo.category,
+      protectionStatus: markerInfo.noProtection ? "ohne_ausfallschutz" : "mit_ausfallschutz"
     }];
   });
 }
 
-function isNoProtectionMarker(marker: string | undefined) {
-  return ["*NB", "*RS", "*AA", "*PM", "*FÜ", "*KA"].includes(marker ?? "");
+function protectionMarkerInfo(marker: string | undefined) {
+  const markerMap: Record<string, { category: string; reason: string; noProtection: boolean }> = {
+    "*NB": { category: "negative_bonitaet", reason: "Negative Bonität", noProtection: true },
+    "*RS": { category: "risikoschuldner", reason: "Risikoschuldner", noProtection: true },
+    "*AA": { category: "auslandsadresse", reason: "Auslandsadresse", noProtection: true },
+    "*PM": { category: "minderjaehrig", reason: "Schuldner minderjährig", noProtection: true },
+    "*FÜ": { category: "fristueberschreitung", reason: "Fristüberschreitung", noProtection: true },
+    "*KA": { category: "kein_ausfallschutz", reason: "Kein Ausfallschutz", noProtection: true },
+    "RS/A": { category: "risikoschuldner_mit_ausfallschutz", reason: "Risikoschuldner mit Ausfallschutz", noProtection: false }
+  };
+
+  return markerMap[marker ?? ""] ?? {
+    category: marker ? "unbekannter_marker" : "mit_ausfallschutz",
+    reason: marker ? `Unbekannter Marker ${marker}` : "Mit Ausfallschutz",
+    noProtection: false
+  };
 }
 
 function parseMovements(lines: string[], claims: ParsedImportClaim[]): ParsedImportMovement[] {

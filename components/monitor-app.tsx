@@ -39,7 +39,7 @@ import {
   liveStatusLabel,
   users
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getDemoSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { parseDemoImportFiles } from "@/lib/demo-import";
@@ -74,6 +74,7 @@ const superAdminNav: NavSection[] = [
     title: "Risiko & Matching",
     items: [
       ["risks", "Ohne Ausfallschutz", ShieldCheck],
+      ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
       ["matches", "Neueinreichungen", RefreshCw]
     ]
   },
@@ -124,6 +125,7 @@ const leadNav: NavSection[] = [
     title: "Risiko & Matching",
     items: [
       ["risks", "Ohne Ausfallschutz", ShieldCheck],
+      ["repeatRisks", "Wiederholer ohne Schutz", AlertTriangle],
       ["matches", "Neueinreichungen", RefreshCw]
     ]
   },
@@ -255,6 +257,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
         {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} />}
+        {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} />}
         {activeView === "matches" && <MatchesView cases={visibleCases} />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />}
         {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} />)}
@@ -319,6 +322,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     chargebacks: "Rückbelastungen",
     followups: "Wiedervorlagen",
     risks: "Laufend ohne Ausfallschutz",
+    repeatRisks: "Wiederholer ohne Ausfallschutz",
     matches: "Neueinreichungsvorschläge",
     reports: "Reports je Standort",
     groupReports: "Gruppenreport",
@@ -540,6 +544,7 @@ function AnswerCockpit({
   const riskTotal = riskClaims
     .filter((claim) => relevantStandorte.some((entry) => entry.id === claim.standortId))
     .reduce((sum, claim) => sum + claim.amount, 0);
+  const recurringRisks = getRecurringRiskProfiles(standort?.id).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   const submitted = relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
   const fees = relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
@@ -575,6 +580,11 @@ function AnswerCockpit({
           <span>Ohne Ausfallschutz?</span>
           <strong>{money.format(riskTotal)}</strong>
           <small>laufende Risikohinweise</small>
+        </button>
+        <button onClick={() => onNavigate("repeatRisks")}>
+          <span>Wiederholer?</span>
+          <strong>{recurringRisks.length}</strong>
+          <small>mehrfach ohne Ausfallschutz</small>
         </button>
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Gebühren?</span>
@@ -929,6 +939,120 @@ function RiskView({ standortId }: { standortId?: string }) {
   );
 }
 
+function getRecurringRiskProfiles(standortId?: string) {
+  const rows = riskClaims.filter((claim) => !standortId || claim.standortId === standortId);
+  const groups = new Map<string, RiskClaim[]>();
+
+  rows.forEach((claim) => {
+    const key = `${claim.standortId}:${claim.patientName.toLowerCase()}`;
+    groups.set(key, [...(groups.get(key) ?? []), claim]);
+  });
+
+  return [...groups.values()]
+    .filter((claims) => claims.length > 1)
+    .map((claims) => {
+      const first = claims[0];
+      const standort = standorte.find((entry) => entry.id === first.standortId);
+      const sortedClaims = [...claims].sort((a, b) => parseGermanDate(b.date).getTime() - parseGermanDate(a.date).getTime());
+      const total = claims.reduce((sum, claim) => sum + claim.amount, 0);
+      const tone = claims.length >= 3 || total >= 500 ? "red" : "amber";
+      return {
+        id: `${first.standortId}-${first.patientName}`,
+        standortName: standort?.name ?? first.standortId,
+        patientName: first.patientName,
+        count: claims.length,
+        total,
+        lastDate: sortedClaims[0].date,
+        tone,
+        recommendation: tone === "red"
+          ? "Sperrhinweis / Praxisprozess prüfen"
+          : "Standort informieren und beobachten",
+        claims: sortedClaims
+      };
+    })
+    .sort((a, b) => b.count - a.count || b.total - a.total);
+}
+
+function parseGermanDate(value: string) {
+  const [day, month, year] = value.split(".").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function RecurringRiskView({ standortId, compact = false }: { standortId?: string; compact?: boolean }) {
+  const profiles = getRecurringRiskProfiles(standortId);
+  const urgent = profiles.filter((profile) => profile.tone === "red");
+  const total = profiles.reduce((sum, profile) => sum + profile.total, 0);
+
+  return (
+    <div className="content-stack">
+      {!compact && (
+        <section className="priority-grid">
+          <PriorityCard label="Wiederholer" value={String(profiles.length)} hint="Patienten mehrfach ohne Schutz" tone={urgent.length ? "red" : "amber"} />
+          <PriorityCard label="Maßnahme nötig" value={String(urgent.length)} hint="ab 3 Einreichungen oder hoher Summe" tone="red" />
+          <PriorityCard label="Risikosumme" value={money.format(total)} hint="mehrfach eingereicht ohne Schutz" tone="amber" />
+          <PriorityCard label="Letzte Sichtung" value={profiles[0]?.lastDate ?? "-"} hint="neueste betroffene Abrechnung" tone="blue" />
+        </section>
+      )}
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Wiederholer ohne Ausfallschutz</h2>
+            <p>Patienten, die mehrfach über BFS eingereicht wurden, obwohl sie ohne Ausfallschutz gekennzeichnet sind.</p>
+          </div>
+        </div>
+        {profiles.length ? (
+          <>
+            <div className="risk-profile-grid">
+              {profiles.map((profile) => (
+                <article className={`risk-profile-card ${profile.tone}`} key={profile.id}>
+                  <div>
+                    <span>{profile.standortName}</span>
+                    <strong>{profile.patientName}</strong>
+                  </div>
+                  <dl>
+                    <div><dt>Einreichungen</dt><dd>{profile.count}</dd></div>
+                    <div><dt>Risikosumme</dt><dd>{money.format(profile.total)}</dd></div>
+                    <div><dt>zuletzt</dt><dd>{profile.lastDate}</dd></div>
+                  </dl>
+                  <StatusBadge status={profile.recommendation} />
+                </article>
+              ))}
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Standort</th>
+                    <th>Einreichungen</th>
+                    <th>Summe</th>
+                    <th>Letzte Abrechnung</th>
+                    <th>Empfehlung</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profiles.map((profile) => (
+                    <tr key={`${profile.id}-row`}>
+                      <td><strong>{profile.patientName}</strong><span>{profile.claims.map((claim) => claim.invoiceNo).join(", ")}</span></td>
+                      <td>{profile.standortName}</td>
+                      <td>{profile.count}</td>
+                      <td>{money.format(profile.total)}</td>
+                      <td>{profile.lastDate}</td>
+                      <td><StatusBadge status={profile.recommendation} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="empty-state">Keine mehrfachen Patienten ohne Ausfallschutz im aktuellen Datenstand.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function MatchesView({ cases: rows }: { cases: BfsCase[] }) {
   const matched = rows.filter((fall) => fall.status.includes("automatisch"));
   return (
@@ -967,6 +1091,8 @@ function ReportsView({ role, standort, cases }: { role: AppRole; standort: Stand
         <CasesView cases={reportCases} compact />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
         <RiskView standortId={standort.id} />
+        <h3>Abschnitt 3: Wiederholer ohne Ausfallschutz</h3>
+        <RecurringRiskView standortId={standort.id} compact />
       </section>
     </div>
   );
@@ -1092,9 +1218,9 @@ function StatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase();
   const tone = normalized.includes("ok") || normalized.includes("aktiv") || normalized.includes("automatisch")
     ? "green"
-    : normalized.includes("warn") || normalized.includes("vorschlag") || normalized.includes("ohne")
+    : normalized.includes("warn") || normalized.includes("vorschlag") || normalized.includes("ohne") || normalized.includes("beobachten")
       ? "amber"
-      : normalized.includes("fehler") || normalized.includes("offen")
+      : normalized.includes("fehler") || normalized.includes("offen") || normalized.includes("sperrhinweis") || normalized.includes("praxisprozess")
         ? "red"
         : "gray";
   return <span className={`status ${tone}`}>{status}</span>;

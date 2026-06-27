@@ -178,7 +178,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     let active = true;
     loadStoredImportRowsFromDb()
       .then((rows) => {
-        if (active && rows.length) setLiveImportRows(rows);
+        if (active) setLiveImportRows(rows);
       })
       .catch(() => undefined);
     return () => {
@@ -189,6 +189,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   useEffect(() => {
     setExpandedSections({});
     setMobileNavOpen(false);
+    refreshLocalAppData();
   }, [activeView]);
 
   if (requireAuth && !session) {
@@ -201,7 +202,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
   function selectStandortTab(nextStandortId: string) {
     setSelectedStandortId(nextStandortId);
-    if (activeView === "groupReports" && nextStandortId !== "gruppe") setActiveView("dashboard");
+    refreshLocalAppData();
+    if (activeView === "groupReports" && nextStandortId !== "gruppe") navigateTo("dashboard");
   }
 
   function toggleNavSection(title: string) {
@@ -209,9 +211,26 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function navigateTo(key: string) {
+    refreshLocalAppData();
     setActiveView(key);
     setMobileNavOpen(false);
     setExpandedSections({});
+  }
+
+  function goToSummary() {
+    if (role === "super_admin") setSelectedStandortId("gruppe");
+    setActiveView("dashboard");
+    setMobileNavOpen(false);
+    setExpandedSections({});
+    refreshLocalAppData();
+  }
+
+  function refreshLocalAppData() {
+    applyStoredStandorteConfig();
+    setLocationConfigVersion((version) => version + 1);
+    void loadStoredImportRowsFromDb()
+      .then((rows) => setLiveImportRows(rows))
+      .catch(() => undefined);
   }
 
   function hardReload() {
@@ -224,9 +243,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-top">
-            <div className="brand">
-              <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
-            </div>
+            <button className="brand brand-button" onClick={goToSummary} aria-label="Zur Zusammenfassung">
+              <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.png" alt="Orisus Zahnmedizin" />
+            </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
               <X size={18} />
             </button>
@@ -285,9 +304,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
       <section className="workspace">
         <header className="topbar">
-          <div className="mobile-app-brand" aria-label="Orisus Zahnmedizin">
-            <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
-          </div>
+          <button className="mobile-app-brand" onClick={goToSummary} aria-label="Zur Zusammenfassung">
+            <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.png" alt="Orisus Zahnmedizin" />
+          </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
             <Menu size={18} />
           </button>
@@ -296,7 +315,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions desktop-page-actions">
-            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
+            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => navigateTo("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
           </div>
         </header>
         <div className="mobile-page-heading">
@@ -305,7 +324,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions">
-            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => setActiveView("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
+            {activeView !== "dashboard" && <button className="secondary-button" onClick={() => navigateTo("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
           </div>
         </div>
 
@@ -317,16 +336,16 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         />
 
         {showNoUploadData ? (
-          <NoUploadDataView onUpload={() => setActiveView("upload")} />
+          <NoUploadDataView onUpload={() => navigateTo("upload")} />
         ) : (
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard onNavigate={setActiveView} importRows={liveImportRows} />
-                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />
+                ? <GroupDashboard onNavigate={navigateTo} importRows={liveImportRows} />
+                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />
             )}
-            {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
-            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />}
+            {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
+            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} />}
@@ -338,7 +357,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}

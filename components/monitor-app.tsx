@@ -220,11 +220,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         <div className="sidebar-inner">
           <div className="sidebar-top">
             <div className="brand">
-              <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
-              <div>
-                <strong>Orisus BFS Monitor</strong>
-                <span>Factoring-Kontrolle</span>
-              </div>
+              <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
             </div>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
               <X size={18} />
@@ -285,8 +281,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <section className="workspace">
         <header className="topbar">
           <div className="mobile-app-brand" aria-label="Orisus Zahnmedizin">
-            <strong>ORISUS</strong>
-            <span>ZAHNMEDIZIN</span>
+            <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
           </div>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
             <Menu size={18} />

@@ -122,6 +122,7 @@ button {
   display: block;
   width: min(100%, 210px);
   height: auto;
+  object-fit: contain;
 }
 
 .brand strong,

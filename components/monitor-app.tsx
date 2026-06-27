@@ -259,7 +259,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         <div className="sidebar-inner">
           <div className="sidebar-top">
             <button className="brand brand-button" onClick={goToSummary} aria-label="Zur Zusammenfassung">
-              <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
+              <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
             </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
               <X size={18} />
@@ -320,7 +320,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <section className="workspace">
         <header className="topbar">
           <button className="mobile-app-brand" onClick={goToSummary} aria-label="Zur Zusammenfassung">
-            <img className="orisus-wordmark" src="/orisus-zahnmedizin-logo.svg" alt="Orisus Zahnmedizin" />
+            <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
           </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
             <Menu size={18} />

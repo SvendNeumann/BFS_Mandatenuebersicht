@@ -2177,6 +2177,10 @@ function formatBytes(bytes: number) {
 }
 
 function CasesView({ cases: rows, compact = false, title, description }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string }) {
+  const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
+  const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const highestCase = rows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined);
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -2185,6 +2189,24 @@ function CasesView({ cases: rows, compact = false, title, description }: { cases
           <p>{description ?? "Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt."}</p>
         </div>
         <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+      </div>
+      <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
+        <article>
+          <span>Offener Betrag gesamt</span>
+          <strong>{money.format(totalAmount)}</strong>
+        </article>
+        <article>
+          <span>Offene Fälle</span>
+          <strong>{rows.length}</strong>
+        </article>
+        <article>
+          <span>Ältester Fall</span>
+          <strong>{oldestAge} Tage</strong>
+        </article>
+        <article>
+          <span>Höchste Einzelposition</span>
+          <strong>{money.format(highestCase?.amount ?? 0)}</strong>
+        </article>
       </div>
       <div className="table-wrap">
         <table>

@@ -3,6 +3,8 @@ import { supabase } from "./supabase";
 
 const sessionKey = "orisus_bfs_monitor_session";
 const passkeyKey = "orisus_bfs_monitor_passkey_enabled";
+const superUserEmail = "svend.neumann@orisus.de";
+const superUserPasswordHash = "c9a01be5cba3a4656699928bd11d578d1c51bf48e0f4c01687a4b67ee20f6d28";
 
 export type DemoSession = {
   email: string;
@@ -15,12 +17,17 @@ export async function loginWithEmail(email: string, password: string, remember: 
   if (supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const role = email.toLowerCase().includes("standort") ? "standortleitung" : "super_admin";
-    return persistSession({ email: data.user?.email ?? email, role, active: true, expiresAt: expiresAt(remember) });
+    const normalizedEmail = (data.user?.email ?? email).trim().toLowerCase();
+    if (normalizedEmail !== superUserEmail) throw new Error("Dieser Nutzer ist für den BFS Monitor nicht freigegeben.");
+    return persistSession({ email: superUserEmail, role: "super_admin", active: true, expiresAt: expiresAt(remember) });
   }
 
-  const role: AppRole = email.toLowerCase().includes("standort") ? "standortleitung" : "super_admin";
-  return persistSession({ email, role, active: true, expiresAt: expiresAt(remember) });
+  const normalizedEmail = email.trim().toLowerCase();
+  const passwordHash = await sha256(password);
+  if (normalizedEmail !== superUserEmail || passwordHash !== superUserPasswordHash) {
+    throw new Error("Login fehlgeschlagen. Bitte E-Mail und Passwort prüfen.");
+  }
+  return persistSession({ email: superUserEmail, role: "super_admin", active: true, expiresAt: expiresAt(remember) });
 }
 
 export async function requestPasswordReset(email: string) {
@@ -64,7 +71,7 @@ export function removePasskey() {
 
 export async function loginWithPasskey() {
   if (!canUsePasskeys() || !hasSavedPasskey()) throw new Error("Biometrischer Login auf diesem Gerät nicht verfügbar.");
-  return persistSession({ email: "svend@orisus.de", role: "super_admin", active: true, expiresAt: expiresAt(true) });
+  return persistSession({ email: superUserEmail, role: "super_admin", active: true, expiresAt: expiresAt(true) });
 }
 
 function persistSession(session: DemoSession) {
@@ -74,4 +81,10 @@ function persistSession(session: DemoSession) {
 
 function expiresAt(remember: boolean) {
   return Date.now() + (remember ? 1000 * 60 * 60 * 24 * 30 : 1000 * 60 * 60 * 8);
+}
+
+async function sha256(value: string) {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

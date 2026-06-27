@@ -5,7 +5,7 @@ import { ArrowLeft, Eye, Fingerprint, LockKeyhole, Mail } from "lucide-react";
 import { canUsePasskeys, hasSavedPasskey, loginWithEmail, loginWithPasskey, requestPasswordReset } from "@/lib/auth";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("svend@orisus.de");
+  const [email, setEmail] = useState("svend.neumann@orisus.de");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);

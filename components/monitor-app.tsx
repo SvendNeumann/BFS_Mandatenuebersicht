@@ -156,7 +156,7 @@ type MonitorAppProps = {
 
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(() => getDemoSession());
-  const [role, setRole] = useState<AppRole>(lockedRole ?? session?.role ?? "super_admin");
+  const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(initialView);
   const [selectedStandortId, setSelectedStandortId] = useState(role === "super_admin" ? "gruppe" : standorte[0].id);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -194,12 +194,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
   if (requireAuth && lockedRole && session?.role !== lockedRole) {
     return <AccessGate title="Kein Zugriff auf diesen Bereich." message="Dieser Bereich ist für deine Rolle nicht freigegeben." />;
-  }
-
-  function switchRole(nextRole: AppRole) {
-    setRole(nextRole);
-    setActiveView("dashboard");
-    setSelectedStandortId(nextRole === "standortleitung" ? standorte[0].id : "gruppe");
   }
 
   function selectStandortTab(nextStandortId: string) {
@@ -265,16 +259,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </nav>
 
           <div className="sidebar-footer">
-            {!lockedRole && (
-              <div className="role-switch" aria-label="Rolle wählen">
-                <button className={role === "super_admin" ? "active" : ""} onClick={() => switchRole("super_admin")}>
-                  Super Admin
-                </button>
-                <button className={role === "standortleitung" ? "active" : ""} onClick={() => switchRole("standortleitung")}>
-                  Standortleitung
-                </button>
-              </div>
-            )}
             <div className="user-box">
               <UserRoundCheck size={18} />
               <div>

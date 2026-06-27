@@ -335,8 +335,7 @@ export const importPreviewRows: ImportPreviewRow[] = [
 export const documents = importPreviewRows;
 
 export const users = [
-  { name: "Svend Neumann", email: "svend@orisus.de", role: "super_admin", location: "alle Standorte", active: true },
-  { name: "Standortleitung Ulmet", email: "ulmet@orisus.de", role: "standortleitung", location: "Ulmet", active: true }
+  { name: "Svend Neumann", email: "svend.neumann@orisus.de", role: "super_admin", location: "alle Standorte", active: true }
 ];
 
 export const dashboardSeries = [

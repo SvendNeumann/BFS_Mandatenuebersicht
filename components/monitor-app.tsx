@@ -460,11 +460,12 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const inactiveStandorte = filteredStandorte.filter((standort) => !standortActiveInPeriod(standort, selectedPeriod));
   const periodLabel = importSummary.rows ? "aktueller Testupload" : selectedPeriod.label;
   const groupChartSeries = buildGroupDashboardSeries(filteredStandorte, selectedPeriod);
-  const groupKpis = [
+  const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
+  const groupKpis: KpiCardTuple[] = [
     ["Standorte im Blick", groupStandortFilter === "alle" ? `${activeStandorte.length} im Zeitraum` : periodStatusLabel(filteredStandorte[0], selectedPeriod), inactiveStandorte.length ? `${inactiveStandorte.length} Standort(e) in diesem Zeitraum noch nicht aktiv` : "aktive BFS-Standorte"],
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel],
+    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted],
+    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout],
+    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
     ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Testupload" : selectedPeriod.label]
   ];
@@ -679,12 +680,13 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const selectedCashflow = importSummary.rows ? cashflowFromImportSummary(importSummary) : cashflowForPeriod(standort, selectedPeriod);
   const periodLabel = importSummary.rows ? selectedPeriod.label : selectedPeriod.label;
   const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
-  const locationKpis = [
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel],
-    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel],
-    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel],
+  const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
+  const locationKpis: KpiCardTuple[] = [
+    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, locationKpiInfo.submitted],
+    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel, locationKpiInfo.feeNet],
+    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel, locationKpiInfo.tax],
+    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, locationKpiInfo.payout],
+    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, locationKpiInfo.fees],
     ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel]
   ];
 
@@ -1936,28 +1938,31 @@ function formatMonth(date: Date) {
   return new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(date);
 }
 
-function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?: Standort; cards?: string[][]; importRows?: ImportPreviewRow[] }) {
+type KpiCardTuple = [label: string, value: string, hint: string, info?: string];
+
+function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[] }) {
   const importSummary = summarizeImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows);
   const defaultPeriod = buildCashflowPeriods()[0];
   const defaultMetrics = standort ? aggregateMetrics([standort.id], defaultPeriod) : aggregateMetrics(standorte.map((entry) => entry.id), defaultPeriod);
+  const defaultInfo = buildKpiDerivationInfo(importSummary.rows ? metricsFromImportSummary(importSummary) : defaultMetrics, importSummary.rows ? "aktueller Testupload" : defaultPeriod.label);
   const cards = customCards ?? (standort
     ? [
-        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label],
-        ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label],
+        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.submitted],
+        ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label, defaultInfo.fees],
         ["Offene BFS-Klärfälle", String(standort.openCases), "echte To-dos"],
         ["Laufend ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label]
-      ]
+      ] satisfies KpiCardTuple[]
     : [
         ["Anzahl Standorte", `${standorte.filter((entry) => isStandortLive(entry, demoToday)).length} + ${standorte.filter((entry) => !isStandortLive(entry, demoToday)).length}`, "aktive und geplante Standorte"],
-        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label],
-        ["Auszahlungsbetrag", money.format(importSummary.rows ? importSummary.payout : defaultMetrics.payout), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label],
-        ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label]
-      ]);
+        ["Umsatz eingereicht", money.format(importSummary.rows ? importSummary.submitted : defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.submitted],
+        ["Auszahlungsbetrag", money.format(importSummary.rows ? importSummary.payout : defaultMetrics.payout), importSummary.rows ? "aus aktuellem Testupload" : defaultPeriod.label, defaultInfo.payout],
+        ["Gesamtkosten BFS", money.format(importSummary.rows ? importSummary.fees : defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : defaultPeriod.label, defaultInfo.fees]
+      ] satisfies KpiCardTuple[]);
   return (
     <section className="kpi-grid">
-      {cards.map(([label, value, hint]) => (
+      {cards.map(([label, value, hint, info]) => (
         <article className="kpi-card" key={label}>
-          <MetricInfo title={label} text={metricExplanation(label, value, hint)} />
+          <MetricInfo title={label} text={info ?? metricExplanation(label, value, hint)} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{hint}</small>
@@ -1966,6 +1971,35 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
       ))}
     </section>
   );
+}
+
+function buildKpiDerivationInfo(metrics: ReturnType<typeof aggregateMetrics>, periodLabel: string) {
+  const stornoLoss = metrics.returnAmount + metrics.cancellationAmount;
+  const extraCostsNet = metrics.feeNet + metrics.ewmaNet;
+  const taxTotal = metrics.feeVat + metrics.ewmaVat;
+  const ewmaTotal = metrics.ewmaNet + metrics.ewmaVat;
+  const payoutGap = Math.max(metrics.submitted - metrics.payout, 0);
+  const totalOutflow = stornoLoss + extraCostsNet + taxTotal;
+
+  return {
+    submitted: [
+      `Herleitung: Eingereichter Umsatz ist die Summe der Forderungen im Zeitraum ${periodLabel}: ${money.format(metrics.submitted)}.`,
+      `Davon als Storno/Rückgabe weggegangen: ${money.format(stornoLoss)} (${metrics.returnCount} Rückgaben / ${money.format(metrics.returnAmount)} plus ${metrics.cancellationCount} Stornos / ${money.format(metrics.cancellationAmount)}).`,
+      `Zusatzkosten ohne Steuer: ${money.format(extraCostsNet)} (BFS-Gebühr netto ${money.format(metrics.feeNet)} plus EWMA/Meldeamtabfragen netto ${money.format(metrics.ewmaNet)}). Steuer separat: ${money.format(taxTotal)}.`
+    ].join(" "),
+    payout: [
+      `Herleitung: Auszahlungsbetrag laut Abrechnung im Zeitraum ${periodLabel}: ${money.format(metrics.payout)}.`,
+      `Differenz zum eingereichten Umsatz: ${money.format(payoutGap)}. Darin stecken laufende BFS-Abzüge/Kosten sowie zeitversetzt sichtbare Rückgaben oder Stornos.`,
+      `Aktuell erkannte Storno-/Rückgabe-Belastung: ${money.format(stornoLoss)}. Zusatzkosten ohne Steuer: ${money.format(extraCostsNet)}. Steueranteil: ${money.format(taxTotal)}.`
+    ].join(" "),
+    fees: [
+      `Herleitung: Diese Kachel zeigt BFS-Gebühr netto plus MwSt: ${money.format(metrics.feeNet)} + ${money.format(metrics.feeVat)} = ${money.format(metrics.fees)}.`,
+      `Zusatzkosten außerhalb dieser reinen BFS-Gebühr, z.B. EWMA/Meldeamtabfragen: netto ${money.format(metrics.ewmaNet)}, MwSt ${money.format(metrics.ewmaVat)}, zusammen ${money.format(ewmaTotal)}.`,
+      `Storno-/Rückgabe-Umsatzverlust zusätzlich: ${money.format(stornoLoss)}. Gesamter erkannter Abfluss aus Storno/Rückgabe, Zusatzkosten und Steuer: ${money.format(totalOutflow)}.`
+    ].join(" "),
+    feeNet: `Herleitung: Netto-BFS-Gebühren ohne Steuer im Zeitraum ${periodLabel}: ${money.format(metrics.feeNet)}. Weitere Zusatzkosten ohne Steuer, insbesondere EWMA/Meldeamtabfragen, betragen ${money.format(metrics.ewmaNet)}. Storno-/Rückgabe-Umsatzverlust separat: ${money.format(stornoLoss)}.`,
+    tax: `Herleitung: Steueranteil auf BFS-Gebühren und Zusatzkosten im Zeitraum ${periodLabel}. BFS-MwSt: ${money.format(metrics.feeVat)}, EWMA-/Zusatzkosten-MwSt: ${money.format(metrics.ewmaVat)}, zusammen ${money.format(taxTotal)}. Steuer wird getrennt von Netto-Zusatzkosten und Stornos betrachtet.`
+  };
 }
 
 function periodLabelFromHint(hint: string) {

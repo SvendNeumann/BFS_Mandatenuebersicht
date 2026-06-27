@@ -5,9 +5,20 @@ import type { ImportPreviewRow, ParsedImportClaim, ParsedImportMovement } from "
 const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
 const datePattern = /(\d{2}\.\d{2}\.\d{4})/;
 
-export async function parseDemoImportFiles(files: File[]) {
-  const rows = await Promise.all(files.map(parseDemoImportFile));
+export async function parseDemoImportFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
+  const rows: ImportPreviewRow[] = [];
+  for (const [index, file] of files.entries()) {
+    rows.push(await parseDemoImportFile(file));
+    onProgress?.(index + 1, files.length, file.name);
+    if ((index + 1) % 8 === 0) await yieldToBrowser();
+  }
   return reconcileImportRows(rows);
+}
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
 }
 
 async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {

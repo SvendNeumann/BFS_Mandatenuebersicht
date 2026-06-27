@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -174,6 +174,18 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     [appCases, isGroupScope, selectedStandort.id]
   );
   const nav = role === "super_admin" ? superAdminNav : leadNav;
+
+  useEffect(() => {
+    let active = true;
+    loadStoredImportRowsFromDb()
+      .then((rows) => {
+        if (active && rows.length) setLiveImportRows(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (requireAuth && !session) {
     return <AccessGate title="Login erforderlich" message="Bitte melde dich an, um diesen geschützten Bereich zu öffnen." />;
@@ -1557,11 +1569,18 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     setIsProcessing(true);
     setUploadStatus(`${importableFiles.length} Dateien werden eingelesen`);
     try {
-      const parsedRows = await parseDemoImportFiles(importableFiles);
+      const parsedRows = await parseDemoImportFiles(importableFiles, (processed, total, fileName) => {
+        const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
+        setUploadStatus(`${processed} von ${total} Dateien eingelesen (${shortName})`);
+      });
       const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
       onRowsChange(nextRows);
-      storeImportRows(nextRows);
-      setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen`);
+      try {
+        await storeImportRows(nextRows);
+        setUploadStatus(`${parsedRows.length} Dateien fertig eingelesen und lokal gespeichert`);
+      } catch (storageError) {
+        setUploadStatus(`${parsedRows.length} Dateien eingelesen; dauerhafte Speicherung nicht möglich: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+      }
     } catch (error) {
       setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
@@ -1573,7 +1592,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     onRowsChange([]);
     setSelectedFileCount(0);
     setUploadStatus("Kompletter Upload zurückgesetzt");
-    window.localStorage.removeItem("orisus_bfs_monitor_import_preview");
+    void clearStoredImportRows();
   }
 
   return (
@@ -1620,7 +1639,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         <PriorityCard label="Unterordner" value={String(countNestedUploadFolders(previewRows))} hint="rekursiv mitverarbeitet" tone="blue" />
       </section>
       <section className="insight-grid">
-        <InsightCard title="Importkontrolle" items={["Mandant-Nr. muss Standort treffen", "Kopf- und Positionssumme müssen passen", "Dubletten werden über Hash erkannt"]} />
+        <InsightCard title="Importkontrolle" items={["Mandant-Nr. muss Standort treffen", "Kopf- und Positionssumme müssen passen", "Dubletten über Abrechnungs-ID und Hash"]} />
         <InsightCard title="Ordnerstruktur" items={["Standortordner dürfen Jahresordner enthalten", "Monatsordner werden automatisch mitgelesen", "PDF-Pfade bleiben in der Vorschau sichtbar"]} />
         <InsightCard title="Freigabe vor Import" items={["Unbekannte Standorte prüfen", "Summenabweichungen klären", "Kassel erst ab 01.07.2026 erwarten"]} />
       </section>
@@ -1845,15 +1864,36 @@ function aggregateMovementReasons(rows: ImportPreviewRow[]) {
     .sort((a, b) => b.count - a.count || b.amount - a.amount);
 }
 
+const importStorageDbName = "orisus-bfs-monitor-imports";
+const importStorageStoreName = "imports";
+const importStorageRowsKey = "current-preview";
+const importStorageLegacyKey = "orisus_bfs_monitor_import_preview";
+
 function loadStoredImportRows() {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem("orisus_bfs_monitor_import_preview");
+  const raw = window.localStorage.getItem(importStorageLegacyKey);
   if (!raw) return [];
   try {
     return JSON.parse(raw) as ImportPreviewRow[];
   } catch {
     return [];
   }
+}
+
+async function loadStoredImportRowsFromDb() {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return [];
+  const db = await openImportDb();
+  return new Promise<ImportPreviewRow[]>((resolve, reject) => {
+    const transaction = db.transaction(importStorageStoreName, "readonly");
+    const request = transaction.objectStore(importStorageStoreName).get(importStorageRowsKey);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve((request.result as ImportPreviewRow[] | undefined) ?? []);
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
 }
 
 function mergeImportRows(existingRows: ImportPreviewRow[], nextRows: ImportPreviewRow[]) {
@@ -1871,8 +1911,73 @@ function importRowIdentity(row: ImportPreviewRow) {
   return row.fileHash ?? `${row.file}-${row.statementNo}-${row.date}`;
 }
 
-function storeImportRows(rows: ImportPreviewRow[]) {
-  window.localStorage.setItem("orisus_bfs_monitor_import_preview", JSON.stringify(rows));
+async function storeImportRows(rows: ImportPreviewRow[]) {
+  if (typeof window === "undefined") return;
+
+  try {
+    await storeImportRowsInDb(rows);
+    window.localStorage.removeItem(importStorageLegacyKey);
+    return;
+  } catch (dbError) {
+    try {
+      window.localStorage.setItem(importStorageLegacyKey, JSON.stringify(rows));
+    } catch {
+      throw new Error(dbError instanceof Error ? dbError.message : "Browser-Speicher voll");
+    }
+  }
+}
+
+async function storeImportRowsInDb(rows: ImportPreviewRow[]) {
+  if (!("indexedDB" in window)) throw new Error("IndexedDB nicht verfügbar");
+  const db = await openImportDb();
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(importStorageStoreName, "readwrite");
+    transaction.objectStore(importStorageStoreName).put(rows, importStorageRowsKey);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function clearStoredImportRows() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(importStorageLegacyKey);
+  if (!("indexedDB" in window)) return;
+  try {
+    const db = await openImportDb();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(importStorageStoreName, "readwrite");
+      transaction.objectStore(importStorageStoreName).delete(importStorageRowsKey);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  } catch {
+    // Reset should still clear the visible upload even if browser storage cleanup fails.
+  }
+}
+
+function openImportDb() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = window.indexedDB.open(importStorageDbName, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(importStorageStoreName)) {
+        request.result.createObjectStore(importStorageStoreName);
+      }
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
 }
 
 function formatBytes(bytes: number) {

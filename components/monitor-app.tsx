@@ -739,6 +739,9 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const recoveredAmount = recoveryMatches.reduce((sum, candidate) => sum + candidate.newAmount, 0);
   const stillOpenAmount = Math.max(deductionAmount - recoveredAmount, 0);
+  const deductionRate = selectedMetrics.submitted ? (deductionAmount / selectedMetrics.submitted) * 100 : 0;
+  const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
+  const notRecoveredRate = selectedMetrics.submitted ? (stillOpenAmount / selectedMetrics.submitted) * 100 : 0;
   const recoveryRate = deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
 
   return (
@@ -751,6 +754,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
         <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
+        <PriorityCard label="Stornoquote" value={`${cancellationRate.toFixed(2)} %`} hint="Stornos vom eingereichten Umsatz" period={selectedPeriod.label} tone={cancellationRate ? "amber" : "green"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -814,8 +818,10 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
         </div>
         <div className="priority-grid compact-priority">
           <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
+          <PriorityCard label="Abzugsquote" value={`${deductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={selectedPeriod.label} tone={deductionRate ? "red" : "green"} />
           <PriorityCard label="Wieder reingeholt" value={money.format(recoveredAmount)} hint={`${recoveryMatches.length} gematchte Neueinreichungen`} period={selectedPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
           <PriorityCard label="Noch nicht reingeholt" value={money.format(stillOpenAmount)} hint="Abzug minus gematchte Neueinreichung" period={selectedPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Nicht reingeholt Quote" value={`${notRecoveredRate.toFixed(2)} %`} hint="noch offen vom eingereichten Umsatz" period={selectedPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Matchingquote" value={`${recoveryRate.toFixed(0)} %`} hint="bezogen auf Abzugssumme" period={selectedPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
@@ -1736,6 +1742,18 @@ function metricExplanation(label: string, value: string, hint: string) {
   }
   if (normalized.includes("gesamtkosten")) {
     return `Herleitung: BFS-Gebühr netto plus erkannte MwSt. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("abzugsquote")) {
+    return `Herleitung: Rückläufer- plus Storno-/Rückgabebeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("nicht reingeholt")) {
+    return `Herleitung: Noch nicht durch spätere Neueinreichungen gematchter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("stornoquote")) {
+    return `Herleitung: Stornobeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  }
+  if (normalized.includes("matchingquote")) {
+    return `Herleitung: Wieder eingereichte beziehungsweise gematchte Beträge geteilt durch die gesamte Storno-/Rückgabe-Abzugssumme. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("gebühr")) {
     return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. Aktueller Wert: ${value}. Bezug: ${hint}.`;

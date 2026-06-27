@@ -13,7 +13,6 @@ import {
   ClipboardList,
   Download,
   ChevronDown,
-  FileArchive,
   FileText,
   FolderUp,
   HardDriveUpload,
@@ -88,9 +87,7 @@ const superAdminNav: NavSection[] = [
   {
     title: "Import & Prüfung",
     items: [
-      ["upload", "Monats-Sammelupload", FolderUp],
-      ["preview", "Import-Vorschau", ReceiptText],
-      ["history", "Import-Historie", FileArchive]
+      ["upload", "Import-Center", FolderUp]
     ]
   },
   {
@@ -327,9 +324,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
         {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} importRows={liveImportRows} />}
         {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-        {activeView === "upload" && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
-        {activeView === "preview" && <ImportPreview rows={previewRows} />}
-        {activeView === "history" && <ImportHistory rows={previewRows} />}
+        {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
         {activeView === "cases" && <CasesView cases={visibleCases} />}
         {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." />}
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
@@ -394,9 +389,9 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     answers: "Schnellantworten",
     claims: "Forderungen & Geldfluss",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
-    upload: "Monats-Sammelimport",
-    preview: "Import-Vorschau",
-    history: "Import-Historie",
+    upload: "Import-Center",
+    preview: "Import-Center",
+    history: "Import-Center",
     cases: "Offene BFS-Klärfälle",
     chargebacks: "Rückbelastungen",
     followups: "Wiedervorlagen",
@@ -2137,6 +2132,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
           </div>
         </section>
       )}
+      <ImportHistorySummary rows={previewRows} />
       <ImportPreview rows={previewRows} />
     </div>
   );
@@ -2153,6 +2149,158 @@ function countNestedUploadFolders(rows: ImportPreviewRow[]) {
     pathParts.slice(0, -1).forEach((_, index) => folders.add(pathParts.slice(0, index + 1).join("/")));
   });
   return folders.size;
+}
+
+function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
+  const months = buildImportHistoryMonths(rows);
+  const totalSubmitted = months.reduce((sum, month) => sum + month.submitted, 0);
+  const totalPayout = months.reduce((sum, month) => sum + month.payout, 0);
+  const totalCosts = months.reduce((sum, month) => sum + month.feeNet + month.feeVat + month.ewmaTotal, 0);
+  const totalRetained = months.reduce((sum, month) => sum + month.chargebackAmount, 0);
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Import-Status & Historie</h2>
+          <p>Ein gemeinsamer Überblick über hochgeladene Monate, Prüfstatus und die wichtigsten Summen vor der Detailfreigabe.</p>
+        </div>
+      </div>
+      <div className="case-summary-grid" aria-label="Import-Historie Gesamtsummen">
+        <article>
+          <span>Dateien gesamt</span>
+          <strong>{rows.length}</strong>
+        </article>
+        <article>
+          <span>Eingereichter Umsatz</span>
+          <strong>{money.format(totalSubmitted)}</strong>
+        </article>
+        <article>
+          <span>Auszahlungsbetrag</span>
+          <strong>{money.format(totalPayout)}</strong>
+        </article>
+        <article>
+          <span>Kosten BFS/EWMA</span>
+          <strong>{money.format(totalCosts)}</strong>
+        </article>
+        <article>
+          <span>Rückgaben/Stornos</span>
+          <strong>{money.format(totalRetained)}</strong>
+        </article>
+      </div>
+      <div className="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Monat</th>
+              <th>Standorte</th>
+              <th>Dateien</th>
+              <th>Prüfung</th>
+              <th>Umsatz</th>
+              <th>Auszahlung</th>
+              <th>BFS-Gebühr</th>
+              <th>MwSt</th>
+              <th>EWMA</th>
+              <th>Rückgaben/Stornos</th>
+              <th>Ohne Schutz</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((month) => (
+              <tr key={month.month}>
+                <td><strong>{month.label}</strong></td>
+                <td>{month.locations.join(", ") || "unbekannt"}</td>
+                <td>{month.rows}</td>
+                <td>
+                  <StatusBadge status={month.warnings ? `${month.warnings} prüfen` : "OK"} />
+                  <span>{month.importable} importfähig</span>
+                </td>
+                <td>{money.format(month.submitted)}</td>
+                <td>{money.format(month.payout)}</td>
+                <td>{money.format(month.feeNet)}</td>
+                <td>{money.format(month.feeVat)}</td>
+                <td>{money.format(month.ewmaTotal)}</td>
+                <td>{month.chargebackCount}<span>{money.format(month.chargebackAmount)}</span></td>
+                <td>{month.noProtectionCount}<span>{money.format(month.noProtectionAmount)}</span></td>
+              </tr>
+            ))}
+            {!months.length && (
+              <tr><td colSpan={11}>Noch keine Importdaten vorhanden.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function buildImportHistoryMonths(rows: ImportPreviewRow[]) {
+  const months = new Map<string, {
+    month: string;
+    label: string;
+    rows: number;
+    importable: number;
+    warnings: number;
+    submitted: number;
+    payout: number;
+    feeNet: number;
+    feeVat: number;
+    ewmaTotal: number;
+    chargebackCount: number;
+    chargebackAmount: number;
+    noProtectionCount: number;
+    noProtectionAmount: number;
+    locations: Set<string>;
+  }>();
+
+  rows.forEach((row) => {
+    const monthKey = importRowMonth(row) || "unbekannt";
+    const summary = summarizeImportRows([row]);
+    const current = months.get(monthKey) ?? {
+      month: monthKey,
+      label: monthKey === "unbekannt" ? "Monat unbekannt" : formatMetricMonth(monthKey),
+      rows: 0,
+      importable: 0,
+      warnings: 0,
+      submitted: 0,
+      payout: 0,
+      feeNet: 0,
+      feeVat: 0,
+      ewmaTotal: 0,
+      chargebackCount: 0,
+      chargebackAmount: 0,
+      noProtectionCount: 0,
+      noProtectionAmount: 0,
+      locations: new Set<string>()
+    };
+    const isOk = row.status.toLowerCase().includes("ok");
+
+    current.rows += 1;
+    current.importable += isOk ? 1 : 0;
+    current.warnings += isOk ? 0 : 1;
+    current.submitted += summary.submitted;
+    current.payout += summary.payout;
+    current.feeNet += summary.feeNet;
+    current.feeVat += summary.feeVat;
+    current.ewmaTotal += summary.ewmaTotal;
+    current.chargebackCount += summary.returnCount + summary.cancellationCount;
+    current.chargebackAmount += summary.returnAmount + summary.cancellationAmount;
+    current.noProtectionCount += summary.noProtectionCount;
+    current.noProtectionAmount += summary.noProtectionAmount;
+    if (row.location && row.location !== "Unbekannt") current.locations.add(row.location);
+    months.set(monthKey, current);
+  });
+
+  return [...months.values()]
+    .map((month) => ({
+      ...month,
+      locations: [...month.locations].sort()
+    }))
+    .sort((a, b) => {
+      if (a.month === "unbekannt") return 1;
+      if (b.month === "unbekannt") return -1;
+      return b.month.localeCompare(a.month);
+    });
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
@@ -2209,8 +2357,8 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Import-Vorschau</h2>
-            <p>Import wird erst nach Prüfung und Bestätigung final geschrieben.</p>
+            <h2>Prüfung & Detailvorschau</h2>
+            <p>Die Einzeldateien bleiben bis zur Bestätigung prüfbar; danach wertet die Demo diesen Datenstand aus.</p>
           </div>
           <button className="primary-button" onClick={() => setConfirmOpen(true)}>
             <CheckCircle2 size={16} /> Import bestätigen
@@ -3029,7 +3177,7 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
           <button onClick={() => onNavigate("cases")}><AlertCircle size={18} /> Offene Klärfälle gruppiert</button>
           <button onClick={() => onNavigate("chargebacks")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
           <button onClick={() => onNavigate("risks")}><ShieldCheck size={18} /> Ohne Ausfallschutz laufend</button>
-          <button onClick={() => onNavigate("history")}><FileArchive size={18} /> Monatsimport-Status</button>
+          <button onClick={() => onNavigate("upload")}><FolderUp size={18} /> Import-Center</button>
         </div>
       </section>
       <section className="panel">
@@ -3051,7 +3199,12 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
 }
 
 function ImportHistory({ rows }: { rows: ImportPreviewRow[] }) {
-  return <ImportPreview rows={rows} />;
+  return (
+    <div className="content-stack">
+      <ImportHistorySummary rows={rows} />
+      <ImportPreview rows={rows} />
+    </div>
+  );
 }
 
 function cloneStandorteForEditing() {

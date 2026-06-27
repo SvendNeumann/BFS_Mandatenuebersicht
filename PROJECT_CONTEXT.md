@@ -1,12 +1,37 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026
+Stand: 27.06.2026, nach Commit `2261686e`
+
+## Prompt fuer den naechsten Chat
+
+Kopiere diesen Prompt in den anderen Chat:
+
+```text
+Bitte lies zuerst die Datei `/Users/svendneumann/Documents/BFS_Mandantenportal/PROJECT_CONTEXT.md` vollstaendig ein und arbeite danach im Projekt `/Users/svendneumann/Documents/BFS_Mandantenportal` weiter.
+
+Wichtig:
+- Antworte auf Deutsch.
+- Aktualisiere bei jedem erledigten Auftrag diese Datei `PROJECT_CONTEXT.md`, damit der Projektstand fuer andere Chats immer aktuell bleibt.
+- Nutze die bestehende App-Struktur und aendere Fachlogik nur gezielt, wenn ich es konkret verlange.
+- Vor Codeaenderungen immer kurz die betroffenen Dateien pruefen, insbesondere `components/monitor-app.tsx`, `lib/bfs-parser.ts`, `lib/demo-import.ts`, `lib/demo-data.ts`, `lib/types.ts` und `app/globals.css`.
+- Die App heisst Orisus BFS Monitor.
+- Ziel ist eine CFO-/Standortleiter-App fuer BFS-Abrechnungen: Umsatz eingereicht, BFS-Gebuehr, MwSt, EWMA/Meldeamtabfragen, Auszahlungsbetrag, Stornos, Rueckgaben, offene Faelle, Matching, Wieder-Einreichungen, Patientenklassifizierung und Reports.
+- Aktueller Stand: Datenupload ist zurueckgesetzt; ohne Upload sollen Cockpit/Auswertungen leere Werte bzw. eine Keine-Daten-Meldung zeigen.
+- Wenn du Dateien ausserhalb des Repos lesen musst, frage gezielt nach Berechtigung.
+- Wenn du etwas aenderst: danach Typecheck/Build ausfuehren, committen und pushen.
+```
 
 ## Projekt
 
 Web-App: **Orisus BFS Monitor**
 
-Ziel der App: BFS-Abrechnungen je Standort auswerten, offene Klärfälle/Rückbelastungen/Stornos erkennen, Patienten ohne Ausfallschutz klassifizieren, Neueinreichungen nach Rückgabe/Storno matchen und CFO-/Standortleiter-Auswertungen ermöglichen.
+Ziel:
+- BFS-Abrechnungen je Standort auswerten.
+- Offene Klärfälle, Rückbelastungen und Stornos erkennen.
+- Patienten ohne Ausfallschutz klassifizieren.
+- Neueinreichungen nach Rückgabe/Storno matchen.
+- CFO- und Standortleiter-Auswertungen ermöglichen.
+- Reports für Standortleiter vorbereiten/exportieren.
 
 Repository:
 - Lokal: `/Users/svendneumann/Documents/BFS_Mandantenportal`
@@ -17,22 +42,59 @@ Deployment:
 - Vercel-Projekt ist angebunden.
 - App war erreichbar unter `bfs-mandatenuebersicht.vercel.app`.
 
-## Aktueller technischer Stand
+## Technischer Stand
 
 Framework:
 - Next.js App Router
 - React
 - TypeScript
-- Lokale Demo-/Uploaddaten im Browser, keine echte Produktivdatenbanklogik aktiv
-- Supabase-Struktur vorbereitet, aber Fachlogik aktuell primär clientseitig/Demo-Import
+- Clientseitiger Demo-/Live-Testupload über Browser-Speicher
+- Keine echte Produktivdatenbanklogik aktiv
+- Supabase-Struktur ist vorbereitet, aber die Fachlogik läuft aktuell primär clientseitig
 
 Wichtige Dateien:
 - `components/monitor-app.tsx`: Haupt-App, Navigation, Dashboards, KPIs, Upload, Tabellen, Reports, Matching-Views
 - `lib/bfs-parser.ts`: PDF-/BFS-Textparser
 - `lib/demo-import.ts`: Upload-Verarbeitung, Datei-/Ordnerimport, Vorschau, Matching-Hinweise
-- `lib/demo-data.ts`: Demo-Standorte, Demo-KPIs, Perioden-/Standortdaten
+- `lib/demo-data.ts`: Demo-Standorte, Perioden-/Standortdaten, Fallback-Daten
 - `lib/types.ts`: zentrale Typen
 - `app/globals.css`: komplettes Layout/Design/Responsive Styling
+- `public/orisus-zahnmedizin-logo.png`: aktuelles transparentes Orisus-Logo fuer App-Header/Sidebar
+
+Wichtige Hinweise:
+- `pnpm run typecheck` funktioniert.
+- `pnpm run build` funktioniert.
+- `pnpm run lint` ist aktuell im Projekt falsch verdrahtet und sucht einen nicht existierenden Ordner `lint`.
+
+## Aktueller App-Zustand
+
+### Datenstand / Upload
+
+Der Datenupload ist aktuell bewusst zurückgesetzt.
+
+Ohne Upload gilt:
+- Import-Center zeigt 0 Dateien.
+- Standort-Tabs zeigen `0 offen`.
+- Cockpit/Zusammenfassung, Auswertungen, Klärfälle, Risiko, Matching und Reports zeigen eine klare Meldung `Datenupload zurückgesetzt` bzw. keine Daten.
+- Demo-Importdaten werden nicht mehr automatisch als Fallback angezeigt.
+
+Reset-Logik:
+- Button `Upload zurücksetzen` löscht sichtbaren Datenstand.
+- Er löscht aktuelle und alte `localStorage`-Importkeys.
+- Er löscht aktuelle und alte IndexedDB-Importdatenbanken.
+- Statusmeldung: erst `Upload wird vollständig gelöscht`, danach `Kompletter Import gelöscht`.
+
+Speicher:
+- aktueller IndexedDB-Name: `orisus-bfs-monitor-imports-v2-reset`
+- alter IndexedDB-Name wird beim Reset ebenfalls gelöscht: `orisus-bfs-monitor-imports`
+- aktueller localStorage-Key: `orisus_bfs_monitor_import_preview_v2_reset`
+- alter localStorage-Key wird beim Reset ebenfalls gelöscht: `orisus_bfs_monitor_import_preview`
+
+Navigation lädt Daten frisch:
+- Beim Tabwechsel wird lokaler Datenstand erneut aus IndexedDB gelesen.
+- Standortwechsel lädt ebenfalls neu.
+- Interne App-Buttons/Kacheln nutzen denselben Navigationsweg wie die Sidebar.
+- Logo-Klick führt auf `Zusammenfassung` und lädt lokalen Datenstand frisch.
 
 ## Standorte
 
@@ -44,18 +106,134 @@ Aktive bzw. vorbereitete Standorte:
 - Hüttenberg, live seit 01.01.2026
 - Kassel, vorbereitet, live ab 01.07.2026
 
-Mandantennummern/Zuordnung:
+Bekannte Mandantennummern/Zuordnung:
 - Essen: u.a. `18790`
 - Ulmet: `19260`, `19668`, `19669`
 - Kassel/Spohr: `20309`, `20902`
 - Aligner-Konten sollen dem jeweiligen Standort zugeordnet werden, nicht separat behandelt werden.
 
-## Wichtige Fachlogik
+Standortverwaltung:
+- Es gibt im `Admin Bereich` eine Standortverwaltung.
+- Standortname, Praxisname, Go-live und BFS-Mandantennummern können bearbeitet werden.
+- Änderungen werden lokal im Browser gespeichert und für Demo-Zuordnung genutzt.
 
-### Upload
+## Navigation / UI-Begriffe
 
-Upload soll ganze Ordner und Unterordner unterstützen.
-Beispielstruktur:
+App-Name: **Orisus BFS Monitor**
+
+Hauptnavigation Super Admin:
+- Überblick
+  - Zusammenfassung
+  - Schnellantworten
+  - Forderungen & Geldfluss
+  - Prioritäten heute
+- Klärfälle
+  - Offene BFS-Klärfälle
+  - Rückbelastungen
+  - Wiedervorlagen
+- Risiko & Matching
+  - Ohne Ausfallschutz
+  - Wiederholer ohne Schutz
+  - Patientenklassifizierung
+  - Neueinreichungen
+- Auswertung
+  - Report-Center
+  - Maßnahmenkontrolle
+  - Gruppenreports
+- Import & Prüfung
+  - Import-Center
+- Admin Bereich
+  - Standorte
+  - Nutzer & Rollen
+  - Sicherheit & Regeln
+
+Wichtig:
+- Der frühere Tab `CFO-Cockpit` heißt jetzt **Zusammenfassung**.
+- Der frühere Bereich `Verwaltung` heißt jetzt **Admin Bereich**.
+- `Import-Vorschau` und `Import-Historie` wurden im **Import-Center** zusammengeführt.
+- `Auswertung` steht oberhalb von `Import & Prüfung`.
+- Upload-Buttons sollen nicht in normalen Auswertungs-/Standorttabs stehen; Upload nur im Import-Center.
+
+Accordion-Verhalten:
+- Sidebar-Gruppen sind sichtbare Accordion-Reiter.
+- Beim Wechsel des aktiven Tabs klappen andere Bereiche ein.
+- Mobile: Off-Canvas Drawer mit Overlay.
+- Desktop: Sidebar dauerhaft sichtbar.
+
+Logo:
+- Oben links steht das reguläre transparente Orisus-Zahnmedizin-Logo aus `public/orisus-zahnmedizin-logo.png`.
+- Nicht das quadratische App-Logo.
+- Klick auf das Logo führt immer zur **Zusammenfassung**.
+
+## Design / UX
+
+Designrichtung:
+- Dunkles Navy/Teal Premium-Dashboard.
+- Orisus-Zahnmedizin-Branding.
+- Management-Dashboard-Optik.
+- Keine grellen Gradients, keine Deko-Orbs.
+- Karten/Container mit feinem Border und transluzenter dunkler Fläche.
+
+Responsive:
+- Desktop und Mobile/Tablet müssen funktionieren.
+- Mobile Header ist fixed.
+- Mobile Navigation ist Drawer mit Overlay.
+- Der Nutzer will nicht nach jeder Kleinigkeit einen kompletten Mobile-Check; lieber grundsätzlich mobilkompatibel bauen und später gesamthaft prüfen.
+
+Diagramme:
+- Balkendiagramme haben interaktive Tooltips.
+- Desktop: Hover.
+- Mobile/Tablet: Tap.
+
+KPI-Kacheln:
+- Jede Kachel hat ein Info-Icon mit Herleitung.
+- Zeitraum-Badge ist sichtbar.
+- Herleitung soll fachlich nachvollziehbar sein.
+
+Aktuelle Ergänzung KPI-Herleitung:
+- Bei `Umsatz eingereicht`, `Auszahlungsbetrag`, `Gesamtkosten BFS`, `BFS-Gebühr netto` und `MwSt auf Gebühren` wird zusätzlich ausgewiesen:
+  - Umsatzverlust durch Stornos/Rückgaben
+  - Zusatzkosten ohne Steuer
+  - BFS-Gebühr netto
+  - EWMA/Meldeamtabfragen netto
+  - Steueranteil separat
+  - Auswirkung auf Auszahlungsbetrag/Gesamtabfluss
+
+## Fachlogik Geldfluss
+
+Grundsatz:
+- Umsatz eingereicht
+- BFS-Gebühr netto
+- MwSt auf BFS-Gebühr
+- EWMA/Meldeamtabfragen netto
+- MwSt auf EWMA/Zusatzkosten
+- Auszahlungsbetrag
+- Rückgaben/Rückbelastungen
+- Stornierungen
+- Storno-/Rückgabe-Abzug
+- Wieder reingeholt durch spätere Neueinreichung
+- Noch nicht reingeholt/offen
+
+Definitionen:
+- Gesamtkosten BFS = BFS-Gebühr netto + MwSt auf BFS-Gebühr
+- Zusatzkosten ohne Steuer = BFS-Gebühr netto + EWMA/Meldeamtabfragen netto
+- Steuer soll getrennt ausgewiesen werden
+- Stornos/Rückgaben sind kein normaler Kostenblock, sondern Umsatz-/Liquiditätsverlust bzw. Rückbelastung
+
+Quoten:
+- Stornoquote = Stornobetrag / eingereichter Umsatz
+- Abzugsquote = Rückläufer + Stornos / eingereichter Umsatz
+- Nicht reingeholt Quote = noch nicht gematchter Abzug / eingereichter Umsatz
+- Matchingquote = wieder reingeholter Betrag / gesamte Abzugssumme
+
+## Upload
+
+Upload soll unterstützen:
+- einzelne PDF-Dateien
+- mehrere PDF-Dateien
+- ganze Ordner
+- Ordner mit Unterordnern
+- Beispielstruktur:
 
 ```text
 BFS Uploads/
@@ -65,35 +243,52 @@ BFS Uploads/
         AbrechnungsNachweis_19260_56.pdf
 ```
 
-Die App soll rekursiv durch Unterordner laufen und alle PDFs einlesen.
+Die App soll rekursiv durch Unterordner laufen und PDF-Dateien einlesen.
 
 Wichtig:
-- Der Upload bleibt lokal im Browser/Demo-Modus gespeichert.
+- Upload bleibt aktuell lokal im Browser/Demo-Modus.
 - Trotzdem soll er sich wie Live-Daten verhalten.
-- Neue Rechnungen sollen erkannt werden.
+- Neue Rechnungen werden über Identität/Hash/Abrechnungsdaten zusammengeführt.
 - Doppelte Dateien werden über Hash/Dateiinformationen geprüft.
+- Import-Center enthält Upload, Monatsstatus/Historie und Detailprüfung.
 
-### BFS-Auswertung
+## BFS-Parser / Fachliche Erkennung
 
-Grundsatz für Geldfluss:
-- Umsatz eingereicht
+Parser soll erkennen:
+- Mandantennummer
+- Standort/Praxis über Mandantennummer und Hinweise
+- Abrechnungsnummer
+- Abrechnungsdatum
+- Anzahl Forderungen
+- Forderungssumme
+- Auszahlungsbetrag
 - BFS-Gebühr netto
 - MwSt auf Gebühren
-- Gesamtkosten BFS = BFS-Gebühr netto + MwSt
-- Auszahlungsbetrag
-- Rückgaben/Rückbelastungen
-- Stornierungen
-- Storno-/Rückgabe-Abzug
-- Wieder reingeholt durch spätere Neueinreichung
-- Noch nicht reingeholt/offen
+- EWMA/Meldeamtabfragen
+- MwSt auf EWMA
+- Patientenpositionen
+- Kennzeichen ohne Ausfallschutz
+- Kontoauszug-/Bewegungszeilen
+- Rückgaben/Stornos
+- Gründe/Bemerkungen
 
-Es gibt inzwischen explizite Quoten:
-- Stornoquote = Stornobetrag / eingereichter Umsatz
-- Abzugsquote = Rückläufer + Stornos / eingereichter Umsatz
-- Nicht reingeholt Quote = noch nicht gematchter Abzug / eingereichter Umsatz
-- Matchingquote = wieder reingeholter Betrag / gesamte Abzugssumme
+EWMA:
+- EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
-### Matching
+Gründe für Rückgaben/Stornos können variieren:
+- unzustellbar
+- laut Nachricht
+- laut Factoringsvereinbarung
+- ohne Ausfallschutz
+- laut iPortal-Rechnungsliste
+- sonstiger/neuer Grund
+
+Neue Gründe sollen nicht verloren gehen:
+- bekannte Gründe gruppieren
+- unbekannte/neue Gründe als `Sonstiger / neuer Grund` oder vergleichbar sichtbar halten
+- Originalwortlaut behalten
+
+## Matching
 
 Wichtigste fachliche Logik:
 Wenn ein Patient in einer Abrechnung eingereicht wurde und später in einer Kontoauszug-/Rückgabe-/Storno-Zeile auftaucht, muss erkannt werden:
@@ -101,103 +296,134 @@ Wenn ein Patient in einer Abrechnung eingereicht wurde und später in einer Kont
 - BFS-Nummer
 - Rechnungsnummer
 - Betrag
-- Grund/Bemerkung, z.B. unzustellbar, laut Nachricht, laut Factoringsvereinbarung, ohne Ausfallschutz, sonstiger Grund
+- Grund/Bemerkung
+- Datum
+- Quelle/Datei
 
 Wenn derselbe Patient später wieder in einer Forderungsliste auftaucht, soll das als Neueinreichung/Wiedereinholung erkannt werden.
 
-Offen ist vor allem:
-- exakte Auswertung realer großer Ordner, z.B. `/Users/svendneumann/Desktop/BFS Uploads/4. BFS_Ulmet/`
-- Vergleich, warum die App aktuell nur eine kleine offene Zahl anzeigt
-- unabhängige Parser-Auswertung gegen alle PDF-Dateien im Ordner
+Vorsicht:
+- `Zahlung nach Stornierung` wird nicht explizit gelesen.
+- Patienten werden ggf. einfach neu eingereicht.
+- Das kann aber auch eine neue Behandlung sein.
+- Matching muss konservativ bleiben und sollte nicht jede spätere Einreichung automatisch als Erledigung werten.
 
-## Aktuelle User-Frage vor Erstellung dieser Datei
+## Patientenklassifizierung
 
-Der User möchte den Ordner:
+Ziel:
+- Patienten je Standort klassifizieren.
+- Wiederholer ohne Ausfallschutz erkennen.
+- Red-Flag-Patienten sichtbar machen.
+- A-D-Klassifizierung vorbereiten:
+  - A = zahlt sauber / unauffällig
+  - B/C = beobachtungswürdig
+  - D = hohes Risiko / mehrfach nicht bezahlt / mehrfach ohne Ausfallschutz
+
+Wichtig:
+- Standortbezogen auswerten.
+- Gruppenweit vergleichbar machen.
+- Reports für Standortleiter möglich.
+
+## Reports
+
+Report-Center soll:
+- standortbezogene Reports exportieren
+- offene Klärfälle zeigen
+- Rückbelastungen/Stornos zeigen
+- ohne Ausfallschutz laufend zeigen
+- Wiederholer/Risikopatienten zeigen
+- Druck/PDF ermöglichen
+
+PDF-/Druckmodus:
+- weißer Druckhintergrund
+- kompakter Kopfbereich
+- keine dunklen App-Hintergrundflächen im PDF
+
+## Admin / Nutzer
+
+Super-User:
+- User: `Svend.neumann@orisus.de`
+- Rolle: Super Admin
+- Passwort wurde im Chat genannt, aber sollte nicht erneut in Kontextdateien festgehalten werden.
+
+Hinweis:
+- Keine Klartext-Passwörter in weitere Context-Dateien oder Commits schreiben.
+
+## Wichtige letzte Commits
+
+Aktuelle letzte Commits:
+- `2261686e` - Use clickable Orisus logo and refresh navigation data
+- `aad283db` - Collapse sidebar sections on view change
+- `21979e27` - Expand KPI derivation details
+- `597b3e4a` - Rename CFO cockpit to summary
+- `bf6f0602` - Use Orisus wordmark in app chrome
+- `0ed0a554` - Fully clear import storage on reset
+- `1c892722` - Reset uploaded data state
+- `118900d7` - Rename admin nav section
+- `fb986031` - Improve sidebar section separation
+- `f20cabb3` - Move reports section above import
+- `5bf95710` - Consolidate import center views
+- `0680fe7e` - Fix recurring risk card layout
+
+## Offene/naechste Themen
+
+Mögliche nächste Punkte:
+- Erneuter kompletter Live-Testupload mit echten BFS-PDFs.
+- Prüfen, ob nach Reset wirklich alle Werte leer sind.
+- Upload mit sehr vielen Dateien weiter stabilisieren, falls 829 Dateien wieder Fehlerseite erzeugen.
+- Große Ordner unabhängig auswerten und App-Anzeige dagegen challengen.
+- Vollständiger Mobile-/Tablet-/Desktop-Check am Ende eines größeren Blocks.
+
+Bekannter Ordner für Ulmet-Auswertung:
 
 ```text
 /Users/svendneumann/Desktop/BFS Uploads/4. BFS_Ulmet/
 ```
 
-komplett auswerten:
-- Wie viele offene Fälle/Stornierungen sind dort tatsächlich noch offen?
-- Wie viele Patienten haben nicht bezahlt bzw. wurden rückbelastet?
-- Was ist noch nicht wieder reingeholt?
-- Warum zeigt die App nur eine sehr kleine Zahl?
+In einem neuen Chat sind ggf. neue Leserechte für diesen Ordner nötig.
 
-Für diese Analyse wurden Leserechte auf den Ordner bereits angefragt und im aktuellen Chat für die Session genehmigt. In einem neuen Chat müssen die Leserechte ggf. erneut angefragt werden.
-
-Empfohlener nächster Schritt:
-1. PDFs im Ordner rekursiv zählen.
+Empfohlene Analyse für große PDF-Ordner:
+1. PDFs rekursiv zählen.
 2. Mit bestehendem Parser oder separatem Analyse-Script alle PDFs extrahieren.
 3. Bewegungen/Rückgaben/Stornos sammeln.
 4. Forderungslisten sammeln.
 5. Matching nach Patient, BFS-Nr., Rechnungsnummer, Datum und Betrag durchführen.
-6. Offene, wieder eingereichte und bezahlte/erledigte Fälle tabellarisch ausgeben.
+6. Offene, wieder eingereichte und erledigte Fälle tabellarisch ausgeben.
 7. Ergebnis mit App-Anzeige vergleichen.
 
-## UI-/UX-Stand
-
-Design:
-- Dunkles Navy/Teal Premium-Dashboard
-- Orisus-Zahnmedizin-Branding im mobilen Header
-- Mobile Header ist fixed
-- Desktop: Sidebar dauerhaft sichtbar
-- Mobile/Tablet: Off-Canvas Drawer mit Overlay
-- Drawer zeigt Nutzer/Sitzung, Rolle, Standort/Scope
-- Drawer hat `Neu laden` Button für harten Refresh
-- Navigation ist Accordion: immer nur ein Menübereich offen
-- Upload-Shortcut wurde aus den normalen Tabs entfernt; Upload nur über den Bereich `Import & Prüfung`
-
-Responsive:
-- App wurde mehrfach auf Mobile/Tablet geprüft
-- Später soll nochmal ein gesamter Mobile-Check erfolgen, aber nicht nach jeder kleinen Änderung
-
-Diagramme:
-- Balkendiagramme haben interaktive Tooltips
-- Desktop: Hover
-- Mobile/Tablet: Tap
-
-KPI-Kacheln:
-- Haben Info-Icon mit Herleitung
-- Zeitraum-Badge ist sichtbar, z.B. aktueller Monat, aktueller Datenstand, aktueller Testupload, Quartal/Jahr
-
-## Wichtige letzte Commits
-
-Letzte fachlich relevante Commits:
-- `e4aabe9` - Add interactive chart tooltips
-- `6c43800` - Add cancellation and recovery rates
-- `e87210c` - Remove global upload shortcut
-- `b4c1bad` - Improve mobile drawer session controls
-- `fe00c67` - Harden mobile responsive layout
+Ergebnis immer mit Summen liefern:
+- Anzahl Rückgaben/Stornos
+- Betrag Rückgaben/Stornos
+- Anzahl eindeutig Patienten zugeordnet
+- wieder eingereicht/gematcht
+- noch offen
+- offene Summe
+- wichtigste Patienten/Fälle
 
 ## Arbeitsweise/Wünsche des Users
 
 Der User möchte:
 - deutschsprachige Antworten
 - praktisch und direkt
-- keine unnötigen langen Mobile-Checks nach jeder Kleinigkeit
+- diese Datei `PROJECT_CONTEXT.md` bei jedem Auftrag/Command aktualisiert haben
+- keine unnötigen langen Mobile-Checks nach jeder kleinen Änderung
 - am Ende größerer Blöcke einmal sauber gesamt testen
 - keine fachliche Logik unnötig ändern, nur gezielt verbessern
 - App soll CFO-tauglich sein: schnell offene Beträge, Rückläufer, Stornos, Gebühren, MwSt, Auszahlungsbetrag, Quoten und Standortvergleiche sehen
+- Nach Änderungen: Typecheck/Build, committen und pushen
 
-## Wichtig für neuen Chat
+## Wichtig fuer neuen Chat
 
 Wenn ein neuer Chat diesen Kontext liest:
-1. Zuerst `PROJECT_CONTEXT.md` lesen.
-2. Dann bei Bedarf relevante Dateien prüfen:
+1. Zuerst diese Datei lesen.
+2. Dann relevante Dateien prüfen:
    - `components/monitor-app.tsx`
    - `lib/bfs-parser.ts`
    - `lib/demo-import.ts`
    - `lib/demo-data.ts`
    - `lib/types.ts`
+   - `app/globals.css`
 3. Bei Uploadordnern außerhalb des Repo-Lesezugriff explizit anfragen.
-4. Für große PDF-Auswertung nicht nur App-Anzeige glauben, sondern unabhängig alle PDF-Dateien auswerten.
-5. Ergebnis immer mit Summen liefern:
-   - Anzahl Rückgaben/Stornos
-   - Betrag Rückgaben/Stornos
-   - Anzahl eindeutig Patienten zugeordnet
-   - wieder eingereicht/gematcht
-   - noch offen
-   - offene Summe
-   - wichtigste Patienten/Fälle
-
+4. Bei großen PDF-Auswertungen nicht nur App-Anzeige glauben, sondern unabhängig alle PDF-Dateien auswerten.
+5. Keine Klartext-Passwörter in Code, Kontextdateien oder Commits schreiben.
+6. Nach jedem abgeschlossenen Auftrag die Datei `PROJECT_CONTEXT.md` mit dem neuen Stand, relevanten Commits und offenen Punkten aktualisieren.

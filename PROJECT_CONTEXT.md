@@ -44,7 +44,11 @@ Deployment:
 - Livegang am 27.06.2026 nach grünem `pnpm run typecheck`, grünem `pnpm run build` und erfolgreichem HTTP-Smoke-Test der Produktions-URL.
 - Supabase-Projekt: `dozcaktodvogbkiomcqo`.
 - Die Supabase-Migrationen 001-005 wurden am 27.06.2026 erfolgreich auf das Projekt angewendet.
-- Noch offen fuer vollstaendigen Livebetrieb: Vercel-Environment setzen und Supabase Auth-User anlegen.
+- Vercel-Production-Environment wurde am 27.06.2026 gesetzt:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- Nach dem Setzen der Environment-Variablen wurde ein neuer Production-Deploy gestartet und erfolgreich auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
+- Noch offen fuer vollstaendigen Livebetrieb: Supabase Auth-User anlegen und Login/Upload mit echtem User testen.
 
 ## Technischer Stand
 
@@ -82,7 +86,7 @@ Wichtige Hinweise:
   - `location_go_live_dates`
   - `production_import_hardening`
 - Verifiziert: alle 15 Public-Tabellen existieren, Storage-Bucket `bfs-documents` ist privat (`public=false`), 15 Mandantennummern sind Standort/Go-live-Datum zugeordnet.
-- Fuer echten Produktivbetrieb muessen in Vercel noch `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY` gesetzt und danach ein Redeploy gestartet werden.
+- Vercel Production Env ist gesetzt und redeployed. Smoke-Test: Landingpage erreichbar; `/dashboard` leitet ohne Session erwartungsgemaess auf `/login` um.
 - In Supabase Auth muss mindestens der Admin-User `svend.neumann@orisus.de` angelegt werden. Der Profiltrigger macht neue User mit dieser E-Mail automatisch zu `super_admin` und `active=true`. Falls der User bereits vorher existiert, muss das Profil manuell per SQL upserted werden.
 
 ## Aktueller App-Zustand

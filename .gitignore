@@ -11,3 +11,5 @@ coverage
 *.tsbuildinfo
 .vercel-home
 .pnpm-dlx-cache
+.vercel
+.env.local

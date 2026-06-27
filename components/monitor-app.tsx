@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  ClipboardCheck,
   ClipboardList,
   Download,
   ChevronDown,
@@ -95,6 +96,7 @@ const superAdminNav: NavSection[] = [
     title: "Auswertung",
     items: [
       ["reports", "Report-Center", FileText],
+      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
       ["groupReports", "Gruppenreports", BarChart3]
     ]
   },
@@ -138,6 +140,7 @@ const leadNav: NavSection[] = [
     title: "Auswertung",
     items: [
       ["reports", "Report-Center", FileText],
+      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
       ["settings", "Mein Profil & Sicherheit", UserRoundCheck]
     ]
   }
@@ -312,6 +315,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
         {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
+        {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
         {activeView === "locations" && <LocationsView />}
         {activeView === "users" && <UsersView />}
@@ -377,6 +381,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     matches: "Neueinreichungsvorschläge",
     reports: "Report-Center",
+    outcomes: "Maßnahmenkontrolle",
     groupReports: "Gruppenreports",
     locations: "Standorte",
     users: "Nutzerverwaltung",
@@ -1065,6 +1070,66 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
   });
 }
 
+function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+  const candidates = resubmissionCandidatesFromImportRows(rows);
+  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
+  const rawRows = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return [];
+
+    return (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .map((movement) => {
+        const key = `${normalizePatientName(movement.patientName ?? "")}:${row.date}:${movement.bfsNo ?? "-"}`;
+        const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
+        const reasonText = movement.reason?.toLowerCase() ?? "";
+        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        return {
+          month: monthLabelFromDate(row.date),
+          locationName: row.location,
+          patientName: movement.patientName ?? "Patient noch nicht gematcht",
+          amount: Math.abs(movement.amount ?? 0),
+          reworked: wasReworked || wasPaid,
+          paid: wasPaid,
+          open: !wasPaid
+        };
+      });
+  });
+
+  return groupOutcomeRows(rawRows);
+}
+
+function outcomeRowsFromCases(rows: BfsCase[]) {
+  return groupOutcomeRows(rows.map((row) => ({
+    month: "aktueller Stand",
+    locationName: row.locationName,
+    patientName: row.patientName,
+    amount: row.amount,
+    reworked: row.status.includes("neueinreichung") || row.status.includes("erledigt") || row.status.includes("klaerung"),
+    paid: row.status.includes("erledigt"),
+    open: !row.status.includes("erledigt")
+  })));
+}
+
+function groupOutcomeRows(rows: Array<{ month: string; locationName: string; patientName: string; amount: number; reworked: boolean; paid: boolean; open: boolean }>) {
+  const grouped = new Map<string, typeof rows>();
+  rows.forEach((row) => {
+    const key = `${row.month}:${row.locationName}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), row]);
+  });
+
+  return [...grouped.values()].map((entries) => ({
+    month: entries[0].month,
+    locationName: entries[0].locationName,
+    total: entries.length,
+    reworked: entries.filter((entry) => entry.reworked).length,
+    paid: entries.filter((entry) => entry.paid).length,
+    open: entries.filter((entry) => entry.open).length,
+    amount: entries.filter((entry) => entry.open).reduce((sum, entry) => sum + entry.amount, 0),
+    examples: entries.slice(0, 3).map((entry) => entry.patientName)
+  })).sort((a, b) => b.month.localeCompare(a.month) || a.locationName.localeCompare(b.locationName));
+}
+
 function ageFromShortDate(value: string) {
   const [day, month, year] = value.split(".").map(Number);
   const fullYear = year < 100 ? 2000 + year : year;
@@ -1084,6 +1149,11 @@ function normalizePatientName(value: string) {
 function importDateKey(value: string | undefined) {
   const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return match ? `${match[3]}${match[2]}${match[1]}` : "";
+}
+
+function monthLabelFromDate(value: string) {
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return match ? `${match[2]}.${match[3]}` : "ohne Datum";
 }
 
 function reasonLabel(reasonCategory?: string) {
@@ -1789,6 +1859,68 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
         ) : (
           <p className="empty-state">Keine mehrfachen Patienten ohne Ausfallschutz im aktuellen Datenstand.</p>
         )}
+      </section>
+    </div>
+  );
+}
+
+function OutcomeControlView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+  const outcomeRows = outcomeRowsFromImportRows(importRows, standort?.id);
+  const fallbackRows = outcomeRows.length ? outcomeRows : outcomeRowsFromCases(rows);
+  const totals = fallbackRows.reduce((sum, row) => ({
+    total: sum.total + row.total,
+    reworked: sum.reworked + row.reworked,
+    paid: sum.paid + row.paid,
+    open: sum.open + row.open,
+    amount: sum.amount + row.amount
+  }), { total: 0, reworked: 0, paid: 0, open: 0, amount: 0 });
+  const successRate = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0;
+
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
+        <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
+        <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${successRate} % Erfolgsquote`} tone="green" />
+        <PriorityCard label="Noch offen" value={String(totals.open)} hint={money.format(totals.amount)} tone={totals.open ? "red" : "green"} />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{standort ? `Maßnahmenkontrolle ${standort.name}` : "Maßnahmenkontrolle Gruppe"}</h2>
+            <p>Zeigt je Standort und Monat, ob stornierte oder zurückgegebene Fälle nachbearbeitet wurden und ob daraus eine Erledigung erkennbar ist.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Monat</th>
+                <th>Standort</th>
+                <th>Ausgangsfälle</th>
+                <th>Nachbearbeitet</th>
+                <th>Bezahlt / erledigt</th>
+                <th>Noch offen</th>
+                <th>Offener Betrag</th>
+                <th>Beispiele</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fallbackRows.map((row) => (
+                <tr key={`${row.locationName}-${row.month}`}>
+                  <td><strong>{row.month}</strong></td>
+                  <td>{row.locationName}</td>
+                  <td>{row.total}</td>
+                  <td>{row.reworked}</td>
+                  <td>{row.paid}</td>
+                  <td>{row.open}</td>
+                  <td>{money.format(row.amount)}</td>
+                  <td>{row.examples.join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

@@ -1042,6 +1042,129 @@ td small {
   margin-bottom: 18px;
 }
 
+.answer-cockpit {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, #ffffff 0%, #f5fbfa 58%, #f4f8ff 100%);
+  box-shadow: var(--shadow-soft);
+  padding: 18px;
+}
+
+.answer-cockpit.compact {
+  padding: 16px;
+}
+
+.answer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.answer-header h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+.answer-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.answer-grid button {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink-soft);
+  padding: 14px;
+  text-align: left;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.answer-grid button:hover {
+  transform: translateY(-2px);
+  border-color: #b9d8ff;
+  box-shadow: var(--shadow);
+}
+
+.answer-grid span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.answer-grid strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.answer-grid small {
+  color: var(--muted);
+}
+
+.cashflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cashflow-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
+}
+
+.cashflow-card > div:first-child strong,
+.cashflow-card > div:first-child span {
+  display: block;
+}
+
+.cashflow-card > div:first-child span {
+  color: var(--muted);
+}
+
+.cashflow-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cashflow-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--soft-line);
+  padding-bottom: 8px;
+}
+
+.cashflow-card dl div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.cashflow-card dt {
+  color: var(--muted);
+}
+
+.cashflow-card dd {
+  margin: 0;
+  color: #111827;
+  font-weight: 800;
+  text-align: right;
+}
+
 /* Modern workspace polish */
 .sidebar {
   background:
@@ -1462,7 +1585,9 @@ th:first-child {
   .insight-grid,
   .priority-grid,
   .report-type-grid,
-  .filter-grid {
+  .filter-grid,
+  .answer-grid,
+  .cashflow-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1502,8 +1627,14 @@ th:first-child {
   .insight-grid,
   .priority-grid,
   .report-type-grid,
-  .filter-grid {
+  .filter-grid,
+  .answer-grid,
+  .cashflow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .answer-header {
+    display: grid;
   }
 }
 

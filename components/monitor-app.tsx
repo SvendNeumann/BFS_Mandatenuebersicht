@@ -54,8 +54,10 @@ const superAdminNav: NavSection[] = [
   {
     title: "Überblick",
     items: [
-      ["dashboard", "Gruppen-Dashboard", LayoutDashboard],
-      ["worklist", "Prioritäten heute", ClipboardList]
+      ["dashboard", "CFO-Cockpit", LayoutDashboard],
+      ["answers", "Schnellantworten", ClipboardList],
+      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["worklist", "Prioritäten heute", AlertCircle]
     ]
   },
   {
@@ -103,7 +105,9 @@ const leadNav: NavSection[] = [
     title: "Mein Standort",
     items: [
       ["dashboard", "Standort-Dashboard", LayoutDashboard],
-      ["worklist", "Meine Prioritäten", ClipboardList]
+      ["answers", "Schnellantworten", ClipboardList],
+      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["worklist", "Meine Prioritäten", AlertCircle]
     ]
   },
   {
@@ -240,6 +244,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />
         )}
         {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={setActiveView} />}
+        {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={selectedStandort} cases={visibleCases} onNavigate={setActiveView} />}
+        {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} />}
         {activeView === "upload" && <UploadView />}
         {activeView === "preview" && <ImportPreview rows={importPreviewRows} />}
         {activeView === "history" && <ImportHistory />}
@@ -300,7 +306,9 @@ function AccessGate({ title, message }: { title: string; message: string }) {
 
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
-    dashboard: role === "super_admin" && isGroupScope ? "Gruppen-Dashboard" : "Standort-Dashboard",
+    dashboard: role === "super_admin" && isGroupScope ? "CFO-Cockpit" : "Standort-Dashboard",
+    answers: "Schnellantworten",
+    claims: "Forderungen & Geldfluss",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Monats-Sammelimport",
     preview: "Import-Vorschau",
@@ -350,6 +358,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
         onFocusChange={setGroupFocus}
       />
       <KpiGrid cards={groupKpis} />
+      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -477,6 +486,7 @@ function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort
   return (
     <div className="content-stack">
       <KpiGrid standort={standort} />
+      <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -500,6 +510,117 @@ function LocationDashboard({ standort, cases, onNavigate }: { standort: Standort
         </article>
       </section>
       <CasesView cases={cases} compact />
+    </div>
+  );
+}
+
+function AnswerCockpit({
+  scope,
+  standort,
+  cases: rows,
+  onNavigate,
+  compact = false
+}: {
+  scope: "group" | "location";
+  standort?: Standort;
+  cases: BfsCase[];
+  onNavigate: (view: string) => void;
+  compact?: boolean;
+}) {
+  const relevantStandorte = standort ? [standort] : standorte;
+  const openCases = rows.filter((fall) => !fall.status.includes("erledigt"));
+  const chargebacks = openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"));
+  const riskTotal = riskClaims
+    .filter((claim) => relevantStandorte.some((entry) => entry.id === claim.standortId))
+    .reduce((sum, claim) => sum + claim.amount, 0);
+  const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const submitted = relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
+  const fees = relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
+  const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
+
+  return (
+    <section className={compact ? "answer-cockpit compact" : "answer-cockpit"}>
+      <div className="answer-header">
+        <div>
+          <span className="eyebrow">CFO-Schnellantworten</span>
+          <h2>{title}</h2>
+        </div>
+        <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>
+      </div>
+      <div className="answer-grid">
+        <button onClick={() => onNavigate("claims")}>
+          <span>Wie viel wurde eingereicht?</span>
+          <strong>{money.format(submitted)}</strong>
+          <small>aktueller Monat</small>
+        </button>
+        <button onClick={() => onNavigate("cases")}>
+          <span>Was ist noch offen?</span>
+          <strong>{money.format(openAmount)}</strong>
+          <small>{openCases.length} offene Klärfälle</small>
+        </button>
+        <button onClick={() => onNavigate("chargebacks")}>
+          <span>Wie viele Rückläufer?</span>
+          <strong>{chargebacks.length}</strong>
+          <small>{money.format(chargebacks.reduce((sum, fall) => sum + fall.amount, 0))}</small>
+        </button>
+        <button onClick={() => onNavigate("risks")}>
+          <span>Ohne Ausfallschutz?</span>
+          <strong>{money.format(riskTotal)}</strong>
+          <small>laufende Risikohinweise</small>
+        </button>
+        <button onClick={() => onNavigate("claims")}>
+          <span>BFS-Gebühren?</span>
+          <strong>{money.format(fees)}</strong>
+          <small>aktueller Monat</small>
+        </button>
+        <button onClick={() => onNavigate("worklist")}>
+          <span>Ältester offener Fall?</span>
+          <strong>{oldest} Tage</strong>
+          <small>Priorität zuerst klären</small>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases: BfsCase[] }) {
+  const rowsStandorte = standort ? [standort] : standorte;
+  return (
+    <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{standort ? `Forderungen & Geldfluss ${standort.name}` : "Forderungen & Geldfluss Gruppe"}</h2>
+            <p>Vom Monatsimport bis zur Rückfrage: eingereicht, Gebühren, offene Klärfälle, Rückläufer und Risiko je Standort.</p>
+          </div>
+        </div>
+        <div className="cashflow-grid">
+          {rowsStandorte.map((entry) => {
+            const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
+            const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
+            const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
+            const paidEstimate = Math.max(entry.submittedThisMonth - entry.feesThisMonth - openAmount, 0);
+            return (
+              <article className="cashflow-card" key={entry.id}>
+                <div>
+                  <strong>{entry.name}</strong>
+                  <span>{entry.praxisname}</span>
+                </div>
+                <dl>
+                  <div><dt>Eingereicht</dt><dd>{money.format(entry.submittedThisMonth)}</dd></div>
+                  <div><dt>geschätzt gutgeschrieben</dt><dd>{money.format(paidEstimate)}</dd></div>
+                  <div><dt>BFS-Gebühren</dt><dd>{money.format(entry.feesThisMonth)}</dd></div>
+                  <div><dt>offene Klärfälle</dt><dd>{money.format(openAmount)}</dd></div>
+                  <div><dt>Rückläufer offen</dt><dd>{money.format(entry.openChargebacks)}</dd></div>
+                  <div><dt>ohne Ausfallschutz</dt><dd>{money.format(riskAmount)}</dd></div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+      <CasesView cases={rows.filter((fall) => !fall.status.includes("erledigt"))} title="Offene Positionen zu diesem Geldfluss" description="Alle offenen Fälle, die den Forderungs- und Rückläuferstand erklären." />
     </div>
   );
 }

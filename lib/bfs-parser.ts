@@ -10,6 +10,9 @@ export type ParsedBfsDocument = {
   feeTotal: number;
   feeNet: number;
   feeVat: number;
+  ewmaNet: number;
+  ewmaVat: number;
+  ewmaTotal: number;
   netRevenue: number;
   payout: number;
   noProtectionCount: number;
@@ -39,6 +42,7 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
   const movements = parseMovements(lines, claims);
   const noProtectionStats = parseNoProtectionStats(lines, claims);
   const feeBreakdown = parseFeeBreakdown(text);
+  const ewmaBreakdown = parseEwmaBreakdown(movements);
 
   return {
     mandantNo: text.match(/Mandant-Nr:?\s*(\d{4,6})/i)?.[1] ?? headerTriple?.[1],
@@ -50,6 +54,9 @@ export function parseBfsText(rawText: string): ParsedBfsDocument {
     feeTotal: feeBreakdown.total,
     feeNet: feeBreakdown.net,
     feeVat: feeBreakdown.vat,
+    ewmaNet: ewmaBreakdown.net,
+    ewmaVat: ewmaBreakdown.vat,
+    ewmaTotal: ewmaBreakdown.total,
     netRevenue: parseAmount(text.match(/Umsatz Netto\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00"),
     payout: parseAmount(text.match(/Auszahlung\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? text.match(/Regulierungsbetrag in Höhe von\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)?.[1] ?? "0,00"),
     noProtectionCount: noProtectionStats.count,
@@ -74,6 +81,21 @@ function parseFeeBreakdown(text: string) {
     total,
     net,
     vat
+  };
+}
+
+function parseEwmaBreakdown(movements: ParsedImportMovement[]) {
+  const net = roundMoney(movements
+    .filter((movement) => movement.type === "ewma_anfrage")
+    .reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0));
+  const vat = roundMoney(movements
+    .filter((movement) => movement.type === "ewma_mwst")
+    .reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0));
+
+  return {
+    net,
+    vat,
+    total: roundMoney(net + vat)
   };
 }
 
@@ -134,9 +156,13 @@ function parseClaims(lines: string[]): ParsedImportClaim[] {
       bfsNo: match[3],
       amount: parseAmount(match[4]),
       marker,
-      protectionStatus: marker === "*KA" ? "ohne_ausfallschutz" : "mit_ausfallschutz"
+      protectionStatus: isNoProtectionMarker(marker) ? "ohne_ausfallschutz" : "mit_ausfallschutz"
     }];
   });
+}
+
+function isNoProtectionMarker(marker: string | undefined) {
+  return ["*NB", "*RS", "*AA", "*PM", "*FÜ", "*KA"].includes(marker ?? "");
 }
 
 function parseMovements(lines: string[], claims: ParsedImportClaim[]): ParsedImportMovement[] {
@@ -159,7 +185,7 @@ function parseMovements(lines: string[], claims: ParsedImportClaim[]): ParsedImp
     const patientName = matchedClaim?.patientName ?? continuation.patientName ?? extractMovementPatient(line);
     movements.push({
       date,
-      type: movementType(line),
+      type: movementType(line, kontoLines[index - 1]),
       reason: finalReason,
       reasonCategory: reasonCategory(finalReason, line),
       patientName,
@@ -190,13 +216,15 @@ function parseNoProtectionStats(lines: string[], claims: ParsedImportClaim[]) {
   };
 }
 
-function movementType(line: string) {
+function movementType(line: string, previousLine?: string) {
   const lower = line.toLowerCase();
+  const previousLower = previousLine?.toLowerCase() ?? "";
   if (lower.includes("abr.-umsatz")) return "abr_umsatz";
   if (lower.includes("regulierung") || lower.includes("überweisung")) return "regulierung_ueberweisung";
   if (lower.includes("storno liquidation")) return "storno_liquidation_praxis";
   if (lower.includes("rückgabe") && (lower.includes("ausfallschutz") || lower.includes("rückgabe ohne"))) return "rueckgabe_ohne_ausfallschutz";
   if (lower.includes("rückbelastung")) return "sonstige_rueckbelastung";
+  if (lower.includes("mwst") && previousLower.includes("ewma")) return "ewma_mwst";
   if (lower.includes("mwst")) return "mwst";
   if (lower.includes("ewma")) return "ewma_anfrage";
   return "unbekannt";
@@ -275,4 +303,8 @@ function normalizeText(text: string) {
 
 function parseAmount(value: string) {
   return Number(value.replaceAll(".", "").replace(",", "."));
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
 }

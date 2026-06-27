@@ -751,6 +751,7 @@ function AnswerCockpit({
   const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? fallbackMetrics.fees;
   const feeNet = importSummary.rows ? importSummary.feeNet : periodMetrics?.feeNet ?? fees;
   const feeVat = importSummary.rows ? importSummary.feeVat : periodMetrics?.feeVat ?? 0;
+  const ewmaTotal = importSummary.rows ? importSummary.ewmaTotal : periodMetrics?.ewmaTotal ?? 0;
   const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : (periodMetrics?.noProtectionAmount ?? fallbackMetrics.noProtectionAmount) || riskTotal;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
@@ -799,7 +800,7 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Kosten?</span>
           <strong>{money.format(fees)}</strong>
-          <small>Gebühr {money.format(feeNet)} · MwSt {money.format(feeVat)}</small>
+          <small>Gebühr {money.format(feeNet)} · MwSt {money.format(feeVat)}{ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}</small>
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
@@ -835,6 +836,16 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const recoveredAmount = recoveryMatches.reduce((sum, candidate) => sum + candidate.newAmount, 0);
   const stillOpenAmount = Math.max(deductionAmount - recoveredAmount, 0);
+  const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
+  const deductionBreakdown = [
+    { label: "Stornierungen", amount: selectedMetrics.cancellationAmount, detail: `${selectedMetrics.cancellationCount} Fälle`, kind: "Kontoauszug-Abzug" },
+    { label: "Rückläufer/Rückgaben", amount: selectedMetrics.returnAmount, detail: `${selectedMetrics.returnCount} Fälle`, kind: "Kontoauszug-Abzug" },
+    { label: "BFS-Gebühr netto", amount: selectedMetrics.feeNet, detail: "Factoring-/Bearbeitungsgebühr", kind: "BFS-Kosten" },
+    { label: "MwSt auf BFS-Gebühr", amount: selectedMetrics.feeVat, detail: "Steuer auf BFS-Gebühr", kind: "Steuer" },
+    { label: "EWMA / Adressprüfung netto", amount: selectedMetrics.ewmaNet, detail: "Einwohnermeldeamt-Abfragen", kind: "Adressprüfung" },
+    { label: "MwSt auf EWMA", amount: selectedMetrics.ewmaVat, detail: "Steuer auf EWMA", kind: "Steuer" }
+  ].sort((a, b) => b.amount - a.amount);
+  const biggestDeduction = deductionBreakdown.find((entry) => entry.amount > 0);
   const deductionRate = selectedMetrics.submitted ? (deductionAmount / selectedMetrics.submitted) * 100 : 0;
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = selectedMetrics.submitted ? (stillOpenAmount / selectedMetrics.submitted) * 100 : 0;
@@ -846,11 +857,50 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
         <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint="Summe aus Abrechnungen" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="EWMA / Adressprüfung" value={money.format(selectedMetrics.ewmaTotal)} hint={`netto ${money.format(selectedMetrics.ewmaNet)} · MwSt ${money.format(selectedMetrics.ewmaVat)}`} period={selectedPeriod.label} tone={selectedMetrics.ewmaTotal ? "amber" : "green"} />
         <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint="nach BFS-Abzug" period={selectedPeriod.label} tone="green" />
         <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Gesamtabzug" value={money.format(totalCostAndDeductions)} hint="BFS-Gebühr, MwSt, EWMA und Storno/Rückgabe" period={selectedPeriod.label} tone={totalCostAndDeductions ? "red" : "green"} />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
         <PriorityCard label="Stornoquote" value={`${cancellationRate.toFixed(2)} %`} hint="Stornos vom eingereichten Umsatz" period={selectedPeriod.label} tone={cancellationRate ? "amber" : "green"} />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Abzugsanalyse nach Kostenart</h2>
+            <p>Zeitraum: {selectedPeriod.label}. Sortiert danach, welche Abzugsart neben Stornos/Rückgaben am meisten Geld kostet.</p>
+          </div>
+        </div>
+        <div className="priority-grid compact-priority">
+          <PriorityCard label="Größter Abzug" value={biggestDeduction ? money.format(biggestDeduction.amount) : "0,00 €"} hint={biggestDeduction?.label ?? "keine Abzüge"} period={selectedPeriod.label} tone={biggestDeduction ? "red" : "green"} />
+          <PriorityCard label="Kosten ohne Storno" value={money.format(selectedMetrics.fees + selectedMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={selectedPeriod.label} tone={selectedMetrics.fees + selectedMetrics.ewmaTotal ? "amber" : "green"} />
+          <PriorityCard label="Storno/Rückgabe" value={money.format(deductionAmount)} hint="echte Kontoauszug-Abzüge" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
+        </div>
+        <div className="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Abzugsart</th>
+                <th>Kategorie</th>
+                <th>Betrag</th>
+                <th>Anteil am Umsatz</th>
+                <th>Hinweis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deductionBreakdown.map((entry) => (
+                <tr key={entry.label}>
+                  <td><strong>{entry.label}</strong></td>
+                  <td>{entry.kind}</td>
+                  <td>{money.format(entry.amount)}</td>
+                  <td>{selectedMetrics.submitted ? `${((entry.amount / selectedMetrics.submitted) * 100).toFixed(2)} %` : "0,00 %"}</td>
+                  <td>{entry.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -894,7 +944,9 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [] }: { standort?:
                   <div><dt>Auszahlungsbetrag</dt><dd>{money.format(paidEstimate)}</dd></div>
                   <div><dt>BFS-Gebühr netto</dt><dd>{money.format(periodCashflow.feeNet)}</dd></div>
                   <div><dt>MwSt</dt><dd>{money.format(periodCashflow.feeVat)}</dd></div>
+                  <div><dt>EWMA / Adressprüfung</dt><dd>{money.format(periodCashflow.ewmaTotal)}</dd></div>
                   <div><dt>Gesamtkosten BFS</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
+                  <div><dt>Gesamtabzug</dt><dd>{money.format(periodCashflow.fees + periodCashflow.ewmaTotal + periodCashflow.returnAmount + periodCashflow.cancellationAmount)}</dd></div>
                   <div><dt>offene Klärfälle</dt><dd>{money.format(openAmount)}</dd></div>
                   <div><dt>Rückläufer</dt><dd>{periodCashflow.returnCount} / {money.format(periodCashflow.returnAmount)}</dd></div>
                   <div><dt>Stornos</dt><dd>{periodCashflow.cancellationCount} / {money.format(periodCashflow.cancellationAmount)}</dd></div>
@@ -1147,6 +1199,10 @@ function cashflowForPeriod(standort: Standort, period: PeriodOption) {
     fees: metric.fees,
     feeNet: metric.fees,
     feeVat: 0,
+    ewmaNet: 0,
+    ewmaVat: 0,
+    ewmaTotal: 0,
+    totalCost: metric.fees,
     returnCount: metric.returnCount,
     returnAmount: metric.returnAmount,
     cancellationCount: metric.cancellationCount,
@@ -1165,6 +1221,10 @@ function aggregateMetrics(standortIds: string[], period: PeriodOption) {
     fees,
     feeNet: fees,
     feeVat: 0,
+    ewmaNet: 0,
+    ewmaVat: 0,
+    ewmaTotal: 0,
+    totalCost: fees,
     feeRate: submitted ? (fees / submitted) * 100 : 0,
     returnCount: selected.reduce((sum, metric) => sum + metric.returnCount, 0),
     returnAmount: selected.reduce((sum, metric) => sum + metric.returnAmount, 0),
@@ -1187,6 +1247,9 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
   const fees = rows.reduce((sum, row) => sum + rowFeeAmount(row), 0);
   const feeNet = rows.reduce((sum, row) => sum + rowFeeNetAmount(row), 0);
   const feeVat = rows.reduce((sum, row) => sum + rowFeeVatAmount(row), 0);
+  const ewmaNet = rows.reduce((sum, row) => sum + rowEwmaNetAmount(row), 0);
+  const ewmaVat = rows.reduce((sum, row) => sum + rowEwmaVatAmount(row), 0);
+  const ewmaTotal = rows.reduce((sum, row) => sum + rowEwmaAmount(row), 0);
   const payout = rows.reduce((sum, row) => sum + (row.payout ?? 0), 0);
   const noProtectionAmount = rows.reduce((sum, row) => sum + rowNoProtectionAmount(row), 0);
   const noProtectionCount = rows.reduce((sum, row) => sum + rowNoProtectionCount(row), 0);
@@ -1198,6 +1261,9 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
     fees,
     feeNet,
     feeVat,
+    ewmaNet,
+    ewmaVat,
+    ewmaTotal,
     feeRate: submitted ? (fees / submitted) * 100 : 0,
     returnCount: returnMovements.length,
     returnAmount: returnMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0),
@@ -1236,6 +1302,26 @@ function rowFeeVatAmount(row: ImportPreviewRow) {
   return 0;
 }
 
+function rowEwmaAmount(row: ImportPreviewRow) {
+  if (row.ewmaTotal && row.ewmaTotal > 0) return row.ewmaTotal;
+  const fromParts = rowEwmaNetAmount(row) + rowEwmaVatAmount(row);
+  return Math.round(fromParts * 100) / 100;
+}
+
+function rowEwmaNetAmount(row: ImportPreviewRow) {
+  if (row.ewmaNet && row.ewmaNet > 0) return row.ewmaNet;
+  return row.parsedMovements
+    ?.filter((movement) => movement.type === "ewma_anfrage")
+    .reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0) ?? 0;
+}
+
+function rowEwmaVatAmount(row: ImportPreviewRow) {
+  if (row.ewmaVat && row.ewmaVat > 0) return row.ewmaVat;
+  return row.parsedMovements
+    ?.filter((movement) => movement.type === "ewma_mwst")
+    .reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0) ?? 0;
+}
+
 function rowFeeAmountFallbackNet(row: ImportPreviewRow) {
   if (row.feeTotal && row.feeTotal > 0) return row.feeTotal;
   const submitted = rowSubmittedAmount(row);
@@ -1271,6 +1357,10 @@ function metricsFromImportSummary(summary: ImportSummary) {
     fees: summary.fees,
     feeNet: summary.feeNet,
     feeVat: summary.feeVat,
+    ewmaNet: summary.ewmaNet,
+    ewmaVat: summary.ewmaVat,
+    ewmaTotal: summary.ewmaTotal,
+    totalCost: summary.fees + summary.ewmaTotal,
     feeRate: summary.feeRate,
     returnCount: summary.returnCount,
     returnAmount: summary.returnAmount,
@@ -2119,6 +2209,9 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                           <span>MwSt {money.format(rowFeeVatAmount(row))}</span>
                           <span>Gesamtkosten {money.format(rowFeeAmount(row))}</span>
                         </>
+                      )}
+                      {!!rowEwmaAmount(row) && (
+                        <span>EWMA {money.format(rowEwmaAmount(row))} inkl. MwSt</span>
                       )}
                       {!!rowReasons.length && (
                         <>

@@ -80,6 +80,9 @@ export type ImportPreviewRow = {
   feeTotal?: number;
   feeNet?: number;
   feeVat?: number;
+  ewmaNet?: number;
+  ewmaVat?: number;
+  ewmaTotal?: number;
   netRevenue?: number;
   payout?: number;
   parsedClaims?: ParsedImportClaim[];

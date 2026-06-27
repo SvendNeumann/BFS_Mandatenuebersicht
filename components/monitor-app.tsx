@@ -310,7 +310,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." />}
         {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
         {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
-        {activeView === "matches" && <MatchesView cases={visibleCases} />}
+        {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
         {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={setActiveView} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
         {activeView === "locations" && <LocationsView />}
@@ -1017,6 +1017,54 @@ function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
   });
 }
 
+function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
+  const claims = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    return (row.parsedClaims ?? []).map((claim) => ({
+      ...claim,
+      file: row.file,
+      locationName: row.location,
+      standortId: standort?.id ?? row.location,
+      statementDate: row.date,
+      statementNo: row.statementNo
+    }));
+  });
+  const relevantMovements = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    return (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .map((movement) => ({
+        ...movement,
+        file: row.file,
+        locationName: row.location,
+        standortId: standort?.id ?? row.location,
+        statementDate: row.date
+      }));
+  });
+
+  return relevantMovements.flatMap((movement) => {
+    const patientKey = normalizePatientName(movement.patientName ?? "");
+    if (!patientKey) return [];
+    return claims
+      .filter((claim) => normalizePatientName(claim.patientName) === patientKey && importDateKey(claim.statementDate) > importDateKey(movement.statementDate))
+      .slice(0, 3)
+      .map((claim) => ({
+        patientName: claim.patientName,
+        locationName: movement.locationName,
+        originalDate: movement.statementDate,
+        invoiceNo: movement.invoiceNo ?? "-",
+        bfsNo: movement.bfsNo ?? "-",
+        reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+        originalAmount: Math.abs(movement.amount ?? 0),
+        newDate: claim.statementDate,
+        newInvoiceNo: claim.invoiceNo,
+        newBfsNo: claim.bfsNo,
+        newAmount: claim.amount,
+        newFile: claim.file
+      }));
+  });
+}
+
 function ageFromShortDate(value: string) {
   const [day, month, year] = value.split(".").map(Number);
   const fullYear = year < 100 ? 2000 + year : year;
@@ -1024,11 +1072,28 @@ function ageFromShortDate(value: string) {
   return Math.max(0, Math.floor((demoToday.getTime() - date.getTime()) / 86400000));
 }
 
+function normalizePatientName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function importDateKey(value: string | undefined) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return match ? `${match[3]}${match[2]}${match[1]}` : "";
+}
+
 function reasonLabel(reasonCategory?: string) {
   const labels: Record<string, string> = {
     unzustellbar: "Unzustellbar",
     factoringvereinbarung: "lt. Factoringvereinbarung",
     nachricht_praxis: "lt. Nachricht / Praxisanweisung",
+    neue_rechnung: "Neue Rechnung",
+    zahlung_nach_storno: "Zahlung nach Storno",
+    gemaess_vertrag: "gem. Vertrag",
     rueckgabe_ohne_ausfallschutz: "Rückgabe ohne Ausfallschutz",
     iportal_rechnungsliste: "lt. iPortal-Rechnungsliste",
     sonstiger_storno_grund: "Sonstiger Storno-/Rückgabegrund"
@@ -1331,6 +1396,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
   const retainedAmount = relevantMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
   const matchedMovements = relevantMovements.filter((movement) => movement.matchStatus !== "unmatched");
   const reasonCount = new Set(relevantMovements.map((movement) => movement.reasonCategory)).size;
+  const reasonGroups = aggregateMovementReasons(rows);
 
   return (
     <div className="content-stack">
@@ -1340,6 +1406,40 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
         <PriorityCard label="Grund-Klassen" value={String(reasonCount)} hint="z.B. unzustellbar, Ausfallschutz" tone="blue" />
         <PriorityCard label="Historisch offen" value={String(relevantMovements.length - matchedMovements.length)} hint="braucht ältere Abrechnung zum Match" tone={relevantMovements.length - matchedMovements.length ? "red" : "green"} />
       </section>
+      {!!reasonGroups.length && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Grundauswertung aus BFS-Bemerkungen</h2>
+              <p>Bekannte Gründe werden gruppiert; neue Wortlaute bleiben als Originalgrund sichtbar und können später als eigene Kategorie übernommen werden.</p>
+            </div>
+          </div>
+          <div className="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kategorie</th>
+                  <th>Anzahl</th>
+                  <th>Betrag</th>
+                  <th>Originalgründe</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reasonGroups.map((group) => (
+                  <tr key={group.key}>
+                    <td><strong>{group.label}</strong></td>
+                    <td>{group.count}</td>
+                    <td>{money.format(group.amount)}</td>
+                    <td>{group.examples.join(", ")}</td>
+                    <td><StatusBadge status={group.needsReview ? "neuen Grund prüfen" : "kategorisiert"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -1422,6 +1522,39 @@ function formatMovementReason(movement: NonNullable<ImportPreviewRow["parsedMove
   const reason = movement.reason ?? movement.reasonCategory ?? "Grund offen";
   const amount = movement.amount ? ` · ${money.format(Math.abs(movement.amount))}` : "";
   return `${patient}: ${reason}${amount}`;
+}
+
+function aggregateMovementReasons(rows: ImportPreviewRow[]) {
+  const groups = new Map<string, { key: string; label: string; count: number; amount: number; examples: Set<string>; needsReview: boolean }>();
+
+  rows.flatMap((row) => row.parsedMovements ?? [])
+    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+    .forEach((movement) => {
+      const category = movement.reasonCategory ?? "sonstiger_storno_grund";
+      const originalReason = movement.reason?.trim() || reasonLabel(category);
+      const key = category === "sonstiger_storno_grund" ? `sonstiger:${originalReason.toLowerCase()}` : category;
+      const current = groups.get(key) ?? {
+        key,
+        label: category === "sonstiger_storno_grund" ? "Sonstiger / neuer Grund" : reasonLabel(category),
+        count: 0,
+        amount: 0,
+        examples: new Set<string>(),
+        needsReview: category === "sonstiger_storno_grund"
+      };
+
+      current.count += 1;
+      current.amount += Math.abs(movement.amount ?? 0);
+      current.examples.add(originalReason);
+      groups.set(key, current);
+    });
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      amount: Math.round(group.amount * 100) / 100,
+      examples: [...group.examples].slice(0, 3)
+    }))
+    .sort((a, b) => b.count - a.count || b.amount - a.amount);
 }
 
 function loadStoredImportRows() {
@@ -1661,7 +1794,54 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
   );
 }
 
-function MatchesView({ cases: rows }: { cases: BfsCase[] }) {
+function MatchesView({ cases: rows, importRows = [] }: { cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+  const candidates = resubmissionCandidatesFromImportRows(importRows);
+  if (candidates.length) {
+    return (
+      <div className="content-stack">
+        <section className="priority-grid">
+          <PriorityCard label="Neueinreichungen" value={String(candidates.length)} hint="nach Storno/Rückgabe erkannt" tone="blue" />
+          <PriorityCard label="Betroffene Patienten" value={String(new Set(candidates.map((candidate) => candidate.patientName)).size)} hint="aus aktuellem Upload" tone="amber" />
+          <PriorityCard label="Ursprungsbetrag" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0))} hint="stornierte/rückgegebene Beträge" tone="red" />
+          <PriorityCard label="Neue Summe" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0))} hint="spätere Forderungen" tone="green" />
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Neueinreichungen nach Storno/Rückgabe</h2>
+              <p>Automatisch erkannte Fälle, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Ursprung</th>
+                  <th>Grund</th>
+                  <th>Neue Einreichung</th>
+                  <th>Beträge</th>
+                  <th>Quelle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.slice(0, 60).map((candidate) => (
+                  <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
+                    <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
+                    <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
+                    <td>{candidate.reason}</td>
+                    <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
+                    <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
+                    <td>{candidate.newFile}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    );
+  }
   const matched = rows.filter((fall) => fall.status.includes("automatisch"));
   return (
     <CasesView cases={matched.length ? matched : rows.slice(0, 2).map((fall) => ({ ...fall, status: "neueinreichung_vorschlag", reason: "Neueinreichungsvorschlag" }))} />

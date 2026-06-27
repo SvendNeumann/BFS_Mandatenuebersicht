@@ -189,6 +189,9 @@ function reasonCategory(reason: string | undefined, line: string) {
   if (value.includes("unzustellbar")) return "unzustellbar";
   if (value.includes("factoringvereinbarung")) return "factoringvereinbarung";
   if (value.includes("nachricht")) return "nachricht_praxis";
+  if (value.includes("neue rechnung")) return "neue_rechnung";
+  if (value.includes("zahlung nach storno")) return "zahlung_nach_storno";
+  if (value.includes("gem. vertrag") || value.includes("gemäß vertrag")) return "gemaess_vertrag";
   if (value.includes("rückgabe") && value.includes("ausfallschutz")) return "rueckgabe_ohne_ausfallschutz";
   if (value.includes("rückgabe ohne")) return "rueckgabe_ohne_ausfallschutz";
   if (value.includes("iportal-rechnungsliste")) return "iportal_rechnungsliste";
@@ -210,15 +213,21 @@ function movementContinuation(nextLine: string | undefined) {
 
   const ausfallschutzMatch = nextLine.match(/^Ausfallschutz\s+(.+)$/i);
   if (ausfallschutzMatch) {
-    return { patientName: ausfallschutzMatch[1].trim(), reason: "ohne Ausfallschutz" };
+    return { patientName: cleanMovementPatientName(ausfallschutzMatch[1]), reason: "ohne Ausfallschutz" };
   }
 
   const praxisMatch = nextLine.match(/^Praxis\s+(.+)$/i);
   if (praxisMatch) {
-    return { patientName: praxisMatch[1].trim() };
+    return { patientName: cleanMovementPatientName(praxisMatch[1]) };
   }
 
-  return { patientName: nextLine.trim() };
+  return { patientName: cleanMovementPatientName(nextLine) };
+}
+
+function cleanMovementPatientName(value: string) {
+  return value
+    .replace(/^(Direktzahlung|Korrektur|Rechnung|ufkl\.|ung)\s+/i, "")
+    .trim();
 }
 
 function findLine(lines: string[], pattern: RegExp) {

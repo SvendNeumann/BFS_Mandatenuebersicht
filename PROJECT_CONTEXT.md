@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach erweitertem Parser-Batchtest mit acht BFS-Abrechnungsnachweisen
+Stand: 27.06.2026, nach erweitertem Parser-Batchtest mit fünfzehn BFS-Abrechnungsnachweisen
 
 ## Prompt fuer den naechsten Chat
 
@@ -316,6 +316,15 @@ Erweiterter Parser-Batchtest:
 - Datei: `AbrechnungsNachweis_19804_21.pdf`, Mandant `19804`, Hüttenberg / Praxis Dr. Krauthausen, Abrechnung `21` vom `17.04.2026`: 53/53 Forderungen, Summe `5.926,89 EUR`, Auszahlung `5.768,19 EUR`, Gebühr netto `133,36 EUR`, MwSt `25,34 EUR`, 2 ohne Ausfallschutz `60,35 EUR`, Marker `*AA` und `*FÜ`.
 - Datei: `AbrechnungsNachweis_19260_32.pdf`, Mandant `19260`, Ulmet / Praxis Dr. Hangx, Abrechnung `32` vom `27.10.2025`: 27/27 Forderungen, Summe `4.199,12 EUR`, Auszahlung `4.086,69 EUR`, Gebühr netto `94,48 EUR`, MwSt `17,95 EUR`, 1 ohne Ausfallschutz `179,93 EUR`, Marker `*RS`.
 
+Weiterer Parser-Batchtest:
+- Datei: `AbrechnungsNachweis_18790_139.pdf`, Mandant `18790`, Essen / Praxis Krause, Abrechnung `139` vom `05.03.2026`: erneut 25/25 Forderungen, Summe `7.010,50 EUR`, Auszahlung `6.822,79 EUR`, Marker `*KA`.
+- Datei: `AbrechnungsNachweis_18790_150.pdf`, Mandant `18790`, Essen / Praxis Krause, Abrechnung `150` vom `13.04.2026`: 24/24 Forderungen, Summe `10.707,60 EUR`, Auszahlung `10.420,91 EUR`, keine Forderung ohne Ausfallschutz.
+- Datei: `AbrechnungsNachweis_18790_60.pdf`, Mandant `18790`, Essen / Praxis Krause, Abrechnung `60` vom `08.07.2025`: 6/6 Forderungen, Summe `1.323,08 EUR`, Auszahlung `1.287,65 EUR`, keine Forderung ohne Ausfallschutz.
+- Datei: `AbrechnungsNachweis_18504_26.pdf`, Mandant `18504`, Kirchberg / Dres. Kallweit MVZ, Abrechnung `26` vom `20.09.2024`: 4/4 Forderungen, Summe `6.329,92 EUR`, Umsatz Netto `6.160,44 EUR`, Auszahlung `6.151,84 EUR`, 1 ohne Ausfallschutz `170,68 EUR`, Marker `*RS`. Besonderheit: Kontoauszug hat `Kontostand alt: 8,60 EUR`; dadurch ist die Auszahlung um `8,60 EUR` niedriger als der neue Abrechnungsumsatz. App nutzt den expliziten Auszahlungsbetrag aus der Abrechnung.
+- Datei: `AbrechnungsNachweis_19092_176.pdf`, Mandant `19092`, Kehl / Zahnarztpraxis Zorn de Bulach, Abrechnung `176` vom `23.12.2025`: 3/3 Forderungen, Summe `2.494,24 EUR`, Auszahlung `2.427,46 EUR`, keine Forderung ohne Ausfallschutz.
+- Datei: `AbrechnungsNachweis_19260_33.pdf`, Mandant `19260`, Ulmet / Praxis Dr. Hangx, Abrechnung `33` vom `27.10.2025`: 5/5 Forderungen, Summe `2.918,67 EUR`, Umsatz Netto `2.840,52 EUR`, Auszahlung `2.790,52 EUR`, 1 Storno-Liquidation `50,00 EUR`, Geldfluss passt.
+- Datei: `AbrechnungsNachweis_18790_39.pdf`, Mandant `18790`, Essen / Praxis Krause, Abrechnung `39` vom `30.04.2025`: 1/1 Forderung, Summe `2.984,39 EUR`, Auszahlung `2.904,48 EUR`, keine Forderung ohne Ausfallschutz.
+
 EWMA:
 - EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
@@ -396,7 +405,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Numerische BFS-Rechnungsnummern mit 8 bis 10 Stellen erkennen
+- naechster Commit: Weiteren Parser-Batchtest mit Alt-Kontostand dokumentieren
+- `f5e05726` - Support longer numeric BFS invoice numbers
 - `f3aa3f7d` - Classify generic BFS returns
 - `d9c9e011` - Document Kirchberg parser verification
 - `a3902584` - Fix BFS fee VAT parsing

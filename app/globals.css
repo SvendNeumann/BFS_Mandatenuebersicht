@@ -155,6 +155,7 @@ nav {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 44px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -422,8 +423,8 @@ input {
 .metric-info-button {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: 1px solid #d0d5dd;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
@@ -1442,6 +1443,7 @@ td small {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  min-width: 0;
 }
 
 .print-report header {
@@ -1455,6 +1457,7 @@ td small {
 
 .report-summary {
   justify-content: flex-start;
+  flex-wrap: wrap;
   background: #f8fafc;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2525,6 +2528,9 @@ tbody tr:hover td {
 .panel,
 .panel-heading,
 .dashboard-grid,
+.priority-grid,
+.kpi-grid,
+.insight-grid,
 .command-panel,
 .command-panel > div,
 .process-panel,
@@ -2540,6 +2546,21 @@ tbody tr:hover td {
 .table-wrap,
 .search-box {
   min-width: 0;
+}
+
+.priority-grid,
+.kpi-grid,
+.insight-grid {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.priority-grid > *,
+.kpi-grid > *,
+.insight-grid > * {
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
 }
 
 .panel h2,
@@ -2585,8 +2606,8 @@ tbody tr:hover td {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--soft-line);
     border-radius: 8px;
     background: #ffffff;
@@ -2701,18 +2722,20 @@ tbody tr:hover td {
   }
 
   .workspace {
-    padding: 18px 18px 42px;
+    padding: 132px 18px 42px;
   }
 
   .topbar {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 32;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
-    margin: -18px -18px 18px;
+    margin: 0;
     padding: 20px 18px 16px;
     border-bottom: 1px solid rgba(178, 226, 229, 0.18);
     background:
@@ -2769,13 +2792,49 @@ tbody tr:hover td {
 
   .standort-tabs {
     position: sticky;
-    top: 102px;
+    top: 124px;
     z-index: 20;
     margin-left: -4px;
     margin-right: -4px;
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(14px);
     scrollbar-width: none;
+  }
+
+  .priority-grid,
+  .kpi-grid,
+  .insight-grid {
+    inline-size: min(100%, calc(100vw - 36px));
+    max-inline-size: calc(100vw - 36px);
+  }
+
+  .report-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    inline-size: min(100%, calc(100vw - 36px));
+    max-inline-size: calc(100vw - 36px);
+  }
+
+  .print-report {
+    inline-size: min(100%, calc(100vw - 36px));
+    max-inline-size: calc(100vw - 36px);
+    overflow-x: clip;
+  }
+
+  .print-report header,
+  .report-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-toolbar div {
+    margin-right: 0;
+    min-width: 0;
+  }
+
+  .report-toolbar .primary-button,
+  .report-toolbar .secondary-button {
+    width: 100%;
   }
 
   .kpi-grid,
@@ -2810,7 +2869,7 @@ tbody tr:hover td {
 
 @media (max-width: 720px) {
   .workspace {
-    padding: 14px 10px 34px;
+    padding: 104px 10px 34px;
   }
 
   .sidebar {
@@ -2874,7 +2933,7 @@ tbody tr:hover td {
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    margin: -14px -10px 16px;
+    margin: 0;
     padding: 17px 14px 14px;
   }
 
@@ -3124,9 +3183,26 @@ tbody tr:hover td {
   }
 
   .standort-tabs {
-    top: 94px;
+    top: 86px;
     margin-left: 0;
     margin-right: 0;
+  }
+
+  .priority-grid,
+  .kpi-grid,
+  .insight-grid {
+    inline-size: min(100%, calc(100vw - 20px));
+    max-inline-size: calc(100vw - 20px);
+  }
+
+  .report-toolbar {
+    inline-size: min(100%, calc(100vw - 20px));
+    max-inline-size: calc(100vw - 20px);
+  }
+
+  .print-report {
+    inline-size: min(100%, calc(100vw - 20px));
+    max-inline-size: calc(100vw - 20px);
   }
 
   .reset-upload-button {

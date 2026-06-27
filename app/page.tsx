@@ -66,7 +66,7 @@ export default function LandingPage() {
           <div className="hero-list">
             <span>Ulmet · Rückgabe ohne Ausfallschutz</span>
             <span>Kehl · fehlerhafte Rechnung</span>
-            <span>Kassel · Wiedervorlage</span>
+            <span>Hüttenberg · Wiedervorlage</span>
           </div>
         </div>
       </section>

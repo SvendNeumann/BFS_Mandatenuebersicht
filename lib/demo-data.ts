@@ -2,17 +2,30 @@ import type { BfsCase, ImportPreviewRow, RiskClaim, Standort } from "./types";
 
 export const standorte: Standort[] = [
   {
-    id: "ulmet",
-    name: "Ulmet",
-    praxisname: "Praxis Dr. Hangx",
-    mandantNo: "19260",
-    lastImport: "26.06.2026",
-    submittedThisMonth: 3912.6,
-    feesThisMonth: 104.77,
-    openCases: 5,
-    openChargebacks: 5385.51,
-    withoutProtection: 315.9,
-    olderThan30: 2
+    id: "kirchberg",
+    name: "Kirchberg",
+    praxisname: "Orisus MVZ Kirchberg",
+    mandantNo: "21988",
+    lastImport: "19.06.2026",
+    submittedThisMonth: 7620.33,
+    feesThisMonth: 169.54,
+    openCases: 1,
+    openChargebacks: 450.4,
+    withoutProtection: 220.0,
+    olderThan30: 0
+  },
+  {
+    id: "essen",
+    name: "Essen",
+    praxisname: "Orisus MVZ Essen",
+    mandantNo: "22341",
+    lastImport: "22.06.2026",
+    submittedThisMonth: 15420.2,
+    feesThisMonth: 351.9,
+    openCases: 2,
+    openChargebacks: 1280.55,
+    withoutProtection: 540.25,
+    olderThan30: 0
   },
   {
     id: "kehl",
@@ -28,6 +41,32 @@ export const standorte: Standort[] = [
     olderThan30: 0
   },
   {
+    id: "huettenberg",
+    name: "Hüttenberg",
+    praxisname: "Orisus MVZ Hüttenberg",
+    mandantNo: "22674",
+    lastImport: "24.06.2026",
+    submittedThisMonth: 9310.75,
+    feesThisMonth: 214.8,
+    openCases: 2,
+    openChargebacks: 790.3,
+    withoutProtection: 310.0,
+    olderThan30: 1
+  },
+  {
+    id: "ulmet",
+    name: "Ulmet",
+    praxisname: "Praxis Dr. Hangx",
+    mandantNo: "19260",
+    lastImport: "26.06.2026",
+    submittedThisMonth: 3912.6,
+    feesThisMonth: 104.77,
+    openCases: 5,
+    openChargebacks: 5385.51,
+    withoutProtection: 315.9,
+    olderThan30: 2
+  },
+  {
     id: "kassel",
     name: "Kassel",
     praxisname: "Orisus MVZ Kassel",
@@ -39,27 +78,14 @@ export const standorte: Standort[] = [
     openChargebacks: 2990.0,
     withoutProtection: 920.1,
     olderThan30: 1
-  },
-  {
-    id: "kirchberg",
-    name: "Kirchberg",
-    praxisname: "Orisus MVZ Kirchberg",
-    mandantNo: "21988",
-    lastImport: "19.06.2026",
-    submittedThisMonth: 7620.33,
-    feesThisMonth: 169.54,
-    openCases: 1,
-    openChargebacks: 450.4,
-    withoutProtection: 220.0,
-    olderThan30: 0
   }
 ];
 
 export const monthlyKpis = [
-  ["Anzahl Standorte", "4", "aktive BFS-Standorte"],
+  ["Anzahl Standorte", "6", "aktive BFS-Standorte"],
   ["BFS-Abrechnungen aktueller Monat", "9", "importiert und geprüft"],
-  ["Eingereichte Forderungen", "43.285,52 €", "aktueller Monat"],
-  ["Offene Rückbelastungen", "10.236,11 €", "echte To-dos"]
+  ["Eingereichte Forderungen", "68.016,47 €", "aktueller Monat"],
+  ["Offene Rückbelastungen", "12.307,36 €", "echte To-dos"]
 ];
 
 export const cases: BfsCase[] = [

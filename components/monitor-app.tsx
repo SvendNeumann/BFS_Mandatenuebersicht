@@ -2146,6 +2146,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     setIsProcessing(true);
     setUploadStatus(`${importableFiles.length} PDF-Dateien werden serverseitig eingelesen`);
     try {
+      onRowsChange(mode === "replace" ? [] : liveRows);
       const result = await parseImportFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setUploadStatus(`${processed} von ${total} Dateien eingelesen (${shortName})`);
@@ -2160,6 +2161,7 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
         setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence)} Lokale Vorschau konnte nicht gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
+      if (mode === "replace") onRowsChange([]);
       setUploadStatus(`Upload konnte nicht vollständig verarbeitet werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsProcessing(false);
@@ -2252,11 +2254,13 @@ async function parseImportFiles(
   files.forEach((file) => {
     const filePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
     formData.append("files", file, filePath);
+    formData.append("paths", filePath);
   });
 
   const response = await fetch("/api/imports/parse", {
     method: "POST",
-    body: formData
+    body: formData,
+    cache: "no-store"
   });
 
   if (response.ok) {
@@ -2661,8 +2665,8 @@ function loadStoredImportRows() {
 }
 
 async function loadStoredImportRowsFromDb() {
-  const serverRows = await loadStoredImportRowsFromServer().catch(() => null);
-  if (serverRows?.length) return serverRows;
+  const serverRows = await loadStoredImportRowsFromServer().catch(() => undefined);
+  if (serverRows) return serverRows;
   if (typeof window === "undefined" || !("indexedDB" in window)) return [];
   const db = await openImportDb();
   return new Promise<ImportPreviewRow[]>((resolve, reject) => {
@@ -2680,7 +2684,7 @@ async function loadStoredImportRowsFromDb() {
 
 async function loadStoredImportRowsFromServer() {
   if (typeof window === "undefined") return [];
-  const response = await fetch("/api/imports/parse", { method: "GET" });
+  const response = await fetch("/api/imports/parse", { method: "GET", cache: "no-store" });
   if (!response.ok) throw new Error("Server-Importdaten konnten nicht geladen werden.");
   const payload = await response.json() as { rows?: ImportPreviewRow[] };
   return reconcileImportRows(payload.rows ?? []);

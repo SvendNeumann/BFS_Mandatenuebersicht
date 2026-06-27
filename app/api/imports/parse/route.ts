@@ -3,6 +3,9 @@ import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles } f
 import { createServiceClient, requireSuperAdmin } from "@/lib/server-auth";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type SupabaseDbClient = any;
 
 type ImportPersistenceResult = {
@@ -37,7 +40,7 @@ export async function GET() {
       .map((entry: { extracted_json: unknown }) => entry.extracted_json)
       .filter(isImportPreviewRow);
 
-    return NextResponse.json({ rows: reconcileRowsByBusinessIdentity(rows) });
+    return NextResponse.json({ rows: reconcileRowsByBusinessIdentity(rows) }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Importdaten konnten nicht geladen werden." },
@@ -57,21 +60,40 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
+    const paths = formData
+      .getAll("paths")
+      .map((entry) => typeof entry === "string" ? entry : "")
+      .filter(Boolean);
     const files = formData
       .getAll("files")
       .filter((entry): entry is File => entry instanceof File)
+      .map((file, index) => fileWithUploadPath(file, paths[index]))
       .filter(isBfsPdfUploadFile);
     if (!files.length) return NextResponse.json({ error: "Keine PDF-Dateien übermittelt." }, { status: 400 });
 
     const rows = await parseDemoImportFiles(files);
     const persistence = await persistImport(supabase, auth.profile.id, files, rows);
-    return NextResponse.json({ rows, persistence });
+    return NextResponse.json({ rows, persistence }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Serverseitiger Import fehlgeschlagen." },
       { status: 500 }
     );
   }
+}
+
+function fileWithUploadPath(file: File, uploadPath: string | undefined) {
+  if (!uploadPath || uploadPath === file.name) return file;
+  return new File([file], uploadPath, {
+    type: file.type || "application/pdf",
+    lastModified: file.lastModified
+  });
+}
+
+function noStoreHeaders() {
+  return {
+    "cache-control": "no-store, max-age=0"
+  };
 }
 
 async function persistImport(

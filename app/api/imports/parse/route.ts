@@ -1,46 +1,36 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
+import { createServiceClient, requireSuperAdmin } from "@/lib/server-auth";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
-const accessCookie = "orisus_bfs_access_token";
 type SupabaseDbClient = any;
 
 export async function POST(request: NextRequest) {
-  const accessToken = request.cookies.get(accessCookie)?.value;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  try {
+    const auth = await requireSuperAdmin();
+    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  if (!accessToken || !supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json({ error: "Nicht angemeldet oder Supabase nicht konfiguriert." }, { status: 401 });
+    const supabase = createServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
+    }
+
+    const formData = await request.formData();
+    const files = formData
+      .getAll("files")
+      .filter((entry): entry is File => entry instanceof File)
+      .filter(isBfsPdfUploadFile);
+    if (!files.length) return NextResponse.json({ error: "Keine PDF-Dateien übermittelt." }, { status: 400 });
+
+    const rows = await parseDemoImportFiles(files);
+    const persistence = await persistImport(supabase, auth.profile.id, files, rows);
+    return NextResponse.json({ rows, persistence });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Serverseitiger Import fehlgeschlagen." },
+      { status: 500 }
+    );
   }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${accessToken}` } }
-  });
-  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-  if (userError || !userData.user) return NextResponse.json({ error: "Session ungültig." }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, active")
-    .eq("id", userData.user.id)
-    .maybeSingle();
-  if (!profile?.active || profile.role !== "super_admin") {
-    return NextResponse.json({ error: "Keine Importberechtigung." }, { status: 403 });
-  }
-
-  const formData = await request.formData();
-  const files = formData
-    .getAll("files")
-    .filter((entry): entry is File => entry instanceof File)
-    .filter(isBfsPdfUploadFile);
-  if (!files.length) return NextResponse.json({ error: "Keine PDF-Dateien übermittelt." }, { status: 400 });
-
-  const rows = await parseDemoImportFiles(files);
-  const persistence = await persistImport(supabase, userData.user.id, files, rows);
-  return NextResponse.json({ rows, persistence });
 }
 
 async function persistImport(

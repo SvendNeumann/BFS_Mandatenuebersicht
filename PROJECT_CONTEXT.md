@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach erweitertem Parser-Batchtest mit fünfzehn BFS-Abrechnungsnachweisen
+Stand: 27.06.2026, Livegang auf Vercel nach erweitertem Parser-Batchtest mit fünfzehn BFS-Abrechnungsnachweisen
 
 ## Prompt fuer den naechsten Chat
 
@@ -40,7 +40,9 @@ Repository:
 
 Deployment:
 - Vercel-Projekt ist angebunden.
-- App war erreichbar unter `bfs-mandatenuebersicht.vercel.app`.
+- App ist live erreichbar unter `https://bfs-mandatenuebersicht.vercel.app`.
+- Livegang am 27.06.2026 nach grünem `pnpm run typecheck`, grünem `pnpm run build` und erfolgreichem HTTP-Smoke-Test der Produktions-URL.
+- Hinweis: Der Livegang ist ein clientseitiger Upload-/Auswertungsbetrieb. Supabase-Persistenz/Fallhistorie ist vorbereitet, aber noch nicht produktiv verdrahtet.
 
 ## Technischer Stand
 
@@ -405,7 +407,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Weiteren Parser-Batchtest mit Alt-Kontostand dokumentieren
+- naechster Commit: Livegang auf Vercel dokumentieren
+- `1252c1f4` - Document additional BFS parser batch
 - `f5e05726` - Support longer numeric BFS invoice numbers
 - `f3aa3f7d` - Classify generic BFS returns
 - `d9c9e011` - Document Kirchberg parser verification

@@ -174,6 +174,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     [appCases, isGroupScope, selectedStandort.id]
   );
   const nav = role === "super_admin" ? superAdminNav : leadNav;
+  const manuallyExpandedSection = Object.entries(expandedSections).find(([, expanded]) => expanded)?.[0];
 
   useEffect(() => {
     let active = true;
@@ -207,12 +208,17 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function toggleNavSection(title: string) {
-    setExpandedSections((current) => ({ ...current, [title]: !current[title] }));
+    setExpandedSections((current) => current[title] ? {} : { [title]: true });
   }
 
   function navigateTo(key: string) {
     setActiveView(key);
     setMobileNavOpen(false);
+    setExpandedSections({});
+  }
+
+  function hardReload() {
+    window.location.reload();
   }
 
   return (
@@ -236,7 +242,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <nav>
             {nav.map((section) => {
               const sectionActive = section.items.some(([key]) => activeView === key);
-              const sectionExpanded = sectionActive || (expandedSections[section.title] ?? false);
+              const sectionExpanded = manuallyExpandedSection ? expandedSections[section.title] : sectionActive;
               const SectionIcon = section.items[0][2];
               return (
                 <div className={sectionExpanded ? "nav-section expanded" : "nav-section"} key={section.title}>
@@ -274,8 +280,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
               <div>
                 <strong>{role === "super_admin" ? "Zentrale / CFO" : selectedStandort.name}</strong>
                 <span>{session?.email ?? "Demo-Zugang"}</span>
+                <small>{role === "super_admin" ? "Super Admin" : "Standortleitung"} · {isGroupScope ? "Alle Standorte" : selectedStandort.name}</small>
               </div>
             </div>
+            <button className="reload-button" onClick={hardReload}>
+              <RefreshCw size={16} /> Neu laden
+            </button>
             <button
               className="logout-button"
               onClick={() => {

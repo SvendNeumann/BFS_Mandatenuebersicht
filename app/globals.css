@@ -220,6 +220,21 @@ nav {
   padding: 10px 12px;
 }
 
+.reload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
 .sidebar-footer {
   display: grid;
   gap: 10px;
@@ -239,14 +254,22 @@ nav {
 }
 
 .user-box strong,
-.user-box span {
+.user-box span,
+.user-box small {
   display: block;
 }
 
-.user-box span {
+.user-box span,
+.user-box small {
   color: var(--muted);
   font-size: 12px;
   word-break: break-word;
+}
+
+.user-box small {
+  margin-top: 3px;
+  color: #7dded8;
+  font-weight: 800;
 }
 
 .workspace {
@@ -2147,6 +2170,7 @@ td small,
 
 .role-switch,
 .user-box,
+.reload-button,
 .logout-button,
 .search-box,
 .period-filter,
@@ -2192,6 +2216,12 @@ td small,
 
 .role-switch button {
   color: var(--muted);
+}
+
+.reload-button:hover {
+  border-color: rgba(121, 238, 231, 0.42);
+  background: rgba(48, 213, 200, 0.12);
+  color: #79eee7;
 }
 
 .role-switch button.active {

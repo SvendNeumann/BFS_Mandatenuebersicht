@@ -241,6 +241,42 @@ input {
   gap: 18px;
 }
 
+.group-filter-bar {
+  display: grid;
+  gap: 12px;
+}
+
+.group-filter-bar h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+.filter-pill-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-pill-row button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #344054;
+  padding: 8px 12px;
+  min-height: 36px;
+}
+
+.filter-pill-row button.active {
+  border-color: #8bb8ff;
+  background: #eaf2ff;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.filter-pill-row.compact button {
+  background: #f8fafc;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

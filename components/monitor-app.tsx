@@ -317,17 +317,41 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
 }
 
 function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) {
-  const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
+  const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
+  const [groupFocus, setGroupFocus] = useState("gesamt");
+  const filteredStandorte = groupStandortFilter === "alle"
+    ? standorte
+    : standorte.filter((standort) => standort.id === groupStandortFilter);
+  const filteredStandortIds = new Set(filteredStandorte.map((standort) => standort.id));
+  const openCases = cases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId));
+  const focusedCases = openCases.filter((fall) => {
+    if (groupFocus === "rueckbelastungen") return fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung");
+    if (groupFocus === "wiedervorlagen") return fall.status === "wiedervorlage" || fall.dueDate !== "-";
+    return true;
+  });
+  const focusedRisks = riskClaims.filter((claim) => filteredStandortIds.has(claim.standortId));
   const overdueCases = openCases.filter((fall) => fall.ageDays > 30);
-  const chargebackTotal = openCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const chargebackTotal = focusedCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const groupKpis = [
+    ["Standorte im Blick", String(filteredStandorte.length), groupStandortFilter === "alle" ? "alle aktiven BFS-Standorte" : "ausgewählter Standort"],
+    ["Eingereichte Forderungen", money.format(filteredStandorte.reduce((sum, standort) => sum + standort.submittedThisMonth, 0)), "aktueller Monat"],
+    ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
+    ["Ohne Ausfallschutz", money.format(focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), "laufende Risikohinweise"]
+  ];
   return (
     <div className="content-stack">
-      <KpiGrid />
+      <GroupFilterBar
+        selectedStandort={groupStandortFilter}
+        selectedFocus={groupFocus}
+        onStandortChange={setGroupStandortFilter}
+        onFocusChange={setGroupFocus}
+      />
+      <KpiGrid cards={groupKpis} />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
             <span className="eyebrow">Heute zuerst</span>
-            <h2>{overdueCases.length} ältere Klärfälle und {money.format(chargebackTotal)} offen</h2>
+            <h2>{overdueCases.length} ältere Klärfälle und {money.format(chargebackTotal)} im Fokus</h2>
             <p>Beginne mit Rückbelastungen über 30 Tage, danach Wiedervorlagen und neue Importfehler prüfen.</p>
           </div>
           <div className="quick-actions">
@@ -350,7 +374,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
         <div className="panel-heading">
           <div>
             <h2>Standortübersicht</h2>
-            <p>Offene To-dos, Rückbelastungen und Risikohinweise je Standort.</p>
+            <p>Gefilterter Gruppenblick über Standorte, offene To-dos, Rückbelastungen und Risikohinweise.</p>
           </div>
           <button className="secondary-button" onClick={() => onNavigate("reports")}>
             <Printer size={16} /> Reports
@@ -371,7 +395,7 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
               </tr>
             </thead>
             <tbody>
-              {standorte.map((standort) => (
+              {filteredStandorte.map((standort) => (
                 <tr key={standort.id}>
                   <td>
                     <strong>{standort.name}</strong>
@@ -409,6 +433,40 @@ function GroupDashboard({ onNavigate }: { onNavigate: (view: string) => void }) 
         ))}
       </section>
     </div>
+  );
+}
+
+function GroupFilterBar({
+  selectedStandort,
+  selectedFocus,
+  onStandortChange,
+  onFocusChange
+}: {
+  selectedStandort: string;
+  selectedFocus: string;
+  onStandortChange: (value: string) => void;
+  onFocusChange: (value: string) => void;
+}) {
+  return (
+    <section className="panel group-filter-bar">
+      <div>
+        <span className="eyebrow">Gruppenfilter</span>
+        <h2>Gesamtblick gezielt eingrenzen</h2>
+      </div>
+      <div className="filter-pill-row" aria-label="Standortfilter">
+        <button className={selectedStandort === "alle" ? "active" : ""} onClick={() => onStandortChange("alle")}>Alle Standorte</button>
+        {standorte.map((standort) => (
+          <button key={standort.id} className={selectedStandort === standort.id ? "active" : ""} onClick={() => onStandortChange(standort.id)}>
+            {standort.name}
+          </button>
+        ))}
+      </div>
+      <div className="filter-pill-row compact" aria-label="Fokusfilter">
+        <button className={selectedFocus === "gesamt" ? "active" : ""} onClick={() => onFocusChange("gesamt")}>Gesamt</button>
+        <button className={selectedFocus === "rueckbelastungen" ? "active" : ""} onClick={() => onFocusChange("rueckbelastungen")}>Rückbelastungen</button>
+        <button className={selectedFocus === "wiedervorlagen" ? "active" : ""} onClick={() => onFocusChange("wiedervorlagen")}>Wiedervorlagen</button>
+      </div>
+    </section>
   );
 }
 
@@ -486,15 +544,15 @@ function InsightCard({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function KpiGrid({ standort }: { standort?: Standort }) {
-  const cards = standort
+function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?: string[][] }) {
+  const cards = customCards ?? (standort
     ? [
         ["Eingereicht aktueller Monat", money.format(standort.submittedThisMonth), "Aus BFS-Abrechnungen"],
         ["BFS-Gebühren", money.format(standort.feesThisMonth), "Netto und MwSt"],
         ["Offene BFS-Klärfälle", String(standort.openCases), "echte To-dos"],
         ["Laufend ohne Ausfallschutz", money.format(standort.withoutProtection), "Risikoüberwachung"]
       ]
-    : monthlyKpis;
+    : monthlyKpis);
   return (
     <section className="kpi-grid">
       {cards.map(([label, value, hint]) => (

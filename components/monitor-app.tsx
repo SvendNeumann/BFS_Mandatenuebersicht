@@ -536,10 +536,40 @@ function GroupFilterBar({
 }
 
 function LocationDashboard({ standort, cases, onNavigate, importRows }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
+  const periodOptions = buildCashflowPeriods();
+  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
+  const locationImportRows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort));
+  const importSummary = summarizeImportRows(locationImportRows);
+  const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : aggregateMetrics([standort.id], selectedPeriod);
+  const selectedCashflow = importSummary.rows ? cashflowFromImportSummary(importSummary) : cashflowForPeriod(standort, selectedPeriod);
+  const periodLabel = importSummary.rows ? selectedPeriod.label : selectedPeriod.label;
+  const openCases = cases.filter((fall) => !fall.status.includes("erledigt"));
+  const locationKpis = [
+    ["Eingereicht", money.format(selectedMetrics.submitted), periodLabel],
+    ["BFS-Gebühren", money.format(selectedMetrics.fees), periodLabel],
+    ["Offene BFS-Klärfälle", String(openCases.length), "aktueller Datenstand"],
+    ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel]
+  ];
+
   return (
     <div className="content-stack">
-      <KpiGrid standort={standort} importRows={importRows} />
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} />
+      <section className="panel period-filter">
+        <label className="select-label">
+          Zeitraum Standort-Dashboard
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{periodLabel}</strong>
+          <span>{selectedCashflow.activeMonths ? `${selectedCashflow.activeMonths} aktive Monate ab ${selectedCashflow.startLabel}` : `${standort.name} ist in diesem Zeitraum noch nicht aktiv`}. Klärfälle ohne echtes Falldatum bleiben als aktueller Datenstand ausgewiesen.</span>
+        </div>
+      </section>
+      <KpiGrid cards={locationKpis} />
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} />
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -574,7 +604,9 @@ function AnswerCockpit({
   onNavigate,
   compact = false,
   showReportAction = false,
-  importRows = []
+  importRows = [],
+  periodMetrics,
+  periodLabel
 }: {
   scope: "group" | "location";
   standort?: Standort;
@@ -583,6 +615,8 @@ function AnswerCockpit({
   compact?: boolean;
   showReportAction?: boolean;
   importRows?: ImportPreviewRow[];
+  periodMetrics?: ReturnType<typeof aggregateMetrics>;
+  periodLabel?: string;
 }) {
   const relevantStandorte = standort ? [standort] : standorte;
   const importSummary = summarizeImportRows(importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location)));
@@ -593,10 +627,12 @@ function AnswerCockpit({
     .reduce((sum, claim) => sum + claim.amount, 0);
   const recurringRisks = getRecurringRiskProfiles(standort?.id, importRows).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName));
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const submitted = importSummary.rows ? importSummary.submitted : relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
-  const fees = importSummary.rows ? importSummary.fees : relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
+  const submitted = importSummary.rows ? importSummary.submitted : periodMetrics?.submitted ?? relevantStandorte.reduce((sum, entry) => sum + entry.submittedThisMonth, 0);
+  const fees = importSummary.rows ? importSummary.fees : periodMetrics?.fees ?? relevantStandorte.reduce((sum, entry) => sum + entry.feesThisMonth, 0);
+  const noProtectionAmount = importSummary.rows ? importSummary.noProtectionAmount : periodMetrics?.noProtectionAmount ?? riskTotal;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${standort?.name}`;
+  const resolvedPeriodLabel = periodLabel ?? (importSummary.rows ? "aktueller Testupload" : "aktueller Monat");
 
   return (
     <section className={compact ? "answer-cockpit compact" : "answer-cockpit"}>
@@ -611,8 +647,8 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("claims")}>
           <span>Wie viel wurde eingereicht?</span>
           <strong>{money.format(submitted)}</strong>
-          <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
-          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Monat")}</small>
+          <small>{resolvedPeriodLabel}</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("cases")}>
           <span>Was ist noch offen?</span>
@@ -628,9 +664,9 @@ function AnswerCockpit({
         </button>
         <button onClick={() => onNavigate("risks")}>
           <span>Ohne Ausfallschutz?</span>
-          <strong>{money.format(importSummary.rows ? importSummary.noProtectionAmount : riskTotal)}</strong>
-          <small>{importSummary.rows ? "aus Testupload" : "laufende Risikohinweise"}</small>
-          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Datenstand")}</small>
+          <strong>{money.format(noProtectionAmount)}</strong>
+          <small>{resolvedPeriodLabel}</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("repeatRisks")}>
           <span>Wiederholer?</span>
@@ -641,8 +677,8 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Gebühren?</span>
           <strong>{money.format(fees)}</strong>
-          <small>{importSummary.rows ? "aktueller Testupload" : "aktueller Monat"}</small>
-          <small className="period-note">{periodLabelFromHint(importSummary.rows ? "aktueller Testupload" : "aktueller Monat")}</small>
+          <small>{resolvedPeriodLabel}</small>
+          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
           <span>Ältester offener Fall?</span>
@@ -1381,6 +1417,16 @@ function importRowMonth(row: ImportPreviewRow) {
   const match = row.date.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!match) return "";
   return `${match[3]}-${match[2]}`;
+}
+
+function importRowInPeriod(row: ImportPreviewRow, period: PeriodOption, standort: Standort) {
+  const month = importRowMonth(row);
+  if (!month) return true;
+  const metricDate = new Date(`${month}-01T00:00:00`);
+  if (!period.start && !period.end) return month >= standort.goLiveDate.slice(0, 7);
+  if (period.start && metricDate < new Date(period.start.getFullYear(), period.start.getMonth(), 1)) return false;
+  if (period.end && metricDate > new Date(period.end.getFullYear(), period.end.getMonth(), 1)) return false;
+  return true;
 }
 
 function metricInPeriod(metric: BfsPeriodMetric, period: PeriodOption) {

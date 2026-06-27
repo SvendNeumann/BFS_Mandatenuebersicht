@@ -1233,12 +1233,44 @@ function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string
           amount: Math.abs(movement.amount ?? 0),
           reworked: wasReworked || wasPaid,
           paid: wasPaid,
-          open: !wasPaid
+          open: !(wasReworked || wasPaid)
         };
       });
   });
 
   return groupOutcomeRows(rawRows);
+}
+
+function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+  const candidates = resubmissionCandidatesFromImportRows(rows);
+  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
+
+  return rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return [];
+
+    return (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .flatMap((movement) => {
+        const patientName = movement.patientName ?? "Patient noch nicht gematcht";
+        const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
+        const reasonText = movement.reason?.toLowerCase() ?? "";
+        const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
+        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        if (wasReworked || wasPaid) return [];
+
+        return [{
+          patientName,
+          locationName: row.location,
+          date: row.date,
+          invoiceNo: movement.invoiceNo ?? "-",
+          bfsNo: movement.bfsNo ?? "-",
+          reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+          amount: Math.abs(movement.amount ?? 0),
+          file: row.file
+        }];
+      });
+  }).sort((a, b) => b.amount - a.amount);
 }
 
 function outcomeRowsFromCases(rows: BfsCase[]) {
@@ -2112,6 +2144,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
 
 function OutcomeControlView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const outcomeRows = outcomeRowsFromImportRows(importRows, standort?.id);
+  const openItems = openUnresolvedMovementsFromImportRows(importRows, standort?.id);
   const fallbackRows = outcomeRows.length ? outcomeRows : outcomeRowsFromCases(rows);
   const totals = fallbackRows.reduce((sum, row) => ({
     total: sum.total + row.total,
@@ -2120,6 +2153,7 @@ function OutcomeControlView({ standort, cases: rows, importRows = [] }: { stando
     open: sum.open + row.open,
     amount: sum.amount + row.amount
   }), { total: 0, reworked: 0, paid: 0, open: 0, amount: 0 });
+  const openAmount = openItems.length ? openItems.reduce((sum, item) => sum + item.amount, 0) : totals.amount;
   const successRate = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0;
 
   return (
@@ -2128,7 +2162,7 @@ function OutcomeControlView({ standort, cases: rows, importRows = [] }: { stando
         <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
         <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
         <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${successRate} % Erfolgsquote`} tone="green" />
-        <PriorityCard label="Noch offen" value={String(totals.open)} hint={money.format(totals.amount)} tone={totals.open ? "red" : "green"} />
+        <PriorityCard label="Noch offen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -2168,6 +2202,46 @@ function OutcomeControlView({ standort, cases: rows, importRows = [] }: { stando
           </table>
         </div>
       </section>
+      {!!openItems.length && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Offen nach Storno/Rückgabe</h2>
+              <p>Patienten, bei denen eine Rückgabe oder Stornierung erkannt wurde, aber im hochgeladenen Datenstand keine spätere Neueinreichung oder Erledigung gefunden wurde.</p>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Standort</th>
+                  <th>Datum</th>
+                  <th>Re.-Nr.</th>
+                  <th>BFS-Nr.</th>
+                  <th>Grund</th>
+                  <th>Betrag</th>
+                  <th>Quelle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openItems.slice(0, 120).map((item) => (
+                  <tr key={`${item.file}-${item.bfsNo}-${item.invoiceNo}-${item.patientName}`}>
+                    <td><strong>{item.patientName}</strong></td>
+                    <td>{item.locationName}</td>
+                    <td>{item.date}</td>
+                    <td>{item.invoiceNo}</td>
+                    <td>{item.bfsNo}</td>
+                    <td>{item.reason}</td>
+                    <td>{money.format(item.amount)}</td>
+                    <td>{item.file}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

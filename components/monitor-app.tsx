@@ -2090,11 +2090,12 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
     }
   }
 
-  function resetUpload() {
+  async function resetUpload() {
     onRowsChange([]);
     setSelectedFileCount(0);
-    setUploadStatus("Kompletter Upload zurückgesetzt");
-    void clearStoredImportRows();
+    setUploadStatus("Upload wird vollständig gelöscht");
+    await clearStoredImportRows();
+    setUploadStatus("Kompletter Import gelöscht");
   }
 
   return (
@@ -2532,6 +2533,8 @@ const importStorageDbName = "orisus-bfs-monitor-imports-v2-reset";
 const importStorageStoreName = "imports";
 const importStorageRowsKey = "current-preview";
 const importStorageLegacyKey = "orisus_bfs_monitor_import_preview_v2_reset";
+const importStorageDbNames = [importStorageDbName, "orisus-bfs-monitor-imports"];
+const importStorageLocalKeys = [importStorageLegacyKey, "orisus_bfs_monitor_import_preview"];
 
 function loadStoredImportRows() {
   if (typeof window === "undefined") return [];
@@ -2610,8 +2613,13 @@ async function storeImportRowsInDb(rows: ImportPreviewRow[]) {
 
 async function clearStoredImportRows() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(importStorageLegacyKey);
+  importStorageLocalKeys.forEach((key) => window.localStorage.removeItem(key));
   if (!("indexedDB" in window)) return;
+  await clearCurrentImportDbRows();
+  await Promise.all(importStorageDbNames.map(deleteImportDb));
+}
+
+async function clearCurrentImportDbRows() {
   try {
     const db = await openImportDb();
     await new Promise<void>((resolve, reject) => {
@@ -2629,6 +2637,15 @@ async function clearStoredImportRows() {
   } catch {
     // Reset should still clear the visible upload even if browser storage cleanup fails.
   }
+}
+
+function deleteImportDb(dbName: string) {
+  return new Promise<void>((resolve) => {
+    const request = window.indexedDB.deleteDatabase(dbName);
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  });
 }
 
 function openImportDb() {

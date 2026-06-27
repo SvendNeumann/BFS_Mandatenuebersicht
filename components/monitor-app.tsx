@@ -99,7 +99,7 @@ const superAdminNav: NavSection[] = [
     ]
   },
   {
-    title: "Verwaltung",
+    title: "Admin Bereich",
     items: [
       ["locations", "Standorte", Building2],
       ["users", "Nutzer & Rollen", Users],

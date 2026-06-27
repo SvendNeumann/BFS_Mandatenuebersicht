@@ -44,7 +44,7 @@ export default function LoginPage() {
       <section className="auth-card login-card">
         <a className="back-link" href="/"><ArrowLeft size={16} /> Zurück zur Startseite</a>
         <div className="brand mini-brand">
-          <div className="brand-mark">O</div>
+          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Sicherer Login</span>

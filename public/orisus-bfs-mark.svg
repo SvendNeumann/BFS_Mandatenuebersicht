@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="240" r="164" fill="url(#halo)" opacity=".22"/>
+  <path d="M89 239c0-91 74-165 165-165 66 0 124 39 151 95h-72c-19-25-47-39-79-39-59 0-106 49-106 109s47 109 106 109c35 0 67-17 86-47h73c-24 62-84 103-159 103-91 0-165-74-165-165Z" fill="#fff"/>
+  <path d="M89 239c0-31 8-60 23-86h71c-22 22-35 52-35 86 0 31 12 60 32 81h-70c-14-25-21-52-21-81Z" fill="#9BD2C1"/>
+  <path d="M333 169c-19-25-47-39-79-39-59 0-106 49-106 109s47 109 106 109c35 0 67-17 86-47h73c-24 62-84 103-159 103-91 0-165-74-165-165 0-31 8-60 23-86" stroke="rgba(255,255,255,.36)" stroke-width="6" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <rect x="258" y="294" width="164" height="88" rx="30" fill="#102722"/>
+    <text x="290" y="355" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="900" letter-spacing="-3">bfs</text>
+    <circle cx="391" cy="306" r="14" fill="#9BD2C1"/>
+    <rect x="366" y="328" width="53" height="15" rx="7.5" fill="#9BD2C1"/>
+    <rect x="385" y="318" width="15" height="54" rx="7.5" fill="#9BD2C1"/>
+  </g>
+  <path d="M129 424h254" stroke="#9BD2C1" stroke-width="17" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="34" x2="443" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12867A"/>
+      <stop offset=".55" stop-color="#0B766E"/>
+      <stop offset="1" stop-color="#082823"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(226 185) rotate(57) scale(244)">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="238" y="278" width="204" height="128" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+  </defs>
+</svg>

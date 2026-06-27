@@ -30,7 +30,7 @@ export default function LandingPage() {
     <main className="landing-page">
       <header className="landing-nav">
         <a className="brand compact-brand" href="/">
-          <div className="brand-mark">O</div>
+          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Interner Bereich</span>

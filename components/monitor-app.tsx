@@ -180,7 +180,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">O</div>
+          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Factoring-Kontrolle</span>
@@ -295,7 +295,7 @@ function AccessGate({ title, message }: { title: string; message: string }) {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand mini-brand">
-          <div className="brand-mark">O</div>
+          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Geschützter Bereich</span>

@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 27.06.2026, nach Parser-Verifikation mit BFS-Abrechnungsnachweisen 19092/273, 18504/249 und 19260/106
+Stand: 27.06.2026, nach erweitertem Parser-Batchtest mit acht BFS-Abrechnungsnachweisen
 
 ## Prompt fuer den naechsten Chat
 
@@ -308,6 +308,14 @@ Weitere Parser-Verifikation:
 - Storno-/Rückgabe-Summe im Kontoauszug: `1.187,67 EUR`; Geldfluss geht auf: `20.033,32 - 1.187,67 - 1,61 = 18.844,04`
 - Korrektur: generische `Rückgabe ...`-Zeilen ohne Ausfallschutz-Text werden als `sonstige_rueckbelastung` klassifiziert, damit sie in Rückgabe/Rückbelastungsauswertungen sichtbar sind.
 
+Erweiterter Parser-Batchtest:
+- Datei: `AbrechnungsNachweis_18790_139.pdf`, Mandant `18790`, Essen / Praxis Krause, Abrechnung `139` vom `05.03.2026`: 25/25 Forderungen, Summe `7.010,50 EUR`, Auszahlung `6.822,79 EUR`, Gebühr netto `157,74 EUR`, MwSt `29,97 EUR`, 1 ohne Ausfallschutz `643,55 EUR`, Marker `*KA`.
+- Korrektur aus dieser Datei: reine numerische Rechnungsnummern können auch 9-stellig sein, z.B. `211441102`; Parser-Regel wurde von 8-stellig auf 8- bis 10-stellig erweitert.
+- Datei: `AbrechnungsNachweis_19260_65-1.pdf`, Mandant `19260`, Ulmet / Praxis Dr. Hangx, Abrechnung `65` vom `11.02.2026`: 92/92 Forderungen, Summe `24.120,00 EUR`, Auszahlung `23.154,02 EUR`, Gebühr netto `542,70 EUR`, MwSt `103,11 EUR`, EWMA `1,35 EUR` + MwSt `0,26 EUR`, 6 ohne Ausfallschutz `708,87 EUR`, 2 Storno-Liquidationen `318,56 EUR`, Geldfluss passt.
+- Datei: `AbrechnungsNachweis_19092_240.pdf`, Mandant `19092`, Kehl / Zahnarztpraxis Zorn de Bulach, Abrechnung `240` vom `02.04.2026`: 30/30 Forderungen, Summe `4.705,18 EUR`, Auszahlung `4.579,19 EUR`, Gebühr netto `105,87 EUR`, MwSt `20,12 EUR`, 5 ohne Ausfallschutz `726,62 EUR`, Marker `*AA`.
+- Datei: `AbrechnungsNachweis_19804_21.pdf`, Mandant `19804`, Hüttenberg / Praxis Dr. Krauthausen, Abrechnung `21` vom `17.04.2026`: 53/53 Forderungen, Summe `5.926,89 EUR`, Auszahlung `5.768,19 EUR`, Gebühr netto `133,36 EUR`, MwSt `25,34 EUR`, 2 ohne Ausfallschutz `60,35 EUR`, Marker `*AA` und `*FÜ`.
+- Datei: `AbrechnungsNachweis_19260_32.pdf`, Mandant `19260`, Ulmet / Praxis Dr. Hangx, Abrechnung `32` vom `27.10.2025`: 27/27 Forderungen, Summe `4.199,12 EUR`, Auszahlung `4.086,69 EUR`, Gebühr netto `94,48 EUR`, MwSt `17,95 EUR`, 1 ohne Ausfallschutz `179,93 EUR`, Marker `*RS`.
+
 EWMA:
 - EWMA sind Einwohnermeldeamt-Abfragen, damit BFS die korrekte Anschrift ermitteln und eine Rechnung zustellen kann.
 
@@ -388,7 +396,8 @@ Hinweis:
 ## Wichtige letzte Commits
 
 Aktuelle letzte Commits:
-- naechster Commit: Generische BFS-Rueckgaben als Rueckbelastung klassifizieren
+- naechster Commit: Numerische BFS-Rechnungsnummern mit 8 bis 10 Stellen erkennen
+- `f3aa3f7d` - Classify generic BFS returns
 - `d9c9e011` - Document Kirchberg parser verification
 - `a3902584` - Fix BFS fee VAT parsing
 - Logo von PNG auf SVG/Vektor umgestellt, um Pixelung auf Mobile/Desktop zu vermeiden

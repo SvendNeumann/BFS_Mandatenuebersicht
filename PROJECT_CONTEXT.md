@@ -70,7 +70,7 @@ Vercel:
 
 ## Letzte wichtige Commits
 
-- `82322927 Remove remaining live demo values`
+- `0b494e47 Remove remaining live demo values`
   - Live-App zeigt keine Demo-, Beispiel- oder Planwerte mehr.
   - Standort-Stammdaten bleiben fuer Mapping/Navigation erhalten, aber alle Kennzahlen/Risiken/Nutzer/Reports kommen nur aus Supabase bzw. aktuellem Import.
   - Bei fehlenden Daten werden `0`, `-` oder leere Tabellen mit Hinweis angezeigt.

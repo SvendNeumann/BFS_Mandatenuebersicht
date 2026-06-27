@@ -1182,6 +1182,37 @@ td small {
   color: var(--muted);
 }
 
+.period-filter {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.32fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: #f8fafc;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.period-filter select {
+  min-height: 42px;
+  background: #ffffff;
+}
+
+.period-filter > div {
+  display: grid;
+  gap: 4px;
+}
+
+.period-filter strong {
+  font-size: 17px;
+}
+
+.period-filter span,
+.cashflow-card > div:first-child small {
+  color: var(--muted);
+}
+
 .cashflow-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1199,7 +1230,8 @@ td small {
 }
 
 .cashflow-card > div:first-child strong,
-.cashflow-card > div:first-child span {
+.cashflow-card > div:first-child span,
+.cashflow-card > div:first-child small {
   display: block;
 }
 
@@ -1822,7 +1854,8 @@ th:first-child {
   .topbar,
   .panel-heading,
   .upload-zone,
-  .report-toolbar {
+  .report-toolbar,
+  .period-filter {
     display: grid;
   }
 
@@ -1909,6 +1942,10 @@ th:first-child {
   }
 
   .group-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .period-filter {
     grid-template-columns: 1fr;
   }
 

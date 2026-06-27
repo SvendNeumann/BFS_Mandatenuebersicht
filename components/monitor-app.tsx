@@ -603,6 +603,9 @@ function AnswerCockpit({
 
 function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases: BfsCase[] }) {
   const rowsStandorte = standort ? [standort] : standorte;
+  const periodOptions = buildCashflowPeriods();
+  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
   return (
     <div className="content-stack">
       <section className="panel">
@@ -612,25 +615,42 @@ function ClaimsFlowView({ standort, cases: rows }: { standort?: Standort; cases:
             <p>Vom Monatsimport bis zur Rückfrage: eingereicht, Gebühren, offene Klärfälle, Rückläufer und Risiko je Standort.</p>
           </div>
         </div>
+        <div className="period-filter">
+          <label className="select-label">
+            Zeitraum
+            <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{selectedPeriod.label}</strong>
+            <span>{selectedPeriod.detail}. Vor dem jeweiligen Go-live des Standorts wird automatisch nichts gezählt.</span>
+          </div>
+        </div>
         <div className="cashflow-grid">
           {rowsStandorte.map((entry) => {
             const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
+            const periodCashflow = cashflowForPeriod(entry, selectedPeriod);
             const riskAmount = riskClaims.filter((claim) => claim.standortId === entry.id).reduce((sum, claim) => sum + claim.amount, 0);
-            const paidEstimate = Math.max(entry.submittedThisMonth - entry.feesThisMonth - openAmount, 0);
+            const periodRiskAmount = Math.min(riskAmount, periodCashflow.withoutProtection);
+            const paidEstimate = Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
             return (
               <article className="cashflow-card" key={entry.id}>
                 <div>
                   <strong>{entry.name}</strong>
                   <span>{entry.praxisname}</span>
+                  <small>{periodCashflow.activeMonths ? `${periodCashflow.activeMonths} aktive Monate ab ${periodCashflow.startLabel}` : `noch nicht live im Zeitraum, Start ${entry.goLiveLabel}`}</small>
                 </div>
                 <dl>
-                  <div><dt>Eingereicht</dt><dd>{money.format(entry.submittedThisMonth)}</dd></div>
+                  <div><dt>Eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>
                   <div><dt>geschätzt gutgeschrieben</dt><dd>{money.format(paidEstimate)}</dd></div>
-                  <div><dt>BFS-Gebühren</dt><dd>{money.format(entry.feesThisMonth)}</dd></div>
+                  <div><dt>BFS-Gebühren</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
                   <div><dt>offene Klärfälle</dt><dd>{money.format(openAmount)}</dd></div>
-                  <div><dt>Rückläufer offen</dt><dd>{money.format(entry.openChargebacks)}</dd></div>
-                  <div><dt>ohne Ausfallschutz</dt><dd>{money.format(riskAmount)}</dd></div>
+                  <div><dt>Rückläufer offen</dt><dd>{money.format(periodCashflow.openChargebacks)}</dd></div>
+                  <div><dt>ohne Ausfallschutz</dt><dd>{money.format(periodRiskAmount)}</dd></div>
                 </dl>
               </article>
             );
@@ -683,6 +703,100 @@ function InsightCard({ title, items }: { title: string; items: string[] }) {
       {items.map((item) => <span key={item}>{item}</span>)}
     </article>
   );
+}
+
+type PeriodOption = {
+  id: string;
+  label: string;
+  detail: string;
+  start?: Date;
+  end?: Date;
+};
+
+const demoToday = new Date("2026-06-27T00:00:00");
+
+function buildCashflowPeriods(): PeriodOption[] {
+  const earliestGoLive = new Date(`${standorte.map((entry) => entry.goLiveDate).sort()[0]}T00:00:00`);
+  const earliestStartYear = earliestGoLive.getFullYear();
+  const currentYear = demoToday.getFullYear();
+  const currentQuarter = Math.floor(demoToday.getMonth() / 3) + 1;
+  const periods: PeriodOption[] = [
+    {
+      id: "since-start",
+      label: "Seit Standortstart",
+      detail: "je Standort ab eigenem MVZ-Start"
+    },
+    {
+      id: `year-${currentYear}`,
+      label: `${currentYear} gesamt`,
+      detail: "bis zum aktuellen Monat",
+      start: new Date(currentYear, 0, 1),
+      end: demoToday
+    }
+  ];
+
+  for (let year = currentYear; year >= earliestStartYear; year -= 1) {
+    const maxQuarter = year === currentYear ? currentQuarter : 4;
+    for (let quarter = maxQuarter; quarter >= 1; quarter -= 1) {
+      const quarterStart = new Date(year, (quarter - 1) * 3, 1);
+      const quarterEnd = new Date(year, quarter * 3, 0);
+      if (quarterEnd < earliestGoLive) continue;
+      periods.push({
+        id: `q${quarter}-${year}`,
+        label: `Q${quarter} ${year}`,
+        detail: year === currentYear && quarter === currentQuarter ? "laufendes Quartal" : "Quartal",
+        start: quarterStart,
+        end: quarterEnd > demoToday ? demoToday : quarterEnd
+      });
+    }
+
+    if (year !== currentYear) {
+      periods.push({
+        id: `year-${year}`,
+        label: `${year} gesamt`,
+        detail: "Kalenderjahr",
+        start: new Date(year, 0, 1),
+        end: new Date(year, 11, 31)
+      });
+    }
+  }
+
+  return periods;
+}
+
+function cashflowForPeriod(standort: Standort, period: PeriodOption) {
+  const goLive = new Date(`${standort.goLiveDate}T00:00:00`);
+  const periodStart = period.start ? maxDate(period.start, goLive) : goLive;
+  const periodEnd = period.end ? minDate(period.end, demoToday) : demoToday;
+  const activeMonths = periodEnd < periodStart ? 0 : countStartedMonths(periodStart, periodEnd);
+  const scale = activeMonths;
+
+  return {
+    activeMonths,
+    startLabel: formatMonth(periodStart),
+    submitted: standort.submittedThisMonth * scale,
+    fees: standort.feesThisMonth * scale,
+    openChargebacks: standort.openChargebacks * Math.min(scale, 1),
+    withoutProtection: standort.withoutProtection * scale
+  };
+}
+
+function countStartedMonths(start: Date, end: Date) {
+  const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  return (endMonth.getFullYear() - startMonth.getFullYear()) * 12 + endMonth.getMonth() - startMonth.getMonth() + 1;
+}
+
+function maxDate(a: Date, b: Date) {
+  return a > b ? a : b;
+}
+
+function minDate(a: Date, b: Date) {
+  return a < b ? a : b;
+}
+
+function formatMonth(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(date);
 }
 
 function KpiGrid({ standort, cards: customCards }: { standort?: Standort; cards?: string[][] }) {

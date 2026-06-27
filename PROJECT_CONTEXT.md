@@ -49,7 +49,9 @@ Deployment:
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Nach dem Setzen der Environment-Variablen wurde ein neuer Production-Deploy gestartet und erfolgreich auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
 - Supabase Auth-User `svend.neumann@orisus.de` wurde am 27.06.2026 angelegt, E-Mail ist bestaetigt, Identity-Provider ist `email`, Profil ist `super_admin` und `active=true`.
-- Noch offen fuer vollstaendigen Livebetrieb: auf der Live-Loginseite `Passwort vergessen` ausloesen, eigenes Passwort setzen und Login/Upload mit echtem User testen.
+- Admin-User `svend.neumann@orisus.de` kann sich mit dem gesetzten Initialpasswort einloggen.
+- Nutzer-Onboarding wurde als App-Flow umgesetzt: Super Admin legt Nutzer in der App an, vergibt ein temporaeres Passwort, und der Nutzer muss beim ersten Login ein eigenes Passwort setzen.
+- Noch offen fuer vollstaendigen Livebetrieb der Nutzeranlage: Vercel braucht zusaetzlich `SUPABASE_SERVICE_ROLE_KEY` als serverseitige Production-Environment-Variable. Ohne diesen Key kann die App keine Supabase-Auth-Nutzer anlegen.
 
 ## Technischer Stand
 
@@ -68,7 +70,11 @@ Wichtige Dateien:
 - `lib/bfs-parser.ts`: PDF-/BFS-Textparser
 - `lib/demo-import.ts`: Upload-Verarbeitung, Datei-/Ordnerimport, Vorschau, Matching-Hinweise
 - `app/api/auth/session/route.ts`: setzt/loescht serverseitige Supabase-Session-Cookies nach Login/Logout
+- `app/api/admin/users/route.ts`: serverseitige Super-Admin-API zum Listen und Anlegen von Supabase-Auth-Nutzern mit temporaerem Passwort
+- `app/api/admin/users/[userId]/route.ts`: serverseitige Super-Admin-API zum Aktivieren/Deaktivieren und Zuruecksetzen temporaerer Passwoerter
+- `app/api/auth/complete-password-change/route.ts`: entfernt nach erfolgreichem eigenem Passwortwechsel das Pflichtwechsel-Flag
 - `app/api/imports/parse/route.ts`: serverseitiger Importpfad fuer PDF-Parsing, privaten Storage und Postgres-Persistenz
+- `app/passwort-aendern/page.tsx`: Pflichtseite fuer Nutzer mit temporaerem Erstpasswort
 - `proxy.ts`: serverseitige Zugriffskontrolle fuer Dashboard-/Standort-/Admin-Routen
 - `lib/demo-data.ts`: Demo-Standorte, Perioden-/Standortdaten, Fallback-Daten
 - `lib/types.ts`: zentrale Typen
@@ -89,7 +95,9 @@ Wichtige Hinweise:
 - Verifiziert: alle 15 Public-Tabellen existieren, Storage-Bucket `bfs-documents` ist privat (`public=false`), 15 Mandantennummern sind Standort/Go-live-Datum zugeordnet.
 - Vercel Production Env ist gesetzt und redeployed. Smoke-Test: Landingpage erreichbar; `/dashboard` leitet ohne Session erwartungsgemaess auf `/login` um.
 - Supabase Auth Admin-User ist angelegt: `svend.neumann@orisus.de`, `super_admin`, `active=true`.
-- Das Initialpasswort wurde nicht im Projekt oder Chat offengelegt. Fuer den ersten echten Login auf `https://bfs-mandatenuebersicht.vercel.app/login` die Funktion `Passwort vergessen` nutzen und ein eigenes Passwort setzen.
+- Das Initialpasswort fuer `svend.neumann@orisus.de` wurde gesetzt, damit der erste Super-Admin-Login direkt moeglich ist.
+- Migration `admin_user_onboarding` wurde am 27.06.2026 angewendet: `profiles.must_change_password`, `profiles.created_by`, `profiles.temp_password_set_at` und erweiterter Auth-Profiltrigger.
+- Fuer die produktive Nutzeranlage in der App muss `SUPABASE_SERVICE_ROLE_KEY` noch in Vercel Production gesetzt und danach redeployed werden.
 
 ## Aktueller App-Zustand
 

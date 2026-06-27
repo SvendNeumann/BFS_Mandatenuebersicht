@@ -38,7 +38,7 @@ import {
   standorte,
   isStandortLive,
   liveStatusLabel,
-  users
+  users as demoUsers
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, BfsPeriodMetric, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
@@ -3523,22 +3523,174 @@ function LocationsView({ onLocationsChange }: { onLocationsChange: () => void })
   );
 }
 
+type ManagedUser = {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  role: AppRole;
+  active: boolean;
+  mustChangePassword: boolean;
+  standortIds: string[];
+};
+
 function UsersView() {
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("Nutzer werden aus Supabase geladen.");
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<AppRole>("standortleitung");
+  const [standortId, setStandortId] = useState(standorte[0]?.id ?? "");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  async function loadUsers() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/users");
+      const body = await response.json().catch(() => null) as { users?: ManagedUser[]; error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Nutzer konnten nicht geladen werden.");
+      setManagedUsers(body?.users ?? []);
+      setMessage("Admins legen Nutzer mit temporärem Passwort an. Beim ersten Login muss der Nutzer ein eigenes Passwort setzen.");
+    } catch (error) {
+      setManagedUsers(demoUsers.map((user, index) => ({
+        id: `demo-${index}`,
+        email: user.email,
+        fullName: user.name,
+        role: user.role as AppRole,
+        active: user.active,
+        mustChangePassword: false,
+        standortIds: []
+      })));
+      setMessage(error instanceof Error ? error.message : "Nutzer konnten nicht geladen werden.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createUser(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          fullName,
+          role,
+          active: true,
+          temporaryPassword,
+          standortIds: role === "standortleitung" ? [standortId] : []
+        })
+      });
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Nutzer konnte nicht angelegt werden.");
+      setEmail("");
+      setFullName("");
+      setTemporaryPassword("");
+      setMessage("Nutzer wurde angelegt. Das temporäre Passwort muss dem Nutzer intern mitgeteilt werden.");
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nutzer konnte nicht angelegt werden.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleActive(user: ManagedUser) {
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: !user.active, role: user.role, standortIds: user.standortIds })
+      });
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Status konnte nicht geändert werden.");
+      setMessage(!user.active ? "Nutzer wurde aktiviert." : "Nutzer wurde deaktiviert.");
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Status konnte nicht geändert werden.");
+    }
+  }
+
   return (
     <section className="panel">
-      <div className="panel-heading"><h2>Nutzer</h2><button className="primary-button">Nutzer einladen</button></div>
+      <div className="panel-heading">
+        <div>
+          <h2>Nutzer</h2>
+          <p>{message}</p>
+        </div>
+      </div>
+      <form className="user-admin-form" onSubmit={createUser}>
+        <label>
+          Name
+          <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Vorname Nachname" />
+        </label>
+        <label>
+          E-Mail
+          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required placeholder="name@orisus.de" />
+        </label>
+        <label>
+          Rolle
+          <select value={role} onChange={(event) => setRole(event.target.value as AppRole)}>
+            <option value="standortleitung">Standortleitung</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </label>
+        <label>
+          Standort
+          <select value={standortId} onChange={(event) => setStandortId(event.target.value)} disabled={role === "super_admin"}>
+            {standorte.map((standort) => <option key={standort.id} value={standort.id}>{standort.name}</option>)}
+          </select>
+        </label>
+        <label>
+          Temporäres Passwort
+          <input value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} type="text" required minLength={8} placeholder="mind. 8 Zeichen" />
+        </label>
+        <button className="primary-button" type="submit" disabled={saving}>
+          <Users size={16} /> {saving ? "Wird angelegt" : "Nutzer anlegen"}
+        </button>
+      </form>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Standort</th><th>Status</th></tr></thead>
+          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Standort</th><th>Status</th><th>Aktion</th></tr></thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.email}><td><strong>{user.name}</strong></td><td>{user.email}</td><td>{user.role}</td><td>{user.location}</td><td><StatusBadge status={user.active ? "aktiv" : "inaktiv"} /></td></tr>
+            {managedUsers.map((user) => (
+              <tr key={user.id}>
+                <td><strong>{user.fullName || "-"}</strong></td>
+                <td>{user.email}</td>
+                <td>{user.role === "super_admin" ? "Super Admin" : "Standortleitung"}</td>
+                <td>{user.role === "super_admin" ? "alle Standorte" : user.standortIds.map(locationNameForId).join(", ") || "-"}</td>
+                <td>
+                  <div className="status-stack">
+                    <StatusBadge status={user.active ? "aktiv" : "inaktiv"} />
+                    {user.mustChangePassword && <StatusBadge status="Passwortwechsel offen" />}
+                  </div>
+                </td>
+                <td>
+                  <button className="secondary-button" onClick={() => toggleActive(user)} type="button">
+                    {user.active ? "Deaktivieren" : "Aktivieren"}
+                  </button>
+                </td>
+              </tr>
             ))}
+            {!managedUsers.length && !loading && (
+              <tr><td colSpan={6}>Noch keine Nutzer vorhanden.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
     </section>
   );
+}
+
+function locationNameForId(id: string) {
+  return standorte.find((standort) => standort.id === id)?.name ?? id;
 }
 
 function SettingsView() {

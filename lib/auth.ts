@@ -11,6 +11,7 @@ export type DemoSession = {
   email: string;
   role: AppRole;
   active: boolean;
+  mustChangePassword?: boolean;
   expiresAt: number;
 };
 
@@ -22,7 +23,7 @@ export async function loginWithEmail(email: string, password: string, remember: 
     if (!profile?.active) throw new Error("Dieser Nutzer ist für den BFS Monitor nicht freigegeben.");
     if (!data.session?.access_token || !data.session.refresh_token) throw new Error("Supabase-Session konnte nicht erstellt werden.");
     await persistServerSession(data.session.access_token, data.session.refresh_token, data.session.expires_at, remember);
-    return persistSession({ email: profile.email, role: profile.role, active: true, expiresAt: expiresAt(remember) });
+    return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, expiresAt: expiresAt(remember) });
   }
 
   if (!isLocalDemoAuthAllowed) {
@@ -34,7 +35,7 @@ export async function loginWithEmail(email: string, password: string, remember: 
   if (normalizedEmail !== superUserEmail || passwordHash !== superUserPasswordHash) {
     throw new Error("Login fehlgeschlagen. Bitte E-Mail und Passwort prüfen.");
   }
-  return persistSession({ email: superUserEmail, role: "super_admin", active: true, expiresAt: expiresAt(remember) });
+  return persistSession({ email: superUserEmail, role: "super_admin", active: true, mustChangePassword: false, expiresAt: expiresAt(remember) });
 }
 
 export async function requestPasswordReset(email: string) {
@@ -43,6 +44,22 @@ export async function requestPasswordReset(email: string) {
     throw new Error("Supabase Auth ist nicht konfiguriert.");
   }
   await supabase.auth.resetPasswordForEmail(email);
+}
+
+export async function updateOwnPassword(newPassword: string) {
+  if (!supabase) throw new Error("Supabase Auth ist nicht konfiguriert.");
+  if (newPassword.length < 8) throw new Error("Das neue Passwort muss mindestens 8 Zeichen haben.");
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+
+  const response = await fetch("/api/auth/complete-password-change", { method: "POST" });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? "Passwortwechsel konnte nicht abgeschlossen werden.");
+  }
+
+  const session = getStoredSession();
+  if (session) persistSession({ ...session, mustChangePassword: false });
 }
 
 export function getStoredSession(): DemoSession | null {
@@ -69,7 +86,7 @@ export async function getCurrentSession(): Promise<DemoSession | null> {
   if (!userId) return null;
   const profile = await loadProfile(userId);
   if (!profile?.active) return null;
-  return persistSession({ email: profile.email, role: profile.role, active: true, expiresAt: expiresAt(true) });
+  return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, expiresAt: expiresAt(true) });
 }
 
 export async function logout() {
@@ -99,7 +116,7 @@ export function removePasskey() {
 export async function loginWithPasskey() {
   if (!isLocalDemoAuthAllowed) throw new Error("Biometrischer Demo-Login ist im Produktivbetrieb deaktiviert.");
   if (!canUsePasskeys() || !hasSavedPasskey()) throw new Error("Biometrischer Login auf diesem Gerät nicht verfügbar.");
-  return persistSession({ email: superUserEmail, role: "super_admin", active: true, expiresAt: expiresAt(true) });
+  return persistSession({ email: superUserEmail, role: "super_admin", active: true, mustChangePassword: false, expiresAt: expiresAt(true) });
 }
 
 function persistSession(session: DemoSession) {
@@ -121,12 +138,17 @@ async function loadProfile(userId: string | undefined) {
   if (!supabase || !userId) return null;
   const { data, error } = await supabase
     .from("profiles")
-    .select("email, role, active")
+    .select("email, role, active, must_change_password")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
   if (!data || (data.role !== "super_admin" && data.role !== "standortleitung")) return null;
-  return data as { email: string; role: AppRole; active: boolean };
+  return {
+    email: data.email,
+    role: data.role,
+    active: data.active,
+    mustChangePassword: Boolean(data.must_change_password)
+  } as { email: string; role: AppRole; active: boolean; mustChangePassword: boolean };
 }
 
 async function persistServerSession(accessToken: string, refreshToken: string, expiresAtSeconds: number | undefined, remember: boolean) {

@@ -5,7 +5,7 @@ const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
 
 const superAdminPaths = ["/dashboard", "/importe", "/nutzer", "/reports", "/standorte"];
-const standortPaths = ["/standort"];
+const standortPaths = ["/standort", "/passwort-aendern"];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -25,11 +25,23 @@ export async function proxy(request: NextRequest) {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("role, active")
+    .select("role, active, must_change_password")
     .eq("id", session.userId)
     .maybeSingle();
 
   if (error || !profile?.active) return redirectToLogin(request, session.response);
+  if (profile.must_change_password && pathname !== "/passwort-aendern") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/passwort-aendern";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+  if (!profile.must_change_password && pathname === "/passwort-aendern") {
+    const url = request.nextUrl.clone();
+    url.pathname = profile.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   if (superAdminPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`)) && profile.role !== "super_admin") {
     return redirectToLogin(request, session.response);
   }
@@ -47,7 +59,8 @@ export const config = {
     "/nutzer/:path*",
     "/reports/:path*",
     "/standorte/:path*",
-    "/standort/:path*"
+    "/standort/:path*",
+    "/passwort-aendern/:path*"
   ]
 };
 

@@ -19,7 +19,9 @@ export default function LoginPage() {
     event.preventDefault();
     try {
       const session = await loginWithEmail(email, password, remember);
-      window.location.href = nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
+      window.location.href = session.mustChangePassword
+        ? "/passwort-aendern"
+        : nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login fehlgeschlagen.");
     }

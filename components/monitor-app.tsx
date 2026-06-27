@@ -962,13 +962,20 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                   <strong>{row.file}</strong>
                   <span>{row.practice}</span>
                   {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
+                  {!!row.parsedClaims?.length && (
+                    <small>{row.parsedClaims.length} Patientenpositionen · {row.noProtectionCount ?? 0} ohne Ausfallschutz</small>
+                  )}
                 </td>
                 <td>{row.location}</td>
                 <td>{row.mandantNo}</td>
                 <td>{row.statementNo} / {row.date}</td>
                 <td>{row.claimsHeader} / {row.claimsExtracted}</td>
                 <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
-                <td>{row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}</td>
+                <td>
+                  {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
+                  {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
+                  {!!row.feeTotal && <span>Gebühren {money.format(row.feeTotal)}</span>}
+                </td>
                 <td><StatusBadge status={row.status} /></td>
                 <td>
                   <div className="note-list">

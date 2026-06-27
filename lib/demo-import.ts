@@ -1,4 +1,5 @@
 import { isStandortLive, standorte } from "./demo-data";
+import { parseBfsPdfBytes, parseBfsText } from "./bfs-parser";
 import type { ImportPreviewRow } from "./types";
 
 const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
@@ -12,19 +13,24 @@ export async function parseDemoImportFiles(files: File[]) {
 async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   const bytes = await file.arrayBuffer();
   const hash = await sha256(bytes);
-  const text = await readLikelyText(file, bytes);
   const notes: string[] = [];
-  const mandantNo = detectMandantNo(file.name, text);
+  const parsed = file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+    ? await parsePdfSafely(bytes, notes)
+    : parseBfsText(await readLikelyText(file, bytes));
+  const text = parsed.rawText;
+  const mandantNo = parsed.mandantNo || detectMandantNo(file.name, text);
   const standort = standorte.find((entry) => entry.mandantNo === mandantNo);
-  const statementNo = detectStatementNo(file.name, text);
-  const date = detectDate(text);
-  const claimsHeader = detectClaimCount(text);
+  const statementNo = parsed.statementNo || detectStatementNo(file.name, text);
+  const date = parsed.statementDate || detectDate(text);
+  const claimsHeader = parsed.claimsHeader || detectClaimCount(text);
   const amounts = detectAmounts(text);
-  const sumHeader = amounts[0] ?? 0;
-  const movements = detectMovements(text);
+  const sumHeader = parsed.claimsSum || amounts[0] || 0;
+  const movements = parsed.movements.length || detectMovements(text);
+  const sumExtracted = parsed.claims.length
+    ? parsed.claims.reduce((sum, claim) => sum + claim.amount, 0)
+    : sumHeader;
 
   if (!text.trim()) notes.push("Keine lesbaren Textdaten erkannt.");
-  if (file.type === "application/pdf" && text.length < 250) notes.push("PDF-Text konnte im Browser nicht sicher extrahiert werden.");
   if (!mandantNo) notes.push("BFS-Mandant-Nr. nicht erkannt.");
   if (mandantNo && !standort) notes.push("Mandant-Nr. keinem Standort zugeordnet.");
   if (standort && !isStandortLive(standort)) notes.push(`${standort.name} ist erst ab ${standort.goLiveLabel} uploadpflichtig.`);
@@ -33,6 +39,8 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
   if (!claimsHeader) notes.push("Anzahl Forderungen nicht erkannt.");
   if (!sumHeader) notes.push("Forderungssumme nicht erkannt.");
   if (!movements) notes.push("Kontoauszug/Bewegungen nicht erkannt.");
+  if (claimsHeader && parsed.claims.length && claimsHeader !== parsed.claims.length) notes.push(`Forderungsliste unvollständig: ${parsed.claims.length} von ${claimsHeader} Positionen erkannt.`);
+  if (sumHeader && parsed.claims.length && Math.abs(sumHeader - sumExtracted) > 0.02) notes.push("Summenabweichung zwischen Kopf und Forderungsliste erkannt.");
 
   return {
     file: file.name,
@@ -42,16 +50,32 @@ async function parseDemoImportFile(file: File): Promise<ImportPreviewRow> {
     statementNo: statementNo || "-",
     date: date || "-",
     claimsHeader,
-    claimsExtracted: detectExtractedClaims(text, claimsHeader),
+    claimsExtracted: parsed.claims.length || detectExtractedClaims(text, claimsHeader),
     sumHeader,
-    sumExtracted: sumHeader,
+    sumExtracted,
     hasLedger: movements > 0,
     movements,
+    noProtectionCount: parsed.noProtectionCount,
+    noProtectionAmount: parsed.noProtectionAmount,
+    feeTotal: parsed.feeTotal,
+    netRevenue: parsed.netRevenue,
+    payout: parsed.payout,
+    parsedClaims: parsed.claims,
+    parsedMovements: parsed.movements,
     status: statusFromNotes(notes),
     fileHash: hash,
     fileSizeBytes: file.size,
     parseNotes: notes.length ? notes : ["Testdatei wurde für die Import-Vorschau verarbeitet."]
   };
+}
+
+async function parsePdfSafely(bytes: ArrayBuffer, notes: string[]) {
+  try {
+    return await parseBfsPdfBytes(bytes);
+  } catch (error) {
+    notes.push(`PDF.js-Extraktion fehlgeschlagen: ${error instanceof Error ? error.message : "unbekannter Fehler"}.`);
+    return parseBfsText(await readLikelyText(new File([bytes], "fallback.pdf", { type: "application/pdf" }), bytes));
+  }
 }
 
 async function readLikelyText(file: File, bytes: ArrayBuffer) {
@@ -91,7 +115,7 @@ function detectClaimCount(text: string) {
 }
 
 function detectExtractedClaims(text: string, fallback: number) {
-  const invoiceMatches = text.match(/\b\d{3}-\d{6}\b/g);
+  const invoiceMatches = text.match(/\b\d{2,3}-\d{6}\b/g);
   return invoiceMatches?.length || fallback || 0;
 }
 

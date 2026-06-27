@@ -59,8 +59,34 @@ export type ImportPreviewRow = {
   sumExtracted: number;
   hasLedger: boolean;
   movements: number;
+  noProtectionCount?: number;
+  noProtectionAmount?: number;
+  feeTotal?: number;
+  netRevenue?: number;
+  payout?: number;
+  parsedClaims?: ParsedImportClaim[];
+  parsedMovements?: ParsedImportMovement[];
   status: string;
   fileHash?: string;
   fileSizeBytes?: number;
   parseNotes?: string[];
+};
+
+export type ParsedImportClaim = {
+  patientName: string;
+  invoiceNo: string;
+  bfsNo: string;
+  amount: number;
+  marker?: string;
+  protectionStatus: "mit_ausfallschutz" | "ohne_ausfallschutz" | "unbekannt";
+};
+
+export type ParsedImportMovement = {
+  date?: string;
+  type: string;
+  patientName?: string;
+  invoiceNo?: string;
+  bfsNo?: string;
+  amount?: number;
+  rawText: string;
 };

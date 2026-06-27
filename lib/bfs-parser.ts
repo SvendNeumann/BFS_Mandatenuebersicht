@@ -105,6 +105,7 @@ function parseEwmaBreakdown(movements: ParsedImportMovement[]) {
 
 async function extractPdfText(bytes: ArrayBuffer) {
   ensurePdfJsServerPolyfills();
+  await ensurePdfJsServerWorker();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   configurePdfWorker(pdfjs);
   const pdf = await pdfjs.getDocument({
@@ -121,6 +122,13 @@ async function extractPdfText(bytes: ArrayBuffer) {
   }
 
   return pages.join("\n");
+}
+
+async function ensurePdfJsServerWorker() {
+  if (typeof window !== "undefined") return;
+  const globalScope = globalThis as Record<string, unknown>;
+  if ((globalScope.pdfjsWorker as { WorkerMessageHandler?: unknown } | undefined)?.WorkerMessageHandler) return;
+  await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
 }
 
 function ensurePdfJsServerPolyfills() {

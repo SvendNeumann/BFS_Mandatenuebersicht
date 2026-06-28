@@ -804,6 +804,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const [standortFilterId, setStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(chartPeriodOptions));
   const [chartStandortFilterId, setChartStandortFilterId] = useState(() => standort?.id ?? "alle");
+  const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(chartPeriodOptions));
   const selectedPeriod = useMemo(
     () => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0],
     [periodOptions, periodId]
@@ -811,6 +812,10 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const selectedChartPeriod = useMemo(
     () => chartPeriodOptions.find((period) => period.id === chartPeriodId) ?? chartPeriodOptions[0],
     [chartPeriodOptions, chartPeriodId]
+  );
+  const selectedBenchmarkPeriod = useMemo(
+    () => chartPeriodOptions.find((period) => period.id === benchmarkPeriodId) ?? chartPeriodOptions[0],
+    [benchmarkPeriodId, chartPeriodOptions]
   );
   const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
   const relevantStandorte = useMemo(() => {
@@ -841,7 +846,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, stornoReview.rows), [scopedRows, stornoReview.rows]);
   const chartStornoReview = useMemo(() => stornoReviewFromImportRows(chartRows, standort?.id, manualCaseResolutions), [chartRows, standort?.id, manualCaseResolutions]);
   const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, chartStornoReview.rows), [chartRows, chartStornoReview.rows]);
-  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, chartStandorte, selectedChartPeriod, manualCaseResolutions), [chartStandorte, importRows, manualCaseResolutions, selectedChartPeriod]);
+  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
     const parsedCount = row.parsedClaims?.length ?? 0;
@@ -1009,7 +1014,14 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
         />
       </section>
 
-      <CustomBenchmarkTable rows={benchmarkRows} periodLabel={selectedChartPeriod.label} />
+      <CustomBenchmarkTable
+        rows={benchmarkRows}
+        periodLabel={selectedBenchmarkPeriod.label}
+        periodDetail={selectedBenchmarkPeriod.detail}
+        periodOptions={chartPeriodOptions}
+        periodId={benchmarkPeriodId}
+        onPeriodChange={setBenchmarkPeriodId}
+      />
     </div>
   );
 }
@@ -1031,7 +1043,21 @@ type CustomBenchmarkRow = {
   signal: string;
 };
 
-function CustomBenchmarkTable({ rows, periodLabel }: { rows: CustomBenchmarkRow[]; periodLabel: string }) {
+function CustomBenchmarkTable({
+  rows,
+  periodLabel,
+  periodDetail,
+  periodOptions,
+  periodId,
+  onPeriodChange
+}: {
+  rows: CustomBenchmarkRow[];
+  periodLabel: string;
+  periodDetail: string;
+  periodOptions: PeriodOption[];
+  periodId: string;
+  onPeriodChange: (periodId: string) => void;
+}) {
   return (
     <section className="panel custom-benchmark-panel">
       <div className="panel-heading">
@@ -1039,6 +1065,20 @@ function CustomBenchmarkTable({ rows, periodLabel }: { rows: CustomBenchmarkRow[
           <span className="eyebrow">Benchmarking</span>
           <h2>Standorte nach Kennzahlen vergleichen</h2>
           <p>Zeitraum: {periodLabel}. Umsatz, Forderungsvolumen, Stornoqualität, Schutzquote und Gebührenquote je Standort.</p>
+        </div>
+      </div>
+      <div className="period-filter custom-benchmark-filter">
+        <label className="select-label">
+          Zeitraum Benchmark
+          <select value={periodId} onChange={(event) => onPeriodChange(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>Tabellenzeitraum separat steuern</strong>
+          <span>{periodDetail}</span>
         </div>
       </div>
       <div className="table-wrap custom-benchmark-scroll">

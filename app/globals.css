@@ -3005,6 +3005,12 @@ td small {
   overflow: hidden;
 }
 
+.custom-benchmark-filter {
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  margin: 14px 0;
+  padding: 12px;
+}
+
 .custom-benchmark-table {
   min-width: 1180px;
 }

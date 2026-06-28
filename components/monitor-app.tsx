@@ -746,10 +746,10 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const [groupFocus, setGroupFocus] = useState("gesamt");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
-  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? selectedPeriod, [periodOptions, benchmarkPeriodId, selectedPeriod]);
+  const chartPeriod = useMemo(() => periodOptions.find((period) => period.id === chartPeriodId) ?? periodOptions[0], [periodOptions, chartPeriodId]);
+  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? chartPeriod, [periodOptions, benchmarkPeriodId, chartPeriod]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
@@ -761,11 +761,6 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     if (groupFocus === "wiedervorlagen") return fall.status === "wiedervorlage" || fall.dueDate !== "-";
     return true;
   }), [openCases, groupFocus]);
-  const focusedRisks = useMemo(() => riskClaimsFromImportRows(importRows).filter((claim) => filteredStandortIds.has(claim.standortId)), [importRows, filteredStandortIds]);
-  const scopedImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
-    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, filteredStandorte, selectedPeriod]);
   const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
@@ -775,16 +770,17 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
-  const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
-  const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
-  const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases), [importRows, filteredStandorte, openCases]);
-  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows), [filteredStandorte, importRows]);
-  const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, selectedPeriod, scopedImportRows, openCases), [filteredStandorte, selectedPeriod, scopedImportRows, openCases]);
+  const managementRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
+    return rowStandort ? importRowInPeriod(row, managementComparison.currentPeriod, rowStandort) : false;
+  }), [importRows, filteredStandorte, managementComparison.currentPeriod]);
+  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows, chartPeriod), [filteredStandorte, importRows, chartPeriod]);
+  const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases), [filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
-  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: selectedPeriod };
+  const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
+  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod };
   const groupKpis: KpiCardTuple[] = [
     ["Eingereicht YTD 2026", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
     ["Eingereicht Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...groupSparklineContext, period: managementComparison.previousPeriod })],
@@ -793,7 +789,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ["Gebührenquote YTD", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
     ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
     ["Quote wieder reingeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
-    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
     ["Offene operative Fälle", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
     ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, kpiSparklineForLabel("Ältester Fall", groupSparklineContext)]
   ];
@@ -806,23 +802,23 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         onStandortChange={setGroupStandortFilter}
         onFocusChange={setGroupFocus}
       />
-      <section className="panel period-filter">
+      <KpiGrid cards={groupKpis} />
+      <section className="panel period-filter chart-period-filter">
         <label className="select-label">
-          Zeitraum Zusammenfassung
-          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+          Zeitraum Diagramme
+          <select value={chartPeriodId} onChange={(event) => setChartPeriodId(event.target.value)}>
             {periodOptions.map((period) => (
               <option key={period.id} value={period.id}>{period.label}</option>
             ))}
           </select>
         </label>
       </section>
-      <KpiGrid cards={groupKpis} />
       <section className="chart-grid management-chart-grid">
         {groupChartSeries.map((chart) => (
           <div className="panel mini-chart year-chart-panel" key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">
-              {chart.title.includes("Standortvergleich") ? "Je Standort · YTD 2025 vs. 2026" : "Alle ausgewählten Standorte · Monate 2025 vs. 2026"}
+              {chart.title.includes("Standortvergleich") ? `Je Standort · ${chartPeriod.label} vs. Vorjahr` : `Alle ausgewählten Standorte · ${chartPeriod.label} vs. Vorjahr`}
             </small>
             <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
           </div>
@@ -1002,18 +998,20 @@ function YearComparisonBars({
   format
 }: {
   title: string;
-  values: { label: string; current: number; previous: number; context?: string }[];
+  values: { label: string; current: number; previous: number; context?: string; currentYear?: number; previousYear?: number }[];
   format: (value: number) => string;
 }) {
-  const [activePoint, setActivePoint] = useState<{ label: string; year: "2025" | "2026"; value: number; context?: string } | null>(null);
+  const defaultCurrentYear = values[0]?.currentYear ?? todayReference.getFullYear();
+  const defaultPreviousYear = values[0]?.previousYear ?? defaultCurrentYear - 1;
+  const [activePoint, setActivePoint] = useState<{ label: string; year: number; value: number; context?: string } | null>(null);
   const maxValue = Math.max(...values.flatMap((value) => [value.current, value.previous]), 1);
-  const active = activePoint ?? (values[0] ? { label: values[0].label, year: "2026" as const, value: values[0].current, context: values[0].context } : null);
+  const active = activePoint ?? (values[0] ? { label: values[0].label, year: values[0].currentYear ?? defaultCurrentYear, value: values[0].current, context: values[0].context } : null);
   return (
     <div className="year-comparison-chart" aria-label={title}>
       <div className="year-chart-head">
         <div className="year-legend">
-          <span><i className="previous" /> 2025</span>
-          <span><i className="current" /> 2026</span>
+          <span><i className="previous" /> {defaultPreviousYear}</span>
+          <span><i className="current" /> {defaultCurrentYear}</span>
         </div>
         {active && (
           <div className="year-active-value">
@@ -1029,23 +1027,23 @@ function YearComparisonBars({
             <div className="year-pair">
               <button
                 type="button"
-                className={active?.label === value.label && active.year === "2025" ? "previous active" : "previous"}
+                className={active?.label === value.label && active.year === (value.previousYear ?? defaultPreviousYear) ? "previous active" : "previous"}
                 style={{ height: `${Math.max(4, (value.previous / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
-                onFocus={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}2025 ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.previous)}`}
+                onClick={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
+                onFocus={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
+                aria-label={`${value.context ? `${value.context}, ` : ""}${value.previousYear ?? defaultPreviousYear} ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.previous)}`}
               >
                 <span>{value.context && <b>{value.context}</b>}{format(value.previous)}</span>
               </button>
               <button
                 type="button"
-                className={active?.label === value.label && active.year === "2026" ? "current active" : "current"}
+                className={active?.label === value.label && active.year === (value.currentYear ?? defaultCurrentYear) ? "current active" : "current"}
                 style={{ height: `${Math.max(4, (value.current / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
-                onFocus={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}2026 ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.current)}`}
+                onClick={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
+                onFocus={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
+                aria-label={`${value.context ? `${value.context}, ` : ""}${value.currentYear ?? defaultCurrentYear} ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.current)}`}
               >
                 <span>{value.context && <b>{value.context}</b>}{format(value.current)}</span>
               </button>
@@ -1123,27 +1121,27 @@ function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOpti
   ];
 }
 
-function buildManagementChartSeries(rowsStandorte: Standort[], importRows: ImportPreviewRow[] = []) {
+function buildManagementChartSeries(rowsStandorte: Standort[], importRows: ImportPreviewRow[] = [], period: PeriodOption) {
   return [
     {
       title: "Monatsentwicklung eingereichter Umsatz",
       format: (value: number) => money.format(value),
-      values: buildYearMonthComparison(rowsStandorte, importRows, "submitted")
+      values: buildYearMonthComparison(rowsStandorte, importRows, "submitted", period)
     },
     {
       title: "Gebührenquote je Monat",
       format: (value: number) => formatFeeRate(value),
-      values: buildYearMonthComparison(rowsStandorte, importRows, "feeRate")
+      values: buildYearMonthComparison(rowsStandorte, importRows, "feeRate", period)
     },
     {
       title: "Rückbelastungen/Stornos je Monat",
       format: (value: number) => money.format(value),
-      values: buildYearMonthComparison(rowsStandorte, importRows, "deductionAmount")
+      values: buildYearMonthComparison(rowsStandorte, importRows, "deductionAmount", period)
     },
     {
-      title: "Standortvergleich YTD mit Delta",
+      title: "Standortvergleich mit Delta",
       format: (value: number) => money.format(value),
-      values: buildLocationYtdDeltaComparison(rowsStandorte, importRows)
+      values: buildLocationYtdDeltaComparison(rowsStandorte, importRows, period)
     }
   ];
 }
@@ -1209,32 +1207,40 @@ function metricsFromRows(rows: ImportPreviewRow[]) {
   return summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
 }
 
-function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[], metric: "submitted" | "feeRate" | "deductionAmount") {
-  const currentYear = todayReference.getFullYear();
+function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[], metric: "submitted" | "feeRate" | "deductionAmount", period: PeriodOption) {
+  const comparisonPeriod = comparableCurrentPeriod(period);
+  const currentYear = comparisonPeriod.start?.getFullYear() ?? todayReference.getFullYear();
   const previousYear = currentYear - 1;
-  const monthCount = todayReference.getMonth() + 1;
+  const startMonth = comparisonPeriod.start?.getMonth() ?? 0;
+  const endMonth = comparisonPeriod.end?.getMonth() ?? (currentYear === todayReference.getFullYear() ? todayReference.getMonth() : 11);
   const context = rowsStandorte.length === 1 ? rowsStandorte[0].name : "Alle Standorte";
-  return Array.from({ length: monthCount }, (_, index) => {
-    const currentRows = rowsForMonth(importRows, rowsStandorte, currentYear, index);
-    const previousRows = rowsForMonth(importRows, rowsStandorte, previousYear, index);
+  return Array.from({ length: endMonth - startMonth + 1 }, (_, offset) => {
+    const monthIndex = startMonth + offset;
+    const currentRows = rowsForMonth(importRows, rowsStandorte, currentYear, monthIndex);
+    const previousRows = rowsForMonth(importRows, rowsStandorte, previousYear, monthIndex);
     return {
-      label: String(index + 1).padStart(2, "0"),
+      label: String(monthIndex + 1).padStart(2, "0"),
       context,
+      currentYear,
+      previousYear,
       current: metricValueForRows(currentRows, metric),
       previous: metricValueForRows(previousRows, metric)
     };
   });
 }
 
-function buildLocationYtdDeltaComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[]) {
-  const currentYear = todayReference.getFullYear();
-  const currentPeriod = ytdPeriod(currentYear);
-  const previousPeriod = comparablePreviousYtdPeriod(currentYear);
+function buildLocationYtdDeltaComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[], period: PeriodOption) {
+  const currentPeriod = comparableCurrentPeriod(period);
+  const previousPeriod = previousYearPeriod(currentPeriod);
+  const currentYear = currentPeriod.start?.getFullYear() ?? todayReference.getFullYear();
+  const previousYear = currentYear - 1;
   return rowsStandorte
     .filter((standort) => standortActiveInPeriod(standort, currentPeriod))
     .map((standort) => ({
       label: standort.name,
       context: standort.name,
+      currentYear,
+      previousYear,
       current: metricsFromImportRowsForStandort(importRows, standort, currentPeriod).submitted,
       previous: metricsFromImportRowsForStandort(importRows, standort, previousPeriod).submitted
     }));
@@ -1721,7 +1727,7 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
           </div>
           <YearComparisonBars
             title={`Monatsentwicklung ${standort.name}`}
-            values={buildYearMonthComparison([standort], importRows, "submitted")}
+            values={buildYearMonthComparison([standort], importRows, "submitted", selectedPeriod)}
             format={(value) => money.format(value)}
           />
         </article>

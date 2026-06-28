@@ -518,7 +518,7 @@ input {
 .kpi-card {
   display: grid;
   gap: 8px;
-  min-height: 132px;
+  min-height: 184px;
   padding: 18px;
 }
 

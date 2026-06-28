@@ -675,15 +675,16 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const oldestOpenCase = focusedCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const chargebackRate = selectedMetrics.submitted ? ((selectedMetrics.returnAmount + selectedMetrics.cancellationAmount) / selectedMetrics.submitted) * 100 : 0;
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
+  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: selectedPeriod };
   const groupKpis: KpiCardTuple[] = [
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees],
-    ["Gebührenquote", formatPercent(selectedMetrics.feeRate), periodLabel],
-    ["Rückbelastungsquote", formatPercent(chargebackRate), "Rückgaben und Stornos am Eingang"],
-    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label],
-    ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
-    ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position"]
+    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
+    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout, kpiSparklineForLabel("Auszahlungsbetrag", groupSparklineContext)],
+    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
+    ["Gebührenquote", formatPercent(selectedMetrics.feeRate), periodLabel, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
+    ["Rückbelastungsquote", formatPercent(chargebackRate), "Rückgaben und Stornos am Eingang", undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
+    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label, undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
+    ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert", undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
+    ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, kpiSparklineForLabel("Ältester Fall", groupSparklineContext)]
   ];
   const cockpitAlerts = buildCockpitAlerts(locationSnapshots, selectedMetrics, focusedCases);
   return (
@@ -1224,13 +1225,14 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt")), [cases]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
+  const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
   const locationKpis: KpiCardTuple[] = [
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, locationKpiInfo.submitted],
-    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel, locationKpiInfo.feeNet],
-    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel, locationKpiInfo.tax],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, locationKpiInfo.payout],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, locationKpiInfo.fees],
-    ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel]
+    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
+    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel, locationKpiInfo.feeNet, kpiSparklineForLabel("BFS-Gebühr netto", locationSparklineContext)],
+    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel, locationKpiInfo.tax, kpiSparklineForLabel("MwSt auf Gebühren", locationSparklineContext)],
+    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, locationKpiInfo.payout, kpiSparklineForLabel("Auszahlungsbetrag", locationSparklineContext)],
+    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, locationKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", locationSparklineContext)],
+    ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)]
   ];
 
   return (
@@ -1444,7 +1446,20 @@ function AnswerCockpit({
   );
 }
 
-type AnswerSparklineMetric = "submitted" | "openAmount" | "chargebacks" | "noProtection" | "recurring" | "fees" | "oldest";
+type AnswerSparklineMetric =
+  | "submitted"
+  | "payout"
+  | "feeNet"
+  | "tax"
+  | "feeRate"
+  | "chargebackRate"
+  | "openAmount"
+  | "openCount"
+  | "chargebacks"
+  | "noProtection"
+  | "recurring"
+  | "fees"
+  | "oldest";
 type AnswerSparklineTrend = {
   points: number[];
   tone: "green" | "amber" | "red";
@@ -1489,7 +1504,7 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte);
   const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte);
   const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
-  const lowerIsBetter: AnswerSparklineMetric[] = ["openAmount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
+  const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
   const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
   const tone = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
   const label = previousTotal
@@ -1503,6 +1518,21 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
     tone,
     label
   };
+}
+
+function kpiSparklineForLabel(label: string, context: AnswerSparklineContext) {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("umsatz") || normalized.includes("eingereicht")) return buildAnswerSparkline("submitted", context);
+  if (normalized.includes("auszahlung")) return buildAnswerSparkline("payout", context);
+  if (normalized.includes("gebührenquote")) return buildAnswerSparkline("feeRate", context);
+  if (normalized.includes("rückbelastungsquote")) return buildAnswerSparkline("chargebackRate", context);
+  if (normalized.includes("mwst")) return buildAnswerSparkline("tax", context);
+  if (normalized.includes("gebühr netto")) return buildAnswerSparkline("feeNet", context);
+  if (normalized.includes("gesamtkosten") || normalized.includes("bfs-kosten")) return buildAnswerSparkline("fees", context);
+  if (normalized.includes("ausfallschutz") || normalized.includes("schutz")) return buildAnswerSparkline("noProtection", context);
+  if (normalized.includes("klä") || normalized.includes("offen")) return buildAnswerSparkline("openCount", context);
+  if (normalized.includes("ältester")) return buildAnswerSparkline("oldest", context);
+  return buildAnswerSparkline("submitted", context);
 }
 
 function comparableCurrentPeriod(period: PeriodOption): PeriodOption {
@@ -1545,11 +1575,17 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
   const summary = summarizeImportRows(rows);
   const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
   if (metric === "submitted") return metrics.submitted;
+  if (metric === "payout") return metrics.payout;
+  if (metric === "feeNet") return metrics.feeNet;
+  if (metric === "tax") return metrics.feeVat + metrics.ewmaVat;
   if (metric === "fees") return metrics.fees;
+  if (metric === "feeRate") return metrics.feeRate;
+  if (metric === "chargebackRate") return metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
   if (metric === "noProtection") return metrics.noProtectionAmount;
 
   const cases = casesFromImportRows(rows).filter((fall) => relevantStandorte.some((entry) => entry.id === fall.standortId) && !fall.status.includes("erledigt"));
   if (metric === "openAmount") return cases.reduce((sum, fall) => sum + fall.amount, 0);
+  if (metric === "openCount") return cases.length;
   if (metric === "chargebacks") {
     return cases
       .filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))
@@ -3010,7 +3046,7 @@ function formatMonth(date: Date) {
   return new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(date);
 }
 
-type KpiCardTuple = [label: string, value: string, hint: string, info?: string];
+type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend];
 
 function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[] }) {
   const cards = useMemo(() => {
@@ -3034,12 +3070,13 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
   }, [customCards, importRows, standort]);
   return (
     <section className="kpi-grid">
-      {cards.map(([label, value, hint, info]) => (
+      {cards.map(([label, value, hint, info, trend]) => (
         <article className="kpi-card" key={label}>
           <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(hint)))} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{normalizeProductCopy(hint)}</small>
+          {trend && <AnswerSparkline trend={trend} />}
           <small className="period-note">{periodLabelFromHint(hint)}</small>
         </article>
       ))}

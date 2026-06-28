@@ -210,6 +210,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [caseResolutionMode, setCaseResolutionMode] = useState<ManualCaseResolution["status"]>("paid_manual");
   const [caseResolveError, setCaseResolveError] = useState("");
   const [caseResolveSaving, setCaseResolveSaving] = useState(false);
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const hasUploadData = liveImportRows.length > 0;
@@ -345,6 +346,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setActiveView(key);
     setMobileNavOpen(false);
     openNavSectionForView(key);
+    scrollToPageStart();
   }
 
   function goToCockpit() {
@@ -353,6 +355,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setActiveView("dashboard");
     setMobileNavOpen(false);
     openNavSectionForView("dashboard");
+    scrollToPageStart();
   }
 
   function pushCurrentViewToHistory() {
@@ -375,6 +378,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setActiveView(isKnownViewForRole(previous.activeView, role) ? previous.activeView : "dashboard");
     setMobileNavOpen(false);
     openNavSectionForView(previous.activeView);
+    scrollToPageStart();
+  }
+
+  function scrollToPageStart() {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      workspaceRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
   }
 
   function openNavSectionForView(key: string) {
@@ -485,7 +496,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </div>
       </aside>
 
-      <section className="workspace">
+      <section className="workspace" ref={workspaceRef}>
         <header className="topbar">
           <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Cockpit">
             <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />

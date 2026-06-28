@@ -1118,8 +1118,12 @@ function CustomComboChart({
   const chartValues = values.length ? values : [emptyCustomChartPoint("Keine Daten")];
   const active = chartValues[Math.min(activeIndex, chartValues.length - 1)];
   const maxValue = Math.max(...chartValues.flatMap((point) => [Number(point[barKey]), Number(point[lineKey])]), 1);
+  const slot = 100 / chartValues.length;
+  const activeX = chartValues.length === 1 ? 50 : activeIndex * slot + slot / 2;
+  const activeValuePeak = Math.max(Number(active[barKey]), Number(active[lineKey]));
+  const activeY = Math.max(10, Math.min(78, 100 - (activeValuePeak / maxValue) * 86));
   const linePoints = chartValues.map((point, index) => {
-    const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+    const x = chartValues.length === 1 ? 50 : index * slot + slot / 2;
     const y = 100 - (Number(point[lineKey]) / maxValue) * 86;
     return `${x},${Math.max(8, Math.min(96, y))}`;
   }).join(" ");
@@ -1137,10 +1141,14 @@ function CustomComboChart({
         </div>
       </div>
       <div className="custom-combo-chart" onPointerLeave={() => setActiveIndex(0)}>
+        <div className="custom-chart-tooltip" style={{ left: `${Math.max(13, Math.min(87, activeX))}%`, top: `${activeY}%` }}>
+          <strong>{active.label}</strong>
+          <span>{barLabel}: {format(Number(active[barKey]))}</span>
+          <span>{lineLabel}: {format(Number(active[lineKey]))}</span>
+        </div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={title}>
           {[24, 50, 76].map((y) => <line key={y} className="custom-grid-line" x1="0" x2="100" y1={y} y2={y} />)}
           {chartValues.map((point, index) => {
-            const slot = 100 / chartValues.length;
             const height = Math.max(3, (Number(point[barKey]) / maxValue) * 84);
             return (
               <rect
@@ -1160,7 +1168,7 @@ function CustomComboChart({
           })}
           <polyline className="custom-line" points={linePoints} />
           {chartValues.map((point, index) => {
-            const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+            const x = chartValues.length === 1 ? 50 : index * slot + slot / 2;
             const y = Math.max(8, Math.min(96, 100 - (Number(point[lineKey]) / maxValue) * 86));
             return <circle key={`${point.month}-line`} className="custom-line-point" cx={x} cy={y} r="2.2" />;
           })}
@@ -1195,8 +1203,13 @@ function CustomDualAxisChart({
   const active = chartValues[Math.min(activeIndex, chartValues.length - 1)];
   const maxBar = Math.max(...chartValues.map((point) => Number(point[barKey])), 1);
   const maxLine = Math.max(...chartValues.map((point) => Number(point[lineKey])), 1);
+  const slot = 100 / chartValues.length;
+  const activeX = chartValues.length === 1 ? 50 : activeIndex * slot + slot / 2;
+  const activeBarY = 96 - Math.max(3, (Number(active[barKey]) / maxBar) * 84);
+  const activeLineY = Math.max(8, Math.min(96, 100 - (Number(active[lineKey]) / maxLine) * 86));
+  const activeY = Math.max(10, Math.min(78, Math.min(activeBarY, activeLineY)));
   const linePoints = chartValues.map((point, index) => {
-    const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+    const x = chartValues.length === 1 ? 50 : index * slot + slot / 2;
     const y = 100 - (Number(point[lineKey]) / maxLine) * 86;
     return `${x},${Math.max(8, Math.min(96, y))}`;
   }).join(" ");
@@ -1214,10 +1227,14 @@ function CustomDualAxisChart({
         </div>
       </div>
       <div className="custom-combo-chart dual-axis" onPointerLeave={() => setActiveIndex(0)}>
+        <div className="custom-chart-tooltip" style={{ left: `${Math.max(13, Math.min(87, activeX))}%`, top: `${activeY}%` }}>
+          <strong>{active.label}</strong>
+          <span>{barLabel}: {formatBar(Number(active[barKey]))}</span>
+          <span>{lineLabel}: {formatLine(Number(active[lineKey]))}</span>
+        </div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={title}>
           {[24, 50, 76].map((y) => <line key={y} className="custom-grid-line" x1="0" x2="100" y1={y} y2={y} />)}
           {chartValues.map((point, index) => {
-            const slot = 100 / chartValues.length;
             const height = Math.max(3, (Number(point[barKey]) / maxBar) * 84);
             return (
               <rect
@@ -1237,7 +1254,7 @@ function CustomDualAxisChart({
           })}
           <polyline className="custom-line warning" points={linePoints} />
           {chartValues.map((point, index) => {
-            const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+            const x = chartValues.length === 1 ? 50 : index * slot + slot / 2;
             const y = Math.max(8, Math.min(96, 100 - (Number(point[lineKey]) / maxLine) * 86));
             return <circle key={`${point.month}-line`} className="custom-line-point warning" cx={x} cy={y} r="2.2" />;
           })}
@@ -3487,7 +3504,11 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
       point.protectedClaims += Math.max(0, claimCount - rowNoProtectionCount(row));
       point.noProtectionClaims += rowNoProtectionCount(row);
     }
-    point.cancellations += (row.parsedMovements ?? []).filter((movement) => isStornoMovement(movement)).length;
+    (row.parsedMovements ?? []).filter((movement) => isStornoMovement(movement)).forEach((movement) => {
+      const movementMonth = monthKeyFromGermanDate(movement.date ?? row.date);
+      const cancellationPoint = movementMonth ? ensurePoint(movementMonth) : point;
+      cancellationPoint.cancellations += 1;
+    });
   });
 
   stornoRows.forEach((row) => {

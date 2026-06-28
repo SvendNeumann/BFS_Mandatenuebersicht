@@ -5412,7 +5412,8 @@ tbody tr:hover td {
 
   .priority-card strong,
   .kpi-card strong {
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
     font-size: clamp(30px, 4.2vw, 38px);
   }
 }
@@ -5430,14 +5431,16 @@ tbody tr:hover td {
 
   .answer-grid strong {
     font-size: clamp(24px, 3.1vw, 34px);
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
 @media (max-width: 720px) {
   .priority-card strong,
   .kpi-card strong {
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -6213,6 +6216,13 @@ label,
   color: rgba(205, 226, 232, 0.82) !important;
 }
 
+.group-filter-bar,
+.period-filter {
+  position: relative !important;
+  top: auto !important;
+  z-index: 1 !important;
+}
+
 @media (max-width: 1080px) {
   .standort-tabs {
     position: sticky !important;
@@ -6250,23 +6260,30 @@ label,
 
 @media (max-width: 720px) {
   .chart-grid,
-  .management-chart-grid {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
-    inline-size: 100% !important;
-    max-inline-size: 100% !important;
-    overflow: visible !important;
-    padding: 0 !important;
+  .management-chart-grid,
+  .visual-first-grid {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 14px !important;
+    inline-size: min(100%, calc(100vw - 20px)) !important;
+    max-inline-size: calc(100vw - 20px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px 14px !important;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
   }
 
   .chart-grid > *,
-  .management-chart-grid > * {
+  .management-chart-grid > *,
+  .visual-first-grid > * {
+    flex: 0 0 min(94vw, 430px) !important;
     min-width: 0 !important;
     min-height: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    flex: none !important;
+    width: min(94vw, 430px) !important;
+    max-width: min(94vw, 430px) !important;
+    scroll-snap-align: start;
   }
 
   .mini-chart,
@@ -6276,9 +6293,23 @@ label,
   }
 
   .mini-chart h2 {
-    max-width: calc(100% - 54px);
-    font-size: 22px !important;
-    line-height: 1.12 !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 4px 8px !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    padding-right: 38px !important;
+    font-size: 21px !important;
+    line-height: 1.14 !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    hyphens: auto;
+  }
+
+  .mini-chart h2::after {
+    flex: 0 0 auto;
+    margin-left: 0 !important;
   }
 
   .period-note {
@@ -6312,7 +6343,7 @@ label,
   }
 
   .year-bars {
-    min-height: 138px !important;
+    min-height: 154px !important;
     height: auto !important;
     gap: 8px !important;
     padding: 8px 2px 0 !important;
@@ -6320,8 +6351,8 @@ label,
   }
 
   .year-month {
-    grid-template-rows: 108px auto !important;
-    flex: 0 0 42% !important;
+    grid-template-rows: 122px auto !important;
+    flex: 0 0 min(45%, 174px) !important;
     gap: 6px !important;
   }
 
@@ -6346,12 +6377,12 @@ label,
   }
 
   .interactive-chart {
-    min-height: 210px !important;
+    min-height: 226px !important;
     padding-top: 62px !important;
   }
 
   .bars {
-    height: 118px !important;
+    height: 132px !important;
     margin-top: 16px !important;
   }
 
@@ -6359,14 +6390,8 @@ label,
     font-size: 10px !important;
   }
 
-  .location-trend-grid {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    overflow: visible !important;
-  }
-
   .location-trend-panel {
-    width: 100% !important;
+    width: min(94vw, 430px) !important;
   }
 
   .year-line-svg {

@@ -1436,6 +1436,18 @@ input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.quality-priority-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.quality-priority-grid .priority-card:nth-child(-n + 2) {
+  grid-column: span 3;
+}
+
+.quality-priority-grid .priority-card:nth-child(n + 3) {
+  grid-column: span 2;
+}
+
 .priority-card {
   display: grid;
   gap: 8px;
@@ -1459,9 +1471,9 @@ input {
 }
 
 .priority-card .period-note {
-  font-size: var(--type-small);
+  font-size: var(--type-micro);
   font-weight: 600;
-  opacity: 0.68;
+  opacity: 0.58;
 }
 
 .priority-card.red {
@@ -3677,6 +3689,10 @@ td small {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .quality-priority-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
   .benchmark-priority-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3831,6 +3847,10 @@ td small {
   .location-card-grid.compact,
   .answer-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quality-priority-grid .priority-card {
+    grid-column: auto;
   }
 }
 

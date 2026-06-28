@@ -2578,56 +2578,50 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
 }
 
 function QualityView({ standort, cases: rows, importRows = [], onNavigate, manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void; manualCaseResolutions?: ManualCaseResolution[] }) {
-  const scopedRows = useMemo(() => standort ? importRows.filter((row) => row.location === standort.name) : importRows, [standort, importRows]);
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const scopedRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [importRows, relevantStandorte, selectedPeriod]);
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => summary.rows ? metricsFromImportSummary(summary) : zeroMetrics(), [summary]);
-  const riskRows = useMemo(() => riskClaimsFromImportRows(scopedRows), [scopedRows]);
   const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, scopedRows), [standort?.id, scopedRows]);
-  const unresolved = useMemo(() => openUnresolvedMovementsFromImportRows(scopedRows, standort?.id), [scopedRows, standort?.id]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
-  const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
-  const unresolvedAmount = unresolved.reduce((sum, item) => sum + item.amount, 0);
+  const chargebackShare = metrics.submitted ? (metrics.returnAmount / metrics.submitted) * 100 : 0;
+  const stornoShare = metrics.submitted ? (metrics.cancellationAmount / metrics.submitted) * 100 : 0;
   const openStornoInfo = [
     `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als zurückgeholt/gewandelt.`,
     `${stornoReview.finalCancelled} Storno-Zeilen sind endgültig storniert und deshalb nicht mehr operativ offen.`,
     "Als erledigt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert.",
-    `Noch offene Storno-Zeilen aus dieser Storno-Grundmenge: ${stornoReview.open}.`
-  ].join(" ");
-  const operationalOpenInfo = [
-    `Diese Kachel ist eine Arbeitsliste, keine zweite Storno-Gesamtzahl: ${unresolved.length} offene negative Bewegungen mit ${money.format(unresolvedAmount)} sind noch nicht erledigt.`,
-    "Gezählt werden offene Rückgaben, Rückbelastungen, Stornos und vergleichbare BFS-Bewegungen.",
-    `Darin können die ${stornoReview.open} offenen Storno-Zeilen enthalten sein. Bereits erledigte Stornos werden hier nicht mehr gezählt. Deshalb Storno erledigt und operativ offen nicht addieren.`
+    `Offene Klärbewegungen sind hier die noch offenen Storno-Zeilen aus dieser Grundmenge: ${stornoReview.open}.`
   ].join(" ");
 
   return (
     <div className="content-stack">
-      <section className="priority-grid">
-        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
-        <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} tone={chargebackShare ? "red" : "green"} />
-        <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} Storno-Zeilen offen`} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
-        <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
-        <PriorityCard label="Offene Klärbewegungen" value={String(unresolved.length)} hint={money.format(unresolvedAmount)} tone={unresolved.length ? "red" : "green"} info={operationalOpenInfo} />
+      <section className="panel period-filter">
+        <label className="select-label">
+          Zeitraum Forderungsqualität
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{standort?.name ?? "Alle Standorte"}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
       </section>
-      <section className="chart-grid">
-        <div className="panel mini-chart">
-          <h2>Risikoarten</h2>
-          <InteractiveBars title="Risikoarten" values={[
-            { label: "ohne Schutz", value: metrics.noProtectionAmount },
-            { label: "Rückgabe", value: metrics.returnAmount },
-            { label: "Storno", value: metrics.cancellationAmount },
-            { label: "EWMA", value: metrics.ewmaTotal }
-          ]} />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Patientenqualität</h2>
-          <InteractiveBars title="Patientenqualität" values={[
-            { label: "Risiken", value: riskRows.length },
-            { label: "Wiederholer", value: recurring.length },
-            { label: "offen", value: unresolved.length },
-            { label: "Storno offen", value: stornoReview.open }
-          ]} />
-        </div>
+      <section className="priority-grid quality-priority-grid">
+        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} period={selectedPeriod.label} tone={metrics.noProtectionAmount ? "amber" : "green"} />
+        <PriorityCard label="Rückbelastung" value={money.format(metrics.returnAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} period={selectedPeriod.label} tone={chargebackShare ? "red" : "green"} />
+        <PriorityCard label="Stornoquote" value={formatPercent(stornoShare)} hint={money.format(metrics.cancellationAmount)} period={selectedPeriod.label} tone={stornoShare ? "amber" : "green"} />
+        <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} offene Klärbewegungen`} period={selectedPeriod.label} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
+        <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} />
       </section>
       <section className="dashboard-grid">
         <article className="panel command-panel">

@@ -3781,10 +3781,6 @@ function ClaimsFlowView({
               <p>Zeitraum: letzte Monate aus dem ausgewählten Standortumfang.</p>
             </div>
           </div>
-          <InteractiveBars title="Monatstrend Umsatz und Kosten" values={recentMonths.slice(-6).flatMap((metric) => [
-            { label: `${formatMetricMonth(metric.month)} Umsatz`, value: metric.submitted },
-            { label: `${formatMetricMonth(metric.month)} Kosten`, value: metric.fees + metric.returnAmount + metric.cancellationAmount }
-          ])} />
           <div className="table-wrap compact-table">
             <table>
               <thead>
@@ -3819,10 +3815,6 @@ function ClaimsFlowView({
               <p>Zeitraum: Quartale im Vergleich, inklusive Veränderung zum Vorquartal.</p>
             </div>
           </div>
-          <InteractiveBars title="Quartalsvergleich Umsatz" values={quarterRows.slice(0, 6).reverse().map((metric) => ({
-            label: metric.label,
-            value: metric.submitted
-          }))} />
           <div className="table-wrap compact-table">
             <table>
               <thead>

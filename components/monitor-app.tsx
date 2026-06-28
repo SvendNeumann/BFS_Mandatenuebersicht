@@ -2497,15 +2497,23 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
 function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [comparisonPeriodId, setComparisonPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const comparisonPeriod = useMemo(() => periodOptions.find((period) => period.id === comparisonPeriodId) ?? periodOptions[0], [comparisonPeriodId, periodOptions]);
+  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const orderedLocations = useMemo(() => orderedStandorte(), []);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
-  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [scopedRows, closedCaseKeys]);
-  const orderedLocations = useMemo(() => orderedStandorte(), []);
   const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, scopedRows, openCases), [orderedLocations, selectedPeriod, scopedRows, openCases]);
+  const comparisonRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = standorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, comparisonPeriod, rowStandort) : false;
+  }), [comparisonPeriod, importRows]);
+  const comparisonOpenCases = useMemo(() => casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [closedCaseKeys, comparisonRows]);
+  const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, comparisonRows, comparisonOpenCases), [comparisonOpenCases, comparisonPeriod, comparisonRows, orderedLocations]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
   const highestRisk = useMemo(() => [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
@@ -2549,10 +2557,18 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
         <div className="panel-heading">
           <div>
             <h2>Standorte im Vergleich</h2>
-            <p>Alle Standorte chronologisch nach Vertragsstart, mit Kennzahlen und Prüfhinweisen je Standort.</p>
+            <p>Alle Standorte chronologisch nach Vertragsstart, mit Kennzahlen und Prüfhinweisen je Standort. Zeitraum: {comparisonPeriod.label}.</p>
+          </div>
+          <div className="benchmark-panel-actions">
+            <label className="select-label benchmark-period-select">
+              Zeitraum Standortvergleich
+              <select value={comparisonPeriodId} onChange={(event) => setComparisonPeriodId(event.target.value)}>
+                {periodOptions.map((period) => <option key={period.id} value={period.id}>{period.label}</option>)}
+              </select>
+            </label>
           </div>
         </div>
-        <LocationBenchmarkCards snapshots={snapshots} onNavigate={onNavigate} />
+        <LocationBenchmarkCards snapshots={comparisonSnapshots} onNavigate={onNavigate} />
       </section>
     </div>
   );

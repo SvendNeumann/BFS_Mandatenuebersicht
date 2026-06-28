@@ -2580,11 +2580,19 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
 function QualityView({ standort, cases: rows, importRows = [], onNavigate, manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [noProtectionPeriodId, setNoProtectionPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [noProtectionStandortFilterId, setNoProtectionStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [reviewPeriodId, setReviewPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [reviewStandortFilterId, setReviewStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const noProtectionPeriod = useMemo(() => periodOptions.find((period) => period.id === noProtectionPeriodId) ?? selectedPeriod, [periodOptions, noProtectionPeriodId, selectedPeriod]);
   const reviewPeriod = useMemo(() => periodOptions.find((period) => period.id === reviewPeriodId) ?? selectedPeriod, [periodOptions, reviewPeriodId, selectedPeriod]);
   const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const noProtectionStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (noProtectionStandortFilterId === "alle") return relevantStandorte;
+    return relevantStandorte.filter((entry) => entry.id === noProtectionStandortFilterId);
+  }, [noProtectionStandortFilterId, relevantStandorte, standort]);
   const reviewStandorte = useMemo(() => {
     if (standort) return [standort];
     if (reviewStandortFilterId === "alle") return relevantStandorte;
@@ -2598,9 +2606,16 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
     const rowStandort = reviewStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, reviewPeriod, rowStandort) : false;
   }), [importRows, reviewPeriod, reviewStandorte]);
+  const noProtectionRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = noProtectionStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, noProtectionPeriod, rowStandort) : false;
+  }), [importRows, noProtectionPeriod, noProtectionStandorte]);
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => summary.rows ? metricsFromImportSummary(summary) : zeroMetrics(), [summary]);
   const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, scopedRows), [standort?.id, scopedRows]);
+  const noProtectionClaims = useMemo(() => riskClaimsFromImportRows(noProtectionRows)
+    .filter((claim) => noProtectionStandorte.some((entry) => entry.id === claim.standortId)), [noProtectionRows, noProtectionStandorte]);
+  const noProtectionPaymentRisk = useMemo(() => summarizeNoProtectionPaymentRisk(noProtectionClaims), [noProtectionClaims]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
   const filteredStornoReview = useMemo(() => stornoReviewFromImportRows(
     reviewRows,
@@ -2639,6 +2654,72 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
         <PriorityCard label="Stornoquote" value={formatPercent(stornoShare)} hint={money.format(metrics.cancellationAmount)} period={selectedPeriod.label} tone={stornoShare ? "amber" : "green"} />
         <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} offene Klärbewegungen`} period={selectedPeriod.label} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Ohne Ausfallschutz</span>
+            <h2>Zahlungsstatus ohne Schutz</h2>
+            <p>Verdichtung nach Zeitraum und Standort, ohne einzelne Patientenliste.</p>
+          </div>
+        </div>
+        <div className="period-filter deduction-analysis-filter">
+          <label className="select-label">
+            Zeitraum ohne Schutz
+            <select value={noProtectionPeriodId} onChange={(event) => setNoProtectionPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Standort ohne Schutz
+            <select value={standort ? standort.id : noProtectionStandortFilterId} onChange={(event) => setNoProtectionStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+              {!standort && <option value="alle">Alle Standorte</option>}
+              {relevantStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{noProtectionStandorte.length === 1 ? noProtectionStandorte[0].name : "Alle Standorte"}</strong>
+            <span>{noProtectionPeriod.detail}</span>
+          </div>
+        </div>
+        <section className="priority-grid storno-review-priority">
+          <PriorityCard
+            label="Ohne-Schutz-Patienten"
+            value={String(noProtectionPaymentRisk.totalPatients)}
+            hint={`${noProtectionClaims.length} Positionen · ${money.format(noProtectionClaims.reduce((sum, claim) => sum + claim.amount, 0))}`}
+            period={noProtectionPeriod.label}
+            tone={noProtectionClaims.length ? "amber" : "green"}
+            info={noProtectionPaymentRisk.info}
+          />
+          <PriorityCard
+            label="Davon nicht gezahlt"
+            value={String(noProtectionPaymentRisk.unpaidPatients)}
+            hint="nicht erledigte Storno-/Rückgabe-Bewegung"
+            period={noProtectionPeriod.label}
+            tone={noProtectionPaymentRisk.unpaidPatients ? "red" : "green"}
+            info={noProtectionPaymentRisk.info}
+          />
+          <PriorityCard
+            label="Nichtzahlungsquote"
+            value={formatPercent(noProtectionPaymentRisk.unpaidRate)}
+            hint="kritische Patienten ohne Schutz"
+            period={noProtectionPeriod.label}
+            tone={noProtectionPaymentRisk.unpaidRate >= 10 ? "red" : noProtectionPaymentRisk.unpaidRate ? "amber" : "green"}
+            info={noProtectionPaymentRisk.info}
+          />
+          <PriorityCard
+            label="Bisher unauffällig"
+            value={String(noProtectionPaymentRisk.cleanPatients)}
+            hint="kein negatives Ereignis erkannt"
+            period={noProtectionPeriod.label}
+            tone="green"
+            info={noProtectionPaymentRisk.info}
+          />
+        </section>
       </section>
       <StornoReviewSection
         review={filteredStornoReview}
@@ -4403,28 +4484,6 @@ function protectionMarkerCategory(marker?: string) {
     "RS/A": "risikoschuldner_mit_ausfallschutz"
   };
   return categories[marker ?? ""] ?? "sonstiger_marker";
-}
-
-function aggregateNoProtectionReasons(rows: RiskClaim[]) {
-  const groups = new Map<string, { label: string; category: string; count: number; amount: number; markers: Set<string> }>();
-  rows.forEach((claim) => {
-    const category = claim.markerCategory ?? protectionMarkerCategory(claim.marker);
-    const current = groups.get(category) ?? {
-      label: claim.markerReason ?? protectionMarkerLabel(claim.marker),
-      category,
-      count: 0,
-      amount: 0,
-      markers: new Set<string>()
-    };
-    current.count += 1;
-    current.amount += claim.amount;
-    current.markers.add(claim.marker);
-    groups.set(category, current);
-  });
-
-  return [...groups.values()]
-    .map((group) => ({ ...group, amount: Math.round(group.amount * 100) / 100, markers: [...group.markers].join(", ") }))
-    .sort((a, b) => b.amount - a.amount || b.count - a.count);
 }
 
 function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
@@ -6752,19 +6811,56 @@ function formatStatementReference(statementNo?: string, fileName?: string) {
 }
 
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
-  const importedRisks = useMemo(() => riskClaimsFromImportRows(importRows), [importRows]);
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [selectedStandortId, setSelectedStandortId] = useState(() => standortId ?? "alle");
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const selectableStandorte = useMemo(() => standortId ? orderedStandorte().filter((entry) => entry.id === standortId) : orderedStandorte(), [standortId]);
+  const selectedStandorte = useMemo(() => {
+    if (standortId) return selectableStandorte;
+    if (selectedStandortId === "alle") return selectableStandorte;
+    return selectableStandorte.filter((entry) => entry.id === selectedStandortId);
+  }, [selectableStandorte, selectedStandortId, standortId]);
+  const scopedImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = selectedStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [importRows, selectedPeriod, selectedStandorte]);
+  const importedRisks = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
   const rows = useMemo(() => importedRisks
-    .filter((claim) => !standortId || claim.standortId === standortId)
-    .sort((a, b) => riskAssessmentRank(b) - riskAssessmentRank(a) || (b.eventAmount ?? 0) - (a.eventAmount ?? 0) || b.amount - a.amount), [importedRisks, standortId]);
-  const reasonRows = useMemo(() => aggregateNoProtectionReasons(rows), [rows]);
+    .filter((claim) => selectedStandorte.some((entry) => entry.id === claim.standortId))
+    .sort((a, b) => riskAssessmentRank(b) - riskAssessmentRank(a) || (b.eventAmount ?? 0) - (a.eventAmount ?? 0) || b.amount - a.amount), [importedRisks, selectedStandorte]);
   const paymentRisk = useMemo(() => summarizeNoProtectionPaymentRisk(rows), [rows]);
   return (
     <div className="content-stack">
+      <section className="panel period-filter deduction-analysis-filter">
+        <label className="select-label">
+          Zeitraum ohne Schutz
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort ohne Schutz
+          <select value={standortId ?? selectedStandortId} onChange={(event) => setSelectedStandortId(event.target.value)} disabled={Boolean(standortId)}>
+            {!standortId && <option value="alle">Alle Standorte</option>}
+            {selectableStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{selectedStandorte.length === 1 ? selectedStandorte[0].name : "Alle Standorte"}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
+      </section>
       <section className="priority-grid">
         <PriorityCard
           label="Ohne-Schutz-Patienten"
           value={String(paymentRisk.totalPatients)}
           hint={`${rows.length} Positionen · ${money.format(rows.reduce((sum, claim) => sum + claim.amount, 0))}`}
+          period={selectedPeriod.label}
           tone={rows.length ? "amber" : "green"}
           info={paymentRisk.info}
         />
@@ -6772,6 +6868,7 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
           label="Davon nicht gezahlt"
           value={String(paymentRisk.unpaidPatients)}
           hint="nicht erledigte Storno-/Rückgabe-Bewegung"
+          period={selectedPeriod.label}
           tone={paymentRisk.unpaidPatients ? "red" : "green"}
           info={paymentRisk.info}
         />
@@ -6779,6 +6876,7 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
           label="Nichtzahlungsquote"
           value={formatPercent(paymentRisk.unpaidRate)}
           hint="kritische Patienten ohne Schutz"
+          period={selectedPeriod.label}
           tone={paymentRisk.unpaidRate >= 10 ? "red" : paymentRisk.unpaidRate ? "amber" : "green"}
           info={paymentRisk.info}
         />
@@ -6786,103 +6884,10 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
           label="Bisher unauffällig"
           value={String(paymentRisk.cleanPatients)}
           hint="kein negatives Ereignis erkannt"
+          period={selectedPeriod.label}
           tone="green"
           info={paymentRisk.info}
         />
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Gründe ohne Ausfallschutz</h2>
-            <p>Mandantenübergreifend aus allen hochgeladenen Abrechnungen gruppiert: warum Forderungen ohne Ausfallschutz angekauft wurden.</p>
-          </div>
-        </div>
-        <section className="chart-grid visual-first-grid">
-          <div className="visual-panel mini-chart">
-            <h2>Gründe nach Summe</h2>
-            <InteractiveBars title="Gründe ohne Schutz" values={reasonRows.map((reason) => ({ label: reason.label, value: reason.amount }))} />
-          </div>
-          <div className="visual-panel mini-chart">
-            <h2>Zahlungsstatus ohne Schutz</h2>
-            <InteractiveBars title="Zahlungsstatus Fälle" values={[
-              { label: "kritisch", value: paymentRisk.unpaidPatients },
-              { label: "erledigt", value: paymentRisk.resolvedPatients },
-              { label: "unauffällig", value: paymentRisk.cleanPatients }
-            ]} />
-          </div>
-        </section>
-        <div className="table-wrap compact-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Grund</th>
-                <th>Kennzeichen</th>
-                <th>Anzahl</th>
-                <th>Summe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reasonRows.map((reason) => (
-                <tr key={reason.category}>
-                  <td><strong>{reason.label}</strong></td>
-                  <td>{reason.markers}</td>
-                  <td>{reason.count}</td>
-                  <td>{money.format(reason.amount)}</td>
-                </tr>
-              ))}
-              {!reasonRows.length && (
-                <tr><td colSpan={4}>Keine Fälle ohne Ausfallschutz im aktuellen Datenstand.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Laufend ohne Ausfallschutz</h2>
-            <p>Risikohinweise mit Querprüfung gegen Storno, Rückgabe, Rückbelastung und erkennbare Erledigung. Erst eine echte Auffälligkeit wird operativ priorisiert.</p>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Re.-Nr.</th>
-                <th>BFS-Nr.</th>
-                <th>Betrag</th>
-                <th>Abrechnung</th>
-                <th>Kennzeichen</th>
-                <th>Grund</th>
-                <th>Querprüfung</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((claim) => (
-                <tr key={claim.id}>
-                  <td><strong>{claim.patientName}</strong></td>
-                  <td>{claim.invoiceNo}</td>
-                  <td>{claim.bfsNo}</td>
-                  <td>{money.format(claim.amount)}</td>
-                  <td>{claim.statementNo} / {claim.date}</td>
-                  <td>{claim.marker}</td>
-                  <td>{claim.markerReason ?? protectionMarkerLabel(claim.marker)}</td>
-                  <td>
-                    <strong>{claim.assessmentLabel ?? "bisher keine Auffälligkeit"}</strong>
-                    {!!claim.eventLabels?.length && <span>{claim.eventLabels.join(", ")}</span>}
-                    {!!claim.eventAmount && <small>{money.format(claim.eventAmount)}</small>}
-                  </td>
-                  <td><StatusBadge status={riskAssessmentStatus(claim)} /></td>
-                </tr>
-              ))}
-              {!rows.length && (
-                <tr><td colSpan={9}>Keine Fälle ohne Ausfallschutz im aktuellen Datenstand.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </section>
     </div>
   );
@@ -6928,12 +6933,6 @@ function riskAssessmentRank(claim: RiskClaim) {
   if (claim.assessment === "auffaellig") return 3;
   if (claim.assessment === "erledigt") return 2;
   return 1;
-}
-
-function riskAssessmentStatus(claim: RiskClaim) {
-  if (claim.assessment === "auffaellig") return "Priorität: auffällig";
-  if (claim.assessment === "erledigt") return "Erledigung erkannt";
-  return "Beobachten, bisher unauffällig";
 }
 
 function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreviewRow[] = [], hasImportDataset = importRows.length > 0) {

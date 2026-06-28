@@ -2838,8 +2838,16 @@ td small {
   .chart-grid,
   .management-chart-grid,
   .cashflow-grid,
-  .location-card-grid {
+  .location-card-grid,
+  .cards-grid,
+  .location-editor-grid,
+  .landing-cards,
+  .preview-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-admin-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -2950,10 +2958,32 @@ td small {
   .management-summary-grid,
   .case-board,
   .filter-grid,
+  .period-filter,
+  .answer-filter-panel,
+  .case-table-filter,
   .report-toolbar,
   .print-report header,
-  .report-summary {
+  .report-summary,
+  .landing-grid-shell,
+  .upload-zone,
+  .user-admin-form {
     grid-template-columns: 1fr;
+  }
+
+  .landing-grid-shell {
+    min-height: 0;
+  }
+
+  .landing-login-panel {
+    order: -1;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid rgba(178, 226, 229, 0.12);
+  }
+
+  .landing-board,
+  .landing-login-panel {
+    padding: 24px;
   }
 
   .kpi-grid,
@@ -2962,6 +2992,8 @@ td small {
   .chart-grid,
   .management-chart-grid,
   .cashflow-grid,
+  .cards-grid,
+  .location-editor-grid,
   .location-card-grid,
   .location-card-grid.compact,
   .answer-grid {
@@ -2980,7 +3012,8 @@ td small {
   .upload-zone,
   .answer-cockpit,
   .cashflow-card,
-  .risk-profile-card {
+  .risk-profile-card,
+  .confirmation-dialog {
     padding: 14px;
   }
 
@@ -2988,14 +3021,59 @@ td small {
   .priority-grid,
   .insight-grid,
   .cashflow-grid,
+  .cards-grid,
+  .location-editor-grid,
   .location-card-grid,
   .location-card-grid.compact,
   .answer-grid,
   .case-board,
   .filter-grid,
   .report-type-grid,
-  .case-summary-grid {
+  .case-summary-grid,
+  .landing-cards,
+  .preview-metrics,
+  .confirmation-dialog dl {
     grid-template-columns: 1fr;
+  }
+
+  .upload-zone {
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .upload-actions,
+  .import-report-actions,
+  .security-actions div,
+  .login-row,
+  .case-resolution-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .file-upload-button,
+  .case-resolution-actions button {
+    width: 100%;
+    white-space: normal;
+  }
+
+  .year-chart-head {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .year-active-value {
+    width: 100%;
+    max-width: none;
+  }
+
+  .year-bars {
+    min-height: 200px;
+  }
+
+  .year-month {
+    grid-template-rows: 160px auto;
+    flex-basis: min(42vw, 150px);
   }
 
   .chart-grid,

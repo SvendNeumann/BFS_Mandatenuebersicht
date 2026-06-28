@@ -90,7 +90,7 @@ const superAdminNav: NavSection[] = [
     title: "Analyse & Benchmarking",
     items: [
       ["benchmark", "Standorte", Building2],
-      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["claims", "Standortdetails", ReceiptText],
       ["quality", "Forderungsqualität", ShieldCheck]
     ]
   },
@@ -138,7 +138,7 @@ const leadNav: NavSection[] = [
   {
     title: "Analyse",
     items: [
-      ["claims", "Forderungen & Geldfluss", ReceiptText],
+      ["claims", "Standortdetails", ReceiptText],
       ["quality", "Forderungsqualität", ShieldCheck]
     ]
   },
@@ -772,7 +772,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     answers: "Schnellantworten",
     benchmark: "Standorte",
     quality: "Forderungsqualität",
-    claims: "Forderungen & Geldfluss",
+    claims: "Standortdetails",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Import-Center",
     preview: "Import-Center",
@@ -3474,7 +3474,7 @@ function ClaimsFlowView({
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>{standort ? `Forderungen & Geldfluss ${standort.name}` : "Forderungen & Geldfluss Gruppe"}</h2>
+            <h2>{standort ? `Standortdetails ${standort.name}` : "Standortdetails Gruppe"}</h2>
             <p>Vom Monatsimport bis zur Rückfrage: eingereicht, Gebühren, offene Klärfälle, Rückläufer und Risiko je Standort.</p>
           </div>
         </div>

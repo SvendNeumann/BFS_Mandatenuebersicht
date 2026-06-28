@@ -853,6 +853,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
+  const openStornoAmount = stornoReview.rows.filter((row) => !row.done).reduce((sum, row) => sum + row.amount, 0);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
 
   return (
@@ -911,6 +912,15 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           tone="green"
           trend={customKpiTrend("payout", kpiTrendPoints)}
           info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
+        />
+        <PriorityCard
+          label="Offene Storno-Summe"
+          value={money.format(openStornoAmount)}
+          hint={`${integerNumber.format(stornoReview.open)} Storno(s) offen`}
+          period={selectedPeriod.label}
+          tone={openStornoAmount ? "amber" : "green"}
+          trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)}
+          info={`Summe der noch nicht gewandelten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Als offen gelten Stornos ohne Zahlung nach Storno, ohne erkannte spätere Neueinreichung und ohne manuelle Markierung als bezahlt.`}
         />
       </section>
 
@@ -1183,6 +1193,7 @@ type CustomChartPoint = {
   claims: number;
   cancellations: number;
   recoveredStornos: number;
+  openStornoAmount: number;
   protectedClaims: number;
   noProtectionClaims: number;
 };
@@ -1397,12 +1408,13 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
     claims: 0,
     cancellations: 0,
     recoveredStornos: 0,
+    openStornoAmount: 0,
     protectedClaims: 0,
     noProtectionClaims: 0
   };
 }
 
-type CustomKpiTrendMetric = "submitted" | "fees" | "payout" | "cancellations" | "recoveredStornos" | "claims" | "averageClaim";
+type CustomKpiTrendMetric = "submitted" | "fees" | "payout" | "cancellations" | "recoveredStornos" | "openStornoAmount" | "claims" | "averageClaim";
 
 function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[], lowerIsBetter = false): AnswerSparklineTrend {
   const values = points.map((point) => customKpiTrendValue(metric, point)).slice(-12);
@@ -3600,9 +3612,10 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
   });
 
   stornoRows.forEach((row) => {
-    if (!row.done) return;
     const month = monthKeyFromGermanDate(row.date);
     if (!month) return;
+    if (!row.done) ensurePoint(month).openStornoAmount += row.amount;
+    if (!row.done) return;
     ensurePoint(month).recoveredStornos += 1;
   });
 

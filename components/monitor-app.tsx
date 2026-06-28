@@ -3421,7 +3421,7 @@ function summarizeImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
   const returnMovements = relevantMovements.filter((movement) => movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung"));
-  const cancellationMovements = relevantMovements.filter((movement) => movement.type.includes("storno"));
+  const cancellationMovements = relevantMovements.filter((movement) => isStornoMovement(movement));
   const submitted = rows.reduce((sum, row) => sum + rowSubmittedAmount(row), 0);
   const fees = rows.reduce((sum, row) => sum + rowFeeAmount(row), 0);
   const feeNet = rows.reduce((sum, row) => sum + rowFeeNetAmount(row), 0);
@@ -6365,6 +6365,11 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
   }), { total: 0, reworked: 0, paid: 0, open: 0, amount: 0 }), [outcomeRows]);
   const openAmount = openItems.length ? openItems.reduce((sum, item) => sum + item.amount, 0) : totals.amount;
   const successRate = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0;
+  const stornoDoneInfo = [
+    `Grundmenge: ${stornoReview.total} erkannte Storno-Zeilen.`,
+    `Davon sind ${stornoReview.done} erledigt und ${stornoReview.open} offen.`,
+    "Als erledigt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert."
+  ].join(" ");
 
   return (
     <div className="content-stack">
@@ -6372,7 +6377,7 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
         <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
         <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
         <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${formatPercent(successRate)} Erfolgsquote`} tone="green" />
-        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${formatPercent(stornoReview.doneRate)} Erledigungsquote`} tone={stornoReview.open ? "amber" : "green"} />
+        <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} Storno-Zeilen offen`} tone={stornoReview.open ? "amber" : "green"} info={stornoDoneInfo} />
         <PriorityCard label="Noch offen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
       </section>
       <section className="chart-grid">

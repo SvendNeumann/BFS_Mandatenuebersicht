@@ -1583,7 +1583,6 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     ["Offene operative Fälle", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, undefined, caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "count")],
     ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "oldest")]
   ];
-  const cockpitAlerts = buildCockpitAlerts(locationSnapshots, managementComparison.currentMetrics, managementComparison.openCases);
   return (
     <div className="content-stack">
       <CockpitFilterBar
@@ -1618,27 +1617,6 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
       </section>
       <section className="management-summary-grid">
         <ManagementDeltaPanel comparison={managementComparison} />
-        <ManagementSignalPanel snapshots={locationSnapshots} comparison={managementComparison} onNavigate={onNavigate} />
-      </section>
-      <section className="dashboard-grid cockpit-action-grid">
-        <article className="panel command-panel">
-          <div>
-            <span className="eyebrow">Was ist auffällig?</span>
-            <h2>{cockpitAlerts.headline}</h2>
-            <p>{cockpitAlerts.detail}</p>
-          </div>
-          <div className="quick-actions">
-            <button className="primary-button" onClick={() => onNavigate(cockpitAlerts.primaryView)}><AlertCircle size={16} /> Jetzt prüfen</button>
-            <button className="secondary-button" onClick={() => onNavigate("benchmark")}><Building2 size={16} /> Standorte vergleichen</button>
-            <button className="secondary-button" onClick={() => onNavigate("quality")}><ShieldCheck size={16} /> Qualität ansehen</button>
-          </div>
-        </article>
-        <article className="panel process-panel">
-          <h2>Was muss geprüft werden?</h2>
-          <div className="stacked-checks">
-            {cockpitAlerts.actions.map((action) => <span key={action}>{action}</span>)}
-          </div>
-        </article>
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -1807,36 +1785,6 @@ function ManagementDeltaPanel({ comparison }: { comparison: ManagementComparison
         <span className={comparison.submittedDeltaRate >= 0 ? "positive" : "negative"}><b>{formatDelta(comparison.submittedDeltaRate)}</b> Delta Prozent</span>
         <span><b>{currentQuarter?.label ?? "-"}</b> aktuelles Quartal</span>
         <span className={quarterDelta >= 0 ? "positive" : "negative"}><b>{formatDelta(quarterDelta)}</b> ggü. Vorquartal</span>
-      </div>
-    </article>
-  );
-}
-
-function ManagementSignalPanel({ snapshots, comparison, onNavigate }: { snapshots: LocationSnapshot[]; comparison: ManagementComparison; onNavigate: (view: string) => void }) {
-  const highestRisk = [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.chargebackRate - a.chargebackRate)[0];
-  const feeSignal = comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0
-    ? "Gebührenquote steigt gegenüber Vorjahr"
-    : "Gebührenquote aktuell ohne negativen Vorjahrestrend";
-  const riskSignal = highestRisk?.riskScore
-    ? `${highestRisk.standort.name} ist strukturell auffällig`
-    : "Kein Standort mit dominanter Risikoauffälligkeit";
-  return (
-    <article className="panel management-panel">
-      <div className="panel-heading">
-        <div>
-          <span className="eyebrow">Management-Kommentar</span>
-          <h2>{riskSignal}</h2>
-          <p>{feeSignal}. Ohne-Ausfallschutz-Anteil liegt bei {formatPercent(comparison.noProtectionShare)}, Rückbelastungs-/Stornoquote bei {formatPercent(comparison.chargebackRate)}.</p>
-        </div>
-      </div>
-      <div className="stacked-checks">
-        <span>{comparison.submittedDelta >= 0 ? "Wachstum prüfen: Kostenquote darf nicht überproportional steigen" : "Umsatzrückgang prüfen: Standort- und Monatsentwicklung ansehen"}</span>
-        <span>{comparison.recoveryRate >= 70 ? "Wiedereinholung wirkt solide, offene Restfälle nach Alter prüfen" : "Wiedereinholung schwach: Matching und manuelle Erledigungen priorisieren"}</span>
-        <span>{highestRisk ? `${highestRisk.standort.name}: Gebühren, Schutzquote und Rückbelastungen gegen Gruppenschnitt prüfen` : "Nach Monatsabschluss Standortreport erzeugen"}</span>
-      </div>
-      <div className="quick-actions">
-        <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Benchmark</button>
-        <button className="secondary-button" onClick={() => onNavigate("quality")}><ShieldCheck size={16} /> Patientenqualität</button>
       </div>
     </article>
   );
@@ -2388,41 +2336,6 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
       riskScore
     };
   }).sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
-}
-
-function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, focusedCases: BfsCase[]) {
-  const riskyLocation = snapshots.find((entry) => entry.riskScore > 0);
-  const oldCases = focusedCases.filter((fall) => fall.ageDays > 30);
-  if (oldCases.length) {
-    return {
-      headline: `${oldCases.length} Klärfall(e) über 30 Tage offen`,
-      detail: "Die operative Fallarbeit hat Vorrang, weil alte Rückbelastungen und Stornos sonst in der Steuerung hängen bleiben.",
-      primaryView: "cases",
-      actions: ["Älteste offenen Fälle zuerst prüfen", "Rückbelastung/Storno von Risiko ohne Ausfallschutz trennen", "Neueinreichungen gegen offene Fälle matchen"]
-    };
-  }
-  if (riskyLocation) {
-    return {
-      headline: `${riskyLocation.standort.name} ist im Benchmark auffällig`,
-      detail: `Risiko entsteht aktuell vor allem aus ${money.format(riskyLocation.metrics.noProtectionAmount)} ohne Ausfallschutz und ${riskyLocation.openCases} offenen Klärfällen.`,
-      primaryView: "benchmark",
-      actions: ["Standort im Ranking prüfen", "Gebührenquote und Rückbelastungsquote vergleichen", "Forderungsqualität nach Patient und Ursache ansehen"]
-    };
-  }
-  if (metrics.submitted > 0) {
-    return {
-      headline: "Datenstand wirkt aktuell unauffällig",
-      detail: "Es liegen importierte BFS-Werte vor, aber keine dominante Sofortauffälligkeit im aktuellen Filter.",
-      primaryView: "quality",
-      actions: ["Gebührenquote regelmäßig vergleichen", "Ohne-Ausfallschutz als Risiko beobachten", "Reports nach Monatsabschluss erzeugen"]
-    };
-  }
-  return {
-    headline: "Für diese Auswahl liegen keine Werte vor",
-    detail: "Sobald ein Importdatenstand vorhanden ist, füllt das Cockpit KPIs, Rankings und Hinweise automatisch.",
-    primaryView: "upload",
-    actions: ["BFS-Abrechnungen importieren", "Mandantenmapping prüfen", "Fehlerbericht nach Upload kontrollieren"]
-  };
 }
 
 function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = false }: { snapshots: LocationSnapshot[]; previousSnapshots?: LocationSnapshot[]; compact?: boolean }) {

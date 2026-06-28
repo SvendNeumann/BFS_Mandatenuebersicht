@@ -769,12 +769,12 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
 }
 
 function InteractiveBars({ title, values }: { title: string; values: { label: string; value: number }[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const activeValue = values[activeIndex] ?? values[0];
-  const valueLabel = formatChartValue(title, activeValue.value);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activeValue = activeIndex === null ? undefined : values[activeIndex] ?? values[0];
+  const valueLabel = activeValue ? formatChartValue(title, activeValue.value) : "";
   const maxValue = Math.max(...values.map((value) => value.value), 100);
   const isSingleValue = values.length === 1;
-  const rawActiveLeft = values.length ? ((activeIndex + 0.5) / values.length) * 100 : 50;
+  const rawActiveLeft = activeIndex === null || !values.length ? 50 : ((activeIndex + 0.5) / values.length) * 100;
   const activeLeft = Math.min(78, Math.max(22, rawActiveLeft));
   const tooltipStyle = activeIndex === 0
     ? { left: 12, transform: "none" }
@@ -789,14 +789,16 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
         <span />
         <strong>{chartLegendLabel(title)}</strong>
       </div>
-      <div
-        className="chart-tooltip"
-        style={tooltipStyle}
-      >
-        <strong>{activeValue.label}</strong>
-        <span>{chartLegendLabel(title)}: {valueLabel}</span>
-      </div>
-      <div className="bars" role="list" aria-label={title}>
+      {activeValue && (
+        <div
+          className="chart-tooltip active"
+          style={tooltipStyle}
+        >
+          <strong>{activeValue.label}</strong>
+          <span>{chartLegendLabel(title)}: {valueLabel}</span>
+        </div>
+      )}
+      <div className="bars" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(null)}>
         {values.map((value, index) => (
           <span className={`bar-slot${index === activeIndex ? " active" : ""}`} key={value.label}>
             <button

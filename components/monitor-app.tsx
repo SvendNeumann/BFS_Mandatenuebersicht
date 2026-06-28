@@ -3589,8 +3589,6 @@ function ClaimsFlowView({
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
   const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
-  const reviewedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const openCashflowReviewCases = useMemo(() => rows.filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => reviewedCaseKeys.has(key))), [rows, reviewedCaseKeys]);
 
   return (
     <div className="content-stack">
@@ -3866,15 +3864,6 @@ function ClaimsFlowView({
           </div>
         </article>
       </section>
-      <CasesView
-        cases={openCashflowReviewCases}
-        title="Offene Positionen zu diesem Geldfluss"
-        description="Prüfliste für offene Positionen. Als bezahlt markieren blendet den Fall aus den Klärfällen aus; weiterhin offen lässt ihn in der operativen Fallarbeit."
-        onResolvePaid={onResolvePaid}
-        onKeepOpen={onKeepOpen}
-        enableFilters
-        tableScrollable
-      />
         </>
       )}
     </div>

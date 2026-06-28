@@ -4980,6 +4980,62 @@ tbody tr:hover td {
   }
 }
 
+.standort-tabs,
+.group-filter-bar,
+.period-filter {
+  position: sticky;
+  z-index: 22;
+  backdrop-filter: blur(18px);
+}
+
+.standort-tabs {
+  top: 86px;
+}
+
+.group-filter-bar,
+.period-filter {
+  top: 154px;
+}
+
+@media (min-width: 1081px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+  }
+
+  .standort-tabs {
+    top: 88px;
+  }
+
+  .group-filter-bar,
+  .period-filter {
+    top: 156px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1080px) {
+  .standort-tabs {
+    top: calc(env(safe-area-inset-top, 0px) + 122px);
+  }
+
+  .group-filter-bar,
+  .period-filter {
+    top: calc(env(safe-area-inset-top, 0px) + 190px);
+  }
+}
+
+@media (max-width: 720px) {
+  .standort-tabs {
+    top: calc(env(safe-area-inset-top, 0px) + 112px);
+  }
+
+  .group-filter-bar,
+  .period-filter {
+    top: calc(env(safe-area-inset-top, 0px) + 178px);
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,

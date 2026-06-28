@@ -219,7 +219,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
-    "claims",
     "cashflow",
     "cases",
     "risks",
@@ -228,7 +227,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "reports", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "reports", "locations", "users", "upload", "preview", "history"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -561,7 +560,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView mode="details" standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
@@ -3474,9 +3473,9 @@ function ClaimsFlowView({
   onKeepOpen?: (fall: BfsCase) => void | Promise<void>;
 }) {
   const rowsStandorte = useMemo(() => standort ? [standort] : standorte, [standort]);
-  const rowsStandortIds = useMemo(() => rowsStandorte.map((entry) => entry.id), [rowsStandorte]);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [detailsStandortFilterId, setDetailsStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [standortPeriodIds, setStandortPeriodIds] = useState<Record<string, string>>({});
   const [deductionPeriodId, setDeductionPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [deductionStandortFilterId, setDeductionStandortFilterId] = useState(() => standort?.id ?? "alle");
@@ -3485,6 +3484,12 @@ function ClaimsFlowView({
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const deductionPeriod = useMemo(() => periodOptions.find((period) => period.id === deductionPeriodId) ?? selectedPeriod, [periodOptions, deductionPeriodId, selectedPeriod]);
   const recoveryPeriod = useMemo(() => periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod, [periodOptions, recoveryPeriodId, selectedPeriod]);
+  const detailsStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (detailsStandortFilterId === "alle") return rowsStandorte;
+    return rowsStandorte.filter((entry) => entry.id === detailsStandortFilterId);
+  }, [detailsStandortFilterId, rowsStandorte, standort]);
+  const detailsStandortIds = useMemo(() => detailsStandorte.map((entry) => entry.id), [detailsStandorte]);
   const deductionStandorte = useMemo(() => {
     if (standort) return [standort];
     if (deductionStandortFilterId === "alle") return rowsStandorte;
@@ -3496,9 +3501,9 @@ function ClaimsFlowView({
     return rowsStandorte.filter((entry) => entry.id === recoveryStandortFilterId);
   }, [recoveryStandortFilterId, rowsStandorte, standort]);
   const scopedImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
+    const rowStandort = detailsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, rowsStandorte, selectedPeriod]);
+  }), [detailsStandorte, importRows, selectedPeriod]);
   const deductionScopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = deductionStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, deductionPeriod, rowStandort) : false;
@@ -3515,8 +3520,8 @@ function ClaimsFlowView({
   const deductionMetrics = useMemo(() => deductionSummary.rows ? metricsFromImportSummary(deductionSummary) : zeroMetrics(), [deductionSummary]);
   const recoverySummary = useMemo(() => summarizeImportRows(recoveryScopedImportRows), [recoveryScopedImportRows]);
   const recoveryMetrics = useMemo(() => recoverySummary.rows ? metricsFromImportSummary(recoverySummary) : zeroMetrics(), [recoverySummary]);
-  const recentMonths = useMemo(() => buildRecentMonthlyTrend(rowsStandortIds, selectedPeriod, importRows), [rowsStandortIds, selectedPeriod, importRows]);
-  const quarterRows = useMemo(() => buildQuarterComparison(rowsStandortIds, importRows), [rowsStandortIds, importRows]);
+  const recentMonths = useMemo(() => buildRecentMonthlyTrend(detailsStandortIds, selectedPeriod, importRows), [detailsStandortIds, selectedPeriod, importRows]);
+  const quarterRows = useMemo(() => buildQuarterComparison(detailsStandortIds, importRows), [detailsStandortIds, importRows]);
   const recoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allScopedLocationRows)
     .filter((candidate) => {
       const candidateStandort = recoveryStandorte.find((entry) => entry.name === candidate.locationName);
@@ -3567,6 +3572,29 @@ function ClaimsFlowView({
     <div className="content-stack">
       {mode === "details" && (
         <>
+      <section className="panel period-filter deduction-analysis-filter">
+        <label className="select-label">
+          Zeitraum Standortdetails
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort Standortdetails
+          <select value={standort ? standort.id : detailsStandortFilterId} onChange={(event) => setDetailsStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {rowsStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{detailsStandorte.length === 1 ? detailsStandorte[0].name : "Alle Standorte"}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
+      </section>
       <section className="priority-grid">
         <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint="Summe aus Abrechnungen" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />

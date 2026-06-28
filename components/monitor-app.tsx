@@ -45,7 +45,21 @@ import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, lo
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 import { caseResolutionKeyFromParts } from "@/lib/case-resolution";
 
-const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const money = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+const integerNumber = new Intl.NumberFormat("de-DE", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+const percentNumber = new Intl.NumberFormat("de-DE", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1
+});
+const formatPercent = (value: number) => `${percentNumber.format(Number.isFinite(value) ? value : 0)} %`;
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
 const locationConfigStorageKey = "orisus_bfs_monitor_locations";
 const viewStateStorageKey = "orisus_bfs_monitor_view_state";
@@ -664,8 +678,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted],
     ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout],
     ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees],
-    ["Gebührenquote", `${selectedMetrics.feeRate.toFixed(2)} %`, periodLabel],
-    ["Rückbelastungsquote", `${chargebackRate.toFixed(2)} %`, "Rückgaben und Stornos am Eingang"],
+    ["Gebührenquote", formatPercent(selectedMetrics.feeRate), periodLabel],
+    ["Rückbelastungsquote", formatPercent(chargebackRate), "Rückgaben und Stornos am Eingang"],
     ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert"],
     ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position"]
@@ -804,8 +818,8 @@ function chartExplanation(title: string, values: { label: string; value: number 
 function formatChartValue(title: string, value: number) {
   const normalizedTitle = title.toLowerCase();
   if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
-  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität")) return `${value} Fälle`;
-  return `${value} %`;
+  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität")) return `${integerNumber.format(value)} Fälle`;
+  return formatPercent(value);
 }
 
 function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[] = []) {
@@ -929,13 +943,13 @@ function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { sn
           </div>
           <div className="location-metric-grid">
             <span><b>{money.format(entry.metrics.submitted)}</b> Umsatz</span>
-            <span><b>{entry.metrics.feeRate.toFixed(2)} %</b> Gebühr</span>
+            <span><b>{formatPercent(entry.metrics.feeRate)}</b> Gebühr</span>
             <span className="location-metric-with-info">
               <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
-              <b>{entry.chargebackRate.toFixed(2)} %</b> Rückbelastung
+              <b>{formatPercent(entry.chargebackRate)}</b> Rückbelastung
             </span>
             <span><b>{money.format(entry.metrics.noProtectionAmount)}</b> ohne Schutz</span>
-            <span><b>{entry.noProtectionCaseRate.toFixed(2)} %</b> ohne Schutz Quote</span>
+            <span><b>{formatPercent(entry.noProtectionCaseRate)}</b> ohne Schutz Quote</span>
             <span><b>{entry.openCases}</b> Klärfälle</span>
             <span><b>{entry.oldest} Tage</b> ältester Fall</span>
           </div>
@@ -950,9 +964,9 @@ function locationChargebackRateInfo(entry: LocationSnapshot) {
   const chargebackAmount = entry.metrics.returnAmount + entry.metrics.cancellationAmount;
   return [
     `Herleitung Rückbelastungsquote: Rückgaben/Rückbelastungen plus Stornos geteilt durch eingereichten Umsatz.`,
-    `${money.format(chargebackAmount)} / ${money.format(entry.metrics.submitted)} = ${entry.chargebackRate.toFixed(2)} %.`,
+    `${money.format(chargebackAmount)} / ${money.format(entry.metrics.submitted)} = ${formatPercent(entry.chargebackRate)}.`,
     `Rückgaben/Rückbelastungen: ${entry.metrics.returnCount} Fall/Fälle mit ${money.format(entry.metrics.returnAmount)}. Stornos: ${entry.metrics.cancellationCount} Fall/Fälle mit ${money.format(entry.metrics.cancellationAmount)}.`,
-    `Zusatzinfo ohne Ausfallschutz: ${entry.noProtectionClaimCount} von ${entry.claimCount} erkannten Forderungspositionen laufen ohne Schutz, also ${entry.noProtectionCaseRate.toFixed(2)} %.`
+    `Zusatzinfo ohne Ausfallschutz: ${entry.noProtectionClaimCount} von ${entry.claimCount} erkannten Forderungspositionen laufen ohne Schutz, also ${formatPercent(entry.noProtectionCaseRate)}.`
   ].join(" ");
 }
 
@@ -988,7 +1002,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
       </section>
       <section className="priority-grid">
         <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
-        <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={`${(highestFees?.metrics.feeRate ?? 0).toFixed(2)} %`} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
+        <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatPercent(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
@@ -1039,8 +1053,8 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
   return (
     <div className="content-stack">
       <section className="priority-grid">
-        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${noProtectionShare.toFixed(2)} % vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
-        <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${chargebackShare.toFixed(2)} % vom Eingang`} tone={chargebackShare ? "red" : "green"} />
+        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
+        <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} tone={chargebackShare ? "red" : "green"} />
         <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} Storno-Zeilen offen`} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
         <PriorityCard label="Offene Klärbewegungen" value={String(unresolved.length)} hint={money.format(unresolvedAmount)} tone={unresolved.length ? "red" : "green"} info={operationalOpenInfo} />
@@ -1104,7 +1118,7 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
       </div>
       <div className="priority-grid compact-priority">
         <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} tone={review.total ? "amber" : "green"} />
-        <PriorityCard label="Davon erledigt" value={String(review.done)} hint={`${review.doneRate.toFixed(0)} % Erledigungsquote`} tone={review.done ? "green" : "blue"} />
+        <PriorityCard label="Davon erledigt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} Erledigungsquote`} tone={review.done ? "green" : "blue"} />
         <PriorityCard label="Noch offen" value={String(review.open)} hint="ohne erkennbare Erledigung" tone={review.open ? "red" : "green"} />
       </div>
       <div className="location-card-grid storno-review-grid">
@@ -1121,7 +1135,7 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
               <span><b>{entry.total}</b> Stornos gesamt</span>
               <span><b>{entry.done}</b> erledigt</span>
               <span><b>{entry.open}</b> offen</span>
-              <span><b>{entry.doneRate.toFixed(0)} %</b> Quote</span>
+              <span><b>{formatPercent(entry.doneRate)}</b> Quote</span>
             </div>
           </article>
         ))}
@@ -1499,11 +1513,11 @@ function ClaimsFlowView({
         <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="EWMA / Adressprüfung" value={money.format(selectedMetrics.ewmaTotal)} hint={`netto ${money.format(selectedMetrics.ewmaNet)} · MwSt ${money.format(selectedMetrics.ewmaVat)}`} period={selectedPeriod.label} tone={selectedMetrics.ewmaTotal ? "amber" : "green"} />
         <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint="nach BFS-Abzug" period={selectedPeriod.label} tone="green" />
-        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${selectedMetrics.feeRate.toFixed(2)} % vom Eingang`} period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${formatPercent(selectedMetrics.feeRate)} vom Eingang`} period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Gesamtabzug" value={money.format(totalCostAndDeductions)} hint="BFS-Gebühr, MwSt, EWMA und Storno/Rückgabe" period={selectedPeriod.label} tone={totalCostAndDeductions ? "red" : "green"} />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
-        <PriorityCard label="Stornoquote" value={`${cancellationRate.toFixed(2)} %`} hint="Stornos vom eingereichten Umsatz" period={selectedPeriod.label} tone={cancellationRate ? "amber" : "green"} />
+        <PriorityCard label="Stornoquote" value={formatPercent(cancellationRate)} hint="Stornos vom eingereichten Umsatz" period={selectedPeriod.label} tone={cancellationRate ? "amber" : "green"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -1513,7 +1527,7 @@ function ClaimsFlowView({
           </div>
         </div>
         <div className="priority-grid compact-priority">
-          <PriorityCard label="Größter Abzug" value={biggestDeduction ? money.format(biggestDeduction.amount) : "0,00 €"} hint={biggestDeduction?.label ?? "keine Abzüge"} period={selectedPeriod.label} tone={biggestDeduction ? "red" : "green"} />
+          <PriorityCard label="Größter Abzug" value={money.format(biggestDeduction?.amount ?? 0)} hint={biggestDeduction?.label ?? "keine Abzüge"} period={selectedPeriod.label} tone={biggestDeduction ? "red" : "green"} />
           <PriorityCard label="Kosten ohne Storno" value={money.format(selectedMetrics.fees + selectedMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={selectedPeriod.label} tone={selectedMetrics.fees + selectedMetrics.ewmaTotal ? "amber" : "green"} />
           <PriorityCard label="Storno/Rückgabe" value={money.format(deductionAmount)} hint="echte Kontoauszug-Abzüge" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
         </div>
@@ -1534,7 +1548,7 @@ function ClaimsFlowView({
                   <td><strong>{entry.label}</strong></td>
                   <td>{entry.kind}</td>
                   <td>{money.format(entry.amount)}</td>
-                  <td>{selectedMetrics.submitted ? `${((entry.amount / selectedMetrics.submitted) * 100).toFixed(2)} %` : "0,00 %"}</td>
+                  <td>{formatPercent(selectedMetrics.submitted ? (entry.amount / selectedMetrics.submitted) * 100 : 0)}</td>
                   <td>{entry.detail}</td>
                 </tr>
               ))}
@@ -1632,11 +1646,11 @@ function ClaimsFlowView({
         </div>
         <div className="priority-grid compact-priority">
           <PriorityCard label="Abzug Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
-          <PriorityCard label="Abzugsquote" value={`${recoveryDeductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
+          <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
           <PriorityCard label="Abzug erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Matches · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
           <PriorityCard label="Offener Abzug" value={money.format(stillOpenAmount)} hint="ursprünglicher Abzug minus angerechnete Erledigung" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
-          <PriorityCard label="Offene Abzugsquote" value={`${notRecoveredRate.toFixed(2)} %`} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
-          <PriorityCard label="Erledigungsquote Abzug" value={`${recoveryRate.toFixed(0)} %`} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
+          <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
           <table>
@@ -1749,7 +1763,7 @@ function ClaimsFlowView({
                     <td>{money.format(metric.submitted)}</td>
                     <td><StatusBadge status={formatDelta(metric.deltaPercent)} /></td>
                     <td>{metric.returnCount} / {money.format(metric.returnAmount)}</td>
-                    <td>{metric.feeRate.toFixed(2)} %</td>
+                    <td>{formatPercent(metric.feeRate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2501,8 +2515,8 @@ function gradeRank(grade: string) {
 }
 
 function patientClassInfo(grade: string, count: number, total: number) {
-  const share = total ? Math.round((count / total) * 100) : 0;
-  const base = `Aktueller Wert: ${share} % beziehungsweise ${count} von ${total} Patient(en) im aktuellen Standort- und Zeitraumfilter. Datenquelle: importierte BFS-Forderungen und Kontoauszug-Bewegungen. Berücksichtigt werden Einreichungen, Stornos/Rückgaben/Rückbelastungen, ohne-Ausfallschutz-Marker und Wiederholungen je Patient.`;
+  const share = total ? (count / total) * 100 : 0;
+  const base = `Aktueller Wert: ${formatPercent(share)} beziehungsweise ${count} von ${total} Patient(en) im aktuellen Standort- und Zeitraumfilter. Datenquelle: importierte BFS-Forderungen und Kontoauszug-Bewegungen. Berücksichtigt werden Einreichungen, Stornos/Rückgaben/Rückbelastungen, ohne-Ausfallschutz-Marker und Wiederholungen je Patient.`;
   const rules: Record<string, string> = {
     A: "Klasse A bedeutet: keine Storno-, Rückgabe- oder Rückbelastungsereignisse und keine relevante ohne-Ausfallschutz-Auffälligkeit. Diese Patienten gelten im aktuellen Datenstand als unauffällig.",
     B: "Klasse B bedeutet: Beobachtung. Dazu zählen Patienten mit genau einem negativen Ereignis oder Patienten ohne Ausfallschutz, bei denen bisher keine Storno-/Rückgabehistorie erkannt wurde. Ohne Ausfallschutz allein ist hier noch kein harter Klärfall.",
@@ -2849,7 +2863,7 @@ function formatMetricMonth(month: string) {
 function formatDelta(value: number) {
   if (!value) return "Vergleich startet";
   const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)} %`;
+  return `${sign}${formatPercent(value)}`;
 }
 
 function countStartedMonths(start: Date, end: Date) {
@@ -4045,7 +4059,7 @@ function openImportDb() {
 function formatBytes(bytes: number) {
   if (!bytes) return "0 KB";
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${integerNumber.format(bytes / 1024 / 1024)} MB`;
 }
 
 function CasesView({
@@ -4342,7 +4356,7 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
         />
         <PriorityCard
           label="Nichtzahlungsquote"
-          value={`${paymentRisk.unpaidRate.toFixed(1)} %`}
+          value={formatPercent(paymentRisk.unpaidRate)}
           hint="kritische Patienten ohne Schutz"
           tone={paymentRisk.unpaidRate >= 10 ? "red" : paymentRisk.unpaidRate ? "amber" : "green"}
           info={paymentRisk.info}
@@ -4460,7 +4474,7 @@ function summarizeNoProtectionPaymentRisk(rows: RiskClaim[]) {
   const info = [
     `Herleitung: Grundgesamtheit sind ${totalPatients} eindeutige Patient(en), bei denen mindestens eine Forderung ohne Ausfallschutz erkannt wurde.`,
     `Davon zählen ${unpaidPatients} Patient(en) als kritisch, weil zu ihnen eine nicht erledigte Storno-, Rückgabe- oder Rückbelastungsbewegung erkannt wurde.`,
-    `Nichtzahlungsquote: ${unpaidPatients} / ${totalPatients || 1} = ${unpaidRate.toFixed(1)} %.`,
+    `Nichtzahlungsquote: ${unpaidPatients} / ${totalPatients || 1} = ${formatPercent(unpaidRate)}.`,
     `Als nicht kritisch gelten ${cleanPatients} Patient(en) ohne negative Bewegung und ${resolvedPatients} Patient(en) mit erkannter Zahlung/Erledigung. Erkannte kritische Summe: ${money.format(unpaidAmount)}.`
   ].join(" ");
 
@@ -4627,7 +4641,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
           <PriorityCard
             key={grade}
             label={`Klasse ${grade}`}
-            value={`${Math.round((count / total) * 100)} %`}
+            value={formatPercent(total ? (count / total) * 100 : 0)}
             hint={`${count} Patienten`}
             tone={grade === "A" ? "green" : grade === "B" ? "blue" : grade === "C" ? "amber" : "red"}
             info={patientClassInfo(grade, count, total)}
@@ -4666,7 +4680,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
                   <td>{profile.badEventCount}</td>
                   <td>{profile.noProtectionCount}</td>
                   <td>{money.format(profile.riskAmount)}</td>
-                  <td>{profile.badRate.toFixed(1)} %</td>
+                  <td>{formatPercent(profile.badRate)}</td>
                   <td>{profile.recommendation}</td>
                 </tr>
               ))}
@@ -4700,8 +4714,8 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
       <section className="priority-grid">
         <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
         <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
-        <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${successRate} % Erfolgsquote`} tone="green" />
-        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.doneRate.toFixed(0)} % Erledigungsquote`} tone={stornoReview.open ? "amber" : "green"} />
+        <PriorityCard label="Bezahlt / erledigt" value={String(totals.paid)} hint={`${formatPercent(successRate)} Erfolgsquote`} tone="green" />
+        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${formatPercent(stornoReview.doneRate)} Erledigungsquote`} tone={stornoReview.open ? "amber" : "green"} />
         <PriorityCard label="Noch offen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
       </section>
       <StornoReviewSection review={stornoReview} />

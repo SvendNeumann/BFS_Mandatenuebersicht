@@ -2381,6 +2381,18 @@ function gradeRank(grade: string) {
   return { A: 1, B: 2, C: 3, D: 4 }[grade as "A" | "B" | "C" | "D"] ?? 0;
 }
 
+function patientClassInfo(grade: string, count: number, total: number) {
+  const share = total ? Math.round((count / total) * 100) : 0;
+  const base = `Aktueller Wert: ${share} % beziehungsweise ${count} von ${total} Patient(en) im aktuellen Standort- und Zeitraumfilter. Datenquelle: importierte BFS-Forderungen und Kontoauszug-Bewegungen. Berücksichtigt werden Einreichungen, Stornos/Rückgaben/Rückbelastungen, ohne-Ausfallschutz-Marker und Wiederholungen je Patient.`;
+  const rules: Record<string, string> = {
+    A: "Klasse A bedeutet: keine Storno-, Rückgabe- oder Rückbelastungsereignisse und keine relevante ohne-Ausfallschutz-Auffälligkeit. Diese Patienten gelten im aktuellen Datenstand als unauffällig.",
+    B: "Klasse B bedeutet: Beobachtung. Dazu zählen Patienten mit genau einem negativen Ereignis oder Patienten ohne Ausfallschutz, bei denen bisher keine Storno-/Rückgabehistorie erkannt wurde. Ohne Ausfallschutz allein ist hier noch kein harter Klärfall.",
+    C: "Klasse C bedeutet: erhöhtes Risiko. Dazu zählen Patienten mit mindestens zwei Storno-/Rückgabe-/Rückbelastungsereignissen oder mindestens 500 Euro erkannter negativer Ereignissumme. Hier sollte der Standort aktiv prüfen.",
+    D: "Klasse D bedeutet: stark auffällig. Dazu zählen Patienten mit mindestens fünf negativen Ereignissen oder mindestens zwei negativen Ereignissen bei gleichzeitig mindestens 2.500 Euro Risikosumme. Empfehlung: Sperrhinweis, Vorkasse- oder Praxisprozess prüfen."
+  };
+  return `${rules[grade] ?? "Patientenklasse aus der bestehenden Klassifizierungslogik."} ${base}`;
+}
+
 function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
@@ -4361,6 +4373,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
             value={`${Math.round((count / total) * 100)} %`}
             hint={`${count} Patienten`}
             tone={grade === "A" ? "green" : grade === "B" ? "blue" : grade === "C" ? "amber" : "red"}
+            info={patientClassInfo(grade, count, total)}
           />
         ))}
       </section>

@@ -817,6 +817,22 @@ input {
   padding: 9px;
 }
 
+.location-metric-grid .location-metric-with-info {
+  position: relative;
+  padding-right: 34px;
+}
+
+.location-metric-with-info .metric-info {
+  top: 7px;
+  right: 7px;
+}
+
+.location-metric-with-info .metric-info-button {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+}
+
 .location-metric-grid b {
   color: var(--ink);
   font-size: 15px;

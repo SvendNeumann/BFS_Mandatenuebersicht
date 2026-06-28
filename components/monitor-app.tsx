@@ -808,6 +808,9 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
     const oldest = locationCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
     const chargebackAmount = metrics.returnAmount + metrics.cancellationAmount;
     const chargebackRate = metrics.submitted ? (chargebackAmount / metrics.submitted) * 100 : 0;
+    const claimCount = locationRows.reduce((sum, row) => sum + (row.parsedClaims?.length ?? 0), 0);
+    const noProtectionClaimCount = locationRows.reduce((sum, row) => sum + rowNoProtectionClaims(row).length, 0);
+    const noProtectionCaseRate = claimCount ? (noProtectionClaimCount / claimCount) * 100 : 0;
     const riskClaims = riskClaimsFromImportRows(locationRows);
     const suspiciousNoProtectionAmount = riskClaims
       .filter((claim) => claim.assessment === "auffaellig")
@@ -828,6 +831,9 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
       openAmount,
       oldest,
       chargebackRate,
+      claimCount,
+      noProtectionClaimCount,
+      noProtectionCaseRate,
       riskScore
     };
   }).sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
@@ -884,8 +890,12 @@ function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { sn
           <div className="location-metric-grid">
             <span><b>{money.format(entry.metrics.submitted)}</b> Umsatz</span>
             <span><b>{entry.metrics.feeRate.toFixed(2)} %</b> Gebühr</span>
-            <span><b>{entry.chargebackRate.toFixed(2)} %</b> Rückbelastung</span>
+            <span className="location-metric-with-info">
+              <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
+              <b>{entry.chargebackRate.toFixed(2)} %</b> Rückbelastung
+            </span>
             <span><b>{money.format(entry.metrics.noProtectionAmount)}</b> ohne Schutz</span>
+            <span><b>{entry.noProtectionCaseRate.toFixed(2)} %</b> ohne Schutz Quote</span>
             <span><b>{entry.openCases}</b> Klärfälle</span>
             <span><b>{entry.oldest} Tage</b> ältester Fall</span>
           </div>
@@ -894,6 +904,16 @@ function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { sn
       ))}
     </div>
   );
+}
+
+function locationChargebackRateInfo(entry: LocationSnapshot) {
+  const chargebackAmount = entry.metrics.returnAmount + entry.metrics.cancellationAmount;
+  return [
+    `Herleitung Rückbelastungsquote: Rückgaben/Rückbelastungen plus Stornos geteilt durch eingereichten Umsatz.`,
+    `${money.format(chargebackAmount)} / ${money.format(entry.metrics.submitted)} = ${entry.chargebackRate.toFixed(2)} %.`,
+    `Rückgaben/Rückbelastungen: ${entry.metrics.returnCount} Fall/Fälle mit ${money.format(entry.metrics.returnAmount)}. Stornos: ${entry.metrics.cancellationCount} Fall/Fälle mit ${money.format(entry.metrics.cancellationAmount)}.`,
+    `Zusatzinfo ohne Ausfallschutz: ${entry.noProtectionClaimCount} von ${entry.claimCount} erkannten Forderungspositionen laufen ohne Schutz, also ${entry.noProtectionCaseRate.toFixed(2)} %.`
+  ].join(" ");
 }
 
 function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {

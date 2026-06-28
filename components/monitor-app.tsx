@@ -3355,13 +3355,26 @@ function ClaimsFlowView({
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortPeriodIds, setStandortPeriodIds] = useState<Record<string, string>>({});
+  const [deductionPeriodId, setDeductionPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [deductionStandortFilterId, setDeductionStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [recoveryPeriodId, setRecoveryPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const deductionPeriod = useMemo(() => periodOptions.find((period) => period.id === deductionPeriodId) ?? selectedPeriod, [periodOptions, deductionPeriodId, selectedPeriod]);
   const recoveryPeriod = useMemo(() => periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod, [periodOptions, recoveryPeriodId, selectedPeriod]);
+  const deductionStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (deductionStandortFilterId === "alle") return rowsStandorte;
+    return rowsStandorte.filter((entry) => entry.id === deductionStandortFilterId);
+  }, [deductionStandortFilterId, rowsStandorte, standort]);
   const scopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, rowsStandorte, selectedPeriod]);
+  const deductionScopedImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = deductionStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, deductionPeriod, rowStandort) : false;
+  }), [deductionPeriod, deductionStandorte, importRows]);
+  const allDeductionLocationRows = useMemo(() => importRows.filter((row) => deductionStandorte.some((entry) => entry.name === row.location)), [deductionStandorte, importRows]);
   const recoveryScopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, recoveryPeriod, rowStandort) : false;
@@ -3369,6 +3382,8 @@ function ClaimsFlowView({
   const allScopedLocationRows = useMemo(() => importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location)), [importRows, rowsStandorte]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
+  const deductionSummary = useMemo(() => summarizeImportRows(deductionScopedImportRows), [deductionScopedImportRows]);
+  const deductionMetrics = useMemo(() => deductionSummary.rows ? metricsFromImportSummary(deductionSummary) : zeroMetrics(), [deductionSummary]);
   const recoverySummary = useMemo(() => summarizeImportRows(recoveryScopedImportRows), [recoveryScopedImportRows]);
   const recoveryMetrics = useMemo(() => recoverySummary.rows ? metricsFromImportSummary(recoverySummary) : zeroMetrics(), [recoverySummary]);
   const recentMonths = useMemo(() => buildRecentMonthlyTrend(rowsStandortIds, selectedPeriod, importRows), [rowsStandortIds, selectedPeriod, importRows]);
@@ -3378,12 +3393,25 @@ function ClaimsFlowView({
       const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
       return candidateStandort ? shortDateInPeriod(candidate.originalDate, recoveryPeriod, candidateStandort) : false;
     }), [allScopedLocationRows, rowsStandorte, recoveryPeriod]);
+  const deductionRecoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allDeductionLocationRows)
+    .filter((candidate) => {
+      const candidateStandort = deductionStandorte.find((entry) => entry.name === candidate.locationName);
+      return candidateStandort ? shortDateInPeriod(candidate.originalDate, deductionPeriod, candidateStandort) : false;
+    }), [allDeductionLocationRows, deductionPeriod, deductionStandorte]);
   const recoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(recoveryMatches), [recoveryMatches]);
+  const deductionRecoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(deductionRecoveryMatches), [deductionRecoveryMatches]);
+  const deductionRecoveredByResubmissionKeys = useMemo(() => new Set(deductionRecoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [deductionRecoveredByResubmission]);
   const recoveredByResubmissionKeys = useMemo(() => new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [recoveredByResubmission]);
   const manualResolutionKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const deductionManuallyPaidCases = useMemo(() => casesFromImportRows(deductionScopedImportRows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !deductionRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [deductionScopedImportRows, deductionRecoveredByResubmissionKeys, manualResolutionKeys]);
   const manuallyPaidCases = useMemo(() => casesFromImportRows(recoveryScopedImportRows)
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
+  const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
+  const analysisRecoveredByResubmissionAmount = deductionRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const analysisManuallyPaidAmount = deductionManuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const analysisRecoveredAmount = Math.min(analysisDeductionAmount, analysisRecoveredByResubmissionAmount + analysisManuallyPaidAmount);
   const recoveryDeductionAmount = recoveryMetrics.returnAmount + recoveryMetrics.cancellationAmount;
   const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
   const matchedNewSubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0);
@@ -3392,14 +3420,13 @@ function ClaimsFlowView({
   const stillOpenAmount = Math.max(recoveryDeductionAmount - recoveredAmount, 0);
   const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
   const deductionBreakdown = useMemo(() => [
-    { label: "Stornierungen", amount: selectedMetrics.cancellationAmount, detail: `${selectedMetrics.cancellationCount} Fälle`, kind: "Kontoauszug-Abzug" },
-    { label: "Rückläufer/Rückgaben", amount: selectedMetrics.returnAmount, detail: `${selectedMetrics.returnCount} Fälle`, kind: "Kontoauszug-Abzug" },
-    { label: "BFS-Gebühr netto", amount: selectedMetrics.feeNet, detail: "Factoring-/Bearbeitungsgebühr", kind: "BFS-Kosten" },
-    { label: "MwSt auf BFS-Gebühr", amount: selectedMetrics.feeVat, detail: "Steuer auf BFS-Gebühr", kind: "Steuer" },
-    { label: "EWMA / Adressprüfung netto", amount: selectedMetrics.ewmaNet, detail: "Einwohnermeldeamt-Abfragen", kind: "Adressprüfung" },
-    { label: "MwSt auf EWMA", amount: selectedMetrics.ewmaVat, detail: "Steuer auf EWMA", kind: "Steuer" }
-  ].sort((a, b) => b.amount - a.amount), [selectedMetrics]);
-  const biggestDeduction = deductionBreakdown.find((entry) => entry.amount > 0);
+    { label: "Stornierungen", amount: deductionMetrics.cancellationAmount, detail: `${deductionMetrics.cancellationCount} Fälle`, kind: "Kontoauszug-Abzug" },
+    { label: "Rückläufer/Rückgaben", amount: deductionMetrics.returnAmount, detail: `${deductionMetrics.returnCount} Fälle`, kind: "Kontoauszug-Abzug" },
+    { label: "BFS-Gebühr netto", amount: deductionMetrics.feeNet, detail: "Factoring-/Bearbeitungsgebühr", kind: "BFS-Kosten" },
+    { label: "MwSt auf BFS-Gebühr", amount: deductionMetrics.feeVat, detail: "Steuer auf BFS-Gebühr", kind: "Steuer" },
+    { label: "EWMA / Adressprüfung netto", amount: deductionMetrics.ewmaNet, detail: "Einwohnermeldeamt-Abfragen", kind: "Adressprüfung" },
+    { label: "MwSt auf EWMA", amount: deductionMetrics.ewmaVat, detail: "Steuer auf EWMA", kind: "Steuer" }
+  ].sort((a, b) => b.amount - a.amount), [deductionMetrics]);
   const recoveryDeductionRate = recoveryMetrics.submitted ? (recoveryDeductionAmount / recoveryMetrics.submitted) * 100 : 0;
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
@@ -3425,27 +3452,38 @@ function ClaimsFlowView({
         <div className="panel-heading">
           <div>
             <h2>Abzugsanalyse nach Kostenart</h2>
-            <p>Zeitraum: {selectedPeriod.label}. Sortiert danach, welche Abzugsart neben Stornos/Rückgaben am meisten Geld kostet.</p>
+            <p>Eigenständig gefilterte Sicht auf Kosten, Storno/Rückgabe und zurückgeholte Abzüge.</p>
           </div>
         </div>
-        <div className="priority-grid compact-priority">
-          <PriorityCard label="Größter Abzug" value={money.format(biggestDeduction?.amount ?? 0)} hint={biggestDeduction?.label ?? "keine Abzüge"} period={selectedPeriod.label} tone={biggestDeduction ? "red" : "green"} />
-          <PriorityCard label="Kosten ohne Storno" value={money.format(selectedMetrics.fees + selectedMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={selectedPeriod.label} tone={selectedMetrics.fees + selectedMetrics.ewmaTotal ? "amber" : "green"} />
-          <PriorityCard label="Storno/Rückgabe" value={money.format(deductionAmount)} hint="echte Kontoauszug-Abzüge" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
+        <div className="period-filter deduction-analysis-filter">
+          <label className="select-label">
+            Zeitraum Abzugsanalyse
+            <select value={deductionPeriodId} onChange={(event) => setDeductionPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Standort Abzugsanalyse
+            <select value={standort ? standort.id : deductionStandortFilterId} onChange={(event) => setDeductionStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+              {!standort && <option value="alle">Alle Standorte</option>}
+              {rowsStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{deductionStandorte.length === 1 ? deductionStandorte[0].name : "Alle Standorte"}</strong>
+            <span>{deductionPeriod.detail}</span>
+          </div>
         </div>
-        <section className="chart-grid visual-first-grid">
-          <div className="visual-panel mini-chart">
-            <h2>Abzüge visualisiert</h2>
-            <InteractiveBars title="Abzüge visualisiert" values={deductionBreakdown.map((entry) => ({ label: entry.label, value: entry.amount }))} />
-          </div>
-          <div className="visual-panel mini-chart">
-            <h2>Kostenquote je Abzugsart</h2>
-            <InteractiveBars title="Kostenquote je Abzugsart" values={deductionBreakdown.map((entry) => ({
-              label: entry.label,
-              value: selectedMetrics.submitted ? (entry.amount / selectedMetrics.submitted) * 100 : 0
-            }))} />
-          </div>
-        </section>
+        <div className="priority-grid compact-priority deduction-priority-grid">
+          <PriorityCard label="Größter Abzug" value={money.format(deductionMetrics.fees)} hint="BFS-Gebühr inkl. MwSt" period={deductionPeriod.label} tone={deductionMetrics.fees ? "red" : "green"} />
+          <PriorityCard label="Kosten ohne Storno" value={money.format(deductionMetrics.fees + deductionMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={deductionPeriod.label} tone={deductionMetrics.fees + deductionMetrics.ewmaTotal ? "amber" : "green"} />
+          <PriorityCard label="Storno/Rückgabe" value={money.format(analysisDeductionAmount)} hint="ursprünglicher Abzug aus Kontoauszug" period={deductionPeriod.label} tone={analysisDeductionAmount ? "red" : "green"} />
+          <PriorityCard label="Storno zurückgeholt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoveredByResubmission.length} Matches plus manuell bezahlt`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} />
+        </div>
         <div className="table-wrap compact-table recovery-table-scroll">
           <table>
             <thead>
@@ -3463,7 +3501,7 @@ function ClaimsFlowView({
                   <td><strong>{entry.label}</strong></td>
                   <td>{entry.kind}</td>
                   <td>{money.format(entry.amount)}</td>
-                  <td>{formatPercent(selectedMetrics.submitted ? (entry.amount / selectedMetrics.submitted) * 100 : 0)}</td>
+                  <td>{formatPercent(deductionMetrics.submitted ? (entry.amount / deductionMetrics.submitted) * 100 : 0)}</td>
                   <td>{entry.detail}</td>
                 </tr>
               ))}

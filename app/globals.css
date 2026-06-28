@@ -1428,6 +1428,10 @@ input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.deduction-priority-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .priority-card {
   display: grid;
   gap: 8px;
@@ -1448,6 +1452,12 @@ input {
 .priority-card span,
 .priority-card small {
   color: var(--muted);
+}
+
+.priority-card .period-note {
+  font-size: var(--type-small);
+  font-weight: 600;
+  opacity: 0.68;
 }
 
 .priority-card.red {
@@ -3154,6 +3164,10 @@ td small {
   margin-bottom: 0;
 }
 
+.deduction-analysis-filter {
+  grid-template-columns: minmax(190px, 0.22fr) minmax(190px, 0.22fr) minmax(0, 1fr);
+}
+
 .compact-answer-filter {
   grid-template-columns: minmax(180px, 0.24fr) minmax(180px, 0.24fr);
 }
@@ -3648,6 +3662,10 @@ td small {
 
 @media (min-width: 1081px) {
   .benchmark-signal-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .deduction-priority-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 

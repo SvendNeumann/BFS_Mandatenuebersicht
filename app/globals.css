@@ -786,14 +786,14 @@ input {
   width: fit-content;
   max-width: 100%;
   margin-top: 4px;
-  border: 1px solid rgba(121, 238, 231, 0.2);
-  border-radius: 999px;
-  background: rgba(48, 213, 200, 0.1);
-  color: #bdf7f2;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(198, 219, 226, 0.78);
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
   line-height: 1.2;
 }
 
@@ -3888,7 +3888,6 @@ input,
   letter-spacing: 0;
 }
 
-.period-note,
 .standort-tabs span,
 .filter-pill-row button span,
 .custom-chart-tooltip strong,
@@ -3905,7 +3904,6 @@ td small,
   letter-spacing: 0;
 }
 
-.period-note,
 .eyebrow,
 .custom-chart-legend,
 th {
@@ -3937,7 +3935,7 @@ input {
   }
 
   .period-note {
-    font-size: var(--type-small);
+    font-size: 12px;
   }
 }
 

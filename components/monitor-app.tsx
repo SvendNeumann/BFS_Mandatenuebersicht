@@ -1576,7 +1576,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const groupKpis: KpiCardTuple[] = [
     ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
     ["Eingereicht Vorjahr", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForPeriod("submitted", importRows, filteredStandorte, managementComparison.previousPeriod)],
-    ["Delta zum Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, groupSparkline("submitted")],
+    ["Delta zum Vorjahr", money.format(managementComparison.submittedDelta), formatDelta(managementComparison.submittedDeltaRate), undefined, groupSparkline("submitted"), managementComparison.currentPeriod.label],
     ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, groupSparkline("fees")],
     ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, groupSparkline("feeRate")],
     ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, groupSparkline("deductionAmount")],
@@ -2787,7 +2787,7 @@ function LocationDashboard({ standort, cases, onNavigate, importRows, peerImport
   const locationKpis: KpiCardTuple[] = [
     ["Eingereicht YTD", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
     ["Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...locationSparklineContext, period: managementComparison.previousPeriod })],
-    ["Delta Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
+    ["Delta Vorjahr", money.format(managementComparison.submittedDelta), formatDelta(managementComparison.submittedDeltaRate), undefined, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext), managementComparison.currentPeriod.label],
     ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Ø Gruppe ${formatFeeRate(peerAverage.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
     ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Ø Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
     ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Ø Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
@@ -4951,7 +4951,7 @@ function formatMonth(date: Date) {
   return shortMonthYearLabel(date.getFullYear(), date.getMonth());
 }
 
-type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend];
+type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend, period?: string];
 
 function KpiGrid({ standort, cards: customCards, importRows = [], className = "" }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[]; className?: string }) {
   const cards = useMemo(() => {
@@ -4975,14 +4975,14 @@ function KpiGrid({ standort, cards: customCards, importRows = [], className = ""
   }, [customCards, importRows, standort]);
   return (
     <section className={className ? `kpi-grid ${className}` : "kpi-grid"}>
-      {cards.map(([label, value, hint, info, trend]) => (
+      {cards.map(([label, value, hint, info, trend, period]) => (
         <article className="kpi-card" key={label}>
-          <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(hint)))} />
+          <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(period ?? hint)))} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{normalizeProductCopy(hint)}</small>
           {trend && <AnswerSparkline trend={trend} />}
-          <small className="period-note">{periodLabelFromHint(hint)}</small>
+          <small className="period-note">{periodLabelFromHint(period ?? hint)}</small>
         </article>
       ))}
     </section>

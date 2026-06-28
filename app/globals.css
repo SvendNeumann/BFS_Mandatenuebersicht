@@ -1668,6 +1668,13 @@ input {
   outline: none;
 }
 
+@media (min-width: 1081px) {
+  .app-back-button {
+    left: calc(292px + 22px);
+    bottom: 22px;
+  }
+}
+
 .benchmark-panel-actions {
   display: flex;
   align-items: end;

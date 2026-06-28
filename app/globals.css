@@ -1612,57 +1612,6 @@ input {
   font-size: 15px;
 }
 
-.case-board {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.case-board-column {
-  align-content: start;
-  gap: 10px;
-}
-
-.case-board-column > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.case-board-column > div span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.case-board-column > div strong {
-  color: var(--ink);
-  font-size: 24px;
-}
-
-.case-board-item {
-  display: grid;
-  gap: 5px;
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-strong);
-  color: var(--ink-soft);
-  padding: 10px;
-  text-align: left;
-}
-
-.case-board-item strong {
-  color: var(--ink);
-}
-
-.case-board-item span,
-.case-board-item small {
-  color: var(--muted);
-}
-
 .resolve-case-button {
   min-height: 34px;
   padding: 7px 10px;
@@ -3961,7 +3910,6 @@ td small {
 
   .dashboard-grid,
   .management-summary-grid,
-  .case-board,
   .filter-grid,
   .cockpit-filter-bar,
   .cockpit-filter-controls,
@@ -4039,7 +3987,6 @@ td small {
   .location-card-grid,
   .location-card-grid.compact,
   .answer-grid,
-  .case-board,
   .filter-grid,
   .report-type-grid,
   .case-summary-grid,
@@ -4257,7 +4204,6 @@ body {
 .cashflow-card > div:first-child small,
 .preview-metric small,
 .location-card-head span,
-.case-board-column > div span,
 .eyebrow {
   font-size: var(--type-card-title);
   line-height: 1.25;
@@ -4276,7 +4222,6 @@ body {
 
 .answer-grid strong,
 .preview-metric strong,
-.case-board-column > div strong,
 .cashflow-card > div:first-child strong,
 .year-active-value strong,
 .custom-donut strong {

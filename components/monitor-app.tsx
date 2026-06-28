@@ -98,9 +98,8 @@ const superAdminNav: NavSection[] = [
   {
     title: "Operative Fallarbeit",
     items: [
-      ["worklist", "Prioritäten heute", AlertCircle],
-      ["cases", "Klärfälle", AlertCircle],
-      ["matches", "Matching & Neueinreichungen", RefreshCw]
+      ["matches", "Matching & Neueinreichungen", RefreshCw],
+      ["cases", "Klärfälle", AlertCircle]
     ]
   },
   {
@@ -147,9 +146,8 @@ const leadNav: NavSection[] = [
   {
     title: "Operative Fallarbeit",
     items: [
-      ["worklist", "Meine Prioritäten", AlertCircle],
-      ["cases", "Klärfälle", AlertCircle],
-      ["matches", "Matching & Neueinreichungen", RefreshCw]
+      ["matches", "Matching & Neueinreichungen", RefreshCw],
+      ["cases", "Klärfälle", AlertCircle]
     ]
   },
   {
@@ -220,7 +218,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const hasUploadData = privacyScopedImportRows.length > 0;
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
-    "worklist",
     "quality",
     "claims",
     "cashflow",
@@ -562,7 +559,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
@@ -782,7 +778,6 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     quality: "Forderungsqualität",
     claims: "Standortdetails",
     cashflow: "Forderungen und Geldfluss",
-    worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Import-Center",
     preview: "Import-Center",
     history: "Import-Center",
@@ -3840,77 +3835,6 @@ function ClaimsFlowView({
         </>
       )}
     </div>
-  );
-}
-
-function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigate: (view: string) => void }) {
-  const sorted = [...rows].filter((fall) => !fall.status.includes("erledigt")).sort((a, b) => b.ageDays - a.ageDays);
-  return (
-    <div className="content-stack">
-      <section className="priority-grid">
-        <PriorityCard label="Sofort prüfen" value={String(sorted.filter((fall) => fall.ageDays > 30).length)} hint="älter als 30 Tage" tone="red" />
-        <PriorityCard label="Diese Woche" value={String(sorted.filter((fall) => fall.ageDays >= 8 && fall.ageDays <= 30).length)} hint="8-30 Tage offen" tone="amber" />
-        <PriorityCard label="Wiedervorlage" value={String(sorted.filter((fall) => fall.status === "wiedervorlage").length)} hint="mit Termin" tone="blue" />
-        <PriorityCard label="Offener Betrag" value={money.format(sorted.reduce((sum, fall) => sum + fall.amount, 0))} hint="alle offenen Fälle" tone="green" />
-      </section>
-      <section className="panel slim-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Arbeitsliste nach Priorität</h2>
-            <p>Die Liste ist so sortiert, wie ein Standort oder die Zentrale sinnvollerweise abarbeitet.</p>
-          </div>
-        </div>
-      </section>
-      <section className="insight-grid">
-        <InsightCard title="Klärfälle nach Dringlichkeit" items={["Rot: älter als 30 Tage", "Orange: 15-30 Tage", "Gelb: 8-14 Tage"]} />
-        <InsightCard title="Bearbeitung" items={["Klärfälle nach Alter und Betrag priorisieren", "Rückbelastungen in Klärfällen prüfen", "Erledigte Neueinreichungen ausblenden"]} />
-        <InsightCard title="Standort-Rückfragen" items={["Patient, Re.-Nr. und BFS-Nr. nennen", "Grund aus BFS-Bemerkung übernehmen", "Maßnahme und Frist dokumentieren"]} />
-      </section>
-      <CaseWorkflowBoard cases={sorted} />
-      <CasesView cases={sorted} compact />
-    </div>
-  );
-}
-
-function CaseWorkflowBoard({ cases: rows }: { cases: BfsCase[] }) {
-  const columns = [
-    {
-      title: "Offen",
-      rows: rows.filter((fall) => fall.status === "offen" || fall.status === "historisches_match_offen")
-    },
-    {
-      title: "In Prüfung",
-      rows: rows.filter((fall) => fall.ageDays >= 8 && fall.ageDays <= 30)
-    },
-    {
-      title: "Wiedervorlage",
-      rows: rows.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")
-    },
-    {
-      title: "Kein Match",
-      rows: rows.filter((fall) => fall.status === "historisches_match_offen")
-    }
-  ];
-
-  return (
-    <section className="case-board" aria-label="Klärfälle Arbeitsboard">
-      {columns.map((column) => (
-        <article className="panel case-board-column" key={column.title}>
-          <div>
-            <span>{column.title}</span>
-            <strong>{column.rows.length}</strong>
-          </div>
-          {column.rows.slice(0, 4).map((fall) => (
-            <button key={`${column.title}-${fall.id}`} className="case-board-item" type="button">
-              <strong>{fall.patientName}</strong>
-              <span>{fall.locationName} · {money.format(fall.amount)}</span>
-              <small>{fall.reason}</small>
-            </button>
-          ))}
-          {!column.rows.length && <p className="empty-state">Keine Fälle.</p>}
-        </article>
-      ))}
-    </section>
   );
 }
 

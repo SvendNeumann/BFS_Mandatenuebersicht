@@ -1137,6 +1137,31 @@ input {
   min-width: 1280px;
 }
 
+.recovery-table-scroll {
+  max-height: min(300px, 38vh) !important;
+}
+
+.recovery-table-scroll table {
+  min-width: 980px;
+}
+
+.recovery-table-scroll th,
+.recovery-table-scroll td {
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.22;
+}
+
+.recovery-table-scroll td strong {
+  font-size: 13px;
+}
+
+.recovery-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 .primary-button,
 .secondary-button {
   display: inline-flex;

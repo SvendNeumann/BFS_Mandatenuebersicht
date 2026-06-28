@@ -1432,7 +1432,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
           <PriorityCard label="Kosten ohne Storno" value={money.format(selectedMetrics.fees + selectedMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={selectedPeriod.label} tone={selectedMetrics.fees + selectedMetrics.ewmaTotal ? "amber" : "green"} />
           <PriorityCard label="Storno/Rückgabe" value={money.format(deductionAmount)} hint="echte Kontoauszug-Abzüge" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
         </div>
-        <div className="table-wrap compact-table">
+        <div className="table-wrap compact-table recovery-table-scroll">
           <table>
             <thead>
               <tr>

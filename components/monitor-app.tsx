@@ -4092,7 +4092,7 @@ function CasesView({
         </div>
         <div className="case-list-actions">
           <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
-            <Printer size={16} /> PDF-Bericht
+            <Printer size={16} /> PDF für Standortleitung
           </button>
           <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
@@ -4153,7 +4153,7 @@ function CasesView({
               <th>Alter</th>
               <th>Status</th>
               <th>Wiedervorlage</th>
-              <th>Kommentar</th>
+              <th>AbrechnungsNr</th>
               {onResolvePaid && <th>Aktion</th>}
             </tr>
           </thead>
@@ -4169,7 +4169,7 @@ function CasesView({
                 <td>{fall.ageDays} Tage</td>
                 <td><StatusBadge status={fall.status} /></td>
                 <td>{fall.dueDate}</td>
-                <td>{fall.lastComment}</td>
+                <td>{formatCaseAbrechnungReference(fall.lastComment)}</td>
                 {onResolvePaid && (
                   <td>
                     <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
@@ -4259,7 +4259,7 @@ function printCasesReport(rows: BfsCase[], title: string) {
         <th>Alter</th>
         <th>Status</th>
         <th>Wiedervorlage</th>
-        <th class="comment">Kommentar</th>
+        <th class="comment">AbrechnungsNr</th>
       </tr>
     </thead>
     <tbody>
@@ -4291,8 +4291,18 @@ function caseReportRowHtml(fall: BfsCase) {
     <td>${fall.ageDays} Tage</td>
     <td><span class="status">${escapeHtml(fall.status)}</span></td>
     <td>${escapeHtml(fall.dueDate)}</td>
-    <td>${escapeHtml(fall.lastComment)}</td>
+    <td>${escapeHtml(formatCaseAbrechnungReference(fall.lastComment))}</td>
   </tr>`;
+}
+
+function formatCaseAbrechnungReference(value: string) {
+  const matchedPrefix = value.match(/Gematcht mit\s+(\d+)/i);
+  if (matchedPrefix) return matchedPrefix[1];
+  const fileNumber = value.match(/AbrechnungsNachweis_[^/_]+_(\d+)\.pdf/i);
+  if (fileNumber) return fileNumber[1];
+  const fallbackNumber = value.match(/(?:Abrechnung|AbrechnungsNr|Nachweis)[^\d]*(\d+)/i);
+  if (fallbackNumber) return fallbackNumber[1];
+  return "-";
 }
 
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {

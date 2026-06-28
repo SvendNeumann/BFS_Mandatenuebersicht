@@ -798,11 +798,18 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
 
 function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { standort?: Standort; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const chartPeriodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortFilterId, setStandortFilterId] = useState(() => standort?.id ?? "alle");
+  const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(chartPeriodOptions));
+  const [chartStandortFilterId, setChartStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(
     () => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0],
     [periodOptions, periodId]
+  );
+  const selectedChartPeriod = useMemo(
+    () => chartPeriodOptions.find((period) => period.id === chartPeriodId) ?? chartPeriodOptions[0],
+    [chartPeriodOptions, chartPeriodId]
   );
   const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
   const relevantStandorte = useMemo(() => {
@@ -810,15 +817,29 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
     if (standortFilterId === "alle") return selectableStandorte;
     return selectableStandorte.filter((entry) => entry.id === standortFilterId);
   }, [selectableStandorte, standort, standortFilterId]);
+  const chartStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (chartStandortFilterId === "alle") return selectableStandorte;
+    return selectableStandorte.filter((entry) => entry.id === chartStandortFilterId);
+  }, [chartStandortFilterId, selectableStandorte, standort]);
   const relevantStandortNames = useMemo(() => new Set(relevantStandorte.map((entry) => entry.name)), [relevantStandorte]);
+  const chartStandortNames = useMemo(() => new Set(chartStandorte.map((entry) => entry.name)), [chartStandorte]);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     if (!relevantStandortNames.has(row.location)) return false;
     const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, relevantStandortNames, relevantStandorte, selectedPeriod]);
+  const chartRows = useMemo(() => importRows.filter((row) => {
+    if (!chartStandortNames.has(row.location)) return false;
+    const rowStandort = chartStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedChartPeriod, rowStandort) : false;
+  }), [chartStandortNames, chartStandorte, importRows, selectedChartPeriod]);
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const chartStornoReview = useMemo(() => stornoReviewFromImportRows(chartRows, standort?.id, manualCaseResolutions), [chartRows, standort?.id, manualCaseResolutions]);
+  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, chartStornoReview.rows), [chartRows, chartStornoReview.rows]);
+  const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
     const parsedCount = row.parsedClaims?.length ?? 0;
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
@@ -904,8 +925,280 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           info={`Gezählt werden die erkannten Forderungspositionen aus den importierten Abrechnungen für ${scopeHint}. Wenn keine Positionsliste erkannt wurde, nutzt die App die erkannte Kopfanzahl als Fallback.`}
         />
       </section>
+
+      <section className="panel period-filter custom-kpi-period custom-chart-period">
+        <label className="select-label">
+          Zeitraum Diagramme
+          <select value={chartPeriodId} onChange={(event) => setChartPeriodId(event.target.value)}>
+            {chartPeriodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort Diagramme
+          <select value={standort ? standort.id : chartStandortFilterId} onChange={(event) => setChartStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {selectableStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>Diagramme individuell steuern</strong>
+          <span>{chartScopeHint} · {selectedChartPeriod.detail}</span>
+        </div>
+      </section>
+
+      <section className="custom-chart-grid" aria-label="Individuelle Diagramme">
+        <CustomComboChart
+          title="Umsatz eingereicht vs. ausgezahlt"
+          values={chartPoints}
+          barKey="submitted"
+          lineKey="payout"
+          barLabel="eingereicht"
+          lineLabel="ausgezahlt"
+          format={money.format}
+        />
+        <CustomDualAxisChart
+          title="Forderungen vs. Stornierungen"
+          values={chartPoints}
+          barKey="claims"
+          lineKey="cancellations"
+          barLabel="Forderungen"
+          lineLabel="Stornierungen"
+          formatBar={integerNumber.format}
+          formatLine={integerNumber.format}
+        />
+        <CustomDonutChart
+          title="Patienten mit Ausfallschutz"
+          protectedCount={chartPoints.reduce((sum, point) => sum + point.protectedClaims, 0)}
+          unprotectedCount={chartPoints.reduce((sum, point) => sum + point.noProtectionClaims, 0)}
+        />
+        <CustomDualAxisChart
+          title="Stornierungen vs. zurückgeholt"
+          values={chartPoints}
+          barKey="cancellations"
+          lineKey="recoveredStornos"
+          barLabel="Stornierungen"
+          lineLabel="zurückgeholt"
+          formatBar={integerNumber.format}
+          formatLine={integerNumber.format}
+        />
+      </section>
     </div>
   );
+}
+
+type CustomChartPoint = {
+  month: string;
+  label: string;
+  submitted: number;
+  payout: number;
+  claims: number;
+  cancellations: number;
+  recoveredStornos: number;
+  protectedClaims: number;
+  noProtectionClaims: number;
+};
+
+function CustomComboChart({
+  title,
+  values,
+  barKey,
+  lineKey,
+  barLabel,
+  lineLabel,
+  format
+}: {
+  title: string;
+  values: CustomChartPoint[];
+  barKey: keyof Pick<CustomChartPoint, "submitted" | "payout" | "claims" | "cancellations" | "recoveredStornos">;
+  lineKey: keyof Pick<CustomChartPoint, "submitted" | "payout" | "claims" | "cancellations" | "recoveredStornos">;
+  barLabel: string;
+  lineLabel: string;
+  format: (value: number) => string;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const chartValues = values.length ? values : [emptyCustomChartPoint("Keine Daten")];
+  const active = chartValues[Math.min(activeIndex, chartValues.length - 1)];
+  const maxValue = Math.max(...chartValues.flatMap((point) => [Number(point[barKey]), Number(point[lineKey])]), 1);
+  const linePoints = chartValues.map((point, index) => {
+    const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+    const y = 100 - (Number(point[lineKey]) / maxValue) * 86;
+    return `${x},${Math.max(8, Math.min(96, y))}`;
+  }).join(" ");
+
+  return (
+    <article className="custom-chart-card">
+      <div className="custom-chart-head">
+        <div>
+          <h2>{title}</h2>
+          <span>{active.label}: {barLabel} {format(Number(active[barKey]))} · {lineLabel} {format(Number(active[lineKey]))}</span>
+        </div>
+        <div className="custom-chart-legend">
+          <span><i className="bar-dot" /> {barLabel}</span>
+          <span><i className="line-dot" /> {lineLabel}</span>
+        </div>
+      </div>
+      <div className="custom-combo-chart" onPointerLeave={() => setActiveIndex(0)}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={title}>
+          {[24, 50, 76].map((y) => <line key={y} className="custom-grid-line" x1="0" x2="100" y1={y} y2={y} />)}
+          {chartValues.map((point, index) => {
+            const slot = 100 / chartValues.length;
+            const height = Math.max(3, (Number(point[barKey]) / maxValue) * 84);
+            return (
+              <rect
+                key={point.month}
+                className={index === activeIndex ? "custom-bar active" : "custom-bar"}
+                x={index * slot + slot * 0.28}
+                y={96 - height}
+                width={Math.min(10, slot * 0.44)}
+                height={height}
+                rx="1.8"
+                tabIndex={0}
+                onFocus={() => setActiveIndex(index)}
+                onPointerEnter={() => setActiveIndex(index)}
+                onClick={() => setActiveIndex(index)}
+              />
+            );
+          })}
+          <polyline className="custom-line" points={linePoints} />
+          {chartValues.map((point, index) => {
+            const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+            const y = Math.max(8, Math.min(96, 100 - (Number(point[lineKey]) / maxValue) * 86));
+            return <circle key={`${point.month}-line`} className="custom-line-point" cx={x} cy={y} r="2.2" />;
+          })}
+        </svg>
+      </div>
+      <div className="custom-chart-axis">{chartValues.map((point) => <span key={point.month}>{point.label}</span>)}</div>
+    </article>
+  );
+}
+
+function CustomDualAxisChart({
+  title,
+  values,
+  barKey,
+  lineKey,
+  barLabel,
+  lineLabel,
+  formatBar,
+  formatLine
+}: {
+  title: string;
+  values: CustomChartPoint[];
+  barKey: keyof Pick<CustomChartPoint, "claims" | "cancellations" | "recoveredStornos">;
+  lineKey: keyof Pick<CustomChartPoint, "claims" | "cancellations" | "recoveredStornos">;
+  barLabel: string;
+  lineLabel: string;
+  formatBar: (value: number) => string;
+  formatLine: (value: number) => string;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const chartValues = values.length ? values : [emptyCustomChartPoint("Keine Daten")];
+  const active = chartValues[Math.min(activeIndex, chartValues.length - 1)];
+  const maxBar = Math.max(...chartValues.map((point) => Number(point[barKey])), 1);
+  const maxLine = Math.max(...chartValues.map((point) => Number(point[lineKey])), 1);
+  const linePoints = chartValues.map((point, index) => {
+    const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+    const y = 100 - (Number(point[lineKey]) / maxLine) * 86;
+    return `${x},${Math.max(8, Math.min(96, y))}`;
+  }).join(" ");
+
+  return (
+    <article className="custom-chart-card">
+      <div className="custom-chart-head">
+        <div>
+          <h2>{title}</h2>
+          <span>{active.label}: {barLabel} {formatBar(Number(active[barKey]))} · {lineLabel} {formatLine(Number(active[lineKey]))}</span>
+        </div>
+        <div className="custom-chart-legend">
+          <span><i className="bar-dot" /> {barLabel}</span>
+          <span><i className="line-dot" /> {lineLabel}</span>
+        </div>
+      </div>
+      <div className="custom-combo-chart dual-axis" onPointerLeave={() => setActiveIndex(0)}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={title}>
+          {[24, 50, 76].map((y) => <line key={y} className="custom-grid-line" x1="0" x2="100" y1={y} y2={y} />)}
+          {chartValues.map((point, index) => {
+            const slot = 100 / chartValues.length;
+            const height = Math.max(3, (Number(point[barKey]) / maxBar) * 84);
+            return (
+              <rect
+                key={point.month}
+                className={index === activeIndex ? "custom-bar active" : "custom-bar"}
+                x={index * slot + slot * 0.28}
+                y={96 - height}
+                width={Math.min(10, slot * 0.44)}
+                height={height}
+                rx="1.8"
+                tabIndex={0}
+                onFocus={() => setActiveIndex(index)}
+                onPointerEnter={() => setActiveIndex(index)}
+                onClick={() => setActiveIndex(index)}
+              />
+            );
+          })}
+          <polyline className="custom-line warning" points={linePoints} />
+          {chartValues.map((point, index) => {
+            const x = chartValues.length === 1 ? 50 : (index / (chartValues.length - 1)) * 100;
+            const y = Math.max(8, Math.min(96, 100 - (Number(point[lineKey]) / maxLine) * 86));
+            return <circle key={`${point.month}-line`} className="custom-line-point warning" cx={x} cy={y} r="2.2" />;
+          })}
+        </svg>
+      </div>
+      <div className="custom-axis-scale">
+        <span>{barLabel}: max. {formatBar(maxBar)}</span>
+        <span>{lineLabel}: max. {formatLine(maxLine)}</span>
+      </div>
+      <div className="custom-chart-axis">{chartValues.map((point) => <span key={point.month}>{point.label}</span>)}</div>
+    </article>
+  );
+}
+
+function CustomDonutChart({ title, protectedCount, unprotectedCount }: { title: string; protectedCount: number; unprotectedCount: number }) {
+  const total = protectedCount + unprotectedCount;
+  const protectedShare = total ? (protectedCount / total) * 100 : 0;
+  const unprotectedShare = total ? (unprotectedCount / total) * 100 : 0;
+  const safeShare = Math.max(0, Math.min(100, protectedShare));
+  return (
+    <article className="custom-chart-card custom-donut-card">
+      <div className="custom-chart-head">
+        <div>
+          <h2>{title}</h2>
+          <span>{formatPercent(protectedShare)} mit Schutz · {formatPercent(unprotectedShare)} ohne Schutz</span>
+        </div>
+      </div>
+      <div className="custom-donut-wrap">
+        <div className="custom-donut" style={{ background: `conic-gradient(#35d8c9 0 ${safeShare}%, #f2bd5b ${safeShare}% 100%)` }}>
+          <div>
+            <strong>{formatPercent(unprotectedShare)}</strong>
+            <span>ohne Schutz</span>
+          </div>
+        </div>
+        <div className="custom-donut-stats">
+          <span><i className="protected" /> Mit Ausfallschutz <b>{integerNumber.format(protectedCount)}</b></span>
+          <span><i className="unprotected" /> Ohne Ausfallschutz <b>{integerNumber.format(unprotectedCount)}</b></span>
+          <span>Gesamt <b>{integerNumber.format(total)}</b></span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function emptyCustomChartPoint(label: string): CustomChartPoint {
+  return {
+    month: label,
+    label,
+    submitted: 0,
+    payout: 0,
+    claims: 0,
+    cancellations: 0,
+    recoveredStornos: 0,
+    protectedClaims: 0,
+    noProtectionClaims: 0
+  };
 }
 
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
@@ -2965,6 +3258,79 @@ function buildCashflowPeriods(): PeriodOption[] {
 
 function defaultPeriodId(periods: PeriodOption[]) {
   return periods.find((period) => period.id === "year-2026")?.id ?? periods[0]?.id ?? "since-start";
+}
+
+function buildCustomChartPeriods(): PeriodOption[] {
+  const basePeriods = buildCashflowPeriods().filter((period) => period.id !== "since-start");
+  const earliestGoLive = new Date(`${standorte.map((entry) => entry.goLiveDate).sort()[0]}T00:00:00`);
+  const earliestStartYear = earliestGoLive.getFullYear();
+  const currentYear = todayReference.getFullYear();
+  const monthPeriods: PeriodOption[] = [];
+
+  for (let year = currentYear; year >= earliestStartYear; year -= 1) {
+    const maxMonth = year === currentYear ? todayReference.getMonth() : 11;
+    for (let month = maxMonth; month >= 0; month -= 1) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      if (monthEnd < earliestGoLive) continue;
+      monthPeriods.push({
+        id: `month-${year}-${String(month + 1).padStart(2, "0")}`,
+        label: shortMonthYearLabel(year, month),
+        detail: "Monat",
+        start: monthStart,
+        end: monthEnd > todayReference ? todayReference : monthEnd
+      });
+    }
+  }
+
+  return [...basePeriods, ...monthPeriods];
+}
+
+function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnType<typeof stornoReviewFromImportRows>["rows"]): CustomChartPoint[] {
+  const byMonth = new Map<string, CustomChartPoint>();
+  const ensurePoint = (month: string) => {
+    const current = byMonth.get(month);
+    if (current) return current;
+    const [year, monthNumber] = month.split("-").map(Number);
+    const point = emptyCustomChartPoint(shortMonthYearLabel(year, monthNumber - 1));
+    point.month = month;
+    byMonth.set(month, point);
+    return point;
+  };
+
+  rows.forEach((row) => {
+    const month = importRowMonth(row);
+    if (!month) return;
+    const point = ensurePoint(month);
+    point.submitted += rowSubmittedAmount(row);
+    point.payout += row.payout ?? 0;
+    const parsedClaims = row.parsedClaims ?? [];
+    const claimCount = parsedClaims.length || row.claimsExtracted || row.claimsHeader || 0;
+    point.claims += claimCount;
+    if (parsedClaims.length) {
+      point.noProtectionClaims += parsedClaims.filter((claim) => claim.protectionStatus === "ohne_ausfallschutz").length;
+      point.protectedClaims += parsedClaims.filter((claim) => claim.protectionStatus !== "ohne_ausfallschutz").length;
+    } else if (claimCount > 0) {
+      point.protectedClaims += Math.max(0, claimCount - rowNoProtectionCount(row));
+      point.noProtectionClaims += rowNoProtectionCount(row);
+    }
+    point.cancellations += (row.parsedMovements ?? []).filter((movement) => isStornoMovement(movement)).length;
+  });
+
+  stornoRows.forEach((row) => {
+    if (!row.done) return;
+    const month = monthKeyFromGermanDate(row.date);
+    if (!month) return;
+    ensurePoint(month).recoveredStornos += 1;
+  });
+
+  return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function monthKeyFromGermanDate(value: string) {
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}`;
 }
 
 function zeroMetrics() {

@@ -652,7 +652,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const [groupFocus, setGroupFocus] = useState("gesamt");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
@@ -985,7 +985,7 @@ function locationChargebackRateInfo(entry: LocationSnapshot) {
 
 function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
@@ -1225,7 +1225,7 @@ function GroupFilterBar({
 
 function LocationDashboard({ standort, cases, onNavigate, importRows }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const locationImportRows = useMemo(() => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort]);
   const importSummary = useMemo(() => summarizeImportRows(locationImportRows), [locationImportRows]);
@@ -1310,7 +1310,7 @@ function AnswerCockpit({
 }) {
   const hasImportDataset = hasImportDatasetProp ?? importRows.length > 0;
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [selectedAnswerStandortId, setSelectedAnswerStandortId] = useState(() => scope === "group" ? "alle" : standort?.id ?? "alle");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const relevantStandorte = useMemo(() => scope === "group"
@@ -1630,9 +1630,9 @@ function ClaimsFlowView({
   const rowsStandorte = useMemo(() => standort ? [standort] : standorte, [standort]);
   const rowsStandortIds = useMemo(() => rowsStandorte.map((entry) => entry.id), [rowsStandorte]);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortPeriodIds, setStandortPeriodIds] = useState<Record<string, string>>({});
-  const [recoveryPeriodId, setRecoveryPeriodId] = useState(periodOptions[0].id);
+  const [recoveryPeriodId, setRecoveryPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const recoveryPeriod = useMemo(() => periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod, [periodOptions, recoveryPeriodId, selectedPeriod]);
   const scopedImportRows = useMemo(() => importRows.filter((row) => {
@@ -2103,6 +2103,10 @@ function buildCashflowPeriods(): PeriodOption[] {
   }
 
   return periods;
+}
+
+function defaultPeriodId(periods: PeriodOption[]) {
+  return periods.find((period) => period.id === "year-2026")?.id ?? periods[0]?.id ?? "since-start";
 }
 
 function zeroMetrics() {
@@ -4336,7 +4340,7 @@ function CasesView({
 }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [caseStandortFilter, setCaseStandortFilter] = useState("alle");
-  const [casePeriodId, setCasePeriodId] = useState(periodOptions[0].id);
+  const [casePeriodId, setCasePeriodId] = useState(() => defaultPeriodId(periodOptions));
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
   const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);
   const filteredRows = useMemo(() => enableFilters

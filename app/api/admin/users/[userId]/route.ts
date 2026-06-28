@@ -40,7 +40,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  await replaceStandortAssignments(supabase, userId, (body.role ?? profile.role) as "super_admin" | "standortleitung", body.standortIds ?? []);
+  const nextRole = (body.role ?? profile.role) as "super_admin" | "standortleitung";
+  if (Array.isArray(body.standortIds) || nextRole === "super_admin") {
+    await replaceStandortAssignments(supabase, userId, nextRole, body.standortIds ?? []);
+  }
   return NextResponse.json({ ok: true });
 }
 

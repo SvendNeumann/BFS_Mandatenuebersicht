@@ -1,6 +1,9 @@
 import { isStandortLive, standorte } from "./demo-data";
 import { parseBfsPdfBytes, parseBfsText } from "./bfs-parser";
+import { dedupeImportRows } from "./import-identity";
 import type { ImportPreviewRow, ParsedImportClaim, ParsedImportMovement } from "./types";
+
+export { dedupeImportRows, importRowBusinessIdentity } from "./import-identity";
 
 const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?/g;
 const datePattern = /(\d{2}\.\d{2}\.\d{4})/;
@@ -18,24 +21,6 @@ export async function parseDemoImportFiles(files: File[], onProgress?: (processe
 
 export function isBfsPdfUploadFile(file: File) {
   return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
-}
-
-export function dedupeImportRows(rows: ImportPreviewRow[]) {
-  const rowsByIdentity = new Map<string, ImportPreviewRow>();
-  for (const row of rows) {
-    const identity = importRowBusinessIdentity(row) ?? row.fileHash ?? row.file;
-    if (!rowsByIdentity.has(identity)) {
-      rowsByIdentity.set(identity, row);
-    }
-  }
-  return [...rowsByIdentity.values()];
-}
-
-export function importRowBusinessIdentity(row: Pick<ImportPreviewRow, "mandantNo" | "statementNo">) {
-  if (row.mandantNo !== "-" && row.statementNo !== "-") {
-    return `${row.mandantNo}:${row.statementNo}`;
-  }
-  return null;
 }
 
 function yieldToBrowser() {

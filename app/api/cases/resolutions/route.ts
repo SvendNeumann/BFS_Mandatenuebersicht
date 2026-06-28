@@ -69,6 +69,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Keine Berechtigung für diesen Standort." }, { status: 403 });
     }
 
+    const existingResolution = await findLatestResolutionForCase(supabase, resolution.caseKey);
+    if (existingResolution?.status === resolution.status) {
+      if (resolution.status === "paid_manual") await markMatchingDatabaseCasesResolved(supabase, existingResolution, auth.profile.id);
+      return NextResponse.json({ resolution: existingResolution, duplicate: true }, { headers: noStoreHeaders() });
+    }
+
     const { error: auditError } = await supabase.from("audit_log").insert({
       user_id: auth.profile.id,
       action: "manual_case_resolved",
@@ -89,6 +95,19 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function findLatestResolutionForCase(supabase: any, caseKey: string) {
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select("new_value, created_at")
+    .eq("action", "manual_case_resolved")
+    .eq("entity_type", "bfs_case_resolution")
+    .contains("new_value", { caseKey })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return parseResolution(data?.[0]?.new_value);
 }
 
 function normalizeResolution(value: any, userId: string): ManualCaseResolution {

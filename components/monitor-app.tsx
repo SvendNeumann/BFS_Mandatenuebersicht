@@ -43,6 +43,7 @@ import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
+import { caseResolutionKeyFromParts } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
@@ -287,17 +288,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   function openNavSectionForView(key: string) {
     const section = nav.find((entry) => entry.items.some(([itemKey]) => itemKey === key));
     setExpandedSections(section ? { [section.title]: true } : {});
-  }
-
-  function refreshLocalAppData() {
-    applyStoredStandorteConfig();
-    setLocationConfigVersion((version) => version + 1);
-    void loadStoredImportRowsFromDb()
-      .then((rows) => setLiveImportRows(rows))
-      .catch(() => undefined);
-    void loadManualCaseResolutions()
-      .then((resolutions) => setManualCaseResolutions(resolutions))
-      .catch(() => undefined);
   }
 
   function resolveCaseAsPaid(fall: BfsCase) {
@@ -2159,26 +2149,6 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
 
 function caseResolutionKey(fall: BfsCase) {
   return fall.resolutionKey ?? caseResolutionKeyFromParts(fall);
-}
-
-function caseResolutionKeyFromParts(parts: Pick<BfsCase, "standortId" | "patientName" | "invoiceNo" | "bfsNo" | "amount" | "reason">) {
-  return [
-    parts.standortId,
-    normalizeResolutionPart(parts.patientName),
-    normalizeResolutionPart(parts.invoiceNo),
-    normalizeResolutionPart(parts.bfsNo),
-    Math.round(parts.amount * 100),
-    normalizeResolutionPart(parts.reason)
-  ].join("|");
-}
-
-function normalizeResolutionPart(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim() || "-";
 }
 
 function countOpenCasesByStandort(rows: ImportPreviewRow[]) {

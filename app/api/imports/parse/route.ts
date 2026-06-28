@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
-import { createServiceClient, requireSuperAdmin } from "@/lib/server-auth";
+import { isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
+import { importRowBusinessIdentity } from "@/lib/import-identity";
+import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ type ImportPersistenceResult = {
 
 export async function GET() {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await getRequestProfile();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -26,17 +27,13 @@ export async function GET() {
       return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
     }
 
-    const { data, error } = await supabase
-      .from("bfs_documents")
-      .select("extracted_json, created_at")
-      .not("extracted_json", "is", null)
-      .eq("status", "imported")
-      .order("created_at", { ascending: true })
-      .limit(5000);
+    const readableIds = await readableStandortIds(supabase, auth.profile.id, auth.profile.role);
+    if (auth.profile.role !== "super_admin" && !readableIds.size) {
+      return NextResponse.json({ rows: [] }, { headers: noStoreHeaders() });
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const rows = (data ?? [])
+    const documents = await fetchImportedDocuments(supabase, auth.profile.role === "super_admin" ? undefined : readableIds);
+    const rows = documents
       .map((entry: { extracted_json: unknown }) => entry.extracted_json)
       .filter(isImportPreviewRow)
       .filter((row: ImportPreviewRow) => !isBrokenImportedRow(row));
@@ -93,14 +90,16 @@ export async function DELETE() {
       return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
     }
 
+    const resetStatuses = ["uploaded", "parsed", "preview", "imported", "duplicate", "error", "deletion_candidate"];
     const { data, error } = await supabase
       .from("bfs_documents")
-      .select("id")
-      .eq("status", "imported");
+      .select("id, batch_id")
+      .in("status", resetStatuses);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const documentIds = (data ?? []).map((entry: { id: string }) => entry.id);
+    const batchIds = Array.from(new Set((data ?? []).map((entry: { batch_id?: string | null }) => entry.batch_id).filter(Boolean)));
     if (!documentIds.length) {
       return NextResponse.json({ reset: true, archived: 0 }, { headers: noStoreHeaders() });
     }
@@ -120,6 +119,19 @@ export async function DELETE() {
       if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
+    for (const chunk of chunkArray(batchIds, 200)) {
+      const { error: batchError } = await supabase
+        .from("bfs_import_batches")
+        .update({
+          status: "draft",
+          successful_files: 0,
+          failed_files: 0,
+          notes: "Vom Nutzer zurückgesetzter Importdatenstand."
+        })
+        .in("id", chunk);
+      if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500 });
+    }
+
     return NextResponse.json({ reset: true, archived: documentIds.length }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -127,6 +139,34 @@ export async function DELETE() {
       { status: 500 }
     );
   }
+}
+
+async function fetchImportedDocuments(supabase: SupabaseDbClient, allowedStandortIds?: Set<string>) {
+  const pageSize = 1000;
+  const allRows: Array<{ extracted_json: unknown; created_at: string }> = [];
+  const standortChunks = allowedStandortIds ? chunkArray([...allowedStandortIds], 100) : [undefined];
+
+  for (const standortChunk of standortChunks) {
+    let offset = 0;
+    while (true) {
+      let query = supabase
+        .from("bfs_documents")
+        .select("extracted_json, created_at")
+        .not("extracted_json", "is", null)
+        .eq("status", "imported")
+        .order("created_at", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+
+      if (standortChunk) query = query.in("standort_id", standortChunk);
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      allRows.push(...(data ?? []));
+      if (!data || data.length < pageSize) break;
+      offset += pageSize;
+    }
+  }
+
+  return allRows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 }
 
 function fileWithUploadPath(file: File, uploadPath: string | undefined) {
@@ -395,6 +435,7 @@ async function clearDocumentChildren(supabase: SupabaseDbClient, documentId: str
 
 async function clearDocumentsChildren(supabase: SupabaseDbClient, documentIds: string[]) {
   for (const chunk of chunkArray(documentIds, 200)) {
+    await throwIfSupabaseError(supabase.from("import_events").delete().in("document_id", chunk));
     await throwIfSupabaseError(supabase.from("bfs_cases").delete().in("document_id", chunk));
     await throwIfSupabaseError(supabase.from("bfs_bewegungen").delete().in("document_id", chunk));
     await throwIfSupabaseError(supabase.from("bfs_forderungen").delete().in("document_id", chunk));
@@ -405,6 +446,23 @@ async function clearDocumentsChildren(supabase: SupabaseDbClient, documentIds: s
 async function throwIfSupabaseError(query: PromiseLike<{ error?: { message?: string } | null }>) {
   const { error } = await query;
   if (error) throw new Error(error.message ?? "Supabase-Operation fehlgeschlagen.");
+}
+
+async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string): Promise<Set<string>> {
+  if (role === "super_admin") return allStandortIds(supabase);
+  return assignedStandortIds(supabase, userId);
+}
+
+async function allStandortIds(supabase: SupabaseDbClient): Promise<Set<string>> {
+  const { data, error } = await supabase.from("standorte").select("id").eq("active", true);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((entry: { id: string }) => entry.id));
+}
+
+async function assignedStandortIds(supabase: SupabaseDbClient, userId: string): Promise<Set<string>> {
+  const { data, error } = await supabase.from("user_standorte").select("standort_id").eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((entry: { standort_id: string }) => entry.standort_id));
 }
 
 function chunkArray<T>(items: T[], size: number) {

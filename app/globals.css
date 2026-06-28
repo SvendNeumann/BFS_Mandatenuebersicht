@@ -4363,8 +4363,8 @@ body {
 
 .interactive-chart {
   position: relative;
-  min-height: 218px;
-  padding: 52px 4px 0;
+  min-height: 240px;
+  padding: 82px 4px 0;
 }
 
 .interactive-chart .metric-info {
@@ -4380,8 +4380,18 @@ body {
   color: rgba(232, 248, 250, 0.9);
 }
 
+.chart-tooltip {
+  top: 36px;
+  left: 48px;
+  right: 2px;
+  min-width: 0;
+  max-width: none;
+  transform: none;
+  padding: 8px 10px;
+}
+
 .bars {
-  height: 154px;
+  height: 132px;
   gap: 11px;
   padding: 0 6px;
   border-bottom-color: rgba(157, 226, 230, 0.18);
@@ -4392,6 +4402,7 @@ body {
 }
 
 .bars button {
+  min-width: 0;
   border-radius: 7px 7px 0 0;
   background: linear-gradient(180deg, #34ddd4, #13a99f);
   box-shadow: 0 8px 22px rgba(19, 169, 159, 0.2);
@@ -4403,15 +4414,13 @@ body {
 }
 
 .axis span {
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.chart-tooltip {
-  top: 42px;
-  border-color: rgba(138, 243, 236, 0.26);
-  background: rgba(3, 16, 27, 0.96);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .table-wrap {

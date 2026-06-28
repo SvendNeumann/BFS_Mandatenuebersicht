@@ -706,7 +706,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
         <span />
         <strong>{chartLegendLabel(title)}</strong>
       </div>
-      <div className="chart-tooltip" style={{ left: `${chartTooltipLeft(activeIndex, values.length)}%` }}>
+      <div className="chart-tooltip">
         <strong>{activeValue.label}</strong>
         <span>{chartLegendLabel(title)}: {valueLabel}</span>
       </div>
@@ -729,13 +729,8 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   );
 }
 
-function chartTooltipLeft(index: number, count: number) {
-  if (count <= 1) return 50;
-  return 8 + (index / (count - 1)) * 84;
-}
-
 function chartLegendLabel(title: string) {
-  if (title.toLowerCase().includes("gebühr")) return "Gesamtkosten BFS";
+  if (title.toLowerCase().includes("gebühr") || title.toLowerCase().includes("kosten")) return "Gesamtkosten BFS";
   if (title.toLowerCase().includes("umsatz")) return "Umsatz eingereicht";
   if (title.toLowerCase().includes("rück")) return "Rückbelastungen";
   return "Performanceindex";
@@ -763,7 +758,7 @@ function chartExplanation(title: string, values: { label: string; value: number 
 
 function formatChartValue(title: string, value: number) {
   const normalizedTitle = title.toLowerCase();
-  if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
+  if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
   if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität")) return `${value} Fälle`;
   return `${value} %`;
 }

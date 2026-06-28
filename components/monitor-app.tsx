@@ -797,6 +797,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
 }
 
 function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { standort?: Standort; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const chartPeriodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -850,7 +851,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
 
   return (
-    <div className="content-stack custom-kpi-view">
+    <div className="content-stack custom-kpi-view" ref={exportRef}>
       <section className="panel period-filter custom-kpi-period">
         <label className="select-label">
           Zeitraum
@@ -873,6 +874,9 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           <strong>Individuelle KPI-Auswahl</strong>
           <span>{scopeHint} · {selectedPeriod.detail}</span>
         </div>
+        <button className="secondary-button custom-export-action" type="button" onClick={() => printCustomTabPdf(exportRef.current, `Individuell · ${scopeHint} · ${selectedPeriod.label}`)}>
+          <Printer size={16} /> PDF Export
+        </button>
       </section>
 
       <section className="custom-kpi-slider" aria-label="Individuelle KPI-Kacheln">
@@ -5414,6 +5418,69 @@ function importRowNeedsReview(row: ImportPreviewRow) {
   if (row.claimsHeader !== row.claimsExtracted) return true;
   if (Math.abs(row.sumHeader - row.sumExtracted) > 0.02) return true;
   return (row.parseNotes ?? []).some((note) => !note.toLowerCase().includes("datei wurde"));
+}
+
+function printCustomTabPdf(element: HTMLElement | null, title: string) {
+  if (!element) return;
+  const rect = element.getBoundingClientRect();
+  const width = Math.max(element.scrollWidth, rect.width, 1);
+  const height = Math.max(element.scrollHeight, rect.height, 1);
+  const pageWidth = 1084;
+  const pageHeight = 756;
+  const scale = Math.min(1, pageWidth / width, pageHeight / height);
+  const stylesheetLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
+    .map((link) => `<link rel="stylesheet" href="${escapeHtml(link.href)}" />`)
+    .join("");
+  const html = `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)} - Orisus BFS Monitor</title>
+  ${stylesheetLinks}
+  <style>
+    @page { size: A4 landscape; margin: 5mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 287mm; height: 200mm; overflow: hidden; background: #061c2a !important; }
+    body { color: #f8ffff; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .print-page { width: ${width}px; transform: scale(${scale}); transform-origin: top left; }
+    .custom-export-action, .metric-info-button { display: none !important; }
+    .custom-kpi-view { gap: 10px !important; }
+    .custom-kpi-period { grid-template-columns: 190px 190px 1fr !important; padding: 8px !important; }
+    .custom-kpi-slider { gap: 8px !important; }
+    .priority-card { min-height: 132px !important; padding: 10px !important; gap: 4px !important; }
+    .priority-card strong { font-size: 24px !important; }
+    .answer-sparkline svg { height: 22px !important; }
+    .custom-chart-grid { gap: 8px !important; }
+    .custom-chart-card { padding: 9px !important; break-inside: avoid; page-break-inside: avoid; }
+    .custom-combo-chart { height: 150px !important; padding: 7px !important; }
+    .custom-chart-head { margin-bottom: 6px !important; }
+    .custom-chart-head h2 { font-size: 15px !important; }
+    .custom-donut-wrap { min-height: 150px !important; gap: 10px !important; }
+    .custom-donut { width: 140px !important; }
+    .custom-donut strong { font-size: 18px !important; }
+    .custom-benchmark-panel { padding: 9px !important; break-inside: avoid; page-break-inside: avoid; }
+    .panel-heading { margin-bottom: 6px !important; }
+    .panel-heading h2 { font-size: 15px !important; }
+    .panel-heading p { font-size: 10px !important; }
+    .table-wrap { overflow: visible !important; }
+    .custom-benchmark-table { min-width: 0 !important; table-layout: fixed; }
+    th, td { padding: 4px !important; font-size: 9px !important; }
+    .status { padding: 2px 5px !important; font-size: 8px !important; }
+  </style>
+</head>
+<body>
+  <main class="print-page">${element.outerHTML}</main>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 250));</script>
+</body>
+</html>`;
+  const reportWindow = window.open("", "_blank", "width=1400,height=900");
+  if (!reportWindow) {
+    downloadTextFile("orisus-bfs-individuell-export.html", html);
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
 }
 
 function printImportIssueReport(rows: ImportPreviewRow[]) {

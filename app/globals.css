@@ -2731,8 +2731,14 @@ td small {
 }
 
 .custom-kpi-period {
-  grid-template-columns: minmax(210px, 0.24fr) minmax(210px, 0.24fr) minmax(0, 1fr);
+  grid-template-columns: minmax(210px, 0.24fr) minmax(210px, 0.24fr) minmax(0, 1fr) auto;
   margin-bottom: 0;
+}
+
+.custom-export-action {
+  align-self: end;
+  min-height: 42px;
+  white-space: nowrap;
 }
 
 .custom-kpi-slider {

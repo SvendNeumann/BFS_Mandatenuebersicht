@@ -2482,6 +2482,17 @@ td small {
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
+.answer-card {
+  position: relative;
+  display: grid;
+  min-height: 178px;
+}
+
+.answer-card-action {
+  width: 100%;
+  height: 100%;
+}
+
 .answer-grid button:hover {
   transform: translateY(-2px);
   border-color: #b9d8ff;
@@ -6090,6 +6101,26 @@ select option {
 .data-card small,
 td span {
   color: rgba(205, 226, 232, 0.72) !important;
+}
+
+.answer-filter-panel.compact-answer-filter {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.answer-grid .answer-sparkline.green {
+  color: #34d399 !important;
+}
+
+.answer-grid .answer-sparkline.amber {
+  color: #f6c56f !important;
+}
+
+.answer-grid .answer-sparkline.red {
+  color: #fb7185 !important;
+}
+
+.answer-grid .answer-sparkline small {
+  color: currentColor !important;
 }
 
 label,

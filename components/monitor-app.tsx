@@ -880,7 +880,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
             <p>Klärfälle, Rückbelastungen, Neueinreichungen und Reports bleiben Arbeitswerkzeuge. Die Lagebewertung oben erklärt zuerst Entwicklung, Abweichung und Ursache.</p>
           </div>
         </div>
-        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
+        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} />
       </section>
     </div>
   );
@@ -1773,7 +1773,7 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
             <p>Konkrete Patienten, Klärfälle und Reports werden hier weiterbearbeitet.</p>
           </div>
         </div>
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} />
       </section>
       <CasesView cases={cases} compact />
     </div>
@@ -1847,8 +1847,8 @@ function AnswerCockpit({
       : relevantStandorte[0]?.name ?? "Alle Standorte"
     : standort?.name ?? "Standort";
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${selectedStandortLabel}`;
-  const resolvedPeriodLabel = periodLabel ?? selectedPeriod.label;
-  const effectivePeriod = useMemo(() => periodOptions.find((period) => period.label === resolvedPeriodLabel) ?? selectedPeriod, [periodOptions, resolvedPeriodLabel, selectedPeriod]);
+  const resolvedPeriodLabel = selectedPeriod.label;
+  const effectivePeriod = selectedPeriod;
   const answerSparklineContext = useMemo(() => ({
     importRows,
     relevantStandorte,
@@ -1861,6 +1861,15 @@ function AnswerCockpit({
   const recurringTrend = useMemo(() => buildAnswerSparkline("recurring", answerSparklineContext), [answerSparklineContext]);
   const feesTrend = useMemo(() => buildAnswerSparkline("fees", answerSparklineContext), [answerSparklineContext]);
   const oldestTrend = useMemo(() => buildAnswerSparkline("oldest", answerSparklineContext), [answerSparklineContext]);
+  const answerInfo = useMemo(() => buildAnswerCardInfo({
+    periodLabel: resolvedPeriodLabel,
+    scopeLabel: selectedStandortLabel,
+    metrics: selectedMetrics,
+    openCases,
+    chargebacks,
+    recurringRisks,
+    oldest
+  }), [chargebacks, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel]);
 
   useEffect(() => {
     if (scope === "location" && standort) setSelectedAnswerStandortId(standort.id);
@@ -1875,16 +1884,16 @@ function AnswerCockpit({
         </div>
         {showReportAction && <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>}
       </div>
-      {!compact && (
-        <section className="period-filter answer-filter-panel">
-          <label className="select-label">
-            Zeitraum
-            <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-              {periodOptions.map((period) => (
-                <option key={period.id} value={period.id}>{period.label}</option>
-              ))}
-            </select>
-          </label>
+      <section className={compact ? "period-filter answer-filter-panel compact-answer-filter" : "period-filter answer-filter-panel"}>
+        <label className="select-label">
+          Zeitraum Schnellantworten
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        {!compact && (
           <label className="select-label">
             Standort
             <select value={selectedAnswerStandortId} onChange={(event) => setSelectedAnswerStandortId(event.target.value)} disabled={scope !== "group"}>
@@ -1894,61 +1903,59 @@ function AnswerCockpit({
               ))}
             </select>
           </label>
-        </section>
-      )}
+        )}
+      </section>
       <div className="answer-grid">
-        <button onClick={() => onNavigate("claims")}>
-          <span>Umsatz eingereicht?</span>
-          <strong>{money.format(submitted)}</strong>
-          <small>{resolvedPeriodLabel}</small>
-          <AnswerSparkline trend={submittedTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("cases")}>
-          <span>Was ist noch offen?</span>
-          <strong>{money.format(openAmount)}</strong>
-          <small>{openCases.length} offene Klärfälle</small>
-          <AnswerSparkline trend={openTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("chargebacks")}>
-          <span>Wie viele Rückläufer?</span>
-          <strong>{chargebacks.length}</strong>
-          <small>{chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"}</small>
-          <AnswerSparkline trend={chargebackTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("risks")}>
-          <span>Ohne Ausfallschutz?</span>
-          <strong>{money.format(noProtectionAmount)}</strong>
-          <small>{resolvedPeriodLabel}</small>
-          <AnswerSparkline trend={noProtectionTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("repeatRisks")}>
-          <span>Wiederholer?</span>
-          <strong>{recurringRisks.length}</strong>
-          <small>mehrfach ohne Ausfallschutz</small>
-          <AnswerSparkline trend={recurringTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("claims")}>
-          <span>BFS-Kosten?</span>
-          <strong>{money.format(fees)}</strong>
-          <small>Gebühr {money.format(feeNet)} · MwSt {money.format(feeVat)}{ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}</small>
-          <AnswerSparkline trend={feesTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
-        <button onClick={() => onNavigate("worklist")}>
-          <span>Ältester offener Fall?</span>
-          <strong>{oldest} Tage</strong>
-          <small>Priorität zuerst klären</small>
-          <AnswerSparkline trend={oldestTrend} />
-          <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
-        </button>
+        <AnswerMetricCard title="Umsatz eingereicht?" value={money.format(submitted)} hint={resolvedPeriodLabel} trend={submittedTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Was ist noch offen?" value={money.format(openAmount)} hint={`${openCases.length} offene Klärfälle`} trend={openTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.open} onClick={() => onNavigate("cases")} />
+        <AnswerMetricCard title="Wie viele Rückläufer?" value={String(chargebacks.length)} hint={chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"} trend={chargebackTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.chargebacks} onClick={() => onNavigate("chargebacks")} />
+        <AnswerMetricCard title="Ohne Ausfallschutz?" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
+        <AnswerMetricCard title="Wiederholer?" value={String(recurringRisks.length)} hint="mehrfach ohne Ausfallschutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
+        <AnswerMetricCard title="BFS-Kosten?" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Ältester offener Fall?" value={`${oldest} Tage`} hint="Priorität zuerst klären" trend={oldestTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.oldest} onClick={() => onNavigate("worklist")} />
       </div>
     </section>
   );
+}
+
+function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClick }: { title: string; value: string; hint: string; trend: AnswerSparklineTrend; periodLabel: string; info: string; onClick: () => void }) {
+  return (
+    <article className="answer-card">
+      <MetricInfo title={title} text={info} />
+      <button className="answer-card-action" onClick={onClick}>
+        <span>{title}</span>
+        <strong>{value}</strong>
+        <small>{hint}</small>
+        <AnswerSparkline trend={trend} />
+        <small className="period-note">{periodLabelFromHint(periodLabel)}</small>
+      </button>
+    </article>
+  );
+}
+
+function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest }: {
+  periodLabel: string;
+  scopeLabel: string;
+  metrics: BfsMetrics;
+  openCases: BfsCase[];
+  chargebacks: BfsCase[];
+  recurringRisks: ReturnType<typeof getRecurringRiskProfiles>;
+  oldest: number;
+}) {
+  const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
+  const feeTotal = metrics.fees;
+  const feeNet = metrics.feeNet || feeTotal;
+  const taxTotal = metrics.feeVat + metrics.ewmaVat;
+  return {
+    submitted: `Herleitung: Summe aller erkannten Forderungen im Zeitraum ${periodLabel} für ${scopeLabel}. Verwendet werden die importierten BFS-Forderungsbeträge je Abrechnung. Aktueller Wert: ${money.format(metrics.submitted)}. Die Sparkline zeigt die Monatsentwicklung im gewählten Zeitraum und der VJ-Wert vergleicht denselben Zeitraum mit dem Vorjahr.`,
+    open: `Herleitung: Summe aller offenen, nicht erledigten Klärfälle im aktuellen Standortfilter ${scopeLabel}. Zeitraum: ${periodLabel}. Gezählt werden ${openCases.length} offene Fälle mit zusammen ${money.format(openAmount)}. Manuell als bezahlt markierte Fälle werden nicht mehr als offen geführt.`,
+    chargebacks: `Herleitung: Gezählt werden offene Fälle mit Rückgabe oder Rückbelastung im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${chargebacks.length} Rückläufer mit ${money.format(chargebackAmount)} offenem Betrag. Stornos werden in den separaten Qualitäts- und Geldflussansichten ausgewertet.`,
+    noProtection: `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
+    recurring: `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${recurringRisks.length} Wiederholer. Diese Kachel zeigt Patientenselektion und Standortprozess, nicht einzelne Buchungssummen.`,
+    fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
+    oldest: `Herleitung: Höchstes Alter unter allen offenen, nicht erledigten Klärfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
+  };
 }
 
 type AnswerSparklineMetric =
@@ -2015,7 +2022,7 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const label = previousTotal
     ? `VJ ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
     : currentTotal
-      ? "VJ ohne Wert"
+      ? "VJ 0"
       : "kein Trend";
 
   return {

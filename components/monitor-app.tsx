@@ -1657,7 +1657,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
             <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
           </div>
         </div>
-        <LocationBenchmarkCards snapshots={benchmarkSnapshots} onNavigate={onNavigate} compact />
+        <LocationBenchmarkCards snapshots={benchmarkSnapshots} compact />
       </section>
     </div>
   );
@@ -2402,7 +2402,7 @@ function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, 
   };
 }
 
-function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { snapshots: LocationSnapshot[]; onNavigate: (view: string) => void; compact?: boolean }) {
+function LocationBenchmarkCards({ snapshots, compact = false }: { snapshots: LocationSnapshot[]; compact?: boolean }) {
   const visible = [...snapshots].sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
   return (
     <div className={compact ? "location-card-grid compact" : "location-card-grid"}>
@@ -2427,7 +2427,6 @@ function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { sn
             <span><b>{entry.openCases}</b> Klärfälle</span>
             <span><b>{entry.oldest} Tage</b> ältester Fall</span>
           </div>
-          <button className="secondary-button" onClick={() => onNavigate("claims")}>Details ansehen</button>
         </article>
       ))}
     </div>
@@ -2567,7 +2566,7 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
             </label>
           </div>
         </div>
-        <LocationBenchmarkCards snapshots={comparisonSnapshots} onNavigate={onNavigate} />
+        <LocationBenchmarkCards snapshots={comparisonSnapshots} />
       </section>
     </div>
   );

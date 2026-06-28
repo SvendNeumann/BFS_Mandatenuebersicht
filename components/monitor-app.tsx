@@ -975,25 +975,35 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
   const recurring = getRecurringRiskProfiles(standort?.id, scopedRows);
   const unresolved = openUnresolvedMovementsFromImportRows(scopedRows, standort?.id);
   const stornoReview = stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions);
-  const chargebackCases = rows.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung") || fall.reason.includes("Storno"));
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
   const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
+  const unresolvedAmount = unresolved.reduce((sum, item) => sum + item.amount, 0);
+  const openStornoInfo = [
+    `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als erledigt.`,
+    "Als erledigt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert.",
+    `Noch offene Storno-Zeilen aus dieser Storno-Grundmenge: ${stornoReview.open}.`
+  ].join(" ");
+  const operationalOpenInfo = [
+    `Diese Kachel ist eine Arbeitsliste, keine zweite Storno-Gesamtzahl: ${unresolved.length} offene negative Bewegungen mit ${money.format(unresolvedAmount)} sind noch nicht erledigt.`,
+    "Gezählt werden offene Rückgaben, Rückbelastungen, Stornos und vergleichbare BFS-Bewegungen.",
+    `Darin können die ${stornoReview.open} offenen Storno-Zeilen enthalten sein. Bereits erledigte Stornos werden hier nicht mehr gezählt. Deshalb Storno erledigt und operativ offen nicht addieren.`
+  ].join(" ");
 
   return (
     <div className="content-stack">
       <section className="priority-grid">
         <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${noProtectionShare.toFixed(2)} % vom Eingang`} tone={metrics.noProtectionAmount ? "amber" : "green"} />
         <PriorityCard label="Rückbelastung/Storno" value={money.format(metrics.returnAmount + metrics.cancellationAmount)} hint={`${chargebackShare.toFixed(2)} % vom Eingang`} tone={chargebackShare ? "red" : "green"} />
-        <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.doneRate.toFixed(0)} % erledigt`} tone={stornoReview.open ? "amber" : "green"} />
+        <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} Storno-Zeilen offen`} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
-        <PriorityCard label="Operativ offen" value={String(unresolved.length || chargebackCases.length)} hint="echte Fallarbeit" tone={(unresolved.length || chargebackCases.length) ? "red" : "green"} />
+        <PriorityCard label="Offene Klärbewegungen" value={String(unresolved.length)} hint={money.format(unresolvedAmount)} tone={unresolved.length ? "red" : "green"} info={operationalOpenInfo} />
       </section>
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
             <span className="eyebrow">Forderungsqualität</span>
             <h2>Risiko und Klärfall sauber trennen</h2>
-            <p>Ohne Ausfallschutz ist ein Risikobestand. Rückgabe, Rückbelastung und Storno sind operative Arbeit.</p>
+            <p>Ohne Ausfallschutz ist ein Risikobestand. Offene Klärbewegungen sind die noch nicht erledigten negativen BFS-Bewegungen.</p>
           </div>
           <div className="quick-actions">
             <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Klärfälle öffnen</button>
@@ -1004,8 +1014,8 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
           <h2>Prüflogik</h2>
           <div className="stacked-checks">
             <span>1. Ohne Ausfallschutz beobachten, nicht als To-do zählen</span>
-            <span>2. Rückbelastung/Storno als Klärfall priorisieren</span>
-            <span>3. Wiederholer und spätere Neueinreichungen matchen</span>
+            <span>2. Offene Rückgabe/Storno-Bewegungen als Klärfall priorisieren</span>
+            <span>3. Storno-Erledigung und offene Klärbewegungen nicht addieren</span>
           </div>
         </article>
       </section>
@@ -1025,7 +1035,7 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
             { label: "Risiken", value: riskRows.length },
             { label: "Wiederholer", value: recurring.length },
             { label: "offen", value: unresolved.length },
-            { label: "Klärfälle", value: chargebackCases.length }
+            { label: "Storno offen", value: stornoReview.open }
           ]} />
         </div>
       </section>

@@ -101,6 +101,8 @@ button {
   color: inherit;
   padding: 0;
   text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .brand-button:hover,
@@ -123,6 +125,7 @@ button {
   width: min(100%, 210px);
   height: auto;
   object-fit: contain;
+  pointer-events: none;
 }
 
 .brand strong,

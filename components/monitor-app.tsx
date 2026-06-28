@@ -293,11 +293,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     openNavSectionForView(key);
   }
 
-  function goToSummary() {
+  function goToCockpit() {
     if (role === "super_admin") setSelectedStandortId("gruppe");
-    setActiveView("dashboard");
-    setMobileNavOpen(false);
-    openNavSectionForView("dashboard");
+    navigateTo("dashboard");
   }
 
   function openNavSectionForView(key: string) {
@@ -349,7 +347,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-top">
-            <button className="brand brand-button" onClick={goToSummary} aria-label="Zur Zusammenfassung">
+            <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zum Cockpit">
               <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
             </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
@@ -410,7 +408,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
       <section className="workspace">
         <header className="topbar">
-          <button className="mobile-app-brand" onClick={goToSummary} aria-label="Zur Zusammenfassung">
+          <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Cockpit">
             <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
           </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>

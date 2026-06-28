@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 18:20 Uhr
+Stand: 28.06.2026, ca. 19:01 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -80,6 +80,7 @@ Wichtige neue Sicht:
   - Eigene Diagramm-Zeitraum- und Standortauswahl.
   - Eigene Benchmark-Zeitauswahl fuer die Tabelle "Standorte nach Kennzahlen vergleichen".
   - PDF-Export des gesamten Tabs im Querformat, auf eine Seite skaliert.
+  - Zusaetzlicher `Standort-Export`: Zielstandort mit Klarnamen/Klarzahlen, andere Standorte anonymisiert als Vergleichsstandorte und in der Benchmark-Tabelle nur relativ als Index zum Zielstandort.
 
 ## Wichtigste fachliche Weiterentwicklung
 
@@ -258,6 +259,7 @@ Gewuenscht/teilweise umgesetzt:
 - Kommentare/Quellen in Tabellen kurz halten: wenn moeglich nur Abrechnungsnummer statt langer Pfade.
 - Offene-Faelle-Reports sollen nach Standort und Zeitraum filterbar sein.
 - Im Tab `Individuell` existiert ein PDF-Export fuer den gesamten Tab. Ziel: A4 Querformat, komplette Ansicht auf eine Seite skaliert, kein mehrseitiger zerhackter Druck. Technisch oeffnet die App ein Druckfenster; bei blockiertem Popup gibt es einen HTML-Fallback.
+- Im Tab `Individuell` existiert zusaetzlich `Standort-Export`. Dieser ist nur aktiv, wenn genau ein Standort in der KPI-Auswahl gewaehlt ist. Der Zielstandort bleibt klar sichtbar; andere Standortnamen werden im Export anonymisiert und Benchmark-Klarzahlen anderer Standorte werden als relative Indexwerte zum Zielstandort dargestellt.
 
 Naechster sinnvoller Report-Ausbau:
 - Standortleiter-Monatsreport mit:
@@ -286,6 +288,7 @@ Aktuell wichtige UI-Entscheidungen:
 - KPI-Karten auf Tablet muessen in sinnvoll grossen Grids laufen, nicht zu schmal werden.
 - Tabellen appweit kompakter und intern scrollbar.
 - Lange Detailtabellen duerfen Seiten nicht endlos verlaengern.
+- Appweite Typografie wurde vereinheitlicht: Page Title, Section Title, Card Label, KPI Value, Body, Small und Micro haben zentrale CSS-Variablen. Desktop ist defensiver skaliert, mobile bleibt groesser lesbar.
 
 KPI-Kacheln:
 - Einheitliche dunkle Cards.
@@ -303,8 +306,8 @@ Diagramme:
 - Im individuellen Tab haben `Umsatz eingereicht vs. ausgezahlt` und `Forderungen vs. Stornierungen` echte Tooltips im Diagramm. Linienpunkte sind auf die Balkenmitte ausgerichtet.
 
 Individuell-Tab aktueller Aufbau:
-1. Oben Zeitraum + Standort fuer KPI-Kacheln und PDF-Export.
-2. KPI-Reihe 1: Eingereichter Umsatz, BFS-Gebuehren, Ausgezahlter Umsatz.
+1. Oben Zeitraum + Standort fuer KPI-Kacheln, PDF-Export und Standort-Export.
+2. KPI-Reihe 1: Eingereichter Umsatz, BFS-Gebuehren, Ausgezahlter Umsatz, Offene Storno-Summe.
 3. KPI-Reihe 2: Anzahl Stornierungen, Davon gewandelt, Eingereichte Rechnungen, Durchschnittlicher Wert je Forderung.
 4. KPI-Kacheln haben Sparklines und Info-Herleitungen.
 5. Darunter eigene Zeitraum-/Standortauswahl fuer Diagramme.
@@ -313,12 +316,17 @@ Individuell-Tab aktueller Aufbau:
    - Forderungen vs. Stornierungen mit zweiter Skala fuer Stornos.
    - Patienten mit/ohne Ausfallschutz als Donut.
    - Stornierungen vs. zurueckgeholt.
-7. Darunter Benchmark-Tabelle mit eigener Zeitauswahl.
+7. Darunter Benchmark-Tabelle mit eigener Zeitauswahl und Gesamtzeile.
 8. Desktop: grosse, zweispaltige Charts; mobile: untereinander/scrollbar passend.
 
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits:
+- `963dfdc7 Add anonymized location PDF export`
+- `ce0bcd6b Add open storno amount KPI`
+- `c13914f6 Add custom benchmark total row`
+- `4f836b95 Remove duplicate custom chart value subtitles`
+- `3b7e998b Unify app typography scale`
 - `80aac379 Add separate custom benchmark period filter`
 - `38e5b78f Improve custom chart tooltips and storno recovery`
 - `7dd08f91 Add one-page custom PDF export`
@@ -340,10 +348,15 @@ Aktuelle letzte Commits:
 - `ca1c1086 Add KPI sparklines to answer cards`
 
 Damit ist zuletzt erledigt:
-- Individuell-Tab mit 7 KPI-Kacheln, Sparklines und Info-Herleitungen.
+- Individuell-Tab mit 8 KPI-Kacheln, Sparklines und Info-Herleitungen.
+- Neue KPI `Offene Storno-Summe`: Summe der noch nicht gewandelten Storno-Zeilen im gewaehlten Zeitraum/Standortfilter.
 - Individuell-Tab hat vier Charts mit separater Zeitraum-/Standortsteuerung.
 - Individuell-Tab hat Benchmark-Tabelle mit eigener Zeitauswahl fuer Jahre, Quartale und Monate.
+- Benchmark-Tabelle hat eine Gesamtzeile mit aggregierten Summen und gewichteten Quoten.
 - PDF-Export fuer gesamten Individuell-Tab im Querformat, auf eine Seite skaliert.
+- Standort-Export fuer einzelne Standorte mit anonymisiertem Benchmarking gegen andere Standorte.
+- Appweite Typografie-Skala vereinheitlicht.
+- Doppelte Wertzeile unter individuellen Diagrammtiteln entfernt; Werte stehen nur noch im Diagramm-Tooltip.
 - Chart-Tooltips fuer individuelle Kombi-/Dual-Axis-Charts.
 - Storno-/Recovery-Chartlogik an KPI-Logik angepasst.
 - Durchschnittlicher Wert je Forderung als KPI.
@@ -371,7 +384,9 @@ Wichtige offene technische Punkte:
 - Automatisierte Tests fehlen weiterhin.
 - Besonders testwuerdig:
   - Individuell-Tab PDF-Export in echten Browsern auf Desktop/Mobile
+  - Individuell-Tab Standort-Export: Zielstandort klar, andere Standorte anonymisiert, Benchmark-Klarzahlen anderer Standorte nur als Indexwerte
   - Individuell-Tab Benchmark-Zeitraumfilter
+  - Individuell-Tab Gesamtzeile und offene Storno-Summe gegen echte Importdaten
   - Storno-/Recovery-Zuordnung im Chart gegen echte Importdaten
   - Import
   - Rollenrechte

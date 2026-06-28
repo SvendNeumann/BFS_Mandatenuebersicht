@@ -44,6 +44,7 @@ export type BfsCase = {
   bfsNo: string;
   amount: number;
   reason: string;
+  sourceDate?: string;
   ageDays: number;
   traffic: Traffic;
   status: string;

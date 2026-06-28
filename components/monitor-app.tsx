@@ -1679,7 +1679,13 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
           </div>
         </article>
       </section>
-      <CasesView cases={rows.filter((fall) => !fall.status.includes("erledigt"))} title="Offene Positionen zu diesem Geldfluss" description="Alle offenen Fälle, die den Forderungs- und Rückläuferstand erklären." />
+      <CasesView
+        cases={rows.filter((fall) => !fall.status.includes("erledigt"))}
+        title="Offene Positionen zu diesem Geldfluss"
+        description="Alle offenen Fälle, die den Forderungs- und Rückläuferstand erklären."
+        enableFilters
+        tableScrollable
+      />
     </div>
   );
 }
@@ -2050,6 +2056,7 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
           bfsNo: movement.bfsNo ?? "-",
           amount,
           reason: movement.reason ?? reasonLabel(movement.reasonCategory),
+          sourceDate: movement.date,
           ageDays,
           traffic: ageDays > 30 ? "red" : ageDays >= 15 ? "orange" : ageDays >= 8 ? "yellow" : "green",
           status: movement.matchStatus === "unmatched" ? "historisches_match_offen" : "offen",
@@ -3977,10 +3984,39 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function CasesView({ cases: rows, compact = false, title, description, onResolvePaid }: { cases: BfsCase[]; compact?: boolean; title?: string; description?: string; onResolvePaid?: (fall: BfsCase) => void | Promise<void> }) {
-  const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
-  const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  const highestCase = rows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined);
+function CasesView({
+  cases: rows,
+  compact = false,
+  title,
+  description,
+  onResolvePaid,
+  enableFilters = false,
+  tableScrollable = false
+}: {
+  cases: BfsCase[];
+  compact?: boolean;
+  title?: string;
+  description?: string;
+  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
+  enableFilters?: boolean;
+  tableScrollable?: boolean;
+}) {
+  const periodOptions = buildCashflowPeriods();
+  const [caseStandortFilter, setCaseStandortFilter] = useState("alle");
+  const [casePeriodId, setCasePeriodId] = useState(periodOptions[0].id);
+  const casePeriod = periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0];
+  const caseStandorte = orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id));
+  const filteredRows = enableFilters
+    ? rows.filter((fall) => {
+      const rowStandort = standorte.find((entry) => entry.id === fall.standortId);
+      const matchesStandort = caseStandortFilter === "alle" || fall.standortId === caseStandortFilter;
+      const matchesPeriod = rowStandort ? shortDateInPeriod(fall.sourceDate, casePeriod, rowStandort) : true;
+      return matchesStandort && matchesPeriod;
+    })
+    : rows;
+  const totalAmount = filteredRows.reduce((sum, fall) => sum + fall.amount, 0);
+  const oldestAge = filteredRows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const highestCase = filteredRows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined);
   const reportTitle = title ?? (compact ? "Offene Fälle am Standort" : "Offene Rückbelastungen / Klärfälle");
 
   return (
@@ -3991,12 +4027,37 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
           <p>{description ?? "Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt."}</p>
         </div>
         <div className="case-list-actions">
-          <button className="secondary-button" disabled={!rows.length} onClick={() => printCasesReport(rows, reportTitle)}>
+          <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
             <Printer size={16} /> PDF-Bericht
           </button>
           <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
+      {enableFilters && (
+        <div className="period-filter case-table-filter">
+          <label className="select-label">
+            Standort
+            <select value={caseStandortFilter} onChange={(event) => setCaseStandortFilter(event.target.value)}>
+              <option value="alle">Alle Standorte</option>
+              {caseStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Zeitraum
+            <select value={casePeriodId} onChange={(event) => setCasePeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{caseStandortFilter === "alle" ? "Alle Standorte" : standorte.find((entry) => entry.id === caseStandortFilter)?.name}</strong>
+            <span>{casePeriod.label}. Gefiltert nach Bewegungsdatum der offenen Position.</span>
+          </div>
+        </div>
+      )}
       <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
         <article>
           <span>Offener Betrag gesamt</span>
@@ -4004,7 +4065,7 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
         </article>
         <article>
           <span>Offene Fälle</span>
-          <strong>{rows.length}</strong>
+          <strong>{filteredRows.length}</strong>
         </article>
         <article>
           <span>Ältester Fall</span>
@@ -4015,7 +4076,7 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
           <strong>{money.format(highestCase?.amount ?? 0)}</strong>
         </article>
       </div>
-      <div className="table-wrap">
+      <div className={`table-wrap${tableScrollable ? " case-table-scroll" : ""}`}>
         <table>
           <thead>
             <tr>
@@ -4033,7 +4094,7 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
             </tr>
           </thead>
           <tbody>
-            {rows.map((fall) => (
+            {filteredRows.map((fall) => (
               <tr key={fall.id}>
                 <td><span className={`traffic traffic-${fall.traffic}`} /></td>
                 <td><strong>{fall.patientName}</strong><span>{fall.locationName}</span></td>
@@ -4054,7 +4115,7 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
                 )}
               </tr>
             ))}
-            {!rows.length && (
+            {!filteredRows.length && (
               <tr>
                 <td colSpan={onResolvePaid ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
               </tr>

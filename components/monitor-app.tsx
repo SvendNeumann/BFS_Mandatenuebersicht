@@ -3804,15 +3804,21 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
   const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
   const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const highestCase = rows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined);
+  const reportTitle = title ?? (compact ? "Offene Fälle am Standort" : "Offene Rückbelastungen / Klärfälle");
 
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h2>{title ?? (compact ? "Offene Fälle am Standort" : "Offene Rückbelastungen / Klärfälle")}</h2>
+          <h2>{reportTitle}</h2>
           <p>{description ?? "Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt."}</p>
         </div>
-        <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+        <div className="case-list-actions">
+          <button className="secondary-button" disabled={!rows.length} onClick={() => printCasesReport(rows, reportTitle)}>
+            <Printer size={16} /> PDF-Bericht
+          </button>
+          <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+        </div>
       </div>
       <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
         <article>
@@ -3881,6 +3887,110 @@ function CasesView({ cases: rows, compact = false, title, description, onResolve
       </div>
     </section>
   );
+}
+
+function printCasesReport(rows: BfsCase[], title: string) {
+  const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
+  const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const locations = [...new Set(rows.map((fall) => fall.locationName).filter(Boolean))].sort(compareLocationNamesByContractStart);
+  const sortedRows = [...rows].sort((a, b) => b.ageDays - a.ageDays || b.amount - a.amount);
+  const html = `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)} - Orisus BFS Monitor</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 10px; margin-bottom: 12px; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    h2 { margin: 16px 0 8px; font-size: 15px; }
+    p { margin: 0; color: #48606c; line-height: 1.35; }
+    .meta { text-align: right; color: #48606c; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0 12px; }
+    .summary div { border: 1px solid #c8d7dc; border-radius: 6px; padding: 8px; }
+    .summary span { display: block; color: #607783; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .summary strong { display: block; margin-top: 4px; font-size: 17px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #d7e3e7; padding: 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+    th { background: #eaf7f6; color: #0f5360; font-size: 9px; text-transform: uppercase; }
+    tr:nth-child(even) td { background: #f8fbfc; }
+    .patient { width: 17%; }
+    .reason { width: 20%; }
+    .comment { width: 18%; }
+    .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 6px; font-weight: 700; }
+    .traffic { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; background: #30d5c8; }
+    .traffic-red { background: #f04438; }
+    .traffic-amber { background: #f59e0b; }
+    .traffic-green { background: #12b76a; }
+    footer { margin-top: 12px; color: #607783; font-size: 9px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>${escapeHtml(title)}</h1>
+      <p>Orisus BFS Monitor · Offene Fälle zur direkten Weitergabe und Bearbeitung.</p>
+    </div>
+    <div class="meta">
+      <strong>${escapeHtml(new Date().toLocaleString("de-DE"))}</strong><br />
+      ${escapeHtml(locations.join(", ") || "Alle Standorte")}
+    </div>
+  </header>
+  <section class="summary">
+    <div><span>Offene Fälle</span><strong>${rows.length}</strong></div>
+    <div><span>Offener Betrag</span><strong>${escapeHtml(money.format(totalAmount))}</strong></div>
+    <div><span>Ältester Fall</span><strong>${oldestAge} Tage</strong></div>
+    <div><span>Standorte</span><strong>${locations.length || "-"}</strong></div>
+  </section>
+  <h2>Fallliste</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Ampel</th>
+        <th class="patient">Patient</th>
+        <th>Re.-Nr.</th>
+        <th>BFS-Nr.</th>
+        <th>Betrag</th>
+        <th class="reason">Grund</th>
+        <th>Alter</th>
+        <th>Status</th>
+        <th>Wiedervorlage</th>
+        <th class="comment">Kommentar</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sortedRows.length ? sortedRows.map(caseReportRowHtml).join("") : `<tr><td colspan="10">Keine offenen Fälle im aktuellen Datenstand.</td></tr>`}
+    </tbody>
+  </table>
+  <footer>Hinweis: Der Bericht bildet die aktuell in der Ansicht gefilterten offenen Fälle ab. Originaldaten bleiben unverändert; interne Erledigungen werden separat in der App gepflegt.</footer>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 150));</script>
+</body>
+</html>`;
+  const reportWindow = window.open("", "_blank", "width=1200,height=900");
+  if (!reportWindow) {
+    downloadTextFile("orisus-bfs-offene-faelle.html", html);
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+}
+
+function caseReportRowHtml(fall: BfsCase) {
+  return `<tr>
+    <td><span class="traffic traffic-${escapeHtml(fall.traffic)}"></span>${escapeHtml(fall.traffic)}</td>
+    <td><strong>${escapeHtml(fall.patientName)}</strong><br />${escapeHtml(fall.locationName)}</td>
+    <td>${escapeHtml(fall.invoiceNo)}</td>
+    <td>${escapeHtml(fall.bfsNo)}</td>
+    <td>${escapeHtml(money.format(fall.amount))}</td>
+    <td>${escapeHtml(fall.reason)}</td>
+    <td>${fall.ageDays} Tage</td>
+    <td><span class="status">${escapeHtml(fall.status)}</span></td>
+    <td>${escapeHtml(fall.dueDate)}</td>
+    <td>${escapeHtml(fall.lastComment)}</td>
+  </tr>`;
 }
 
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {

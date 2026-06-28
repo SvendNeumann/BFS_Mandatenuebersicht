@@ -1058,6 +1058,19 @@ input {
   justify-content: flex-end;
 }
 
+.case-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: min(560px, 100%);
+}
+
+.case-list-actions .search-box {
+  flex: 1 1 260px;
+}
+
 .import-review-summary {
   display: flex;
   align-items: center;

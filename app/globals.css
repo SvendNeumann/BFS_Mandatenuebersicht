@@ -2749,6 +2749,18 @@ td small {
   white-space: nowrap;
 }
 
+.custom-export-actions {
+  display: flex;
+  align-self: end;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-export-actions .custom-export-action {
+  align-self: stretch;
+}
+
 .custom-kpi-slider {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

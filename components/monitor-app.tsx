@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -855,6 +855,15 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
   const openStornoAmount = stornoReview.rows.filter((row) => !row.done).reduce((sum, row) => sum + row.amount, 0);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
+  const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
+  const printLocationExport = () => {
+    if (!locationExportTarget) return;
+    flushSync(() => setChartStandortFilterId(locationExportTarget.id));
+    printCustomTabPdf(exportRef.current, `Standort-Export · ${locationExportTarget.name} · ${selectedPeriod.label}`, {
+      targetStandortName: locationExportTarget.name,
+      locationNames: selectableStandorte.map((entry) => entry.name)
+    });
+  };
 
   return (
     <div className="content-stack custom-kpi-view" ref={exportRef}>
@@ -880,9 +889,20 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           <strong>Individuelle KPI-Auswahl</strong>
           <span>{scopeHint} · {selectedPeriod.detail}</span>
         </div>
-        <button className="secondary-button custom-export-action" type="button" onClick={() => printCustomTabPdf(exportRef.current, `Individuell · ${scopeHint} · ${selectedPeriod.label}`)}>
-          <Printer size={16} /> PDF Export
-        </button>
+        <div className="custom-export-actions">
+          <button className="secondary-button custom-export-action" type="button" onClick={() => printCustomTabPdf(exportRef.current, `Individuell · ${scopeHint} · ${selectedPeriod.label}`)}>
+            <Printer size={16} /> PDF Export
+          </button>
+          <button
+            className="secondary-button custom-export-action"
+            type="button"
+            onClick={printLocationExport}
+            disabled={!locationExportTarget}
+            title={locationExportTarget ? `Anonymisierter Standort-Export für ${locationExportTarget.name}` : "Bitte zuerst genau einen Standort auswählen"}
+          >
+            <Printer size={16} /> Standort-Export
+          </button>
+        </div>
       </section>
 
       <section className="custom-kpi-slider" aria-label="Individuelle KPI-Kacheln">
@@ -1112,17 +1132,17 @@ function CustomBenchmarkTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.standort.id}>
+              <tr key={row.standort.id} data-benchmark-row="true" data-location-name={row.standort.name}>
                 <td><strong>{row.standort.name}</strong><span>{row.activeMonths ? `${row.activeMonths} aktive Monate` : "keine Daten im Zeitraum"}</span></td>
-                <td>{money.format(row.submitted)}</td>
-                <td>{money.format(row.monthlyAverage)}</td>
-                <td>{integerNumber.format(row.claimCount)}</td>
-                <td>{money.format(row.averageClaim)}</td>
-                <td>{integerNumber.format(row.stornoCount)}</td>
-                <td>{formatPercent(row.stornoRate)}</td>
-                <td>{integerNumber.format(row.recoveredStornos)}<span>{formatPercent(row.recoveredRate)}</span></td>
-                <td>{integerNumber.format(row.noProtectionCount)}<span>{formatPercent(row.noProtectionRate)}</span></td>
-                <td>{formatFeeRate(row.feeRate)}</td>
+                <td data-metric="submitted" data-value={row.submitted}>{money.format(row.submitted)}</td>
+                <td data-metric="monthlyAverage" data-value={row.monthlyAverage}>{money.format(row.monthlyAverage)}</td>
+                <td data-metric="claimCount" data-value={row.claimCount}>{integerNumber.format(row.claimCount)}</td>
+                <td data-metric="averageClaim" data-value={row.averageClaim}>{money.format(row.averageClaim)}</td>
+                <td data-metric="stornoCount" data-value={row.stornoCount}>{integerNumber.format(row.stornoCount)}</td>
+                <td data-metric="stornoRate" data-value={row.stornoRate}>{formatPercent(row.stornoRate)}</td>
+                <td data-metric="recoveredStornos" data-value={row.recoveredStornos}>{integerNumber.format(row.recoveredStornos)}<span>{formatPercent(row.recoveredRate)}</span></td>
+                <td data-metric="noProtectionCount" data-value={row.noProtectionCount}>{integerNumber.format(row.noProtectionCount)}<span>{formatPercent(row.noProtectionRate)}</span></td>
+                <td data-metric="feeRate" data-value={row.feeRate}>{formatFeeRate(row.feeRate)}</td>
                 <td><StatusBadge status={row.signal} /></td>
               </tr>
             ))}
@@ -1134,15 +1154,15 @@ function CustomBenchmarkTable({
             <tfoot>
               <tr className="custom-benchmark-total-row">
                 <td><strong>Gesamt</strong><span>{integerNumber.format(rows.length)} Standort(e)</span></td>
-                <td>{money.format(totalRow.submitted)}</td>
-                <td>{money.format(totalRow.monthlyAverage)}</td>
-                <td>{integerNumber.format(totalRow.claimCount)}</td>
-                <td>{money.format(totalRow.averageClaim)}</td>
-                <td>{integerNumber.format(totalRow.stornoCount)}</td>
-                <td>{formatPercent(totalRow.stornoRate)}</td>
-                <td>{integerNumber.format(totalRow.recoveredStornos)}<span>{formatPercent(totalRow.recoveredRate)}</span></td>
-                <td>{integerNumber.format(totalRow.noProtectionCount)}<span>{formatPercent(totalRow.noProtectionRate)}</span></td>
-                <td>{formatFeeRate(totalRow.feeRate)}</td>
+                <td data-metric="submitted" data-value={totalRow.submitted}>{money.format(totalRow.submitted)}</td>
+                <td data-metric="monthlyAverage" data-value={totalRow.monthlyAverage}>{money.format(totalRow.monthlyAverage)}</td>
+                <td data-metric="claimCount" data-value={totalRow.claimCount}>{integerNumber.format(totalRow.claimCount)}</td>
+                <td data-metric="averageClaim" data-value={totalRow.averageClaim}>{money.format(totalRow.averageClaim)}</td>
+                <td data-metric="stornoCount" data-value={totalRow.stornoCount}>{integerNumber.format(totalRow.stornoCount)}</td>
+                <td data-metric="stornoRate" data-value={totalRow.stornoRate}>{formatPercent(totalRow.stornoRate)}</td>
+                <td data-metric="recoveredStornos" data-value={totalRow.recoveredStornos}>{integerNumber.format(totalRow.recoveredStornos)}<span>{formatPercent(totalRow.recoveredRate)}</span></td>
+                <td data-metric="noProtectionCount" data-value={totalRow.noProtectionCount}>{integerNumber.format(totalRow.noProtectionCount)}<span>{formatPercent(totalRow.noProtectionRate)}</span></td>
+                <td data-metric="feeRate" data-value={totalRow.feeRate}>{formatFeeRate(totalRow.feeRate)}</td>
                 <td><StatusBadge status={totalRow.signal} /></td>
               </tr>
             </tfoot>
@@ -5542,7 +5562,7 @@ function importRowNeedsReview(row: ImportPreviewRow) {
   return (row.parseNotes ?? []).some((note) => !note.toLowerCase().includes("datei wurde"));
 }
 
-function printCustomTabPdf(element: HTMLElement | null, title: string) {
+function printCustomTabPdf(element: HTMLElement | null, title: string, locationExport?: { targetStandortName: string; locationNames: string[] }) {
   if (!element) return;
   const rect = element.getBoundingClientRect();
   const width = Math.max(element.scrollWidth, rect.width, 1);
@@ -5553,6 +5573,7 @@ function printCustomTabPdf(element: HTMLElement | null, title: string) {
   const stylesheetLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
     .map((link) => `<link rel="stylesheet" href="${escapeHtml(link.href)}" />`)
     .join("");
+  const locationExportScript = locationExport ? customLocationExportScript(locationExport.targetStandortName, locationExport.locationNames) : "";
   const html = `<!doctype html>
 <html lang="de">
 <head>
@@ -5588,11 +5609,12 @@ function printCustomTabPdf(element: HTMLElement | null, title: string) {
     .custom-benchmark-table { min-width: 0 !important; table-layout: fixed; }
     th, td { padding: 4px !important; font-size: 9px !important; }
     .status { padding: 2px 5px !important; font-size: 8px !important; }
+    .location-export-note { border: 1px solid rgba(121, 238, 231, 0.32); border-radius: 8px; background: rgba(48, 213, 200, 0.08); padding: 7px 9px; margin-bottom: 8px; font-size: 10px; color: #dffcff; }
   </style>
 </head>
 <body>
   <main class="print-page">${element.outerHTML}</main>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 250));</script>
+  <script>window.addEventListener("load", () => { ${locationExportScript} setTimeout(() => window.print(), 250); });</script>
 </body>
 </html>`;
   const reportWindow = window.open("", "_blank", "width=1400,height=900");
@@ -5603,6 +5625,68 @@ function printCustomTabPdf(element: HTMLElement | null, title: string) {
   reportWindow.document.open();
   reportWindow.document.write(html);
   reportWindow.document.close();
+}
+
+function customLocationExportScript(targetStandortName: string, locationNames: string[]) {
+  const payload = JSON.stringify({
+    targetStandortName,
+    locationNames: locationNames.filter((name) => name !== targetStandortName)
+  }).replace(/</g, "\\u003c");
+
+  return `
+    (() => {
+      const config = ${payload};
+      const aliases = new Map(config.locationNames.map((name, index) => [name, "Vergleichsstandort " + String.fromCharCode(65 + index)]));
+      const benchmarkRows = Array.from(document.querySelectorAll("[data-benchmark-row]"));
+      const targetRow = benchmarkRows.find((row) => row.dataset.locationName === config.targetStandortName);
+      const targetValues = new Map();
+      if (targetRow) {
+        targetRow.querySelectorAll("[data-metric]").forEach((cell) => {
+          targetValues.set(cell.dataset.metric, Number(cell.dataset.value || 0));
+        });
+      }
+      const indexLabel = (value, base) => {
+        if (!Number.isFinite(value)) value = 0;
+        if (!Number.isFinite(base) || base === 0) return value ? "Index >100" : "Index 100";
+        return "Index " + Math.round((value / base) * 100);
+      };
+      benchmarkRows.forEach((row) => {
+        const locationName = row.dataset.locationName || "";
+        if (locationName === config.targetStandortName) return;
+        const alias = aliases.get(locationName) || "Vergleichsstandort";
+        const firstCell = row.querySelector("td");
+        const strong = firstCell?.querySelector("strong");
+        const span = firstCell?.querySelector("span");
+        if (strong) strong.textContent = alias;
+        if (span) span.textContent = "anonymisiert";
+        row.querySelectorAll("[data-metric]").forEach((cell) => {
+          const metric = cell.dataset.metric || "";
+          const value = Number(cell.dataset.value || 0);
+          cell.textContent = indexLabel(value, targetValues.get(metric) || 0);
+        });
+      });
+      document.querySelectorAll(".custom-benchmark-table tfoot [data-metric]").forEach((cell) => {
+        cell.textContent = "anonymisiert";
+      });
+      const totalLabel = document.querySelector(".custom-benchmark-table tfoot td:first-child span");
+      if (totalLabel) totalLabel.textContent = "nur intern aggregiert";
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      textNodes.forEach((node) => {
+        let text = node.nodeValue || "";
+        aliases.forEach((alias, name) => {
+          text = text.split(name).join(alias);
+        });
+        node.nodeValue = text;
+      });
+      const page = document.querySelector(".print-page");
+      const note = document.createElement("div");
+      note.className = "location-export-note";
+      note.textContent = "Standort-Export fuer " + config.targetStandortName + ": Eigene Werte werden klar angezeigt. Andere Standorte sind anonymisiert und in der Benchmark-Tabelle nur relativ als Index zum eigenen Standort dargestellt.";
+      page?.prepend(note);
+    })();
+  `;
 }
 
 function printImportIssueReport(rows: ImportPreviewRow[]) {

@@ -2344,6 +2344,18 @@ td small {
   background: #ffffff;
 }
 
+.panel > .table-wrap,
+.panel .table-wrap {
+  max-height: min(540px, 58vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.panel > .table-wrap.compact-table,
+.panel .table-wrap.compact-table {
+  max-height: min(360px, 44vh);
+}
+
 table {
   border-collapse: separate;
   border-spacing: 0;
@@ -4549,6 +4561,12 @@ tbody tr:hover td {
   .panel {
     border: 0;
     padding: 0;
+  }
+
+  .table-wrap {
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   th {

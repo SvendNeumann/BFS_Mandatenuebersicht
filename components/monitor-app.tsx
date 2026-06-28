@@ -1058,6 +1058,8 @@ function CustomBenchmarkTable({
   periodId: string;
   onPeriodChange: (periodId: string) => void;
 }) {
+  const totalRow = useMemo(() => customBenchmarkTotalRow(rows), [rows]);
+
   return (
     <section className="panel custom-benchmark-panel">
       <div className="panel-heading">
@@ -1118,10 +1120,58 @@ function CustomBenchmarkTable({
               <tr><td colSpan={11}>Keine Benchmarkdaten im aktuellen Filter.</td></tr>
             )}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="custom-benchmark-total-row">
+                <td><strong>Gesamt</strong><span>{integerNumber.format(rows.length)} Standort(e)</span></td>
+                <td>{money.format(totalRow.submitted)}</td>
+                <td>{money.format(totalRow.monthlyAverage)}</td>
+                <td>{integerNumber.format(totalRow.claimCount)}</td>
+                <td>{money.format(totalRow.averageClaim)}</td>
+                <td>{integerNumber.format(totalRow.stornoCount)}</td>
+                <td>{formatPercent(totalRow.stornoRate)}</td>
+                <td>{integerNumber.format(totalRow.recoveredStornos)}<span>{formatPercent(totalRow.recoveredRate)}</span></td>
+                <td>{integerNumber.format(totalRow.noProtectionCount)}<span>{formatPercent(totalRow.noProtectionRate)}</span></td>
+                <td>{formatFeeRate(totalRow.feeRate)}</td>
+                <td><StatusBadge status={totalRow.signal} /></td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </section>
   );
+}
+
+function customBenchmarkTotalRow(rows: CustomBenchmarkRow[]) {
+  const submitted = rows.reduce((sum, row) => sum + row.submitted, 0);
+  const claimCount = rows.reduce((sum, row) => sum + row.claimCount, 0);
+  const stornoCount = rows.reduce((sum, row) => sum + row.stornoCount, 0);
+  const recoveredStornos = rows.reduce((sum, row) => sum + row.recoveredStornos, 0);
+  const noProtectionCount = rows.reduce((sum, row) => sum + row.noProtectionCount, 0);
+  const feeAmount = rows.reduce((sum, row) => sum + (row.submitted * row.feeRate) / 100, 0);
+  const activeMonths = Math.max(...rows.map((row) => row.activeMonths), 0);
+  const averageClaim = claimCount ? submitted / claimCount : 0;
+  const monthlyAverage = activeMonths ? submitted / activeMonths : 0;
+  const stornoRate = claimCount ? (stornoCount / claimCount) * 100 : 0;
+  const recoveredRate = stornoCount ? (recoveredStornos / stornoCount) * 100 : 0;
+  const noProtectionRate = claimCount ? (noProtectionCount / claimCount) * 100 : 0;
+  const feeRate = submitted ? (feeAmount / submitted) * 100 : 0;
+
+  return {
+    submitted,
+    monthlyAverage,
+    claimCount,
+    averageClaim,
+    stornoCount,
+    stornoRate,
+    recoveredStornos,
+    recoveredRate,
+    noProtectionCount,
+    noProtectionRate,
+    feeRate,
+    signal: customBenchmarkSignal(stornoRate, recoveredRate, noProtectionRate, feeRate)
+  };
 }
 
 type CustomChartPoint = {

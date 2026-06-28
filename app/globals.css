@@ -3039,6 +3039,13 @@ td small {
   white-space: nowrap;
 }
 
+.custom-benchmark-table tfoot td {
+  border-top: 1px solid rgba(121, 238, 231, 0.34);
+  background: rgba(48, 213, 200, 0.08);
+  color: #f8ffff;
+  font-weight: 850;
+}
+
 .cashflow-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

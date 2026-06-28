@@ -386,12 +386,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </div>
         </div>
 
-        <StandortTabs
-          role={role}
-          selectedStandortId={selectedStandortId}
-          onSelect={selectStandortTab}
-          importRows={liveImportRows}
-        />
+        {activeView !== "benchmark" && (
+          <StandortTabs
+            role={role}
+            selectedStandortId={selectedStandortId}
+            onSelect={selectStandortTab}
+            importRows={liveImportRows}
+          />
+        )}
 
         {showNoUploadData ? (
           <NoUploadDataView onUpload={() => navigateTo("upload")} />
@@ -872,7 +874,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         </label>
         <div>
           <strong>{selectedPeriod.label}</strong>
-          <span>Standorte werden nach Volumen, Gebührenquote, Rückbelastungen, Ohne-Ausfallschutz und offenen Fällen bewertet.</span>
+          <span>Gruppenvergleich aller Standorte nach Volumen, Gebührenquote, Rückbelastungen, Ohne-Ausfallschutz und offenen Fällen.</span>
         </div>
       </section>
       <section className="priority-grid">
@@ -885,7 +887,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         <div className="panel-heading">
           <div>
             <h2>Standorte im Vergleich</h2>
-            <p>Karten statt Tabellen: zuerst erkennen, welcher Standort warum auffällig ist.</p>
+            <p>Alle Standorte chronologisch nach Vertragsstart, mit Kennzahlen und Prüfhinweisen je Standort.</p>
           </div>
         </div>
         <LocationBenchmarkCards snapshots={snapshots} onNavigate={onNavigate} />

@@ -912,24 +912,55 @@ function YearComparisonBars({
   values: { label: string; current: number; previous: number }[];
   format: (value: number) => string;
 }) {
+  const [activePoint, setActivePoint] = useState<{ label: string; year: "2025" | "2026"; value: number } | null>(null);
   const maxValue = Math.max(...values.flatMap((value) => [value.current, value.previous]), 1);
+  const active = activePoint ?? (values[0] ? { label: values[0].label, year: "2026" as const, value: values[0].current } : null);
   return (
     <div className="year-comparison-chart" aria-label={title}>
-      <div className="year-legend">
-        <span><i className="previous" /> 2025</span>
-        <span><i className="current" /> 2026</span>
+      <div className="year-chart-head">
+        <div className="year-legend">
+          <span><i className="previous" /> 2025</span>
+          <span><i className="current" /> 2026</span>
+        </div>
+        {active && (
+          <div className="year-active-value">
+            <span>{active.year} · Monat {active.label}</span>
+            <strong>{format(active.value)}</strong>
+          </div>
+        )}
       </div>
       <div className="year-bars">
         {values.map((value) => (
           <div className="year-month" key={value.label}>
             <div className="year-pair">
-              <span className="previous" style={{ height: `${Math.max(5, (value.previous / maxValue) * 100)}%` }} title={`2025 ${value.label}: ${format(value.previous)}`} />
-              <span className="current" style={{ height: `${Math.max(5, (value.current / maxValue) * 100)}%` }} title={`2026 ${value.label}: ${format(value.current)}`} />
+              <button
+                type="button"
+                className={active?.label === value.label && active.year === "2025" ? "previous active" : "previous"}
+                style={{ height: `${Math.max(4, (value.previous / maxValue) * 100)}%` }}
+                onClick={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
+                onFocus={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
+                aria-label={`2025 Monat ${value.label}: ${format(value.previous)}`}
+              >
+                <span>{format(value.previous)}</span>
+              </button>
+              <button
+                type="button"
+                className={active?.label === value.label && active.year === "2026" ? "current active" : "current"}
+                style={{ height: `${Math.max(4, (value.current / maxValue) * 100)}%` }}
+                onClick={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
+                onFocus={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
+                aria-label={`2026 Monat ${value.label}: ${format(value.current)}`}
+              >
+                <span>{format(value.current)}</span>
+              </button>
             </div>
-            <small>{value.label}</small>
+            <small>Monat {value.label}</small>
           </div>
         ))}
       </div>
+      <small className="year-scroll-hint">Seitlich wischen, Balken antippen oder fokussieren für Werte.</small>
     </div>
   );
 }

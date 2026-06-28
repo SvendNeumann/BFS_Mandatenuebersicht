@@ -761,6 +761,13 @@ input {
   min-width: 0;
 }
 
+.year-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .year-legend {
   display: flex;
   gap: 14px;
@@ -793,18 +800,23 @@ input {
 }
 
 .year-bars {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
   gap: 10px;
   min-height: 190px;
   align-items: end;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-gutter: stable;
 }
 
 .year-month {
   display: grid;
   grid-template-rows: 150px auto;
   gap: 8px;
+  flex: 0 0 min(44%, 170px);
   min-width: 0;
+  scroll-snap-align: start;
 }
 
 .year-pair {
@@ -815,7 +827,46 @@ input {
   border-bottom: 1px solid var(--soft-line);
 }
 
-.year-pair span {
+.year-pair button {
+  position: relative;
+  min-width: 0;
+  min-height: 6px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.year-pair button > span {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  min-width: max-content;
+  border-radius: 999px;
+  background: rgba(2, 14, 24, 0.88);
+  color: #eefbfb;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.year-pair button.active > span,
+.year-pair button:hover > span,
+.year-pair button:focus-visible > span {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.year-pair button:focus-visible {
+  outline: 2px solid rgba(121, 238, 231, 0.5);
+  outline-offset: 3px;
+}
+
+.year-pair span,
+.year-pair button {
   min-height: 8px;
   border-radius: 6px 6px 0 0;
 }
@@ -825,6 +876,36 @@ input {
   font-size: 11px;
   font-weight: 800;
   text-align: center;
+}
+
+.year-active-value {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 112px;
+  border: 1px solid rgba(121, 238, 231, 0.18);
+  border-radius: 8px;
+  background: rgba(48, 213, 200, 0.08);
+  padding: 8px 10px;
+}
+
+.year-active-value span {
+  color: rgba(205, 226, 232, 0.8);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.year-active-value strong {
+  color: #f8ffff;
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.year-scroll-hint {
+  color: rgba(205, 226, 232, 0.68);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .operative-entry-panel {
@@ -5646,9 +5727,13 @@ select option {
 }
 
 .year-bars {
+  display: flex;
   min-height: 210px;
   padding: 12px 4px 0;
   border-radius: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
   background:
     linear-gradient(180deg, rgba(178, 226, 229, 0.06) 1px, transparent 1px);
   background-size: 100% 42px;
@@ -5656,12 +5741,14 @@ select option {
 
 .year-month {
   grid-template-rows: 166px auto;
+  flex: 0 0 min(42%, 180px);
 }
 
 .year-pair {
   border-bottom-color: rgba(178, 226, 229, 0.18);
 }
 
+.year-pair button,
 .year-pair span {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
 }
@@ -5703,9 +5790,12 @@ select option {
     border-radius: 0;
   }
 
-  .management-delta-grid,
-  .year-bars {
+  .management-delta-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .year-month {
+    flex-basis: min(46%, 190px);
   }
 }
 
@@ -5716,9 +5806,21 @@ select option {
     padding: 14px;
   }
 
-  .management-delta-grid,
-  .year-bars {
+  .management-delta-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .year-chart-head {
+    display: grid;
+  }
+
+  .year-active-value {
+    justify-items: start;
+    width: 100%;
+  }
+
+  .year-month {
+    flex-basis: 58%;
   }
 
   .chart-tooltip {

@@ -184,6 +184,7 @@ type ManualCaseResolution = {
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [appDataLoaded, setAppDataLoaded] = useState(false);
   const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(() => {
     const storedView = readStoredViewState()?.activeView;
@@ -235,25 +236,27 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const nav = role === "super_admin" ? superAdminNav : leadNav;
 
   useEffect(() => {
+    let active = true;
     getCurrentSession()
       .then((currentSession) => {
-        setSession(currentSession);
-        setSessionChecked(true);
+        if (active) setSession(currentSession);
       })
-      .catch(() => setSessionChecked(true));
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setSessionChecked(true);
+      });
     applyStoredStandorteConfig();
     setLocationConfigVersion((version) => version + 1);
-    let active = true;
-    loadStoredImportRowsFromDb()
-      .then((rows) => {
+    Promise.allSettled([
+      loadStoredImportRowsFromDb().then((rows) => {
         if (active) setLiveImportRows(rows);
-      })
-      .catch(() => undefined);
-    loadManualCaseResolutions()
-      .then((resolutions) => {
+      }),
+      loadManualCaseResolutions().then((resolutions) => {
         if (active) setManualCaseResolutions(resolutions);
       })
-      .catch(() => undefined);
+    ]).finally(() => {
+      if (active) setAppDataLoaded(true);
+    });
     return () => {
       active = false;
     };
@@ -272,7 +275,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }, [activeView, selectedStandortId, role]);
 
   if (requireAuth && !session && !sessionChecked) {
-    return <AccessGate title="Session wird geprüft" message="Die Anmeldung wird serverseitig validiert." />;
+    return <AppLoadingScreen title="Anmeldung wird geprüft" message="Die Session wird validiert und der Datenstand vorbereitet." />;
   }
 
   if (requireAuth && !session) {
@@ -281,6 +284,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
   if (requireAuth && lockedRole && session?.role !== lockedRole) {
     return <AccessGate title="Kein Zugriff auf diesen Bereich." message="Dieser Bereich ist für deine Rolle nicht freigegeben." />;
+  }
+
+  if (!appDataLoaded) {
+    return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände und Standortfilter werden synchronisiert." />;
   }
 
   function selectStandortTab(nextStandortId: string) {
@@ -551,6 +558,24 @@ function NoUploadDataView({ onUpload }: { onUpload: () => void }) {
         <FolderUp size={16} /> Zum Import-Center
       </button>
     </section>
+  );
+}
+
+function AppLoadingScreen({ title, message }: { title: string; message: string }) {
+  return (
+    <main className="app-loading-shell" aria-live="polite" aria-busy="true">
+      <section className="app-loading-card">
+        <img className="app-loading-logo" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
+        <div>
+          <span className="eyebrow">Orisus BFS Monitor</span>
+          <h1>{title}</h1>
+          <p>{message}</p>
+        </div>
+        <div className="app-loading-bar" aria-hidden="true">
+          <span />
+        </div>
+      </section>
+    </main>
   );
 }
 

@@ -225,11 +225,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "risks",
     "repeatRisks",
     "patientClasses",
-    "reports",
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "reports", "locations", "users", "upload", "preview", "history"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -570,9 +569,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
             {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
-            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
+            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />)}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -7467,18 +7466,34 @@ function MatchesView({
 function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [selectedReportStandortId, setSelectedReportStandortId] = useState(() => role === "super_admin" ? "alle" : standort.id);
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
-  const scopedImportRows = useMemo(() => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort]);
+  const selectableStandorte = useMemo(() => role === "super_admin" ? orderedStandorte() : [standort], [role, standort]);
+  const selectedReportStandorte = useMemo(() => {
+    if (role !== "super_admin") return [standort];
+    if (selectedReportStandortId === "alle") return selectableStandorte;
+    return selectableStandorte.filter((entry) => entry.id === selectedReportStandortId);
+  }, [role, selectableStandorte, selectedReportStandortId, standort]);
+  const selectedReportStandortIds = useMemo(() => new Set(selectedReportStandorte.map((entry) => entry.id)), [selectedReportStandorte]);
+  const scopeLabel = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].name : "Alle Standorte";
+  const scopedImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = selectedReportStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [importRows, selectedPeriod, selectedReportStandorte]);
   const reportCases = useMemo(() => cases
-    .filter((fall) => fall.status !== "erledigt_automatisch" && fall.standortId === standort.id)
-    .filter((fall) => shortDateInPeriod(fall.sourceDate, selectedPeriod, standort)), [cases, selectedPeriod, standort]);
-  const comparison = useMemo(() => buildManagementComparison(importRows, [standort], reportCases, selectedPeriod), [importRows, reportCases, selectedPeriod, standort]);
+    .filter((fall) => fall.status !== "erledigt_automatisch" && selectedReportStandortIds.has(fall.standortId))
+    .filter((fall) => {
+      const fallStandort = selectedReportStandorte.find((entry) => entry.id === fall.standortId);
+      return fallStandort ? shortDateInPeriod(fall.sourceDate, selectedPeriod, fallStandort) : false;
+    }), [cases, selectedPeriod, selectedReportStandortIds, selectedReportStandorte]);
+  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod), [importRows, reportCases, selectedPeriod, selectedReportStandorte]);
   const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
-  const recurring = useMemo(() => getRecurringRiskProfiles(standort.id, scopedImportRows), [scopedImportRows, standort.id]);
+  const reportStandortId = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].id : undefined;
+  const recurring = useMemo(() => getRecurringRiskProfiles(reportStandortId, scopedImportRows), [reportStandortId, scopedImportRows]);
   const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const reportComment = buildLocationReportComment(standort, comparison, reportCases, riskClaims, recurring);
+  const reportComment = buildLocationReportComment(scopeLabel, comparison, reportCases, riskClaims, recurring);
   function exportCsv() {
-    downloadTextFile(`offene-bfs-klaerfaelle-${standort.name.toLowerCase()}.csv`, createCasesCsv(reportCases));
+    downloadTextFile(`offene-bfs-klaerfaelle-${scopeLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, createCasesCsv(reportCases));
   }
   return (
     <div className="content-stack report-screen">
@@ -7491,8 +7506,17 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
             ))}
           </select>
         </label>
+        <label className="select-label">
+          Standort
+          <select value={role === "super_admin" ? selectedReportStandortId : standort.id} onChange={(event) => setSelectedReportStandortId(event.target.value)} disabled={role !== "super_admin"}>
+            {role === "super_admin" && <option value="alle">Alle Standorte</option>}
+            {selectableStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
         <div>
-          <strong>{standort.name}</strong>
+          <strong>{scopeLabel}</strong>
           <span>{selectedPeriod.detail}</span>
         </div>
       </section>
@@ -7501,13 +7525,13 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
         <PriorityCard label="Ausgezahlt" value={money.format(comparison.currentMetrics.payout)} hint="BFS-Auszahlungsbetrag" period={comparison.currentPeriod.label} tone="green" />
         <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} period={comparison.currentPeriod.label} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
         <PriorityCard label="Offene Klärfälle" value={String(reportCases.length)} hint="offen und reportfähig" period={comparison.currentPeriod.label} tone={reportCases.length ? "amber" : "green"} />
-        <PriorityCard label="Offener Betrag" value={money.format(openAmount)} hint={standort.name} period={comparison.currentPeriod.label} tone="blue" />
+        <PriorityCard label="Offener Betrag" value={money.format(openAmount)} hint={scopeLabel} period={comparison.currentPeriod.label} tone="blue" />
         <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} period={comparison.currentPeriod.label} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
       </section>
       <section className="panel report-toolbar">
         <div>
-          <h2>Report-Center {standort.name}</h2>
-          <p>{role === "super_admin" ? "Reports werden je Standort erzeugt und können als PDF/Druck oder CSV exportiert werden." : "Standortleitung sieht und exportiert nur den eigenen Standort."}</p>
+          <h2>Report-Center {scopeLabel}</h2>
+          <p>{role === "super_admin" ? "Reports werden über den Zeitraum- und Standortfilter erzeugt und können als PDF/Druck oder CSV exportiert werden." : "Standortleitung sieht und exportiert nur den eigenen Standort."}</p>
         </div>
         <button className="secondary-button" onClick={() => window.print()}><Printer size={16} /> Drucken / PDF</button>
         <button className="secondary-button" onClick={exportCsv}><Download size={16} /> CSV</button>
@@ -7521,7 +7545,7 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
         <header>
           <div>
             <span>Orisus BFS Monitor</span>
-            <h2>Report: {standort.name}</h2>
+            <h2>Report: {scopeLabel}</h2>
           </div>
           <p>Erstellt am {formatGermanDate(todayReference.toISOString().slice(0, 10))}</p>
         </header>
@@ -7535,16 +7559,16 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
         <h3>Abschnitt 1: Offene Rückbelastungen / Klärfälle</h3>
         <CasesView cases={reportCases} compact tableScrollable />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
-        <RiskView standortId={standort.id} importRows={scopedImportRows} periodOverride={selectedPeriod} />
+        <RiskView standortId={reportStandortId} importRows={scopedImportRows} periodOverride={selectedPeriod} />
         <h3>Abschnitt 3: Wiederholer ohne Ausfallschutz</h3>
-        <RecurringRiskView standortId={standort.id} compact importRows={scopedImportRows} />
+        <RecurringRiskView standortId={reportStandortId} compact importRows={scopedImportRows} />
       </section>
     </div>
   );
 }
 
 function buildLocationReportComment(
-  standort: Standort,
+  scopeLabel: string,
   comparison: ManagementComparison,
   reportCases: BfsCase[],
   riskClaims: RiskClaim[],
@@ -7554,7 +7578,7 @@ function buildLocationReportComment(
   const oldest = reportCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
   return [
-    `${standort.name}: YTD ${money.format(comparison.currentMetrics.submitted)} eingereicht, Delta Vorjahr ${formatDelta(comparison.submittedDeltaRate)}.`,
+    `${scopeLabel}: ${comparison.currentPeriod.label} ${money.format(comparison.currentMetrics.submitted)} eingereicht, Delta Vorjahr ${formatDelta(comparison.submittedDeltaRate)}.`,
     `Gebührenquote ${formatFeeRate(comparison.currentMetrics.feeRate)}, Rückbelastungs-/Stornoquote ${formatPercent(comparison.chargebackRate)}, Wiedereinholung ${formatPercent(comparison.recoveryRate)}.`,
     `${reportCases.length} offene operative Fälle mit ${money.format(openAmount)}, ältester Fall ${oldest} Tage.`,
     `${suspiciousRisks.length} auffällige Ohne-Schutz-Claims und ${recurring.length} Wiederholer ohne Schutz für Standortleitung markieren.`

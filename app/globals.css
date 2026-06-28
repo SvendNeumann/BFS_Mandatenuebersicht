@@ -3073,7 +3073,7 @@ td small {
 }
 
 .report-period-filter {
-  grid-template-columns: minmax(220px, 0.24fr) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 0.22fr) minmax(220px, 0.22fr) minmax(0, 1fr);
 }
 
 .report-screen .insight-grid {

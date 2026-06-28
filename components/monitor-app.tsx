@@ -840,6 +840,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, stornoReview.rows), [scopedRows, stornoReview.rows]);
   const chartStornoReview = useMemo(() => stornoReviewFromImportRows(chartRows, standort?.id, manualCaseResolutions), [chartRows, standort?.id, manualCaseResolutions]);
   const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, chartStornoReview.rows), [chartRows, chartStornoReview.rows]);
+  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, chartStandorte, selectedChartPeriod, manualCaseResolutions), [chartStandorte, importRows, manualCaseResolutions, selectedChartPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
     const parsedCount = row.parsedClaims?.length ?? 0;
@@ -1003,7 +1004,79 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           formatLine={integerNumber.format}
         />
       </section>
+
+      <CustomBenchmarkTable rows={benchmarkRows} periodLabel={selectedChartPeriod.label} />
     </div>
+  );
+}
+
+type CustomBenchmarkRow = {
+  standort: Standort;
+  submitted: number;
+  monthlyAverage: number;
+  activeMonths: number;
+  claimCount: number;
+  averageClaim: number;
+  stornoCount: number;
+  stornoRate: number;
+  recoveredStornos: number;
+  recoveredRate: number;
+  noProtectionCount: number;
+  noProtectionRate: number;
+  feeRate: number;
+  signal: string;
+};
+
+function CustomBenchmarkTable({ rows, periodLabel }: { rows: CustomBenchmarkRow[]; periodLabel: string }) {
+  return (
+    <section className="panel custom-benchmark-panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Benchmarking</span>
+          <h2>Standorte nach Kennzahlen vergleichen</h2>
+          <p>Zeitraum: {periodLabel}. Umsatz, Forderungsvolumen, Stornoqualität, Schutzquote und Gebührenquote je Standort.</p>
+        </div>
+      </div>
+      <div className="table-wrap custom-benchmark-scroll">
+        <table className="custom-benchmark-table">
+          <thead>
+            <tr>
+              <th>Standort</th>
+              <th>Umsatz</th>
+              <th>Ø Monat</th>
+              <th>Forderungen</th>
+              <th>Ø Forderung</th>
+              <th>Stornos</th>
+              <th>Stornoquote</th>
+              <th>gewandelt</th>
+              <th>ohne Schutz</th>
+              <th>Gebühr</th>
+              <th>Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.standort.id}>
+                <td><strong>{row.standort.name}</strong><span>{row.activeMonths ? `${row.activeMonths} aktive Monate` : "keine Daten im Zeitraum"}</span></td>
+                <td>{money.format(row.submitted)}</td>
+                <td>{money.format(row.monthlyAverage)}</td>
+                <td>{integerNumber.format(row.claimCount)}</td>
+                <td>{money.format(row.averageClaim)}</td>
+                <td>{integerNumber.format(row.stornoCount)}</td>
+                <td>{formatPercent(row.stornoRate)}</td>
+                <td>{integerNumber.format(row.recoveredStornos)}<span>{formatPercent(row.recoveredRate)}</span></td>
+                <td>{integerNumber.format(row.noProtectionCount)}<span>{formatPercent(row.noProtectionRate)}</span></td>
+                <td>{formatFeeRate(row.feeRate)}</td>
+                <td><StatusBadge status={row.signal} /></td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr><td colSpan={11}>Keine Benchmarkdaten im aktuellen Filter.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1246,6 +1319,53 @@ function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[]
 function customKpiTrendValue(metric: CustomKpiTrendMetric, point: CustomChartPoint) {
   if (metric === "averageClaim") return point.claims ? point.submitted / point.claims : 0;
   return Number(point[metric]);
+}
+
+function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[]): CustomBenchmarkRow[] {
+  return benchmarkStandorte.map((standort) => {
+    const rows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort));
+    const summary = summarizeImportRows(rows);
+    const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+    const stornoReview = stornoReviewFromImportRows(rows, standort.id, manualCaseResolutions);
+    const claimCount = rows.reduce((sum, row) => {
+      const parsedCount = row.parsedClaims?.length ?? 0;
+      return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
+    }, 0);
+    const noProtectionCount = rows.reduce((sum, row) => {
+      const parsedClaims = row.parsedClaims ?? [];
+      if (parsedClaims.length) return sum + parsedClaims.filter((claim) => claim.protectionStatus === "ohne_ausfallschutz").length;
+      return sum + rowNoProtectionCount(row);
+    }, 0);
+    const activeMonths = summary.activeMonths || countImportMonths(rows);
+    const monthlyAverage = activeMonths ? metrics.submitted / activeMonths : 0;
+    const averageClaim = claimCount ? metrics.submitted / claimCount : 0;
+    const stornoRate = claimCount ? (stornoReview.total / claimCount) * 100 : 0;
+    const recoveredRate = stornoReview.total ? (stornoReview.done / stornoReview.total) * 100 : 0;
+    const noProtectionRate = claimCount ? (noProtectionCount / claimCount) * 100 : 0;
+
+    return {
+      standort,
+      submitted: metrics.submitted,
+      monthlyAverage,
+      activeMonths,
+      claimCount,
+      averageClaim,
+      stornoCount: stornoReview.total,
+      stornoRate,
+      recoveredStornos: stornoReview.done,
+      recoveredRate,
+      noProtectionCount,
+      noProtectionRate,
+      feeRate: metrics.feeRate,
+      signal: customBenchmarkSignal(stornoRate, recoveredRate, noProtectionRate, metrics.feeRate)
+    };
+  }).sort((a, b) => b.submitted - a.submitted);
+}
+
+function customBenchmarkSignal(stornoRate: number, recoveredRate: number, noProtectionRate: number, feeRate: number) {
+  if (stornoRate >= 5 || noProtectionRate >= 10 || feeRate >= 4) return "prüfen";
+  if (stornoRate >= 2 || noProtectionRate >= 5 || (stornoRate > 0 && recoveredRate < 50)) return "beobachten";
+  return "ok";
 }
 
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {

@@ -2960,6 +2960,30 @@ td small {
   color: #f8ffff;
 }
 
+.custom-benchmark-panel {
+  overflow: hidden;
+}
+
+.custom-benchmark-table {
+  min-width: 1180px;
+}
+
+.custom-benchmark-table td strong,
+.custom-benchmark-table td span {
+  display: block;
+}
+
+.custom-benchmark-table td span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.custom-benchmark-table td,
+.custom-benchmark-table th {
+  white-space: nowrap;
+}
+
 .cashflow-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

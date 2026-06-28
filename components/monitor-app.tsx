@@ -245,7 +245,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     [appCases, isGroupScope, selectedStandort.id]
   );
   const nav = role === "super_admin" ? superAdminNav : leadNav;
-  const showPriorityShortcut = activeView !== "dashboard" && activeView !== "custom";
 
   useEffect(() => {
     let active = true;
@@ -528,17 +527,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <span className="eyebrow">{pageScopeLabel}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
-          <div className="topbar-actions desktop-page-actions">
-            {showPriorityShortcut && <button className="secondary-button" onClick={() => navigateTo("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
-          </div>
         </header>
         <div className="mobile-page-heading">
           <div>
             <span className="eyebrow">{pageScopeLabel}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
-          </div>
-          <div className="topbar-actions">
-            {showPriorityShortcut && <button className="secondary-button" onClick={() => navigateTo("worklist")}><ClipboardList size={16} /> Prioritäten</button>}
           </div>
         </div>
 

@@ -908,6 +908,8 @@ function YearComparisonBars({
 }
 
 function chartLegendLabel(title: string) {
+  if (title.toLowerCase().includes("quote")) return "Quote";
+  if (title.toLowerCase().includes("fälle") || title.toLowerCase().includes("anzahl")) return "Anzahl";
   if (title.toLowerCase().includes("gebühr") || title.toLowerCase().includes("kosten")) return "Gesamtkosten BFS";
   if (title.toLowerCase().includes("umsatz")) return "Umsatz eingereicht";
   if (title.toLowerCase().includes("rück")) return "Rückbelastungen";
@@ -937,7 +939,8 @@ function chartExplanation(title: string, values: { label: string; value: number 
 function formatChartValue(title: string, value: number) {
   const normalizedTitle = title.toLowerCase();
   if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
-  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität")) return `${integerNumber.format(value)} Fälle`;
+  if (normalizedTitle.includes("quote")) return formatPercent(value);
+  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität") || normalizedTitle.includes("fälle") || normalizedTitle.includes("anzahl")) return `${integerNumber.format(value)} Fälle`;
   return formatPercent(value);
 }
 
@@ -2032,6 +2035,19 @@ function ClaimsFlowView({
           <PriorityCard label="Kosten ohne Storno" value={money.format(selectedMetrics.fees + selectedMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={selectedPeriod.label} tone={selectedMetrics.fees + selectedMetrics.ewmaTotal ? "amber" : "green"} />
           <PriorityCard label="Storno/Rückgabe" value={money.format(deductionAmount)} hint="echte Kontoauszug-Abzüge" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
         </div>
+        <section className="chart-grid visual-first-grid">
+          <div className="visual-panel mini-chart">
+            <h2>Abzüge visualisiert</h2>
+            <InteractiveBars title="Abzüge visualisiert" values={deductionBreakdown.map((entry) => ({ label: entry.label, value: entry.amount }))} />
+          </div>
+          <div className="visual-panel mini-chart">
+            <h2>Kostenquote je Abzugsart</h2>
+            <InteractiveBars title="Kostenquote je Abzugsart" values={deductionBreakdown.map((entry) => ({
+              label: entry.label,
+              value: selectedMetrics.submitted ? (entry.amount / selectedMetrics.submitted) * 100 : 0
+            }))} />
+          </div>
+        </section>
         <div className="table-wrap compact-table recovery-table-scroll">
           <table>
             <thead>
@@ -2145,6 +2161,26 @@ function ClaimsFlowView({
           <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
+        <section className="chart-grid visual-first-grid">
+          <div className="visual-panel mini-chart">
+            <h2>Abzug bis Erledigung</h2>
+            <InteractiveBars title="Abzug bis Erledigung" values={[
+              { label: "Abzug", value: recoveryDeductionAmount },
+              { label: "erledigt", value: recoveredAmount },
+              { label: "offen", value: stillOpenAmount },
+              { label: "neu brutto", value: matchedNewSubmissionAmount }
+            ]} />
+          </div>
+          <div className="visual-panel mini-chart">
+            <h2>Erledigungsquote</h2>
+            <InteractiveBars title="Erledigungsquote" values={[
+              { label: "erledigt", value: recoveryRate },
+              { label: "offen", value: Math.max(0, 100 - recoveryRate) },
+              { label: "Abzugsquote", value: recoveryDeductionRate },
+              { label: "offene Quote", value: notRecoveredRate }
+            ]} />
+          </div>
+        </section>
         <div className="table-wrap compact-table">
           <table>
             <thead>
@@ -2204,6 +2240,10 @@ function ClaimsFlowView({
               <p>Zeitraum: letzte Monate aus dem ausgewählten Standortumfang.</p>
             </div>
           </div>
+          <InteractiveBars title="Monatstrend Umsatz und Kosten" values={recentMonths.slice(-6).flatMap((metric) => [
+            { label: `${formatMetricMonth(metric.month)} Umsatz`, value: metric.submitted },
+            { label: `${formatMetricMonth(metric.month)} Kosten`, value: metric.fees + metric.returnAmount + metric.cancellationAmount }
+          ])} />
           <div className="table-wrap compact-table">
             <table>
               <thead>
@@ -2238,6 +2278,10 @@ function ClaimsFlowView({
               <p>Zeitraum: Quartale im Vergleich, inklusive Veränderung zum Vorquartal.</p>
             </div>
           </div>
+          <InteractiveBars title="Quartalsvergleich Umsatz" values={quarterRows.slice(0, 6).reverse().map((metric) => ({
+            label: metric.label,
+            value: metric.submitted
+          }))} />
           <div className="table-wrap compact-table">
             <table>
               <thead>
@@ -4738,6 +4782,20 @@ function CasesView({
           <strong>{money.format(highestCase?.amount ?? 0)}</strong>
         </article>
       </div>
+      <section className="chart-grid visual-first-grid">
+        <div className="visual-panel mini-chart">
+          <h2>Fallalter nach Ampel</h2>
+          <InteractiveBars title="Fallalter nach Ampel" values={caseTrafficDistribution(filteredRows)} />
+        </div>
+        <div className="visual-panel mini-chart">
+          <h2>Offener Betrag je Standort</h2>
+          <InteractiveBars title="Offener Betrag je Standort" values={caseAmountByLocation(filteredRows)} />
+        </div>
+        <div className="visual-panel mini-chart">
+          <h2>Fallgründe</h2>
+          <InteractiveBars title="Fallgründe" values={caseReasonDistribution(filteredRows)} />
+        </div>
+      </section>
       <div className={`table-wrap${tableScrollable ? " case-table-scroll" : ""}`}>
         <table>
           <thead>
@@ -4887,6 +4945,40 @@ function printCasesReport(rows: BfsCase[], title: string) {
   reportWindow.document.close();
 }
 
+function caseTrafficDistribution(rows: BfsCase[]) {
+  const labels: Record<string, string> = {
+    green: "0-7 Tage",
+    yellow: "8-14 Tage",
+    orange: "15-30 Tage",
+    red: ">30 Tage"
+  };
+  return ["green", "yellow", "orange", "red"].map((traffic) => ({
+    label: labels[traffic],
+    value: rows.filter((fall) => fall.traffic === traffic).length
+  }));
+}
+
+function caseAmountByLocation(rows: BfsCase[]) {
+  const grouped = new Map<string, number>();
+  rows.forEach((fall) => grouped.set(fall.locationName, (grouped.get(fall.locationName) ?? 0) + fall.amount));
+  return [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+}
+
+function caseReasonDistribution(rows: BfsCase[]) {
+  const grouped = new Map<string, number>();
+  rows.forEach((fall) => {
+    const label = fall.reason.split(/[,.;:]/)[0]?.trim().slice(0, 28) || "Klärfall";
+    grouped.set(label, (grouped.get(label) ?? 0) + 1);
+  });
+  return [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+}
+
 function caseReportRowHtml(fall: BfsCase) {
   return `<tr>
     <td><span class="traffic traffic-${escapeHtml(fall.traffic)}"></span>${escapeHtml(fall.traffic)}</td>
@@ -4958,6 +5050,20 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
             <p>Mandantenübergreifend aus allen hochgeladenen Abrechnungen gruppiert: warum Forderungen ohne Ausfallschutz angekauft wurden.</p>
           </div>
         </div>
+        <section className="chart-grid visual-first-grid">
+          <div className="visual-panel mini-chart">
+            <h2>Gründe nach Summe</h2>
+            <InteractiveBars title="Gründe ohne Schutz" values={reasonRows.map((reason) => ({ label: reason.label, value: reason.amount }))} />
+          </div>
+          <div className="visual-panel mini-chart">
+            <h2>Zahlungsstatus ohne Schutz</h2>
+            <InteractiveBars title="Zahlungsstatus Fälle" values={[
+              { label: "kritisch", value: paymentRisk.unpaidPatients },
+              { label: "erledigt", value: paymentRisk.resolvedPatients },
+              { label: "unauffällig", value: paymentRisk.cleanPatients }
+            ]} />
+          </div>
+        </section>
         <div className="table-wrap compact-table">
           <table>
             <thead>
@@ -5329,6 +5435,28 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
         <PriorityCard label="Storno erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${formatPercent(stornoReview.doneRate)} Erledigungsquote`} tone={stornoReview.open ? "amber" : "green"} />
         <PriorityCard label="Noch offen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
       </section>
+      <section className="chart-grid">
+        <div className="panel mini-chart">
+          <h2>Maßnahmenstatus</h2>
+          <InteractiveBars title="Maßnahmenstatus Fälle" values={[
+            { label: "Ausgang", value: totals.total },
+            { label: "nachbearbeitet", value: totals.reworked },
+            { label: "erledigt", value: totals.paid },
+            { label: "offen", value: openItems.length || totals.open }
+          ]} />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Offen nach Monat</h2>
+          <InteractiveBars title="Offene Fälle nach Monat" values={outcomeRows.slice(0, 8).map((row) => ({
+            label: row.month,
+            value: row.open
+          }))} />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Offener Betrag nach Standort</h2>
+          <InteractiveBars title="Offener Betrag je Standort" values={aggregateOutcomeAmountByLocation(outcomeRows)} />
+        </div>
+      </section>
       <StornoReviewSection review={stornoReview} />
       <section className="panel">
         <div className="panel-heading">
@@ -5415,6 +5543,15 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
   );
 }
 
+function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFromImportRows>) {
+  const grouped = new Map<string, number>();
+  rows.forEach((row) => grouped.set(row.locationName, (grouped.get(row.locationName) ?? 0) + row.amount));
+  return [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+}
+
 function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCase[]; importRows?: ImportPreviewRow[]; standort?: Standort }) {
   const scopedImportRows = useMemo(() => standort ? importRows.filter((row) => row.location === standort.name) : importRows, [standort, importRows]);
   const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows), [scopedImportRows]);
@@ -5427,6 +5564,20 @@ function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCas
           <PriorityCard label="Betroffene Patienten" value={String(new Set(candidates.map((candidate) => candidate.patientName)).size)} hint="aus aktuellem Upload" tone="amber" />
           <PriorityCard label="Ursprungsbetrag" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0))} hint="stornierte/rückgegebene Beträge" tone="red" />
           <PriorityCard label="Neue Summe" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0))} hint="spätere Forderungen" tone="green" />
+        </section>
+        <section className="chart-grid">
+          <div className="panel mini-chart">
+            <h2>Abzug vs. neue Einreichung</h2>
+            <InteractiveBars title="Abzug vs neue Einreichung" values={[
+              { label: "Ursprung", value: candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0) },
+              { label: "neu", value: candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0) },
+              { label: "angerechnet", value: candidates.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0) }
+            ]} />
+          </div>
+          <div className="panel mini-chart">
+            <h2>Neueinreichungen je Standort</h2>
+            <InteractiveBars title="Neueinreichungen je Standort" values={aggregateResubmissionsByLocation(candidates)} />
+          </div>
         </section>
         <section className="panel">
           <div className="panel-heading">
@@ -5469,6 +5620,14 @@ function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCas
   return (
     <CasesView cases={matched} title="Neueinreichungsvorschläge" description="Keine automatisch erkannten Neueinreichungen im aktuellen Datenstand." />
   );
+}
+
+function aggregateResubmissionsByLocation(candidates: ResubmissionCandidate[]) {
+  const grouped = new Map<string, number>();
+  candidates.forEach((candidate) => grouped.set(candidate.locationName, (grouped.get(candidate.locationName) ?? 0) + 1));
+  return [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label, value }));
 }
 
 function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {

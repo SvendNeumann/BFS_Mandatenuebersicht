@@ -758,6 +758,23 @@ input {
   gap: 14px;
 }
 
+.visual-first-grid {
+  margin: 14px 0;
+}
+
+.visual-panel {
+  min-width: 0;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(5, 22, 35, 0.32);
+  padding: 14px;
+}
+
+.visual-panel h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
 .command-panel {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -2991,7 +2992,10 @@ function MetricInfo({ title, text }: { title: string; text: string }) {
     };
   }, [id]);
 
-  function toggleInfo() {
+  function toggleInfo(event?: React.MouseEvent<HTMLButtonElement>) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
     if (open) {
       setOpen(false);
       return;
@@ -3013,7 +3017,7 @@ function MetricInfo({ title, text }: { title: string; text: string }) {
       <button ref={buttonRef} className="metric-info-button" aria-label={`Herleitung ${title}`} onClick={toggleInfo}>
         <Info size={14} />
       </button>
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <>
           <button className="metric-info-backdrop" aria-label="Infobox schließen" onClick={() => setOpen(false)} />
           <div className="metric-info-popover" style={position} role="dialog" aria-label={`Herleitung ${title}`}>
@@ -3025,7 +3029,8 @@ function MetricInfo({ title, text }: { title: string; text: string }) {
             </div>
             <p>{text}</p>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

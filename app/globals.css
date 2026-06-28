@@ -2385,9 +2385,9 @@ td small {
 
 .case-column-plot {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
   align-items: end;
-  gap: 14px;
+  gap: 10px;
   min-height: 218px;
   padding-top: 8px;
 }
@@ -2410,6 +2410,8 @@ td small {
 .case-column-track {
   display: flex;
   align-items: end;
+  justify-self: center;
+  width: min(100%, 86px);
   height: 140px;
   border-bottom: 1px solid var(--line);
   background:
@@ -2437,6 +2439,15 @@ td small {
 
 .case-column-slot small {
   min-height: 32px;
+}
+
+.case-chart-grid .case-column-plot {
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  gap: 8px;
+}
+
+.case-chart-grid .case-column-track {
+  width: min(100%, 78px);
 }
 
 .upload-zone {

@@ -82,8 +82,7 @@ const superAdminNav: NavSection[] = [
     items: [
       ["custom", "Zusammenfassung", BarChart3],
       ["dashboard", "Cockpit", LayoutDashboard],
-      ["answers", "Schnellantworten", ClipboardList],
-      ["worklist", "Prioritäten heute", AlertCircle]
+      ["answers", "Schnellantworten", ClipboardList]
     ]
   },
   {
@@ -97,6 +96,7 @@ const superAdminNav: NavSection[] = [
   {
     title: "Operative Fallarbeit",
     items: [
+      ["worklist", "Prioritäten heute", AlertCircle],
       ["cases", "Klärfälle", AlertCircle],
       ["matches", "Matching & Neueinreichungen", RefreshCw]
     ]
@@ -131,8 +131,7 @@ const leadNav: NavSection[] = [
     items: [
       ["custom", "Zusammenfassung", BarChart3],
       ["dashboard", "Cockpit", LayoutDashboard],
-      ["answers", "Schnellantworten", ClipboardList],
-      ["worklist", "Meine Prioritäten", AlertCircle]
+      ["answers", "Schnellantworten", ClipboardList]
     ]
   },
   {
@@ -145,6 +144,7 @@ const leadNav: NavSection[] = [
   {
     title: "Operative Fallarbeit",
     items: [
+      ["worklist", "Meine Prioritäten", AlertCircle],
       ["cases", "Klärfälle", AlertCircle],
       ["matches", "Matching & Neueinreichungen", RefreshCw]
     ]

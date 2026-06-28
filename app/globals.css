@@ -6408,6 +6408,34 @@ label,
     width: 100% !important;
   }
 
+  .benchmark-chart-grid {
+    display: flex !important;
+    gap: 14px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px 14px !important;
+    scroll-snap-type: x mandatory;
+    inline-size: min(100%, calc(100vw - 20px)) !important;
+    max-inline-size: calc(100vw - 20px) !important;
+  }
+
+  .benchmark-chart-grid > * {
+    flex: 0 0 min(94vw, 430px) !important;
+    width: min(94vw, 430px) !important;
+    max-width: min(94vw, 430px) !important;
+    scroll-snap-align: start;
+  }
+
+  .benchmark-chart-grid .mini-chart h2 {
+    max-width: calc(100% - 34px) !important;
+    font-size: 21px !important;
+    line-height: 1.16 !important;
+  }
+
+  .benchmark-chart-grid .chart-legend {
+    max-width: 100% !important;
+  }
+
   .case-board {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;

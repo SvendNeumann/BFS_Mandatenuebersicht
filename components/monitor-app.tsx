@@ -886,7 +886,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   );
 }
 
-function InteractiveBars({ title, values }: { title: string; values: { label: string; value: number }[] }) {
+function InteractiveBars({ title, values }: { title: string; values: { label: string; value: number; detailLabel?: string }[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeValue = activeIndex === null ? undefined : values[activeIndex] ?? values[0];
   const valueLabel = activeValue ? formatChartValue(title, activeValue.value) : "";
@@ -913,7 +913,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
           style={tooltipStyle}
         >
           <strong>{activeValue.label}</strong>
-          <span>{chartLegendLabel(title)}: {valueLabel}</span>
+          <span>{chartLegendLabel(title)}: {valueLabel}{activeValue.detailLabel ? ` (${activeValue.detailLabel})` : ""}</span>
         </div>
       )}
       <div className="bars" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(null)}>
@@ -923,7 +923,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
               type="button"
               className={index === activeIndex ? "active" : ""}
               style={{ height: `${isSingleValue && value.value > 0 ? 72 : Math.max(14, (value.value / maxValue) * 100)}%` }}
-              aria-label={`${value.label}: ${formatChartValue(title, value.value)}`}
+              aria-label={`${value.label}: ${formatChartValue(title, value.value)}${value.detailLabel ? ` (${value.detailLabel})` : ""}`}
               onPointerEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
               onClick={() => setActiveIndex(index)}
@@ -1166,7 +1166,7 @@ function chartLegendLabel(title: string) {
   return "Performanceindex";
 }
 
-function chartExplanation(title: string, values: { label: string; value: number }[]) {
+function chartExplanation(title: string, values: { label: string; value: number; detailLabel?: string }[]) {
   const normalizedTitle = title.toLowerCase();
   const total = values.reduce((sum, entry) => sum + entry.value, 0);
   const filters = "Es wirken die aktuell ausgewählten Standort-, Zeitraum- und Rollenfilter der jeweiligen Seite.";
@@ -1190,6 +1190,7 @@ function formatChartValue(title: string, value: number) {
   const normalizedTitle = title.toLowerCase();
   if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
   if (normalizedTitle.includes("quote")) return formatPercent(value);
+  if (normalizedTitle.includes("rück") && normalizedTitle.includes("standort")) return `${integerNumber.format(value)} Rückläufer`;
   if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität") || normalizedTitle.includes("fälle") || normalizedTitle.includes("anzahl")) return `${integerNumber.format(value)} Fälle`;
   return formatPercent(value);
 }
@@ -1197,27 +1198,39 @@ function formatChartValue(title: string, value: number) {
 function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[] = []) {
   const activeRows = rowsStandorte.filter((standort) => standortActiveInPeriod(standort, period));
   const sourceRows = activeRows.length ? activeRows : rowsStandorte;
+  const metricsFor = (standort: Standort) => metricsFromImportRowsForStandort(importRows, standort, period);
   return [
     {
       title: "Umsatz eingereicht je Standort",
-      values: sourceRows.map((standort) => ({
-        label: standort.name,
-        value: metricsFromImportRowsForStandort(importRows, standort, period).submitted
-      }))
+      values: sourceRows.map((standort) => {
+        const metrics = metricsFor(standort);
+        return {
+          label: standort.name,
+          value: metrics.submitted
+        };
+      })
     },
     {
       title: "Gesamtkosten BFS je Standort",
-      values: sourceRows.map((standort) => ({
-        label: standort.name,
-        value: metricsFromImportRowsForStandort(importRows, standort, period).fees
-      }))
+      values: sourceRows.map((standort) => {
+        const metrics = metricsFor(standort);
+        return {
+          label: standort.name,
+          value: metrics.fees,
+          detailLabel: `${formatFeeRate(metrics.submitted ? (metrics.fees / metrics.submitted) * 100 : 0)} vom Umsatz`
+        };
+      })
     },
     {
       title: "Rückbelastungen je Standort",
-      values: sourceRows.map((standort) => ({
-        label: standort.name,
-        value: metricsFromImportRowsForStandort(importRows, standort, period).returnCount
-      }))
+      values: sourceRows.map((standort) => {
+        const metrics = metricsFor(standort);
+        return {
+          label: standort.name,
+          value: metrics.returnCount,
+          detailLabel: `${formatPercent(metrics.submitted ? (metrics.returnAmount / metrics.submitted) * 100 : 0)} vom Umsatz`
+        };
+      })
     }
   ];
 }
@@ -1565,7 +1578,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
-      <section className="chart-grid">
+      <section className="chart-grid benchmark-chart-grid">
         {benchmarkCharts.map((chart) => (
           <div className="panel mini-chart" key={chart.title}>
             <h2>{chart.title}</h2>

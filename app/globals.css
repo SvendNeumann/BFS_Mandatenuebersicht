@@ -4874,14 +4874,14 @@ tbody tr:hover td {
 
 @media (max-width: 1080px) {
   .topbar {
-    min-height: 132px;
+    min-height: 120px;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
     padding:
-      calc(env(safe-area-inset-top, 0px) + 24px)
+      calc(env(safe-area-inset-top, 0px) + 20px)
       clamp(26px, 6vw, 48px)
-      24px;
+      20px;
   }
 
   .mobile-app-brand {
@@ -4891,48 +4891,53 @@ tbody tr:hover td {
   }
 
   .mobile-app-brand .orisus-wordmark {
-    width: clamp(210px, 48vw, 300px);
-    max-width: calc(100vw - 138px);
+    width: clamp(190px, 44vw, 270px);
+    max-width: calc(100vw - 124px);
   }
 
   .mobile-menu-button {
-    width: 58px;
-    height: 58px;
+    width: 50px;
+    height: 50px;
     border-radius: 12px;
   }
 
   .mobile-menu-button svg {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
   }
 
   .workspace {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 172px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 152px);
   }
 }
 
 @media (max-width: 720px) {
   .topbar {
-    min-height: 124px;
-    gap: 16px;
+    min-height: 112px;
+    gap: 14px;
     padding:
-      calc(env(safe-area-inset-top, 0px) + 22px)
-      clamp(22px, 7vw, 38px)
-      22px;
+      calc(env(safe-area-inset-top, 0px) + 18px)
+      clamp(20px, 6vw, 34px)
+      18px;
   }
 
   .mobile-app-brand .orisus-wordmark {
-    width: clamp(190px, 54vw, 260px);
-    max-width: calc(100vw - 122px);
+    width: clamp(170px, 50vw, 230px);
+    max-width: calc(100vw - 108px);
   }
 
   .mobile-menu-button {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
+  }
+
+  .mobile-menu-button svg {
+    width: 22px;
+    height: 22px;
   }
 
   .workspace {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 160px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 140px);
   }
 }
 

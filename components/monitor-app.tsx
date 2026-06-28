@@ -736,10 +736,6 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         </label>
       </section>
       <KpiGrid cards={groupKpis} />
-      <section className="management-summary-grid">
-        <ManagementDeltaPanel comparison={managementComparison} />
-        <ManagementSignalPanel snapshots={locationSnapshots} comparison={managementComparison} onNavigate={onNavigate} />
-      </section>
       <section className="chart-grid management-chart-grid">
         {groupChartSeries.map((chart) => (
           <div className="panel mini-chart year-chart-panel" key={chart.title}>
@@ -748,6 +744,10 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
             <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
           </div>
         ))}
+      </section>
+      <section className="management-summary-grid">
+        <ManagementDeltaPanel comparison={managementComparison} />
+        <ManagementSignalPanel snapshots={locationSnapshots} comparison={managementComparison} onNavigate={onNavigate} />
       </section>
       <section className="dashboard-grid cockpit-action-grid">
         <article className="panel command-panel">
@@ -1362,6 +1362,15 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
+      <section className="chart-grid">
+        {benchmarkCharts.map((chart) => (
+          <div className="panel mini-chart" key={chart.title}>
+            <h2>{chart.title}</h2>
+            <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
+            <InteractiveBars title={chart.title} values={chart.values} />
+          </div>
+        ))}
+      </section>
       <section className="insight-grid benchmark-signal-grid">
         {benchmarkSignals.map((signal) => (
           <InsightCard key={signal.title} title={signal.title} items={signal.items} />
@@ -1375,15 +1384,6 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
           </div>
         </div>
         <LocationBenchmarkCards snapshots={snapshots} onNavigate={onNavigate} />
-      </section>
-      <section className="chart-grid">
-        {benchmarkCharts.map((chart) => (
-          <div className="panel mini-chart" key={chart.title}>
-            <h2>{chart.title}</h2>
-            <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
-            <InteractiveBars title={chart.title} values={chart.values} />
-          </div>
-        ))}
       </section>
     </div>
   );
@@ -1420,6 +1420,26 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" tone={recurring.length ? "amber" : "green"} />
         <PriorityCard label="Offene Klärbewegungen" value={String(unresolved.length)} hint={money.format(unresolvedAmount)} tone={unresolved.length ? "red" : "green"} info={operationalOpenInfo} />
       </section>
+      <section className="chart-grid">
+        <div className="panel mini-chart">
+          <h2>Risikoarten</h2>
+          <InteractiveBars title="Risikoarten" values={[
+            { label: "ohne Schutz", value: metrics.noProtectionAmount },
+            { label: "Rückgabe", value: metrics.returnAmount },
+            { label: "Storno", value: metrics.cancellationAmount },
+            { label: "EWMA", value: metrics.ewmaTotal }
+          ]} />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Patientenqualität</h2>
+          <InteractiveBars title="Patientenqualität" values={[
+            { label: "Risiken", value: riskRows.length },
+            { label: "Wiederholer", value: recurring.length },
+            { label: "offen", value: unresolved.length },
+            { label: "Storno offen", value: stornoReview.open }
+          ]} />
+        </div>
+      </section>
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
@@ -1440,26 +1460,6 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
             <span>3. Storno-Erledigung und offene Klärbewegungen nicht addieren</span>
           </div>
         </article>
-      </section>
-      <section className="chart-grid">
-        <div className="panel mini-chart">
-          <h2>Risikoarten</h2>
-          <InteractiveBars title="Risikoarten" values={[
-            { label: "ohne Schutz", value: metrics.noProtectionAmount },
-            { label: "Rückgabe", value: metrics.returnAmount },
-            { label: "Storno", value: metrics.cancellationAmount },
-            { label: "EWMA", value: metrics.ewmaTotal }
-          ]} />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Patientenqualität</h2>
-          <InteractiveBars title="Patientenqualität" values={[
-            { label: "Risiken", value: riskRows.length },
-            { label: "Wiederholer", value: recurring.length },
-            { label: "offen", value: unresolved.length },
-            { label: "Storno offen", value: stornoReview.open }
-          ]} />
-        </div>
       </section>
       <StornoReviewSection review={stornoReview} />
       <RiskView standortId={standort?.id} importRows={scopedRows} />
@@ -1614,9 +1614,8 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
         </label>
       </section>
       <KpiGrid cards={locationKpis} />
-      <section className="management-summary-grid">
-        <ManagementDeltaPanel comparison={managementComparison} />
-        <article className="panel management-panel">
+      <section className="chart-grid">
+        <article className="panel mini-chart year-chart-panel">
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Standort über Zeit</span>
@@ -1629,6 +1628,23 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
             values={buildYearMonthComparison([standort], importRows, "submitted")}
             format={(value) => money.format(value)}
           />
+        </article>
+      </section>
+      <section className="management-summary-grid">
+        <ManagementDeltaPanel comparison={managementComparison} />
+        <article className="panel management-panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Einordnung</span>
+              <h2>{standort.name} gegen Gruppe</h2>
+              <p>Gebührenquote, Rückbelastung und Ohne-Ausfallschutz werden nach der Verlaufsgrafik fachlich eingeordnet.</p>
+            </div>
+          </div>
+          <div className="stacked-checks">
+            <span>Gebührenquote Standort: {formatFeeRate(managementComparison.currentMetrics.feeRate)} · Gruppe: {formatFeeRate(groupComparison.currentMetrics.feeRate)}</span>
+            <span>Rückbelastungsquote Standort: {formatPercent(managementComparison.chargebackRate)} · Gruppe: {formatPercent(groupChargebackRate)}</span>
+            <span>Ohne-Ausfallschutz-Anteil Standort: {formatPercent(managementComparison.noProtectionShare)} · Gruppe: {formatPercent(groupNoProtectionShare)}</span>
+          </div>
         </article>
       </section>
       <section className="dashboard-grid">
@@ -5405,6 +5421,24 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
             info={patientClassInfo(grade, count, total)}
           />
         ))}
+      </section>
+      <section className="chart-grid">
+        <div className="panel mini-chart">
+          <h2>Patientenklassen</h2>
+          <InteractiveBars
+            title="Patientenqualität"
+            values={counts.map(({ grade, count }) => ({ label: `Klasse ${grade}`, value: count }))}
+          />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Ohne-Schutz-Selektion</h2>
+          <InteractiveBars title="Ohne-Schutz-Selektion" values={[
+            { label: "ohne Schutz", value: noProtectionPatients.length },
+            { label: "auffällig", value: noProtectionActuallyBad.length },
+            { label: "erledigt", value: resolvedNoProtection },
+            { label: "Wiederholer", value: recurring.length }
+          ]} />
+        </div>
       </section>
       <section className="dashboard-grid">
         <article className="panel command-panel">

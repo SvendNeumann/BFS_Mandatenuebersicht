@@ -6128,6 +6128,41 @@ label,
   color: rgba(205, 226, 232, 0.82) !important;
 }
 
+@media (max-width: 1080px) {
+  .standort-tabs {
+    position: sticky !important;
+    top: calc(env(safe-area-inset-top, 0px) + 84px) !important;
+    z-index: 68 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    max-width: 100% !important;
+    margin: 0 0 14px !important;
+    padding: 8px 10px 10px !important;
+    border: 1px solid rgba(178, 226, 229, 0.16) !important;
+    border-radius: 12px !important;
+    background:
+      linear-gradient(145deg, rgba(7, 27, 41, 0.96), rgba(8, 34, 50, 0.92)) !important;
+    box-shadow:
+      0 14px 34px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(18px);
+    scrollbar-width: thin;
+  }
+
+  .standort-tabs button {
+    flex: 0 0 auto !important;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1080px) {
+  .standort-tabs {
+    top: calc(env(safe-area-inset-top, 0px) + 122px) !important;
+  }
+}
+
 @media (max-width: 720px) {
   .chart-grid,
   .management-chart-grid {

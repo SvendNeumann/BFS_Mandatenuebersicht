@@ -5248,13 +5248,32 @@ function caseAmountByLocation(rows: BfsCase[]) {
 function caseReasonDistribution(rows: BfsCase[]) {
   const grouped = new Map<string, number>();
   rows.forEach((fall) => {
-    const label = fall.reason.split(/[,.;:]/)[0]?.trim().slice(0, 28) || "Klärfall";
+    const label = caseReasonLabel(fall.reason);
     grouped.set(label, (grouped.get(label) ?? 0) + 1);
   });
   return [...grouped.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([label, value]) => ({ label, value }));
+}
+
+function caseReasonLabel(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("iportal") || normalized.includes("rechnungsliste")) return "iPortal-Rechnungsliste";
+  if (normalized.includes("neue rechnung")) return "Neue Rechnung";
+  if (normalized.includes("ohne ausfallschutz")) return "Rückgabe ohne Ausfallschutz";
+  if (normalized.includes("rückgabe") || normalized.includes("rückbelastung")) return "Rückgabe/Rückbelastung";
+  if (normalized.includes("storno")) return "Storno";
+  if (normalized.includes("factoring")) return "Factoringvereinbarung";
+  if (normalized.includes("praxis") || normalized.includes("nachricht")) return "Praxisanweisung";
+  if (normalized.includes("vertrag")) return "Gemäß Vertrag";
+  if (normalized.includes("unstzustell") || normalized.includes("unzustell")) return "Unzustellbar";
+  const cleaned = reason
+    .replace(/^lt\.?\s*/i, "")
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned && cleaned.length > 3 ? cleaned.slice(0, 28) : "Sonstiger Klärgrund";
 }
 
 function caseReportRowHtml(fall: BfsCase) {

@@ -673,23 +673,25 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
-  const groupChartSeries = useMemo(() => buildGroupDashboardSeries(filteredStandorte, selectedPeriod, importRows), [filteredStandorte, selectedPeriod, importRows]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases), [importRows, filteredStandorte, openCases]);
+  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows), [filteredStandorte, importRows]);
   const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, selectedPeriod, scopedImportRows, openCases), [filteredStandorte, selectedPeriod, scopedImportRows, openCases]);
-  const oldestOpenCase = focusedCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  const chargebackRate = selectedMetrics.submitted ? ((selectedMetrics.returnAmount + selectedMetrics.cancellationAmount) / selectedMetrics.submitted) * 100 : 0;
+  const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: selectedPeriod };
   const groupKpis: KpiCardTuple[] = [
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout, kpiSparklineForLabel("Auszahlungsbetrag", groupSparklineContext)],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
-    ["Gebührenquote", formatFeeRate(selectedMetrics.feeRate), periodLabel, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
-    ["Rückbelastungsquote", formatPercent(chargebackRate), "Rückgaben und Stornos am Eingang", undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
-    ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label, undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
-    ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert", undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
+    ["Eingereicht YTD 2026", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
+    ["Eingereicht Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...groupSparklineContext, period: managementComparison.previousPeriod })],
+    ["Delta zum Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
+    ["BFS-Gebühren YTD", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
+    ["Gebührenquote YTD", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
+    ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
+    ["Quote wieder reingeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
+    ["Offene operative Fälle", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
     ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, kpiSparklineForLabel("Ältester Fall", groupSparklineContext)]
   ];
-  const cockpitAlerts = buildCockpitAlerts(locationSnapshots, selectedMetrics, focusedCases);
+  const cockpitAlerts = buildCockpitAlerts(locationSnapshots, managementComparison.currentMetrics, managementComparison.openCases);
   return (
     <div className="content-stack">
       <GroupFilterBar
@@ -709,6 +711,19 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         </label>
       </section>
       <KpiGrid cards={groupKpis} />
+      <section className="management-summary-grid">
+        <ManagementDeltaPanel comparison={managementComparison} />
+        <ManagementSignalPanel snapshots={locationSnapshots} comparison={managementComparison} onNavigate={onNavigate} />
+      </section>
+      <section className="chart-grid management-chart-grid">
+        {groupChartSeries.map((chart) => (
+          <div className="panel mini-chart year-chart-panel" key={chart.title}>
+            <h2>{chart.title}</h2>
+            <small className="period-note">Vergleich: 2025 vs. 2026</small>
+            <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
+          </div>
+        ))}
+      </section>
       <section className="dashboard-grid cockpit-action-grid">
         <article className="panel command-panel">
           <div>
@@ -729,15 +744,6 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
           </div>
         </article>
       </section>
-      <section className="chart-grid">
-        {groupChartSeries.map((chart) => (
-          <div className="panel mini-chart" key={chart.title}>
-            <h2>{chart.title}</h2>
-            <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
-            <InteractiveBars title={chart.title} values={chart.values} />
-          </div>
-        ))}
-      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -748,7 +754,16 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         </div>
         <LocationBenchmarkCards snapshots={locationSnapshots} onNavigate={onNavigate} compact />
       </section>
-      <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
+      <section className="panel operative-entry-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Prüfung & Fallarbeit</span>
+            <h2>Operative Ebene bewusst getrennt</h2>
+            <p>Klärfälle, Rückbelastungen, Neueinreichungen und Reports bleiben Arbeitswerkzeuge. Die Lagebewertung oben erklärt zuerst Entwicklung, Abweichung und Ursache.</p>
+          </div>
+        </div>
+        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={scopedImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
+      </section>
     </div>
   );
 }
@@ -797,6 +812,97 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
         ))}
       </div>
       <div className="axis">{values.map((value) => <span key={value.label}>{value.label}</span>)}</div>
+    </div>
+  );
+}
+
+type ManagementComparison = ReturnType<typeof buildManagementComparison>;
+
+function ManagementDeltaPanel({ comparison }: { comparison: ManagementComparison }) {
+  const quarterRows = buildQuarterComparison(comparison.standortIds, comparison.importRows);
+  const currentQuarter = quarterRows[0];
+  const previousQuarter = quarterRows[1];
+  const quarterDelta = currentQuarter && previousQuarter?.submitted
+    ? ((currentQuarter.submitted - previousQuarter.submitted) / previousQuarter.submitted) * 100
+    : 0;
+  return (
+    <article className="panel management-panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Lage & Entwicklung</span>
+          <h2>YTD, Quartal und Vorjahr auf einen Blick</h2>
+          <p>Diese Sicht bewertet Entwicklung und Abweichung, bevor operative Falllisten geöffnet werden.</p>
+        </div>
+      </div>
+      <div className="management-delta-grid">
+        <span><b>{money.format(comparison.currentMetrics.submitted)}</b> YTD 2026</span>
+        <span><b>{money.format(comparison.previousMetrics.submitted)}</b> Vorjahr YTD</span>
+        <span className={comparison.submittedDelta >= 0 ? "positive" : "negative"}><b>{money.format(comparison.submittedDelta)}</b> Delta EUR</span>
+        <span className={comparison.submittedDeltaRate >= 0 ? "positive" : "negative"}><b>{formatDelta(comparison.submittedDeltaRate)}</b> Delta Prozent</span>
+        <span><b>{currentQuarter?.label ?? "-"}</b> aktuelles Quartal</span>
+        <span className={quarterDelta >= 0 ? "positive" : "negative"}><b>{formatDelta(quarterDelta)}</b> ggü. Vorquartal</span>
+      </div>
+    </article>
+  );
+}
+
+function ManagementSignalPanel({ snapshots, comparison, onNavigate }: { snapshots: LocationSnapshot[]; comparison: ManagementComparison; onNavigate: (view: string) => void }) {
+  const highestRisk = [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.chargebackRate - a.chargebackRate)[0];
+  const feeSignal = comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0
+    ? "Gebührenquote steigt gegenüber Vorjahr"
+    : "Gebührenquote aktuell ohne negativen Vorjahrestrend";
+  const riskSignal = highestRisk?.riskScore
+    ? `${highestRisk.standort.name} ist strukturell auffällig`
+    : "Kein Standort mit dominanter Risikoauffälligkeit";
+  return (
+    <article className="panel management-panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Management-Kommentar</span>
+          <h2>{riskSignal}</h2>
+          <p>{feeSignal}. Ohne-Ausfallschutz-Anteil liegt bei {formatPercent(comparison.noProtectionShare)}, Rückbelastungs-/Stornoquote bei {formatPercent(comparison.chargebackRate)}.</p>
+        </div>
+      </div>
+      <div className="stacked-checks">
+        <span>{comparison.submittedDelta >= 0 ? "Wachstum prüfen: Kostenquote darf nicht überproportional steigen" : "Umsatzrückgang prüfen: Standort- und Monatsentwicklung ansehen"}</span>
+        <span>{comparison.recoveryRate >= 70 ? "Wiedereinholung wirkt solide, offene Restfälle nach Alter prüfen" : "Wiedereinholung schwach: Matching und manuelle Erledigungen priorisieren"}</span>
+        <span>{highestRisk ? `${highestRisk.standort.name}: Gebühren, Schutzquote und Rückbelastungen gegen Gruppenschnitt prüfen` : "Nach Monatsabschluss Standortreport erzeugen"}</span>
+      </div>
+      <div className="quick-actions">
+        <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Benchmark</button>
+        <button className="secondary-button" onClick={() => onNavigate("quality")}><ShieldCheck size={16} /> Patientenqualität</button>
+      </div>
+    </article>
+  );
+}
+
+function YearComparisonBars({
+  title,
+  values,
+  format
+}: {
+  title: string;
+  values: { label: string; current: number; previous: number }[];
+  format: (value: number) => string;
+}) {
+  const maxValue = Math.max(...values.flatMap((value) => [value.current, value.previous]), 1);
+  return (
+    <div className="year-comparison-chart" aria-label={title}>
+      <div className="year-legend">
+        <span><i className="previous" /> 2025</span>
+        <span><i className="current" /> 2026</span>
+      </div>
+      <div className="year-bars">
+        {values.map((value) => (
+          <div className="year-month" key={value.label}>
+            <div className="year-pair">
+              <span className="previous" style={{ height: `${Math.max(5, (value.previous / maxValue) * 100)}%` }} title={`2025 ${value.label}: ${format(value.previous)}`} />
+              <span className="current" style={{ height: `${Math.max(5, (value.current / maxValue) * 100)}%` }} title={`2026 ${value.label}: ${format(value.current)}`} />
+            </div>
+            <small>{value.label}</small>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -861,6 +967,135 @@ function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOpti
       }))
     }
   ];
+}
+
+function buildManagementChartSeries(rowsStandorte: Standort[], importRows: ImportPreviewRow[] = []) {
+  return [
+    {
+      title: "Monatsentwicklung eingereichter Umsatz",
+      format: (value: number) => money.format(value),
+      values: buildYearMonthComparison(rowsStandorte, importRows, "submitted")
+    },
+    {
+      title: "Gebührenquote je Monat",
+      format: (value: number) => formatFeeRate(value),
+      values: buildYearMonthComparison(rowsStandorte, importRows, "feeRate")
+    },
+    {
+      title: "Rückbelastungen/Stornos je Monat",
+      format: (value: number) => money.format(value),
+      values: buildYearMonthComparison(rowsStandorte, importRows, "deductionAmount")
+    },
+    {
+      title: "Standortvergleich YTD mit Delta",
+      format: (value: number) => money.format(value),
+      values: buildLocationYtdDeltaComparison(rowsStandorte, importRows)
+    }
+  ];
+}
+
+function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[]) {
+  const currentYear = todayReference.getFullYear();
+  const currentPeriod = ytdPeriod(currentYear);
+  const previousPeriod = comparablePreviousYtdPeriod(currentYear);
+  const currentRows = rowsForSparklinePeriod(importRows, relevantStandorte, currentPeriod);
+  const previousRows = rowsForSparklinePeriod(importRows, relevantStandorte, previousPeriod);
+  const currentMetrics = metricsFromRows(currentRows);
+  const previousMetrics = metricsFromRows(previousRows);
+  const deductionAmount = currentMetrics.returnAmount + currentMetrics.cancellationAmount;
+  const recoveredCandidates = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(currentRows));
+  const recoveredAmount = recoveredCandidates.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const currentOpenCases = openCases.filter((fall) => {
+    const standort = relevantStandorte.find((entry) => entry.id === fall.standortId);
+    return standort ? shortDateInPeriod(fall.sourceDate, currentPeriod, standort) : false;
+  });
+  const submittedDelta = currentMetrics.submitted - previousMetrics.submitted;
+  const submittedDeltaRate = previousMetrics.submitted ? (submittedDelta / previousMetrics.submitted) * 100 : currentMetrics.submitted ? 100 : 0;
+  return {
+    importRows,
+    standortIds: relevantStandorte.map((standort) => standort.id),
+    currentPeriod,
+    previousPeriod,
+    currentMetrics,
+    previousMetrics,
+    submittedDelta,
+    submittedDeltaRate,
+    deductionAmount,
+    recoveredAmount,
+    recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
+    chargebackRate: currentMetrics.submitted ? (deductionAmount / currentMetrics.submitted) * 100 : 0,
+    noProtectionShare: currentMetrics.submitted ? (currentMetrics.noProtectionAmount / currentMetrics.submitted) * 100 : 0,
+    openCases: currentOpenCases
+  };
+}
+
+function ytdPeriod(year: number): PeriodOption {
+  return {
+    id: `year-${year}-ytd`,
+    label: `${year} YTD`,
+    detail: "Jahresbeginn bis aktueller Stichtag",
+    start: new Date(year, 0, 1),
+    end: year === todayReference.getFullYear() ? todayReference : new Date(year, todayReference.getMonth(), todayReference.getDate())
+  };
+}
+
+function comparablePreviousYtdPeriod(currentYear: number): PeriodOption {
+  const previousYear = currentYear - 1;
+  return {
+    id: `year-${previousYear}-ytd-comparable`,
+    label: `${previousYear} YTD`,
+    detail: "vergleichbarer Vorjahreszeitraum",
+    start: new Date(previousYear, 0, 1),
+    end: new Date(previousYear, todayReference.getMonth(), todayReference.getDate())
+  };
+}
+
+function metricsFromRows(rows: ImportPreviewRow[]) {
+  const summary = summarizeImportRows(rows);
+  return summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+}
+
+function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[], metric: "submitted" | "feeRate" | "deductionAmount") {
+  const currentYear = todayReference.getFullYear();
+  const previousYear = currentYear - 1;
+  const monthCount = todayReference.getMonth() + 1;
+  return Array.from({ length: monthCount }, (_, index) => {
+    const currentRows = rowsForMonth(importRows, rowsStandorte, currentYear, index);
+    const previousRows = rowsForMonth(importRows, rowsStandorte, previousYear, index);
+    return {
+      label: String(index + 1).padStart(2, "0"),
+      current: metricValueForRows(currentRows, metric),
+      previous: metricValueForRows(previousRows, metric)
+    };
+  });
+}
+
+function buildLocationYtdDeltaComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[]) {
+  const currentYear = todayReference.getFullYear();
+  const currentPeriod = ytdPeriod(currentYear);
+  const previousPeriod = comparablePreviousYtdPeriod(currentYear);
+  return rowsStandorte
+    .filter((standort) => standortActiveInPeriod(standort, currentPeriod))
+    .map((standort) => ({
+      label: standort.name,
+      current: metricsFromImportRowsForStandort(importRows, standort, currentPeriod).submitted,
+      previous: metricsFromImportRowsForStandort(importRows, standort, previousPeriod).submitted
+    }));
+}
+
+function rowsForMonth(importRows: ImportPreviewRow[], rowsStandorte: Standort[], year: number, monthIndex: number) {
+  const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+  return importRows.filter((row) => {
+    const standort = rowsStandorte.find((entry) => entry.name === row.location);
+    return standort && importRowMonth(row) === month && month >= standort.goLiveDate.slice(0, 7);
+  });
+}
+
+function metricValueForRows(rows: ImportPreviewRow[], metric: "submitted" | "feeRate" | "deductionAmount") {
+  const metrics = metricsFromRows(rows);
+  if (metric === "submitted") return metrics.submitted;
+  if (metric === "feeRate") return metrics.feeRate;
+  return metrics.returnAmount + metrics.cancellationAmount;
 }
 
 type LocationSnapshot = ReturnType<typeof buildLocationSnapshots>[number];
@@ -983,6 +1218,56 @@ function locationChargebackRateInfo(entry: LocationSnapshot) {
   ].join(" ");
 }
 
+function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: ImportPreviewRow[]) {
+  const growing = [...snapshots]
+    .map((snapshot) => {
+      const comparison = buildManagementComparison(scopedRows, [snapshot.standort], []);
+      return { snapshot, delta: comparison.submittedDeltaRate };
+    })
+    .sort((a, b) => b.delta - a.delta);
+  const expensive = [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate);
+  const weakQuality = [...snapshots].sort((a, b) => b.chargebackRate - a.chargebackRate || b.noProtectionCaseRate - a.noProtectionCaseRate);
+  const goodRecovery = [...snapshots].sort((a, b) => {
+    const aComparison = buildManagementComparison(scopedRows, [a.standort], []);
+    const bComparison = buildManagementComparison(scopedRows, [b.standort], []);
+    return bComparison.recoveryRate - aComparison.recoveryRate;
+  });
+  return [
+    {
+      title: "Wer wächst?",
+      items: [
+        `${growing[0]?.snapshot.standort.name ?? "-"} führt beim YTD-Delta (${formatDelta(growing[0]?.delta ?? 0)})`,
+        `${growing.at(-1)?.snapshot.standort.name ?? "-"} ist im Wachstum schwächster Vergleichspunkt`,
+        "Wachstum immer gegen Gebührenquote und Rückbelastung lesen"
+      ]
+    },
+    {
+      title: "Wer wird teurer?",
+      items: [
+        `${expensive[0]?.standort.name ?? "-"} hat die höchste Gebührenquote (${formatFeeRate(expensive[0]?.metrics.feeRate ?? 0)})`,
+        `${expensive[0]?.standort.name ?? "-"} gegen Gruppenschnitt und Monatsverlauf prüfen`,
+        "Kostenanstieg ohne Volumenanstieg ist Management-Signal"
+      ]
+    },
+    {
+      title: "Forderungsqualität",
+      items: [
+        `${weakQuality[0]?.standort.name ?? "-"} hat den stärksten Qualitätsdruck`,
+        `Rückbelastungsquote dort: ${formatPercent(weakQuality[0]?.chargebackRate ?? 0)}`,
+        `Ohne-Schutz-Quote dort: ${formatPercent(weakQuality[0]?.noProtectionCaseRate ?? 0)}`
+      ]
+    },
+    {
+      title: "Wiedereinholung",
+      items: [
+        `${goodRecovery[0]?.standort.name ?? "-"} wirkt bei Wiedereinholung am stärksten`,
+        "Hohe Rückbelastung mit guter Wiedereinholung ist anders zu bewerten als offene Rückbelastung",
+        "Niedrige Rückbelastung mit schlechter Patientenselektion bleibt Standortthema"
+      ]
+    }
+  ];
+}
+
 function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -998,6 +1283,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
   const highestRisk = useMemo(() => [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const benchmarkCharts = useMemo(() => buildGroupDashboardSeries(orderedLocations, selectedPeriod, scopedRows), [orderedLocations, selectedPeriod, scopedRows]);
+  const benchmarkSignals = useMemo(() => buildBenchmarkSignals(snapshots, importRows), [snapshots, importRows]);
 
   return (
     <div className="content-stack">
@@ -1014,6 +1300,11 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatFeeRate(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
+      </section>
+      <section className="insight-grid benchmark-signal-grid">
+        {benchmarkSignals.map((signal) => (
+          <InsightCard key={signal.title} title={signal.title} items={signal.items} />
+        ))}
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -1230,18 +1521,23 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const locationImportRows = useMemo(() => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort]);
   const importSummary = useMemo(() => summarizeImportRows(locationImportRows), [locationImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
-  const selectedCashflow = useMemo(() => importSummary.rows ? cashflowFromImportSummary(importSummary) : zeroCashflow(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt")), [cases]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases), [importRows, openCases, standort]);
+  const groupComparison = useMemo(() => buildManagementComparison(importRows, orderedStandorte(), casesFromImportRows(importRows)), [importRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
+  const groupChargebackRate = groupComparison.chargebackRate;
+  const groupNoProtectionShare = groupComparison.noProtectionShare;
   const locationKpis: KpiCardTuple[] = [
-    ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
-    ["BFS-Gebühr netto", money.format(selectedMetrics.feeNet), periodLabel, locationKpiInfo.feeNet, kpiSparklineForLabel("BFS-Gebühr netto", locationSparklineContext)],
-    ["MwSt auf Gebühren", money.format(selectedMetrics.feeVat), periodLabel, locationKpiInfo.tax, kpiSparklineForLabel("MwSt auf Gebühren", locationSparklineContext)],
-    ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, locationKpiInfo.payout, kpiSparklineForLabel("Auszahlungsbetrag", locationSparklineContext)],
-    ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, locationKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", locationSparklineContext)],
-    ["Laufend ohne Ausfallschutz", money.format(selectedMetrics.noProtectionAmount), periodLabel, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)]
+    ["Eingereicht YTD", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
+    ["Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...locationSparklineContext, period: managementComparison.previousPeriod })],
+    ["Delta Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
+    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Gruppe ${formatFeeRate(groupComparison.currentMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
+    ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
+    ["Offene Fälle", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, undefined, kpiSparklineForLabel("Offene Klärfälle", locationSparklineContext)],
+    ["Patientenqualität", patientQualityMixLabel(importRows, standort.id), "A/B/C/D-Mix", undefined, kpiSparklineForLabel("Ohne Ausfallschutz", locationSparklineContext)]
   ];
 
   return (
@@ -1257,13 +1553,29 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
         </label>
       </section>
       <KpiGrid cards={locationKpis} />
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
+      <section className="management-summary-grid">
+        <ManagementDeltaPanel comparison={managementComparison} />
+        <article className="panel management-panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Standort über Zeit</span>
+              <h2>{standort.name} im Verlauf</h2>
+              <p>Der Standort wird gegen Vorjahr und Gruppenschnitt gelesen, nicht nur als Detailtabelle.</p>
+            </div>
+          </div>
+          <YearComparisonBars
+            title={`Monatsentwicklung ${standort.name}`}
+            values={buildYearMonthComparison([standort], importRows, "submitted")}
+            format={(value) => money.format(value)}
+          />
+        </article>
+      </section>
       <section className="dashboard-grid">
         <article className="panel command-panel">
           <div>
             <span className="eyebrow">Standortfokus</span>
-            <h2>{openCases.length} offene Fälle am Standort {standort.name}</h2>
-            <p>Rückbelastungen zuerst prüfen, laufend ohne Ausfallschutz getrennt beobachten und Report für die Standortleitung erstellen.</p>
+            <h2>{standort.name}: Entwicklung zuerst, Fallarbeit danach</h2>
+            <p>Gebührenquote {formatFeeRate(managementComparison.currentMetrics.feeRate)} gegen Gruppe {formatFeeRate(groupComparison.currentMetrics.feeRate)}. Rückbelastungsquote {formatPercent(managementComparison.chargebackRate)} gegen Gruppe {formatPercent(groupChargebackRate)}.</p>
           </div>
           <div className="quick-actions">
             <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Offene Fälle</button>
@@ -1279,6 +1591,16 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
             <span>3. ohne Ausfallschutz beobachten</span>
           </div>
         </article>
+      </section>
+      <section className="panel operative-entry-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Prüfung & Fallarbeit</span>
+            <h2>Operative Schnellantworten {standort.name}</h2>
+            <p>Konkrete Patienten, Klärfälle und Reports werden hier weiterbearbeitet.</p>
+          </div>
+        </div>
+        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
       </section>
       <CasesView cases={cases} compact />
     </div>
@@ -2639,6 +2961,13 @@ function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: st
   });
 
   return [...groups.values()].map(classifyPatientProfile).sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade) || b.riskAmount - a.riskAmount || b.badEventCount - a.badEventCount);
+}
+
+function patientQualityMixLabel(rows: ImportPreviewRow[], standortId?: string) {
+  const profiles = patientProfilesFromImportRows(rows, standortId);
+  if (!profiles.length) return "A 0 / B 0 / C 0 / D 0";
+  const counts = ["A", "B", "C", "D"].map((grade) => `${grade} ${profiles.filter((profile) => profile.grade === grade).length}`);
+  return counts.join(" / ");
 }
 
 function emptyPatientProfile(patientName: string, locationName: string) {
@@ -4881,15 +5210,27 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
 
 function PatientClassificationView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const profiles = useMemo(() => patientProfilesFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
+  const riskClaims = useMemo(() => riskClaimsFromImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows), [importRows, standort]);
+  const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, importRows), [importRows, standort?.id]);
   const counts = useMemo(() => ["A", "B", "C", "D"].map((grade) => ({
     grade,
     count: profiles.filter((profile) => profile.grade === grade).length
   })), [profiles]);
   const total = profiles.length || 1;
+  const noProtectionPatients = profiles.filter((profile) => profile.noProtectionCount > 0);
+  const noProtectionActuallyBad = noProtectionPatients.filter((profile) => profile.badEventCount > 0);
+  const noProtectionClean = noProtectionPatients.filter((profile) => profile.badEventCount === 0);
+  const highRiskHighVolume = profiles.filter((profile) => ["C", "D"].includes(profile.grade) && profile.riskAmount >= 1000);
+  const resolvedNoProtection = riskClaims.filter((claim) => claim.assessment === "erledigt").length;
+  const suspiciousNoProtection = riskClaims.filter((claim) => claim.assessment === "auffaellig").length;
 
   return (
     <div className="content-stack">
       <section className="priority-grid">
+        <PriorityCard label="Ohne-Schutz-Anteil" value={formatPercent(noProtectionPatients.length ? (noProtectionPatients.length / total) * 100 : 0)} hint={`${noProtectionPatients.length} Patienten`} tone={noProtectionPatients.length ? "amber" : "green"} />
+        <PriorityCard label="Davon auffällig" value={formatPercent(noProtectionPatients.length ? (noProtectionActuallyBad.length / noProtectionPatients.length) * 100 : 0)} hint={`${noProtectionActuallyBad.length} Patienten`} tone={noProtectionActuallyBad.length ? "red" : "green"} />
+        <PriorityCard label="Bezahlt / erledigt" value={String(resolvedNoProtection)} hint="Ohne-Schutz-Claims mit Erledigung" tone={resolvedNoProtection ? "green" : "blue"} />
+        <PriorityCard label="Wiederholer ohne Schutz" value={String(recurring.length)} hint={`${recurring.filter((profile) => profile.tone === "red").length} kritisch`} tone={recurring.some((profile) => profile.tone === "red") ? "red" : recurring.length ? "amber" : "green"} />
         {counts.map(({ grade, count }) => (
           <PriorityCard
             key={grade}
@@ -4900,6 +5241,23 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
             info={patientClassInfo(grade, count, total)}
           />
         ))}
+      </section>
+      <section className="dashboard-grid">
+        <article className="panel command-panel">
+          <div>
+            <span className="eyebrow">Patientenselektion</span>
+            <h2>{noProtectionActuallyBad.length} von {noProtectionPatients.length} Ohne-Schutz-Patienten wurden auffällig</h2>
+            <p>Unauffällig ohne Schutz: {noProtectionClean.length}. Auffällige Claims aus Risikoabgleich: {suspiciousNoProtection}. Hohes Risiko mit hohem Volumen: {highRiskHighVolume.length} Patient(en).</p>
+          </div>
+        </article>
+        <article className="panel process-panel">
+          <h2>Steuerungslogik</h2>
+          <div className="stacked-checks">
+            <span>Ohne Ausfallschutz ist Selektion, nicht automatisch Klärfall</span>
+            <span>Wiederholer mit negativer Bewegung zuerst mit Standort besprechen</span>
+            <span>Klasse C/D mit hohem Volumen für Vorkasse- oder Sperrprozess prüfen</span>
+          </div>
+        </article>
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -5115,12 +5473,19 @@ function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCas
 
 function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
   const reportCases = cases.filter((fall) => fall.status !== "erledigt_automatisch");
+  const comparison = useMemo(() => buildManagementComparison(importRows, [standort], reportCases), [importRows, reportCases, standort]);
+  const riskClaims = useMemo(() => riskClaimsFromImportRows(importRows.filter((row) => row.location === standort.name)), [importRows, standort.name]);
+  const recurring = useMemo(() => getRecurringRiskProfiles(standort.id, importRows), [importRows, standort.id]);
+  const reportComment = buildLocationReportComment(standort, comparison, reportCases, riskClaims, recurring);
   function exportCsv() {
     downloadTextFile(`offene-bfs-klaerfaelle-${standort.name.toLowerCase()}.csv`, createCasesCsv(reportCases));
   }
   return (
     <div className="content-stack report-screen">
       <section className="priority-grid">
+        <PriorityCard label="Eingereicht YTD" value={money.format(comparison.currentMetrics.submitted)} hint={comparison.currentPeriod.label} tone="blue" />
+        <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
+        <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
         <PriorityCard label="Reportfälle" value={String(reportCases.length)} hint="offen und reportfähig" tone={reportCases.length ? "amber" : "green"} />
         <PriorityCard label="Offener Betrag" value={money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))} hint={standort.name} tone="blue" />
       </section>
@@ -5133,9 +5498,9 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
         <button className="secondary-button" onClick={exportCsv}><Download size={16} /> CSV</button>
       </section>
       <section className="insight-grid">
-        <InsightCard title="Reportversand" items={["Standort auswählen", "Nur offene Fälle filtern", "PDF/Druck oder CSV erzeugen"]} />
-        <InsightCard title="Reportinhalte" items={["Offene Rückbelastungen", "Ohne Ausfallschutz laufend", "Wiederholer mit Maßnahme"]} />
-        <InsightCard title="Qualität vor Versand" items={["Import-Vorschau muss geprüft sein", "Unklare Mandanten vorher klären", "Historische Matches beachten"]} />
+        <InsightCard title="Management-Kommentar" items={reportComment} />
+        <InsightCard title="Reportinhalte" items={["Monats-/YTD-Kennzahlen", "Offene Rückbelastungen und Stornos", "Patienten ohne Schutz mit Risiko"]} />
+        <InsightCard title="Operative Maßnahme" items={["Älteste Fälle zuerst klären", "Neueinreichungen gegen Storno prüfen", "Wiederholer ohne Schutz mit Standortleitung besprechen"]} />
       </section>
       <section className="print-report">
         <header>
@@ -5143,9 +5508,11 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
             <span>Orisus BFS Monitor</span>
             <h2>Report: {standort.name}</h2>
           </div>
-          <p>Erstellt am 27.06.2026</p>
+          <p>Erstellt am {formatGermanDate(todayReference.toISOString().slice(0, 10))}</p>
         </header>
         <div className="report-summary">
+          <strong>{money.format(comparison.currentMetrics.submitted)}</strong><span>YTD eingereicht</span>
+          <strong>{formatFeeRate(comparison.currentMetrics.feeRate)}</strong><span>Gebührenquote</span>
           <strong>{reportCases.length}</strong><span>offene Klärfälle</span>
           <strong>{money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))}</strong><span>offener Betrag</span>
         </div>
@@ -5158,6 +5525,24 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
       </section>
     </div>
   );
+}
+
+function buildLocationReportComment(
+  standort: Standort,
+  comparison: ManagementComparison,
+  reportCases: BfsCase[],
+  riskClaims: RiskClaim[],
+  recurring: ReturnType<typeof getRecurringRiskProfiles>
+) {
+  const suspiciousRisks = riskClaims.filter((claim) => claim.assessment === "auffaellig");
+  const oldest = reportCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
+  return [
+    `${standort.name}: YTD ${money.format(comparison.currentMetrics.submitted)} eingereicht, Delta Vorjahr ${formatDelta(comparison.submittedDeltaRate)}.`,
+    `Gebührenquote ${formatFeeRate(comparison.currentMetrics.feeRate)}, Rückbelastungs-/Stornoquote ${formatPercent(comparison.chargebackRate)}, Wiedereinholung ${formatPercent(comparison.recoveryRate)}.`,
+    `${reportCases.length} offene operative Fälle mit ${money.format(openAmount)}, ältester Fall ${oldest} Tage.`,
+    `${suspiciousRisks.length} auffällige Ohne-Schutz-Claims und ${recurring.length} Wiederholer ohne Schutz für Standortleitung markieren.`
+  ];
 }
 
 function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }) {

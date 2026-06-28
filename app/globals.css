@@ -628,6 +628,136 @@ input {
   gap: 14px;
 }
 
+.management-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 14px;
+}
+
+.management-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.management-delta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.management-delta-grid span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.96);
+  color: #667085;
+  padding: 11px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.management-delta-grid b {
+  color: #101828;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.management-delta-grid .positive b {
+  color: #047857;
+}
+
+.management-delta-grid .negative b {
+  color: #b42318;
+}
+
+.management-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.year-chart-panel {
+  min-height: 310px;
+}
+
+.year-comparison-chart {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.year-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.year-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.year-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.year-legend .previous,
+.year-bars .previous {
+  background: #75bec7;
+}
+
+.year-legend .current,
+.year-bars .current {
+  background: #30d5c8;
+}
+
+.year-bars {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 190px;
+  align-items: end;
+}
+
+.year-month {
+  display: grid;
+  grid-template-rows: 150px auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.year-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 4px;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.year-pair span {
+  min-height: 8px;
+  border-radius: 6px 6px 0 0;
+}
+
+.year-month small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.operative-entry-panel {
+  display: grid;
+  gap: 14px;
+}
+
 .command-panel {
   display: flex;
   justify-content: space-between;
@@ -3776,6 +3906,7 @@ tbody tr:hover td {
 
   .kpi-grid,
   .chart-grid,
+  .management-summary-grid,
   .cards-grid,
   .landing-cards,
   .dashboard-grid,
@@ -3897,6 +4028,7 @@ tbody tr:hover td {
 
   .kpi-grid,
   .chart-grid,
+  .management-summary-grid,
   .cards-grid,
   .landing-cards,
   .dashboard-grid,

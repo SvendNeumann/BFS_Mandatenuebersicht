@@ -765,7 +765,9 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         {groupChartSeries.map((chart) => (
           <div className="panel mini-chart year-chart-panel" key={chart.title}>
             <h2>{chart.title}</h2>
-            <small className="period-note">Vergleich: 2025 vs. 2026</small>
+            <small className="period-note">
+              {chart.title.includes("Standortvergleich") ? "Je Standort · YTD 2025 vs. 2026" : "Alle ausgewählten Standorte · Monate 2025 vs. 2026"}
+            </small>
             <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
           </div>
         ))}
@@ -1145,7 +1147,7 @@ function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportP
   const currentYear = todayReference.getFullYear();
   const previousYear = currentYear - 1;
   const monthCount = todayReference.getMonth() + 1;
-  const context = rowsStandorte.length === 1 ? rowsStandorte[0].name : "Gruppe";
+  const context = rowsStandorte.length === 1 ? rowsStandorte[0].name : "Alle Standorte";
   return Array.from({ length: monthCount }, (_, index) => {
     const currentRows = rowsForMonth(importRows, rowsStandorte, currentYear, index);
     const previousRows = rowsForMonth(importRows, rowsStandorte, previousYear, index);

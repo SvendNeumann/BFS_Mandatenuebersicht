@@ -6049,6 +6049,118 @@ label,
   color: rgba(205, 226, 232, 0.82) !important;
 }
 
+@media (max-width: 720px) {
+  .chart-grid,
+  .management-chart-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .chart-grid > *,
+  .management-chart-grid > * {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+
+  .mini-chart,
+  .year-chart-panel {
+    min-height: 0 !important;
+    padding: 16px !important;
+  }
+
+  .mini-chart h2 {
+    max-width: calc(100% - 54px);
+    font-size: 22px !important;
+    line-height: 1.12 !important;
+  }
+
+  .period-note {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .year-comparison-chart {
+    gap: 10px !important;
+  }
+
+  .year-chart-head {
+    display: grid !important;
+    gap: 8px !important;
+  }
+
+  .year-legend {
+    gap: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .year-active-value {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 8px 10px !important;
+  }
+
+  .year-active-value strong {
+    font-size: 17px !important;
+  }
+
+  .year-bars {
+    min-height: 138px !important;
+    height: auto !important;
+    gap: 8px !important;
+    padding: 8px 2px 0 !important;
+    background-size: 100% 34px !important;
+  }
+
+  .year-month {
+    grid-template-rows: 108px auto !important;
+    flex: 0 0 42% !important;
+    gap: 6px !important;
+  }
+
+  .year-pair {
+    gap: 3px !important;
+  }
+
+  .year-pair button > span {
+    max-width: 118px !important;
+    padding: 3px 6px !important;
+    font-size: 9px !important;
+  }
+
+  .year-pair button > span b {
+    max-width: 106px !important;
+    font-size: 8px !important;
+  }
+
+  .year-month small {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  .interactive-chart {
+    min-height: 210px !important;
+    padding-top: 62px !important;
+  }
+
+  .bars {
+    height: 118px !important;
+    margin-top: 16px !important;
+  }
+
+  .axis span {
+    font-size: 10px !important;
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,

@@ -1834,10 +1834,11 @@ function CaseWorkflowBoard({ cases: rows }: { cases: BfsCase[] }) {
 function PriorityCard({ label, value, hint, tone, info, period }: { label: string; value: string; hint: string; tone: string; info?: string; period?: string }) {
   const displayHint = normalizeProductCopy(hint);
   const periodText = period ? periodLabelFromHint(period) : periodLabelFromHint(displayHint);
+  const infoText = normalizeProductCopy(info ?? metricExplanation(label, value, displayHint, periodText));
 
   return (
     <article className={`priority-card ${tone}`}>
-      <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, displayHint))} />
+      <MetricInfo title={label} text={infoText} />
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{displayHint}</small>
@@ -2872,11 +2873,11 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
       ? [
           ["Umsatz eingereicht", money.format(defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.submitted],
           ["Gesamtkosten BFS", money.format(defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : "kein Datenstand", defaultInfo.fees],
-          ["Offene BFS-Klärfälle", "0", "kein Datenstand"],
-          ["Laufend ohne Ausfallschutz", money.format(defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand"]
+          ["Offene BFS-Klärfälle", "0", "kein Datenstand", defaultInfo.openCases],
+          ["Laufend ohne Ausfallschutz", money.format(defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.noProtection]
         ] satisfies KpiCardTuple[]
       : [
-          ["Anzahl Standorte", `${standorte.filter((entry) => isStandortLive(entry, todayReference)).length} + ${standorte.filter((entry) => !isStandortLive(entry, todayReference)).length}`, "aktive und geplante Standorte"],
+          ["Anzahl Standorte", `${standorte.filter((entry) => isStandortLive(entry, todayReference)).length} + ${standorte.filter((entry) => !isStandortLive(entry, todayReference)).length}`, "aktive und geplante Standorte", defaultInfo.locations],
           ["Umsatz eingereicht", money.format(defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.submitted],
           ["Auszahlungsbetrag", money.format(defaultMetrics.payout), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.payout],
           ["Gesamtkosten BFS", money.format(defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : "kein Datenstand", defaultInfo.fees]
@@ -2886,7 +2887,7 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
     <section className="kpi-grid">
       {cards.map(([label, value, hint, info]) => (
         <article className="kpi-card" key={label}>
-          <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint)))} />
+          <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(hint)))} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{normalizeProductCopy(hint)}</small>
@@ -2922,7 +2923,10 @@ function buildKpiDerivationInfo(metrics: BfsMetrics, periodLabel: string) {
       `Storno-/Rückgabe-Umsatzverlust zusätzlich: ${money.format(stornoLoss)}. Gesamter erkannter Abfluss aus Storno/Rückgabe, Zusatzkosten und Steuer: ${money.format(totalOutflow)}.`
     ].join(" "),
     feeNet: `Herleitung: Netto-BFS-Gebühren ohne Steuer im Zeitraum ${periodLabel}: ${money.format(metrics.feeNet)}. Weitere Zusatzkosten ohne Steuer, insbesondere EWMA/Meldeamtabfragen, betragen ${money.format(metrics.ewmaNet)}. Storno-/Rückgabe-Umsatzverlust separat: ${money.format(stornoLoss)}.`,
-    tax: `Herleitung: Steueranteil auf BFS-Gebühren und Zusatzkosten im Zeitraum ${periodLabel}. BFS-MwSt: ${money.format(metrics.feeVat)}, EWMA-/Zusatzkosten-MwSt: ${money.format(metrics.ewmaVat)}, zusammen ${money.format(taxTotal)}. Steuer wird getrennt von Netto-Zusatzkosten und Stornos betrachtet.`
+    tax: `Herleitung: Steueranteil auf BFS-Gebühren und Zusatzkosten im Zeitraum ${periodLabel}. BFS-MwSt: ${money.format(metrics.feeVat)}, EWMA-/Zusatzkosten-MwSt: ${money.format(metrics.ewmaVat)}, zusammen ${money.format(taxTotal)}. Steuer wird getrennt von Netto-Zusatzkosten und Stornos betrachtet.`,
+    noProtection: `Datenquelle: Forderungslisten und Kontoauszug-Bewegungen aus dem Import. Berechnung: Summe aller Positionen, die ohne Ausfallschutz markiert sind oder als Rückgabe ohne Ausfallschutz erkannt wurden. Zeitraum: ${periodLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}.`,
+    openCases: `Datenquelle: aktuell erkannte Klärfälle aus Import- und Bearbeitungsstatus. Berechnung: gezählt werden offene, nicht erledigte Fälle im aktuellen Standortfilter. Zeitraum: aktueller Datenstand. Aktueller Wert: 0.`,
+    locations: `Datenquelle: Standortstammdaten der App. Berechnung: zuerst aktive Standorte bis heute, danach geplante Standorte mit künftigem Vertragsstart. Zeitraum: aktueller Datenstand.`
   };
 }
 
@@ -3021,51 +3025,124 @@ function MetricInfo({ title, text }: { title: string; text: string }) {
   );
 }
 
-function metricExplanation(label: string, value: string, hint: string) {
+function metricExplanation(label: string, value: string, hint: string, period = "Zeitraum: aktueller Datenstand") {
   const normalized = label.toLowerCase();
+  const base = `Datenquelle: aktueller BFS-Import, Standortstammdaten und interne Bearbeitungsstände der App. Zeitraum/Filter: ${period}; ${hint}. Aktueller Wert: ${value}.`;
+  if (normalized.includes("höchstes volumen")) {
+    return `Herleitung: Verglichen wird der eingereichte Umsatz aller im aktuellen Standort- und Zeitraumfilter enthaltenen Standorte. Angezeigt wird der Standort mit der höchsten Summe. ${base}`;
+  }
+  if (normalized.includes("höchste gebührenquote")) {
+    return `Herleitung: Gebührenquote je Standort = Gesamtkosten BFS geteilt durch eingereichten Umsatz. Angezeigt wird der Standort mit der höchsten Quote. ${base}`;
+  }
+  if (normalized.includes("auffälligster standort")) {
+    return `Herleitung: Der Standort wird nach offenen Klärfällen, Rückbelastungen, Ohne-Ausfallschutz-Risiko und Volumen priorisiert. Die Kennzahl ist ein Steuerungshinweis, keine zusätzliche Buchung. ${base}`;
+  }
+  if (normalized.includes("standorte ohne werte")) {
+    return `Herleitung: Gezählt werden Standorte, die im gewählten Zeitraum aktiv oder geplant sind, für die aber keine Importzeilen im Datenstand liegen. ${base}`;
+  }
+  if (normalized.includes("dateien im lauf")) {
+    return `Herleitung: Anzahl der PDF-Dateien, die im aktuellen Upload verarbeitet wurden oder gerade verarbeitet werden. Duplikate können verarbeitet, aber nicht neu gespeichert werden. ${base}`;
+  }
+  if (normalized.includes("importfähig")) {
+    return `Herleitung: Gezählt werden Importzeilen ohne harte Parsing- oder Mapping-Hinweise. Diese Dateien können fachlich grundsätzlich übernommen werden. ${base}`;
+  }
+  if (normalized.includes("zu prüfen")) {
+    return `Herleitung: Anzahl der Importzeilen mit Hinweisen zu Mapping, Mandantennummer, Summenabweichung oder Parsing. Diese Zeilen bleiben sichtbar, damit sie vor Freigabe geprüft werden können. ${base}`;
+  }
+  if (normalized.includes("unterordner")) {
+    return `Herleitung: Anzahl der beim Ordnerupload rekursiv erkannten Unterordner. Diese Zahl dient nur der Upload-Kontrolle, nicht der fachlichen Auswertung. ${base}`;
+  }
+  if (normalized.includes("grund-klassen")) {
+    return `Herleitung: Anzahl unterschiedlicher erkannter Bewegungs- oder Rückgabegründe aus den Kontoauszug-Zeilen. Die Gruppierung basiert auf der bestehenden Parser-Klassifikation. ${base}`;
+  }
+  if (normalized.includes("historisch offen")) {
+    return `Herleitung: Bewegungen ohne sicheren Match auf eine Forderung oder spätere Einreichung im vorhandenen Datenstand. Häufig fehlt dafür eine ältere Abrechnung im Import. ${base}`;
+  }
+  if (normalized.includes("sofort prüfen")) {
+    return `Herleitung: Offene Klärfälle mit einem Alter über 30 Tagen. Alter wird aus dem erkannten Bewegungsdatum berechnet; Fälle ohne erledigten Status bleiben enthalten. ${base}`;
+  }
+  if (normalized.includes("diese woche")) {
+    return `Herleitung: Offene Klärfälle mit einem Alter zwischen 8 und 30 Tagen. Diese Kategorie priorisiert laufende Fälle unterhalb der Eskalationsschwelle. ${base}`;
+  }
+  if (normalized.includes("wiedervorlage")) {
+    return `Herleitung: Fälle mit Status Wiedervorlage oder hinterlegtem Fälligkeitsdatum. Sie bleiben offen, bis sie erledigt oder bezahlt markiert werden. ${base}`;
+  }
+  if (normalized.includes("nachbearbeitet")) {
+    return `Herleitung: Fälle, zu denen eine spätere Neueinreichung, eine erkannte Zahlung oder eine manuelle Maßnahme vorliegt. Diese Zahl ist eine Bearbeitungskennzahl. ${base}`;
+  }
+  if (normalized.includes("bezahlt") || normalized.includes("erledigt")) {
+    return `Herleitung: Als erledigt zählen automatisch erkannte Zahlungen/Neueinreichungen sowie manuell als bezahlt markierte Klärfälle. Bearbeitete Fälle werden importübergreifend ausgeblendet. ${base}`;
+  }
+  if (normalized.includes("neueinreichungen")) {
+    return `Herleitung: Gezählt werden Fälle, bei denen nach einer Storno-, Rückgabe- oder Rückbelastungsbewegung derselbe Patient später erneut in einer Forderungsliste erscheint. ${base}`;
+  }
+  if (normalized.includes("betroffene patienten")) {
+    return `Herleitung: Eindeutige Patientennamen innerhalb der erkannten Neueinreichungs- oder Risikoliste. Mehrere Einreichungen desselben Patienten zählen hier nur einmal. ${base}`;
+  }
+  if (normalized.includes("ursprungsbetrag")) {
+    return `Herleitung: Summe der ursprünglichen Storno-, Rückgabe- oder Rückbelastungsbeträge, für die später ein möglicher Gegenlauf erkannt wurde. ${base}`;
+  }
+  if (normalized.includes("neue summe")) {
+    return `Herleitung: Summe der später erkannten Forderungen nach einer Storno-/Rückgabehistorie. Die neue Summe kann höher sein als der ursprüngliche Abzug; für Erledigungsquoten wird höchstens der ursprüngliche Abzug angerechnet. ${base}`;
+  }
+  if (normalized.includes("wiederholer")) {
+    return `Herleitung: Eindeutige Patienten, die mehrfach ohne Ausfallschutz eingereicht wurden. Zusätzlich werden Storno-/Rückgabeereignisse berücksichtigt, um kritische Wiederholer höher zu priorisieren. ${base}`;
+  }
+  if (normalized.includes("maßnahme nötig")) {
+    return `Herleitung: Teilmenge der Wiederholer ohne Ausfallschutz mit kritischer Häufung, hohem Risikobetrag oder negativer Bewegung. Diese Fälle sollten vom Standort aktiv geprüft werden. ${base}`;
+  }
+  if (normalized.includes("risikosumme")) {
+    return `Herleitung: Summe der ohne Ausfallschutz eingereichten Beträge bei wiederholt auffälligen Patienten. Diese Summe ist ein Risikohinweis, kein automatisch offener Klärfall. ${base}`;
+  }
+  if (normalized.includes("letzte sichtung")) {
+    return `Herleitung: Neueste Abrechnung oder Bewegung innerhalb der aktuell gefilterten Risikoliste. Sie zeigt, wie aktuell der jüngste Treffer ist. ${base}`;
+  }
+  if (normalized.includes("reportfälle")) {
+    return `Herleitung: Offene, nicht automatisch erledigte Fälle, die im Report-Center für den Standortbericht berücksichtigt werden. ${base}`;
+  }
   if (normalized.includes("eingereicht") || normalized.includes("forderungen")) {
-    return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. ${base}`;
   }
   if (normalized.includes("mwst")) {
-    return `Herleitung: Separat erkannte Mehrwertsteuer auf BFS-Gebühren aus den Abrechnungen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Separat erkannte Mehrwertsteuer auf BFS-Gebühren aus den Abrechnungen. ${base}`;
   }
   if (normalized.includes("gesamtkosten")) {
-    return `Herleitung: BFS-Gebühr netto plus erkannte MwSt. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: BFS-Gebühr netto plus erkannte MwSt. ${base}`;
   }
   if (normalized.includes("abzugsquote")) {
-    return `Herleitung: Rückläufer- plus Storno-/Rückgabebeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Rückläufer- plus Storno-/Rückgabebeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. ${base}`;
   }
   if (normalized.includes("nicht reingeholt") || normalized.includes("offene abzugsquote")) {
-    return `Herleitung: Noch nicht durch spätere Neueinreichungen oder manuelle Zahlung erledigter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Noch nicht durch spätere Neueinreichungen oder manuelle Zahlung erledigter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. ${base}`;
   }
   if (normalized.includes("stornoquote")) {
-    return `Herleitung: Stornobeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Stornobeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. ${base}`;
   }
   if (normalized.includes("matchingquote") || normalized.includes("erledigungsquote abzug")) {
-    return `Herleitung: Auf den ursprünglichen Storno-/Rückgabe-Abzug angerechnete Neueinreichungen und manuell bezahlte Fälle geteilt durch die gesamte Abzugssumme. Neue Einreichungen werden höchstens bis zur Höhe des ursprünglichen Abzugs angerechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Auf den ursprünglichen Storno-/Rückgabe-Abzug angerechnete Neueinreichungen und manuell bezahlte Fälle geteilt durch die gesamte Abzugssumme. Neue Einreichungen werden höchstens bis zur Höhe des ursprünglichen Abzugs angerechnet. ${base}`;
   }
   if (normalized.includes("erledigungsquote") || normalized.includes("wieder erledigt") || normalized.includes("noch nicht erledigt") || normalized.includes("abzug erledigt") || normalized.includes("offener abzug")) {
-    return `Herleitung: Als erledigt zählen spätere Neueinreichungen sowie Klärfälle, die manuell als bezahlt markiert wurden. Angerechnet wird maximal der ursprüngliche Storno-/Rückgabe-Abzug, auch wenn die spätere Neueinreichung höher ist. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Als erledigt zählen spätere Neueinreichungen sowie Klärfälle, die manuell als bezahlt markiert wurden. Angerechnet wird maximal der ursprüngliche Storno-/Rückgabe-Abzug, auch wenn die spätere Neueinreichung höher ist. ${base}`;
   }
   if (normalized.includes("gebühr")) {
-    return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. ${base}`;
   }
   if (normalized.includes("rückläufer") || normalized.includes("rückgaben")) {
-    return `Herleitung: Gezählt werden Kontoauszug-Bewegungen mit Rückgabe, Rückbelastung oder vergleichbarer BFS-Bemerkung. Der Betrag kommt aus der jeweiligen Bewegungszeile. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Gezählt werden Kontoauszug-Bewegungen mit Rückgabe, Rückbelastung oder vergleichbarer BFS-Bemerkung. Der Betrag kommt aus der jeweiligen Bewegungszeile. ${base}`;
   }
   if (normalized.includes("storno")) {
-    return `Herleitung: Gezählt werden Kontoauszug-Zeilen vom Typ Storno Liquidation. Der Originalgrund aus der BFS-Bemerkung bleibt zusätzlich gespeichert. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Gezählt werden Kontoauszug-Zeilen vom Typ Storno Liquidation. Der Originalgrund aus der BFS-Bemerkung bleibt zusätzlich gespeichert. ${base}`;
   }
   if (normalized.includes("ausfallschutz") || normalized.includes("schutz")) {
-    return `Herleitung: Summe der Forderungen, die in der Forderungsliste ohne Ausfallschutz markiert sind oder als spätere Rückgabe ohne Ausfallschutz auftauchen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Summe der Forderungen, die in der Forderungsliste ohne Ausfallschutz markiert sind oder als spätere Rückgabe ohne Ausfallschutz auftauchen. ${base}`;
   }
   if (normalized.includes("offen") || normalized.includes("klä") || normalized.includes("prüfen")) {
-    return `Herleitung: Alle noch nicht erledigten Klärfälle im aktuellen Standort- oder Gruppenfilter. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Alle noch nicht erledigten Klärfälle im aktuellen Standort- oder Gruppenfilter. ${base}`;
   }
   if (normalized.includes("import")) {
-    return `Herleitung: Status aus dem aktuellen Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+    return `Herleitung: Status aus dem aktuellen Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. ${base}`;
   }
-  return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. ${base}`;
 }
 
 function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; onRowsChange: (rows: ImportPreviewRow[]) => void }) {

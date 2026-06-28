@@ -1397,7 +1397,8 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
     .filter((fall) => manualResolutionKeys.has(caseResolutionKey(fall)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const recoveryDeductionAmount = recoveryMetrics.returnAmount + recoveryMetrics.cancellationAmount;
-  const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.originalAmount, 0);
+  const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const matchedNewSubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0);
   const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
   const recoveredAmount = Math.min(recoveryDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
   const stillOpenAmount = Math.max(recoveryDeductionAmount - recoveredAmount, 0);
@@ -1556,12 +1557,12 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
           </div>
         </div>
         <div className="priority-grid compact-priority">
-          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(recoveryDeductionAmount)} hint="Rückläufer plus Stornierungen" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
+          <PriorityCard label="Abzug Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
           <PriorityCard label="Abzugsquote" value={`${recoveryDeductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
-          <PriorityCard label="Wieder erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Neueinreichungen · ${manuallyPaidCases.length} manuell bezahlt`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
-          <PriorityCard label="Noch nicht erledigt" value={money.format(stillOpenAmount)} hint="Abzug minus Neueinreichung/manuelle Zahlung" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
-          <PriorityCard label="Nicht reingeholt Quote" value={`${notRecoveredRate.toFixed(2)} %`} hint="noch offen vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
-          <PriorityCard label="Erledigungsquote" value={`${recoveryRate.toFixed(0)} %`} hint="Neueinreichung plus manuelle Zahlung" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Abzug erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Matches · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
+          <PriorityCard label="Offener Abzug" value={money.format(stillOpenAmount)} hint="ursprünglicher Abzug minus angerechnete Erledigung" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Offene Abzugsquote" value={`${notRecoveredRate.toFixed(2)} %`} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
+          <PriorityCard label="Erledigungsquote Abzug" value={`${recoveryRate.toFixed(0)} %`} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
           <table>
@@ -1573,7 +1574,8 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
                 <th>Grund</th>
                 <th>Abzug</th>
                 <th>Erledigt durch</th>
-                <th>Erledigter Betrag</th>
+                <th>Neue Einreichung brutto</th>
+                <th>Auf Abzug angerechnet</th>
               </tr>
             </thead>
             <tbody>
@@ -1586,6 +1588,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
                   <td>{money.format(candidate.originalAmount)}</td>
                   <td>Neueinreichung {candidate.newDate}</td>
                   <td>{money.format(candidate.newAmount)}</td>
+                  <td>{money.format(Math.min(candidate.originalAmount, candidate.newAmount))}</td>
                 </tr>
               ))}
               {manuallyPaidCases.slice(0, Math.max(0, 50 - recoveredByResubmission.length)).map((fall) => {
@@ -1599,12 +1602,13 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
                     <td>{money.format(fall.amount)}</td>
                     <td>manuell bezahlt markiert</td>
                     <td>{money.format(fall.amount)}</td>
+                    <td>{money.format(fall.amount)}</td>
                   </tr>
                 );
               })}
               {!recoveredByResubmission.length && !manuallyPaidCases.length && (
                 <tr>
-                  <td colSpan={7}>Noch keine späteren Neueinreichungen oder manuell bezahlten Fälle im Zeitraum gefunden.</td>
+                  <td colSpan={8}>Noch keine späteren Neueinreichungen oder manuell bezahlten Fälle im Zeitraum gefunden.</td>
                 </tr>
               )}
             </tbody>
@@ -2982,17 +2986,17 @@ function metricExplanation(label: string, value: string, hint: string) {
   if (normalized.includes("abzugsquote")) {
     return `Herleitung: Rückläufer- plus Storno-/Rückgabebeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
-  if (normalized.includes("nicht reingeholt")) {
+  if (normalized.includes("nicht reingeholt") || normalized.includes("offene abzugsquote")) {
     return `Herleitung: Noch nicht durch spätere Neueinreichungen oder manuelle Zahlung erledigter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("stornoquote")) {
     return `Herleitung: Stornobeträge geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
-  if (normalized.includes("matchingquote")) {
-    return `Herleitung: Wieder eingereichte beziehungsweise gematchte Beträge geteilt durch die gesamte Storno-/Rückgabe-Abzugssumme. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  if (normalized.includes("matchingquote") || normalized.includes("erledigungsquote abzug")) {
+    return `Herleitung: Auf den ursprünglichen Storno-/Rückgabe-Abzug angerechnete Neueinreichungen und manuell bezahlte Fälle geteilt durch die gesamte Abzugssumme. Neue Einreichungen werden höchstens bis zur Höhe des ursprünglichen Abzugs angerechnet. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
-  if (normalized.includes("erledigungsquote") || normalized.includes("wieder erledigt") || normalized.includes("noch nicht erledigt")) {
-    return `Herleitung: Als erledigt zählen spätere Neueinreichungen sowie Klärfälle, die manuell als bezahlt markiert wurden. Die Quote bezieht diese erledigten Beträge auf die gesamte Storno-/Rückgabe-Abzugssumme. Aktueller Wert: ${value}. Bezug: ${hint}.`;
+  if (normalized.includes("erledigungsquote") || normalized.includes("wieder erledigt") || normalized.includes("noch nicht erledigt") || normalized.includes("abzug erledigt") || normalized.includes("offener abzug")) {
+    return `Herleitung: Als erledigt zählen spätere Neueinreichungen sowie Klärfälle, die manuell als bezahlt markiert wurden. Angerechnet wird maximal der ursprüngliche Storno-/Rückgabe-Abzug, auch wenn die spätere Neueinreichung höher ist. Aktueller Wert: ${value}. Bezug: ${hint}.`;
   }
   if (normalized.includes("gebühr")) {
     return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. Aktueller Wert: ${value}. Bezug: ${hint}.`;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { caseResolutionKeyFromParts } from "../lib/case-resolution.ts";
+import { buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
 import type { ImportPreviewRow } from "../lib/types.ts";
 
@@ -37,6 +37,42 @@ test("Klärfall-Schlüssel bleibt stabil trotz Schreibweise, Umlaut und Cent-Run
   });
 
   assert.equal(first, sameCase);
+});
+
+test("Bezahlte Klärfälle bleiben bei Re-Upload trotz Grundtext-Abweichung erledigt", () => {
+  const paidResolution = {
+    caseKey: caseResolutionKeyFromParts({
+      standortId: "kirchberg",
+      patientName: "Rühling, Jens",
+      invoiceNo: "24-0210",
+      bfsNo: "5-18504-59527147",
+      amount: 22,
+      reason: "neue Rechnung"
+    }),
+    standortId: "kirchberg",
+    patientName: "Rühling, Jens",
+    invoiceNo: "24 0210",
+    bfsNo: "5 18504 59527147",
+    amount: 22,
+    reason: "lt. iPortal-Rechnungsliste",
+    status: "paid_manual"
+  };
+  const stillOpenResolution = {
+    ...paidResolution,
+    caseKey: "other",
+    status: "open_manual"
+  };
+  const paidKeys = buildPaidResolutionKeySet([paidResolution, stillOpenResolution]);
+  const uploadedAgain = {
+    standortId: "kirchberg",
+    patientName: "Rühling, Jens",
+    invoiceNo: "24-0210",
+    bfsNo: "5-18504-59527147",
+    amount: 22,
+    reason: "Storno aus Abrechnung"
+  };
+
+  assert.equal(caseResolutionKeys(uploadedAgain).some((key) => paidKeys.has(key)), true);
 });
 
 function importRow(file: string, mandantNo: string, statementNo: string, fileHash: string): ImportPreviewRow {

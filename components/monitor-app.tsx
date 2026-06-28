@@ -45,7 +45,7 @@ import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
-import { caseResolutionKeyFromParts } from "@/lib/case-resolution";
+import { buildManualResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -206,6 +206,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
+  const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
   const [caseResolutionMode, setCaseResolutionMode] = useState<ManualCaseResolution["status"]>("paid_manual");
   const [caseResolveError, setCaseResolveError] = useState("");
@@ -241,8 +242,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     : selectedStandort.name;
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
-    const resolvedKeys = new Set(manualCaseResolutions.filter((resolution) => resolution.status === "paid_manual").map((resolution) => resolution.caseKey));
-    return casesFromImportRows(privacyScopedImportRows).filter((fall) => !resolvedKeys.has(caseResolutionKey(fall)));
+    const resolvedKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+    return casesFromImportRows(privacyScopedImportRows).filter((fall) => !caseResolutionKeys(fall).some((key) => resolvedKeys.has(key)));
   }, [privacyScopedImportRows, manualCaseResolutions]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
@@ -295,7 +296,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       .then((resolutions) => {
         if (active) setManualCaseResolutions(resolutions);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setCaseResolutionsLoaded(true);
+      });
     return () => {
       active = false;
       window.clearTimeout(fallbackTimer);
@@ -336,7 +340,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
   }
 
-  if (!appDataLoaded) {
+  if (!appDataLoaded || !caseResolutionsLoaded) {
     return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände und Standortfilter werden synchronisiert." />;
   }
 
@@ -543,6 +547,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             selectedStandortId={selectedStandortId}
             onSelect={selectStandortTab}
             importRows={privacyScopedImportRows}
+            manualCaseResolutions={manualCaseResolutions}
           />
         )}
 
@@ -552,12 +557,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} />
+                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
-            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
+            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
@@ -616,8 +621,22 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   );
 }
 
-function StandortTabs({ role, standorte: visibleStandorte, selectedStandortId, onSelect, importRows }: { role: AppRole; standorte: Standort[]; selectedStandortId: string; onSelect: (standortId: string) => void; importRows: ImportPreviewRow[] }) {
-  const openCasesByStandort = countOpenCasesByStandort(importRows);
+function StandortTabs({
+  role,
+  standorte: visibleStandorte,
+  selectedStandortId,
+  onSelect,
+  importRows,
+  manualCaseResolutions = []
+}: {
+  role: AppRole;
+  standorte: Standort[];
+  selectedStandortId: string;
+  onSelect: (standortId: string) => void;
+  importRows: ImportPreviewRow[];
+  manualCaseResolutions?: ManualCaseResolution[];
+}) {
+  const openCasesByStandort = countOpenCasesByStandort(importRows, manualCaseResolutions);
   return (
     <section className="standort-tabs" aria-label="Standorte">
       {role === "super_admin" && (
@@ -783,7 +802,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   return titles[view] ?? "Orisus BFS Monitor";
 }
 
-function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
+function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const [groupFocus, setGroupFocus] = useState("gesamt");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
@@ -795,7 +814,8 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
-  const dashboardCases = useMemo(() => casesFromImportRows(importRows), [importRows]);
+  const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [importRows, paidCaseKeys]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId)), [dashboardCases, filteredStandortIds]);
   const focusedCases = useMemo(() => openCases.filter((fall) => {
     if (groupFocus === "rueckbelastungen") return fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung");
@@ -1598,7 +1618,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
   ];
 }
 
-function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
+function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
@@ -1606,7 +1626,8 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
-  const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt")), [scopedRows]);
+  const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [scopedRows, paidCaseKeys]);
   const orderedLocations = useMemo(() => orderedStandorte(), []);
   const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, scopedRows, openCases), [orderedLocations, selectedPeriod, scopedRows, openCases]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
@@ -2332,9 +2353,9 @@ function ClaimsFlowView({
     }), [allScopedLocationRows, rowsStandorte, recoveryPeriod]);
   const recoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(recoveryMatches), [recoveryMatches]);
   const recoveredByResubmissionKeys = useMemo(() => new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [recoveredByResubmission]);
-  const manualResolutionKeys = useMemo(() => new Set(manualCaseResolutions.map((resolution) => resolution.caseKey)), [manualCaseResolutions]);
+  const manualResolutionKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const manuallyPaidCases = useMemo(() => casesFromImportRows(recoveryScopedImportRows)
-    .filter((fall) => manualResolutionKeys.has(caseResolutionKey(fall)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const recoveryDeductionAmount = recoveryMetrics.returnAmount + recoveryMetrics.cancellationAmount;
   const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
@@ -2356,8 +2377,8 @@ function ClaimsFlowView({
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
   const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
-  const reviewedCaseKeys = useMemo(() => new Set(manualCaseResolutions.map((resolution) => resolution.caseKey)), [manualCaseResolutions]);
-  const openCashflowReviewCases = useMemo(() => rows.filter((fall) => !fall.status.includes("erledigt") && !reviewedCaseKeys.has(caseResolutionKey(fall))), [rows, reviewedCaseKeys]);
+  const reviewedCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const openCashflowReviewCases = useMemo(() => rows.filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => reviewedCaseKeys.has(key))), [rows, reviewedCaseKeys]);
 
   return (
     <div className="content-stack">
@@ -3092,10 +3113,11 @@ function caseResolutionKey(fall: BfsCase) {
   return fall.resolutionKey ?? caseResolutionKeyFromParts(fall);
 }
 
-function countOpenCasesByStandort(rows: ImportPreviewRow[]) {
+function countOpenCasesByStandort(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const counts = new Map<string, number>();
+  const paidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   casesFromImportRows(rows)
-    .filter((fall) => !fall.status.includes("erledigt"))
+    .filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => paidKeys.has(key)))
     .forEach((fall) => counts.set(fall.standortId, (counts.get(fall.standortId) ?? 0) + 1));
   return counts;
 }
@@ -3524,7 +3546,7 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
 function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
-  const manualKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
+  const manualKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   const stornoRows = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort || (standortId && standort.id !== standortId)) return [];
@@ -3536,7 +3558,7 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
         const reasonText = movement.reason?.toLowerCase() ?? "";
         const reason = movement.reason ?? reasonLabel(movement.reasonCategory);
-        const manualKey = caseResolutionKeyFromParts({
+        const manualKeysForMovement = caseResolutionKeys({
           standortId: standort.id,
           patientName,
           invoiceNo: movement.invoiceNo ?? "-",
@@ -3546,7 +3568,7 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         });
         const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         const doneByResubmission = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const doneByManualResolution = manualKeys.has(manualKey);
+        const doneByManualResolution = manualKeysForMovement.some((manualKey) => manualKeys.has(manualKey));
         const done = doneByPayment || doneByResubmission || doneByManualResolution;
         return {
           id: `${row.fileHash ?? row.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,

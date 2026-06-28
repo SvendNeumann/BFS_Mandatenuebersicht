@@ -177,6 +177,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
+  const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
+  const [caseResolveError, setCaseResolveError] = useState("");
+  const [caseResolveSaving, setCaseResolveSaving] = useState(false);
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const hasUploadData = liveImportRows.length > 0;
@@ -300,11 +303,30 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       .catch(() => undefined);
   }
 
-  async function resolveCaseAsPaid(fall: BfsCase) {
-    const confirmed = window.confirm(`${fall.patientName} als bezahlt markieren?\n\nDer Fall wird danach importübergreifend ausgeblendet, wenn derselbe Vorgang wieder auftaucht.`);
-    if (!confirmed) return;
-    const resolution = await saveManualCaseResolution(fall);
-    setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
+  function resolveCaseAsPaid(fall: BfsCase) {
+    setCaseResolveError("");
+    setCaseToResolve(fall);
+  }
+
+  async function confirmResolveCaseAsPaid() {
+    if (!caseToResolve) return;
+    setCaseResolveSaving(true);
+    setCaseResolveError("");
+    try {
+      const resolution = await saveManualCaseResolution(caseToResolve);
+      setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
+      setCaseToResolve(null);
+    } catch (error) {
+      setCaseResolveError(error instanceof Error ? error.message : "Der Klärfall konnte nicht als bezahlt markiert werden.");
+    } finally {
+      setCaseResolveSaving(false);
+    }
+  }
+
+  function closeResolveCaseDialog() {
+    if (caseResolveSaving) return;
+    setCaseToResolve(null);
+    setCaseResolveError("");
   }
 
   function hardReload() {
@@ -443,6 +465,34 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </>
         )}
       </section>
+      {caseToResolve && (
+        <div className="case-resolution-overlay" role="dialog" aria-modal="true" aria-label="Klärfall als bezahlt markieren">
+          <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={closeResolveCaseDialog} />
+          <section className="confirmation-dialog case-resolution-dialog">
+            <div className="case-resolution-icon"><CheckCircle2 size={24} /></div>
+            <h2>Fall als bezahlt markieren?</h2>
+            <p>
+              {caseToResolve.patientName} wird als manuell geprüft und bezahlt gespeichert.
+              Der Vorgang wird danach aus den offenen Klärfällen ausgeblendet, auch wenn derselbe Importfall erneut auftaucht.
+            </p>
+            <dl>
+              <div><dt>Standort</dt><dd>{caseToResolve.locationName}</dd></div>
+              <div><dt>Betrag</dt><dd>{money.format(caseToResolve.amount)}</dd></div>
+              <div><dt>Grund</dt><dd>{caseToResolve.reason}</dd></div>
+              <div><dt>Re.-Nr.</dt><dd>{caseToResolve.invoiceNo}</dd></div>
+            </dl>
+            {caseResolveError && <p className="case-resolution-error">{caseResolveError}</p>}
+            <div className="case-resolution-actions">
+              <button className="secondary-button" disabled={caseResolveSaving} onClick={closeResolveCaseDialog}>
+                Abbrechen
+              </button>
+              <button className="primary-button" disabled={caseResolveSaving} onClick={() => void confirmResolveCaseAsPaid()}>
+                <CheckCircle2 size={16} /> {caseResolveSaving ? "Speichern..." : "Als bezahlt markieren"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

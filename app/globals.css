@@ -1454,6 +1454,15 @@ td small {
   padding: 20px;
 }
 
+.case-resolution-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
 .confirmation-backdrop {
   position: absolute;
   inset: 0;
@@ -1517,6 +1526,36 @@ td small {
   color: #111827;
   font-size: 20px;
   font-weight: 900;
+}
+
+.case-resolution-dialog {
+  width: min(560px, 100%);
+}
+
+.case-resolution-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(48, 213, 200, 0.34);
+  background: rgba(48, 213, 200, 0.16);
+  color: var(--primary);
+}
+
+.case-resolution-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.case-resolution-error {
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca !important;
+  padding: 10px 12px;
 }
 
 .file-upload-button.secondary-upload {

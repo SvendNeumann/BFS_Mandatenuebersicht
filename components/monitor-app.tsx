@@ -5915,12 +5915,6 @@ function importRowNeedsReview(row: ImportPreviewRow) {
 
 function printCustomTabPdf(element: HTMLElement | null, title: string, locationExport?: { targetStandortName: string; locationNames: string[] }) {
   if (!element) return;
-  const rect = element.getBoundingClientRect();
-  const width = Math.max(element.scrollWidth, rect.width, 1);
-  const height = Math.max(element.scrollHeight, rect.height, 1);
-  const pageWidth = 1084;
-  const pageHeight = 756;
-  const scale = Math.min(1, pageWidth / width, pageHeight / height);
   const stylesheetLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
     .map((link) => `<link rel="stylesheet" href="${escapeHtml(link.href)}" />`)
     .join("");
@@ -5932,35 +5926,43 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
   <title>${escapeHtml(title)} - Orisus BFS Monitor</title>
   ${stylesheetLinks}
   <style>
-    @page { size: A4 landscape; margin: 5mm; }
+    @page { size: A4 landscape; margin: 8mm; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; width: 287mm; height: 200mm; overflow: hidden; background: #061c2a !important; }
+    html, body { margin: 0; min-height: 100%; overflow: visible; background: #061c2a !important; }
     body { color: #f8ffff; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .print-page { width: ${width}px; transform: scale(${scale}); transform-origin: top left; }
+    .print-page { width: 100%; max-width: none; margin: 0; }
+    .content-stack { width: 100% !important; max-width: none !important; gap: 12px !important; }
+    .panel, .priority-card, .custom-chart-card, .custom-benchmark-panel { box-shadow: none !important; }
     .custom-export-action, .metric-info-button { display: none !important; }
-    .custom-kpi-view { gap: 10px !important; }
-    .custom-kpi-period { grid-template-columns: 190px 190px 1fr !important; padding: 8px !important; }
-    .custom-kpi-slider { gap: 8px !important; }
-    .priority-card { min-height: 132px !important; padding: 10px !important; gap: 4px !important; }
-    .priority-card strong { font-size: 24px !important; }
-    .answer-sparkline svg { height: 22px !important; }
-    .custom-chart-grid { gap: 8px !important; }
-    .custom-chart-card { padding: 9px !important; break-inside: avoid; page-break-inside: avoid; }
-    .custom-combo-chart { height: 150px !important; padding: 7px !important; }
-    .custom-chart-head { margin-bottom: 6px !important; }
-    .custom-chart-head h2 { font-size: 15px !important; }
-    .custom-donut-wrap { min-height: 150px !important; gap: 10px !important; }
-    .custom-donut { width: 140px !important; }
-    .custom-donut strong { font-size: 18px !important; }
-    .custom-benchmark-panel { padding: 9px !important; break-inside: avoid; page-break-inside: avoid; }
-    .panel-heading { margin-bottom: 6px !important; }
-    .panel-heading h2 { font-size: 15px !important; }
-    .panel-heading p { font-size: 10px !important; }
+    .custom-kpi-period { grid-template-columns: minmax(160px, 0.18fr) minmax(160px, 0.18fr) minmax(0, 1fr) !important; padding: 12px !important; break-inside: avoid; page-break-inside: avoid; }
+    .custom-kpi-slider { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 10px !important; overflow: visible !important; padding: 0 !important; }
+    .priority-card { min-height: 154px !important; padding: 12px !important; gap: 6px !important; break-inside: avoid; page-break-inside: avoid; }
+    .priority-card strong { font-size: 28px !important; line-height: 1.05 !important; }
+    .priority-card small, .priority-card span { font-size: 11px !important; line-height: 1.25 !important; }
+    .answer-sparkline svg { height: 28px !important; }
+    .custom-chart-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; break-before: auto; }
+    .custom-chart-card { padding: 12px !important; break-inside: avoid; page-break-inside: avoid; min-height: 285px !important; }
+    .custom-combo-chart { height: 198px !important; padding: 9px !important; }
+    .custom-chart-head { margin-bottom: 8px !important; }
+    .custom-chart-head h2 { font-size: 17px !important; }
+    .custom-chart-legend { font-size: 10px !important; }
+    .custom-donut-wrap { min-height: 205px !important; gap: 12px !important; grid-template-columns: minmax(150px, 0.48fr) minmax(150px, 1fr) !important; }
+    .custom-donut { width: 170px !important; }
+    .custom-donut strong { font-size: 22px !important; }
+    .custom-benchmark-panel { padding: 12px !important; break-before: page; }
+    .panel-heading { margin-bottom: 10px !important; }
+    .panel-heading h2 { font-size: 18px !important; }
+    .panel-heading p { font-size: 12px !important; }
     .table-wrap { overflow: visible !important; }
     .custom-benchmark-table { min-width: 0 !important; table-layout: fixed; }
-    th, td { padding: 4px !important; font-size: 9px !important; }
-    .status { padding: 2px 5px !important; font-size: 8px !important; }
-    .location-export-note { border: 1px solid rgba(121, 238, 231, 0.32); border-radius: 8px; background: rgba(48, 213, 200, 0.08); padding: 7px 9px; margin-bottom: 8px; font-size: 10px; color: #dffcff; }
+    th, td { padding: 6px !important; font-size: 10px !important; line-height: 1.25 !important; }
+    .status { padding: 3px 6px !important; font-size: 9px !important; }
+    .location-export-note { border: 1px solid rgba(121, 238, 231, 0.32); border-radius: 8px; background: rgba(48, 213, 200, 0.08); padding: 9px 10px; margin-bottom: 10px; font-size: 11px; color: #dffcff; break-inside: avoid; page-break-inside: avoid; }
+    @media print {
+      html, body { width: auto; height: auto; }
+      .print-page { width: 100%; }
+      a { color: inherit; text-decoration: none; }
+    }
   </style>
 </head>
 <body>

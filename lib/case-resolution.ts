@@ -51,6 +51,14 @@ export function buildPaidResolutionKeySet<T extends CaseResolutionEntry>(resolut
   return buildManualResolutionKeySet(resolutions.filter((resolution) => resolution.status === "paid_manual"));
 }
 
+export function buildClosedResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {
+  return buildManualResolutionKeySet(resolutions.filter((resolution) => resolution.status === "paid_manual" || resolution.status === "cancelled_manual"));
+}
+
+export function buildCancelledResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {
+  return buildManualResolutionKeySet(resolutions.filter((resolution) => resolution.status === "cancelled_manual"));
+}
+
 export function buildManualResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {
   const keys = new Set<string>();
   resolutions.forEach((resolution) => {

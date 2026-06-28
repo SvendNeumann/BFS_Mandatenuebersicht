@@ -13,7 +13,7 @@ type ManualCaseResolution = {
   bfsNo: string;
   amount: number;
   reason: string;
-  status: "paid_manual" | "open_manual";
+  status: "paid_manual" | "open_manual" | "cancelled_manual";
   comment: string;
   resolvedAt: string;
   resolvedBy: string;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const existingResolution = await findLatestResolutionForCase(supabase, resolution.caseKey);
     if (existingResolution?.status === resolution.status) {
-      if (resolution.status === "paid_manual") await markMatchingDatabaseCasesResolved(supabase, existingResolution, auth.profile.id);
+      if (resolution.status === "paid_manual" || resolution.status === "cancelled_manual") await markMatchingDatabaseCasesResolved(supabase, existingResolution, auth.profile.id);
       return NextResponse.json({ resolution: existingResolution, duplicate: true }, { headers: noStoreHeaders() });
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     if (auditError) return NextResponse.json({ error: auditError.message }, { status: 500 });
 
-    if (resolution.status === "paid_manual") await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
+    if (resolution.status === "paid_manual" || resolution.status === "cancelled_manual") await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
     return NextResponse.json({ resolution }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -123,8 +123,8 @@ function normalizeResolution(value: any, userId: string): ManualCaseResolution {
     bfsNo: stringValue(value.bfsNo) || "-",
     amount: Number(value.amount) || 0,
     reason: stringValue(value.reason) || "Manuell erledigt",
-    status: value.status === "open_manual" ? "open_manual" : "paid_manual",
-    comment: stringValue(value.comment) || (value.status === "open_manual" ? "Manuell geprüft: weiterhin offen." : "Manuell geprüft: bezahlt."),
+    status: normalizeResolutionStatus(value.status),
+    comment: stringValue(value.comment) || defaultResolutionComment(value.status),
     resolvedAt: new Date().toISOString(),
     resolvedBy: userId
   };
@@ -133,7 +133,7 @@ function normalizeResolution(value: any, userId: string): ManualCaseResolution {
 function parseResolution(value: unknown): ManualCaseResolution | null {
   if (!value || typeof value !== "object") return null;
   const entry = value as Partial<ManualCaseResolution>;
-  if (!entry.caseKey || !entry.standortId || !["paid_manual", "open_manual"].includes(entry.status ?? "")) return null;
+  if (!entry.caseKey || !entry.standortId || !["paid_manual", "open_manual", "cancelled_manual"].includes(entry.status ?? "")) return null;
   return entry as ManualCaseResolution;
 }
 
@@ -145,7 +145,7 @@ async function markMatchingDatabaseCasesResolved(supabase: any, resolution: Manu
       status: "erledigt_manuell",
       resolved_at: resolution.resolvedAt,
       resolved_by: userId,
-      resolution_reason: "direktzahlung_patient",
+      resolution_reason: resolution.status === "cancelled_manual" ? "rechnung_wird_nicht_weiterverfolgt" : "direktzahlung_patient",
       resolution_comment: resolution.comment
     })
     .eq("standort_id", databaseStandortId)
@@ -157,6 +157,18 @@ async function markMatchingDatabaseCasesResolved(supabase: any, resolution: Manu
   if (resolution.bfsNo && resolution.bfsNo !== "-") query = query.eq("bfs_nr", resolution.bfsNo);
   const { error } = await query;
   if (error) throw error;
+}
+
+function normalizeResolutionStatus(value: unknown): ManualCaseResolution["status"] {
+  if (value === "open_manual") return "open_manual";
+  if (value === "cancelled_manual") return "cancelled_manual";
+  return "paid_manual";
+}
+
+function defaultResolutionComment(status: unknown) {
+  if (status === "open_manual") return "Manuell geprüft: weiterhin offen.";
+  if (status === "cancelled_manual") return "Manuell geprüft: endgültig storniert.";
+  return "Manuell geprüft: bezahlt.";
 }
 
 async function readableStandortIds(supabase: any, userId: string, role: string) {

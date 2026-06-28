@@ -44,7 +44,7 @@ import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
-import { buildManualResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
+import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildManualResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -173,7 +173,7 @@ type ManualCaseResolution = {
   bfsNo: string;
   amount: number;
   reason: string;
-  status: "paid_manual" | "open_manual";
+  status: "paid_manual" | "open_manual" | "cancelled_manual";
   comment: string;
   resolvedAt: string;
   resolvedBy: string;
@@ -237,7 +237,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     : selectedStandort.name;
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
-    const resolvedKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+    const resolvedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
     return casesFromImportRows(privacyScopedImportRows).filter((fall) => !caseResolutionKeys(fall).some((key) => resolvedKeys.has(key)));
   }, [privacyScopedImportRows, manualCaseResolutions]);
   const visibleCases = useMemo(
@@ -419,6 +419,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setCaseToResolve(fall);
   }
 
+  function cancelCaseFinally(fall: BfsCase) {
+    setCaseResolutionMode("cancelled_manual");
+    setCaseResolveError("");
+    setCaseToResolve(fall);
+  }
+
   async function confirmResolveCaseAsPaid() {
     if (!caseToResolve) return;
     setCaseResolveSaving(true);
@@ -428,7 +434,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
       setCaseToResolve(null);
     } catch (error) {
-      setCaseResolveError(error instanceof Error ? error.message : "Der Klärfall konnte nicht als bezahlt markiert werden.");
+      setCaseResolveError(error instanceof Error ? error.message : "Der Klärfall konnte nicht gespeichert werden.");
     } finally {
       setCaseResolveSaving(false);
     }
@@ -563,11 +569,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
-            {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
+            {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
-            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} />}
+            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />)}
@@ -584,15 +590,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </button>
       )}
       {caseToResolve && (
-        <div className="case-resolution-overlay" role="dialog" aria-modal="true" aria-label="Klärfall als bezahlt markieren">
+        <div className="case-resolution-overlay" role="dialog" aria-modal="true" aria-label="Klärfall bearbeiten">
           <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={closeResolveCaseDialog} />
           <section className="confirmation-dialog case-resolution-dialog">
             <div className="case-resolution-icon"><CheckCircle2 size={24} /></div>
-            <h2>{caseResolutionMode === "paid_manual" ? "Fall als bezahlt markieren?" : "Fall weiterhin offen lassen?"}</h2>
+            <h2>{caseResolutionDialogTitle(caseResolutionMode)}</h2>
             <p>
-              {caseResolutionMode === "paid_manual"
-                ? `${caseToResolve.patientName} wird als manuell geprüft und bezahlt gespeichert. Der Vorgang wird danach aus den offenen Klärfällen ausgeblendet, auch wenn derselbe Importfall erneut auftaucht.`
-                : `${caseToResolve.patientName} wird als geprüft, aber weiterhin offen gespeichert. Der Vorgang verschwindet aus dieser Geldfluss-Prüfliste und bleibt in den Klärfällen für die operative Bearbeitung sichtbar.`}
+              {caseResolutionDialogText(caseResolutionMode, caseToResolve.patientName)}
             </p>
             <dl>
               <div><dt>Standort</dt><dd>{caseToResolve.locationName}</dd></div>
@@ -606,7 +610,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 Abbrechen
               </button>
               <button className="primary-button" disabled={caseResolveSaving} onClick={() => void confirmResolveCaseAsPaid()}>
-                <CheckCircle2 size={16} /> {caseResolveSaving ? "Speichern..." : caseResolutionMode === "paid_manual" ? "Als bezahlt markieren" : "Weiterhin offen speichern"}
+                <CheckCircle2 size={16} /> {caseResolveSaving ? "Speichern..." : caseResolutionDialogAction(caseResolutionMode)}
               </button>
             </div>
           </section>
@@ -796,6 +800,28 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   return titles[view] ?? "Orisus BFS Monitor";
 }
 
+function caseResolutionDialogTitle(status: ManualCaseResolution["status"]) {
+  if (status === "cancelled_manual") return "Fall endgültig stornieren?";
+  if (status === "open_manual") return "Fall weiterhin offen lassen?";
+  return "Fall als bezahlt markieren?";
+}
+
+function caseResolutionDialogText(status: ManualCaseResolution["status"], patientName: string) {
+  if (status === "cancelled_manual") {
+    return `${patientName} wird als endgültig storniert gespeichert. Der Vorgang wird danach aus den offenen Klärfällen und aus der Neueinreichungsprüfung ausgeblendet, bleibt aber als Storno in den Storno-Auswertungen enthalten.`;
+  }
+  if (status === "open_manual") {
+    return `${patientName} wird als geprüft, aber weiterhin offen gespeichert. Der Vorgang verschwindet aus dieser Geldfluss-Prüfliste und bleibt in den Klärfällen für die operative Bearbeitung sichtbar.`;
+  }
+  return `${patientName} wird als manuell geprüft und bezahlt gespeichert. Der Vorgang wird danach aus den offenen Klärfällen ausgeblendet und als erledigt/bezahlt in Recovery-Auswertungen berücksichtigt.`;
+}
+
+function caseResolutionDialogAction(status: ManualCaseResolution["status"]) {
+  if (status === "cancelled_manual") return "Endgültig stornieren";
+  if (status === "open_manual") return "Weiterhin offen speichern";
+  return "Als bezahlt markieren";
+}
+
 function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { standort?: Standort; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const exportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
@@ -853,7 +879,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
-  const openStornoAmount = stornoReview.rows.filter((row) => !row.done).reduce((sum, row) => sum + row.amount, 0);
+  const openStornoAmount = stornoReview.rows.filter((row) => row.open).reduce((sum, row) => sum + row.amount, 0);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
   const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
   const printLocationExport = () => {
@@ -952,7 +978,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           period={selectedPeriod.label}
           tone={stornoReview.open ? "amber" : stornoReview.total ? "green" : "blue"}
           trend={customKpiTrend("cancellations", kpiTrendPoints, true)}
-          info={`Grundmenge: alle erkannten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Davon sind ${integerNumber.format(stornoReview.done)} gewandelt und ${integerNumber.format(stornoReview.open)} noch offen. Storno-Betrag gesamt: ${money.format(stornoReview.amount)}.`}
+          info={`Grundmenge: alle erkannten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Davon sind ${integerNumber.format(stornoReview.done)} gewandelt, ${integerNumber.format(stornoReview.finalCancelled)} endgültig storniert und ${integerNumber.format(stornoReview.open)} noch offen. Storno-Betrag gesamt: ${money.format(stornoReview.amount)}.`}
         />
         <PriorityCard
           label="Davon gewandelt"
@@ -1528,8 +1554,8 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     : standorte.filter((standort) => standort.id === chartStandortFilter), [chartStandortFilter]);
   const chartScopeLabel = chartStandorte.length === 1 ? chartStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
-  const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [importRows, paidCaseKeys]);
+  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [importRows, closedCaseKeys]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => {
     if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
@@ -2453,8 +2479,8 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
-  const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [scopedRows, paidCaseKeys]);
+  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [scopedRows, closedCaseKeys]);
   const orderedLocations = useMemo(() => orderedStandorte(), []);
   const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, scopedRows, openCases), [orderedLocations, selectedPeriod, scopedRows, openCases]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
@@ -2518,7 +2544,8 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
   const chargebackShare = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
   const unresolvedAmount = unresolved.reduce((sum, item) => sum + item.amount, 0);
   const openStornoInfo = [
-    `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als erledigt.`,
+    `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als zurückgeholt/gewandelt.`,
+    `${stornoReview.finalCancelled} Storno-Zeilen sind endgültig storniert und deshalb nicht mehr operativ offen.`,
     "Als erledigt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert.",
     `Noch offene Storno-Zeilen aus dieser Storno-Grundmenge: ${stornoReview.open}.`
   ].join(" ");
@@ -2635,7 +2662,7 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
           <tbody>
             {review.rows.slice(0, 120).map((row) => (
               <tr key={row.id}>
-                <td><StatusBadge status={row.done ? "erledigt" : "offen"} /></td>
+                <td><StatusBadge status={row.done ? "erledigt" : row.finalCancelled ? "final storniert" : "offen"} /></td>
                 <td>{row.locationName}</td>
                 <td><strong>{row.patientName}</strong><span>{row.reason}</span></td>
                 <td>{row.date}</td>
@@ -3047,7 +3074,7 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
     fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
     stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
     stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder gewandelt. Dazu zählen Zahlung nach Storno, erkannte spätere Neueinreichung oder manuelle Markierung als bezahlt. Quote: ${formatPercent(stornoReview.doneRate)}.`,
-    stornoOpen: `Herleitung: Noch offene Storno-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen nicht gewandelt und bleiben operativ prüfbar.`,
+    stornoOpen: `Herleitung: Noch offene Storno-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen weder zurückgeholt noch endgültig storniert und bleiben operativ prüfbar.`,
     oldest: `Herleitung: Höchstes Alter unter allen offenen, nicht erledigten Klärfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
@@ -3159,13 +3186,13 @@ function stornoAnswerSparkline(stornoRows: ReturnType<typeof stornoReviewFromImp
   const points = monthKeys.map((month) => {
     const monthRows = stornoRows.filter((row) => monthKeyFromGermanDate(row.date) === month);
     if (metric === "done") return monthRows.filter((row) => row.done).length;
-    if (metric === "open") return monthRows.filter((row) => !row.done).length;
+    if (metric === "open") return monthRows.filter((row) => row.open).length;
     return monthRows.length;
   });
   const total = metric === "done"
     ? stornoRows.filter((row) => row.done).length
     : metric === "open"
-      ? stornoRows.filter((row) => !row.done).length
+      ? stornoRows.filter((row) => row.open).length
       : stornoRows.length;
   return {
     points: points.length ? points : [0, total, total],
@@ -3334,7 +3361,7 @@ function ClaimsFlowView({
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
   const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
-  const reviewedCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const reviewedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const openCashflowReviewCases = useMemo(() => rows.filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => reviewedCaseKeys.has(key))), [rows, reviewedCaseKeys]);
 
   return (
@@ -3869,7 +3896,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
   stornoRows.forEach((row) => {
     const month = monthKeyFromGermanDate(row.date);
     if (!month) return;
-    if (!row.done) ensurePoint(month).openStornoAmount += row.amount;
+    if (row.open) ensurePoint(month).openStornoAmount += row.amount;
     if (!row.done) return;
     ensurePoint(month).recoveredStornos += 1;
   });
@@ -4152,9 +4179,9 @@ function caseResolutionKey(fall: BfsCase) {
 
 function countOpenCasesByStandort(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const counts = new Map<string, number>();
-  const paidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
   casesFromImportRows(rows)
-    .filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => paidKeys.has(key)))
+    .filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedKeys.has(key)))
     .forEach((fall) => counts.set(fall.standortId, (counts.get(fall.standortId) ?? 0) + 1));
   return counts;
 }
@@ -4397,8 +4424,12 @@ function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {
 }
 
 function resubmissionResolutionKey(candidate: ResubmissionCandidate) {
+  return resubmissionResolutionKeys(candidate)[0];
+}
+
+function resubmissionResolutionKeys(candidate: ResubmissionCandidate) {
   const standort = standorte.find((entry) => entry.name === candidate.locationName);
-  return caseResolutionKeyFromParts({
+  return caseResolutionKeys({
     standortId: standort?.id ?? candidate.locationName,
     patientName: candidate.patientName,
     invoiceNo: candidate.invoiceNo,
@@ -4587,7 +4618,8 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
 function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
-  const manualKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  const manualCancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
   const stornoRows = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort || (standortId && standort.id !== standortId)) return [];
@@ -4609,8 +4641,10 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         });
         const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         const doneByResubmission = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const doneByManualResolution = manualKeysForMovement.some((manualKey) => manualKeys.has(manualKey));
+        const doneByManualResolution = manualKeysForMovement.some((manualKey) => manualPaidKeys.has(manualKey));
+        const finalCancelled = manualKeysForMovement.some((manualKey) => manualCancelledKeys.has(manualKey));
         const done = doneByPayment || doneByResubmission || doneByManualResolution;
+        const open = !done && !finalCancelled;
         return {
           id: `${row.fileHash ?? row.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
           standortId: standort.id,
@@ -4622,7 +4656,9 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
           amount: Math.abs(movement.amount ?? 0),
           reason,
           done,
-          doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : doneByManualResolution ? "Manuell als bezahlt markiert" : "offen"
+          finalCancelled,
+          open,
+          doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : doneByManualResolution ? "Manuell als bezahlt markiert" : finalCancelled ? "Endgültig storniert" : "offen"
         };
       });
   });
@@ -4631,28 +4667,32 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
     .map((standort) => {
       const locationRows = stornoRows.filter((row) => row.standortId === standort.id);
       const done = locationRows.filter((row) => row.done).length;
+      const finalCancelled = locationRows.filter((row) => row.finalCancelled).length;
       const total = locationRows.length;
       return {
         standort,
         total,
         done,
-        open: total - done,
+        finalCancelled,
+        open: locationRows.filter((row) => row.open).length,
         amount: locationRows.reduce((sum, row) => sum + row.amount, 0),
         doneRate: total ? (done / total) * 100 : 0,
         rows: locationRows
       };
     });
   const done = stornoRows.filter((row) => row.done).length;
+  const finalCancelled = stornoRows.filter((row) => row.finalCancelled).length;
   const total = stornoRows.length;
 
   return {
     total,
     done,
-    open: total - done,
+    finalCancelled,
+    open: stornoRows.filter((row) => row.open).length,
     amount: stornoRows.reduce((sum, row) => sum + row.amount, 0),
     doneRate: total ? (done / total) * 100 : 0,
     byLocation,
-    rows: stornoRows.sort((a, b) => Number(a.done) - Number(b.done) || b.amount - a.amount)
+    rows: stornoRows.sort((a, b) => Number(b.open) - Number(a.open) || Number(a.finalCancelled) - Number(b.finalCancelled) || b.amount - a.amount)
   };
 }
 
@@ -6153,7 +6193,11 @@ async function saveManualCaseResolution(fall: BfsCase, status: ManualCaseResolut
       amount: fall.amount,
       reason: fall.reason,
       status,
-      comment: status === "paid_manual" ? "Manuell geprüft: bezahlt." : "Manuell geprüft: weiterhin offen."
+      comment: status === "paid_manual"
+        ? "Manuell geprüft: bezahlt."
+        : status === "cancelled_manual"
+          ? "Manuell geprüft: endgültig storniert."
+          : "Manuell geprüft: weiterhin offen."
     })
   });
   const payload = await response.json().catch(() => null) as { resolution?: ManualCaseResolution; error?: string } | null;
@@ -6278,6 +6322,7 @@ function CasesView({
   description,
   onResolvePaid,
   onKeepOpen,
+  onCancelFinal,
   enableFilters = false,
   tableScrollable = false
 }: {
@@ -6287,6 +6332,7 @@ function CasesView({
   description?: string;
   onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
   onKeepOpen?: (fall: BfsCase) => void | Promise<void>;
+  onCancelFinal?: (fall: BfsCase) => void | Promise<void>;
   enableFilters?: boolean;
   tableScrollable?: boolean;
 }) {
@@ -6389,7 +6435,7 @@ function CasesView({
               <th>Status</th>
               <th>Wiedervorlage</th>
               <th>AbrechnungsNr</th>
-              {(onResolvePaid || onKeepOpen) && <th>Aktion</th>}
+              {(onResolvePaid || onKeepOpen || onCancelFinal) && <th>Aktion</th>}
             </tr>
           </thead>
           <tbody>
@@ -6405,12 +6451,17 @@ function CasesView({
                 <td><StatusBadge status={fall.status} /></td>
                 <td>{fall.dueDate}</td>
                 <td>{formatCaseAbrechnungReference(fall.lastComment)}</td>
-                {(onResolvePaid || onKeepOpen) && (
+                {(onResolvePaid || onKeepOpen || onCancelFinal) && (
                   <td>
                     <div className="case-action-stack">
                       {onResolvePaid && (
                         <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
                           <CheckCircle2 size={15} /> Erledigt / bezahlt
+                        </button>
+                      )}
+                      {onCancelFinal && (
+                        <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
+                          <X size={15} /> Endgültig storniert
                         </button>
                       )}
                       {onKeepOpen && (
@@ -6425,7 +6476,7 @@ function CasesView({
             ))}
             {!filteredRows.length && (
               <tr>
-                <td colSpan={onResolvePaid || onKeepOpen ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
+                <td colSpan={onResolvePaid || onKeepOpen || onCancelFinal ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>
@@ -7048,8 +7099,8 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
   const successRate = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0;
   const stornoDoneInfo = [
     `Grundmenge: ${stornoReview.total} erkannte Storno-Zeilen.`,
-    `Davon sind ${stornoReview.done} erledigt und ${stornoReview.open} offen.`,
-    "Als erledigt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert."
+    `Davon sind ${stornoReview.done} zurückgeholt/gewandelt, ${stornoReview.finalCancelled} endgültig storniert und ${stornoReview.open} offen.`,
+    "Als zurückgeholt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuell als bezahlt markiert. Endgültig storniert ist geklärt, zählt aber nicht als zurückgeholt."
   ].join(" ");
 
   return (
@@ -7178,9 +7229,11 @@ function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFro
     .map(([label, value]) => ({ label, value }));
 }
 
-function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCase[]; importRows?: ImportPreviewRow[]; standort?: Standort }) {
+function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolutions = [] }: { cases: BfsCase[]; importRows?: ImportPreviewRow[]; standort?: Standort; manualCaseResolutions?: ManualCaseResolution[] }) {
   const scopedImportRows = useMemo(() => standort ? importRows.filter((row) => row.location === standort.name) : importRows, [standort, importRows]);
-  const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows), [scopedImportRows]);
+  const cancelledKeys = useMemo(() => buildCancelledResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
+    .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => cancelledKeys.has(key))), [cancelledKeys, scopedImportRows]);
   const scopeLabel = standort?.name ?? "Gruppe";
   if (candidates.length) {
     return (

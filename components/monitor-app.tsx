@@ -3346,7 +3346,8 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
         file: row.file,
         locationName: row.location,
         standortId: standort?.id ?? row.location,
-        statementDate: row.date
+        statementDate: row.date,
+        statementNo: row.statementNo
       }));
   });
 
@@ -3360,11 +3361,13 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
         patientName: claim.patientName,
         locationName: movement.locationName,
         originalDate: movement.statementDate,
+        originalStatementNo: movement.statementNo ?? "-",
         invoiceNo: movement.invoiceNo ?? "-",
         bfsNo: movement.bfsNo ?? "-",
         reason: movement.reason ?? reasonLabel(movement.reasonCategory),
         originalAmount: Math.abs(movement.amount ?? 0),
         newDate: claim.statementDate,
+        newStatementNo: claim.statementNo ?? "-",
         newInvoiceNo: claim.invoiceNo,
         newBfsNo: claim.bfsNo,
         newAmount: claim.amount,
@@ -3568,6 +3571,7 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
           bfsNo: movement.bfsNo ?? "-",
           reason: movement.reason ?? reasonLabel(movement.reasonCategory),
           amount: Math.abs(movement.amount ?? 0),
+          statementNo: row.statementNo,
           file: row.file
         }];
       });
@@ -4689,10 +4693,10 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
           <table>
             <thead>
               <tr>
-                <th>Datei</th>
+                <th>AbrechnungsNr.</th>
                 <th>Standort</th>
                 <th>Mandant-Nr.</th>
-                <th>Abrechnung</th>
+                <th>Datum</th>
                 <th>Forderungen</th>
                 <th>Summe</th>
                 <th>Kontoauszug</th>
@@ -4706,16 +4710,15 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                 return (
                   <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
                     <td>
-                      <strong>{row.file}</strong>
+                      <strong>{formatStatementReference(row.statementNo, row.file)}</strong>
                       <span>{row.practice}</span>
-                      {row.fileHash && <small>{formatBytes(row.fileSizeBytes ?? 0)} · Hash {row.fileHash.slice(0, 10)}</small>}
                       {!!row.parsedClaims?.length && (
                         <small>{row.parsedClaims.length} Patientenpositionen · {rowNoProtectionCount(row)} ohne Ausfallschutz</small>
                       )}
                     </td>
                     <td>{row.location}</td>
                     <td>{row.mandantNo}</td>
-                    <td>{row.statementNo} / {row.date}</td>
+                    <td>{row.date}</td>
                     <td>{row.claimsHeader} / {row.claimsExtracted}</td>
                     <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
                     <td>
@@ -4855,10 +4858,10 @@ function printImportIssueReport(rows: ImportPreviewRow[]) {
   <table>
     <thead>
       <tr>
-        <th class="file">Datei</th>
+        <th class="file">AbrechnungsNr.</th>
         <th>Standort</th>
         <th>Mandant</th>
-        <th>Abrechnung</th>
+        <th>Datum</th>
         <th>Forderungen</th>
         <th>Summe</th>
         <th>Kontoauszug</th>
@@ -4888,10 +4891,10 @@ function importReportRowHtml(row: ImportPreviewRow) {
   const notes = row.parseNotes?.length ? row.parseNotes : ["Keine Hinweise hinterlegt."];
   const statusClass = row.status === "OK" ? "status ok" : "status";
   return `<tr>
-    <td class="file"><strong>${escapeHtml(row.file)}</strong><br /><span class="small">${escapeHtml(row.practice)}${row.fileSizeBytes ? ` · ${escapeHtml(formatBytes(row.fileSizeBytes))}` : ""}${row.fileHash ? ` · Hash ${escapeHtml(row.fileHash.slice(0, 10))}` : ""}</span></td>
+    <td class="file"><strong>${escapeHtml(formatStatementReference(row.statementNo, row.file))}</strong><br /><span class="small">${escapeHtml(row.practice)}</span></td>
     <td>${escapeHtml(row.location)}</td>
     <td>${escapeHtml(row.mandantNo)}</td>
-    <td>${escapeHtml(row.statementNo)} / ${escapeHtml(row.date)}</td>
+    <td>${escapeHtml(row.date)}</td>
     <td>${row.claimsHeader} / ${row.claimsExtracted}</td>
     <td>${escapeHtml(money.format(row.sumHeader))}<br />${escapeHtml(money.format(row.sumExtracted))}</td>
     <td>${row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}</td>
@@ -5462,6 +5465,11 @@ function formatCaseAbrechnungReference(value: string) {
   return "-";
 }
 
+function formatStatementReference(statementNo?: string, fileName?: string) {
+  if (statementNo && statementNo !== "-") return statementNo;
+  return fileName ? formatCaseAbrechnungReference(fileName) : "-";
+}
+
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
   const importedRisks = useMemo(() => riskClaimsFromImportRows(importRows), [importRows]);
   const rows = useMemo(() => importedRisks
@@ -5994,7 +6002,7 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
                   <th>BFS-Nr.</th>
                   <th>Grund</th>
                   <th>Betrag</th>
-                  <th>Quelle</th>
+                  <th>AbrechnungsNr.</th>
                 </tr>
               </thead>
               <tbody>
@@ -6007,7 +6015,7 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
                     <td>{item.bfsNo}</td>
                     <td>{item.reason}</td>
                     <td>{money.format(item.amount)}</td>
-                    <td>{item.file}</td>
+                    <td>{formatStatementReference(item.statementNo, item.file)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -6071,7 +6079,7 @@ function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCas
                   <th>Grund</th>
                   <th>Neue Einreichung</th>
                   <th>Beträge</th>
-                  <th>Quelle</th>
+                  <th>AbrechnungsNr.</th>
                 </tr>
               </thead>
               <tbody>
@@ -6082,7 +6090,7 @@ function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCas
                     <td>{candidate.reason}</td>
                     <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
                     <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
-                    <td>{candidate.newFile}</td>
+                    <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
                   </tr>
                 ))}
               </tbody>

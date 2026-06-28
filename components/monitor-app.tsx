@@ -4597,8 +4597,6 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
       <section className="priority-grid">
         <PriorityCard label="Reportfälle" value={String(reportCases.length)} hint="offen und reportfähig" tone={reportCases.length ? "amber" : "green"} />
         <PriorityCard label="Offener Betrag" value={money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))} hint={standort.name} tone="blue" />
-        <PriorityCard label="Exportformate" value="2" hint="PDF/Druck und CSV" tone="green" />
-        <PriorityCard label="Empfängerlogik" value={role === "super_admin" ? "Standort" : "eigener"} hint="rollenbasiert gefiltert" tone="blue" />
       </section>
       <section className="panel report-toolbar">
         <div>

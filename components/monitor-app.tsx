@@ -2580,16 +2580,33 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
 function QualityView({ standort, cases: rows, importRows = [], onNavigate, manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [reviewPeriodId, setReviewPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [reviewStandortFilterId, setReviewStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const reviewPeriod = useMemo(() => periodOptions.find((period) => period.id === reviewPeriodId) ?? selectedPeriod, [periodOptions, reviewPeriodId, selectedPeriod]);
   const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const reviewStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (reviewStandortFilterId === "alle") return relevantStandorte;
+    return relevantStandorte.filter((entry) => entry.id === reviewStandortFilterId);
+  }, [relevantStandorte, reviewStandortFilterId, standort]);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, relevantStandorte, selectedPeriod]);
+  const reviewRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = reviewStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, reviewPeriod, rowStandort) : false;
+  }), [importRows, reviewPeriod, reviewStandorte]);
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => summary.rows ? metricsFromImportSummary(summary) : zeroMetrics(), [summary]);
   const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, scopedRows), [standort?.id, scopedRows]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const filteredStornoReview = useMemo(() => stornoReviewFromImportRows(
+    reviewRows,
+    reviewStandorte.length === 1 ? reviewStandorte[0].id : undefined,
+    manualCaseResolutions
+  ), [manualCaseResolutions, reviewRows, reviewStandorte]);
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
   const chargebackShare = metrics.submitted ? (metrics.returnAmount / metrics.submitted) * 100 : 0;
   const stornoShare = metrics.submitted ? (metrics.cancellationAmount / metrics.submitted) * 100 : 0;
@@ -2623,34 +2640,48 @@ function QualityView({ standort, cases: rows, importRows = [], onNavigate, manua
         <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} offene Klärbewegungen`} period={selectedPeriod.label} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} />
       </section>
-      <section className="dashboard-grid">
-        <article className="panel command-panel">
-          <div>
-            <span className="eyebrow">Forderungsqualität</span>
-            <h2>Risiko und Klärfall sauber trennen</h2>
-            <p>Ohne Ausfallschutz ist ein Risikobestand. Offene Klärbewegungen sind die noch nicht erledigten negativen BFS-Bewegungen.</p>
-          </div>
-          <div className="quick-actions">
-            <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Klärfälle öffnen</button>
-            <button className="secondary-button" onClick={() => onNavigate("matches")}><RefreshCw size={16} /> Matching prüfen</button>
-          </div>
-        </article>
-        <article className="panel process-panel">
-          <h2>Prüflogik</h2>
-          <div className="stacked-checks">
-            <span>1. Ohne Ausfallschutz beobachten, nicht als To-do zählen</span>
-            <span>2. Offene Rückgabe/Storno-Bewegungen als Klärfall priorisieren</span>
-            <span>3. Storno-Erledigung und offene Klärbewegungen nicht addieren</span>
-          </div>
-        </article>
-      </section>
-      <StornoReviewSection review={stornoReview} />
-      <RiskView standortId={standort?.id} importRows={scopedRows} />
+      <StornoReviewSection
+        review={filteredStornoReview}
+        periodOptions={periodOptions}
+        selectedPeriodId={reviewPeriodId}
+        onPeriodChange={setReviewPeriodId}
+        selectedStandortId={standort ? standort.id : reviewStandortFilterId}
+        onStandortChange={setReviewStandortFilterId}
+        standorteOptions={relevantStandorte}
+        disableStandortFilter={Boolean(standort)}
+        scopeLabel={reviewStandorte.length === 1 ? reviewStandorte[0].name : "Alle Standorte"}
+        detail={reviewPeriod.detail}
+        periodLabel={reviewPeriod.label}
+      />
     </div>
   );
 }
 
-function StornoReviewSection({ review }: { review: ReturnType<typeof stornoReviewFromImportRows> }) {
+function StornoReviewSection({
+  review,
+  periodOptions,
+  selectedPeriodId,
+  onPeriodChange,
+  selectedStandortId,
+  onStandortChange,
+  standorteOptions,
+  disableStandortFilter = false,
+  scopeLabel,
+  detail,
+  periodLabel
+}: {
+  review: ReturnType<typeof stornoReviewFromImportRows>;
+  periodOptions?: PeriodOption[];
+  selectedPeriodId?: string;
+  onPeriodChange?: (value: string) => void;
+  selectedStandortId?: string;
+  onStandortChange?: (value: string) => void;
+  standorteOptions?: Standort[];
+  disableStandortFilter?: boolean;
+  scopeLabel?: string;
+  detail?: string;
+  periodLabel?: string;
+}) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -2660,10 +2691,35 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
           <p>Gezählt werden erkannte Storno-Zeilen. Als erledigt gelten Stornos mit Zahlung nach Storno, direkter Erledigung oder erkannter späterer Neueinreichung.</p>
         </div>
       </div>
-      <div className="priority-grid compact-priority">
-        <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} tone={review.total ? "amber" : "green"} />
-        <PriorityCard label="Davon erledigt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} Erledigungsquote`} tone={review.done ? "green" : "blue"} />
-        <PriorityCard label="Noch offen" value={String(review.open)} hint="ohne erkennbare Erledigung" tone={review.open ? "red" : "green"} />
+      {periodOptions && selectedPeriodId && onPeriodChange && selectedStandortId && onStandortChange && standorteOptions && (
+        <div className="period-filter deduction-analysis-filter">
+          <label className="select-label">
+            Zeitraum Quercheck
+            <select value={selectedPeriodId} onChange={(event) => onPeriodChange(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Standort Quercheck
+            <select value={selectedStandortId} onChange={(event) => onStandortChange(event.target.value)} disabled={disableStandortFilter}>
+              {!disableStandortFilter && <option value="alle">Alle Standorte</option>}
+              {standorteOptions.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{scopeLabel ?? "Alle Standorte"}</strong>
+            <span>{detail}</span>
+          </div>
+        </div>
+      )}
+      <div className="priority-grid compact-priority recovery-priority-grid storno-review-priority">
+        <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} period={periodLabel} tone={review.total ? "amber" : "green"} />
+        <PriorityCard label="Davon erledigt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} Erledigungsquote`} period={periodLabel} tone={review.done ? "green" : "blue"} />
+        <PriorityCard label="Noch offen" value={String(review.open)} hint="ohne erkennbare Erledigung" period={periodLabel} tone={review.open ? "red" : "green"} />
       </div>
       <div className="location-card-grid storno-review-grid">
         {review.byLocation.map((entry) => (
@@ -2683,41 +2739,6 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
             </div>
           </article>
         ))}
-      </div>
-      <div className="table-wrap compact-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Standort</th>
-              <th>Patient</th>
-              <th>Datum</th>
-              <th>Re.-Nr.</th>
-              <th>BFS-Nr.</th>
-              <th>Betrag</th>
-              <th>Erledigungsgrund</th>
-            </tr>
-          </thead>
-          <tbody>
-            {review.rows.slice(0, 120).map((row) => (
-              <tr key={row.id}>
-                <td><StatusBadge status={row.done ? "erledigt" : row.finalCancelled ? "final storniert" : "offen"} /></td>
-                <td>{row.locationName}</td>
-                <td><strong>{row.patientName}</strong><span>{row.reason}</span></td>
-                <td>{row.date}</td>
-                <td>{row.invoiceNo}</td>
-                <td>{row.bfsNo}</td>
-                <td>{money.format(row.amount)}</td>
-                <td>{row.doneReason}</td>
-              </tr>
-            ))}
-            {!review.rows.length && (
-              <tr>
-                <td colSpan={8}>Keine Stornierungen im aktuellen Datenstand erkannt.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </div>
     </section>
   );

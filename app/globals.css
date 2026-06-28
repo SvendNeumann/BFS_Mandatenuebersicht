@@ -1436,6 +1436,10 @@ input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.storno-review-priority {
+  margin-top: 16px;
+}
+
 .quality-priority-grid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }

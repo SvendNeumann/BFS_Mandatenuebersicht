@@ -6407,6 +6407,24 @@ label,
   .benchmark-panel-actions .secondary-button {
     width: 100% !important;
   }
+
+  .case-board {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    overflow: visible !important;
+  }
+
+  .case-board-column {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 16px !important;
+  }
+
+  .case-board-item,
+  .case-board .empty-state {
+    width: 100% !important;
+  }
 }
 
 @media print {

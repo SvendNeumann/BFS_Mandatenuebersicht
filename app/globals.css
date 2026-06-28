@@ -2943,6 +2943,9 @@ td small,
   border-color: rgba(178, 226, 229, 0.18);
   background: rgba(12, 34, 49, 0.7);
   backdrop-filter: blur(16px);
+  position: sticky;
+  top: 12px;
+  z-index: 18;
 }
 
 .standort-tabs button,
@@ -4028,6 +4031,8 @@ tbody tr:hover td {
 
   .standort-tabs {
     top: 86px;
+    position: sticky;
+    z-index: 18;
     flex-wrap: nowrap;
     overflow-x: auto;
     margin-left: 0;

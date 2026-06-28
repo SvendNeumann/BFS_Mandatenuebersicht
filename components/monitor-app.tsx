@@ -1718,6 +1718,28 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   );
 }
 
+function CaseColumnChart({ title, values, valueKind }: { title: string; values: { label: string; value: number; detailLabel?: string }[]; valueKind: "money" | "count" }) {
+  const maxValue = Math.max(...values.map((value) => value.value), 1);
+  const format = (value: number) => valueKind === "money" ? money.format(value) : integerNumber.format(value);
+  return (
+    <div className="case-column-chart" role="img" aria-label={title}>
+      <div className="case-column-plot">
+        {values.map((entry) => (
+          <div className="case-column-slot" key={entry.label}>
+            <strong>{format(entry.value)}</strong>
+            <div className="case-column-track">
+              <span style={{ height: `${Math.max(entry.value ? 12 : 2, (entry.value / maxValue) * 100)}%` }} />
+            </div>
+            <small>{entry.label}</small>
+            {entry.detailLabel && <em>{entry.detailLabel}</em>}
+          </div>
+        ))}
+        {!values.length && <p className="empty-state">Keine Werte für die aktuelle Auswahl.</p>}
+      </div>
+    </div>
+  );
+}
+
 function LocationRevenueBars({ title, values }: { title: string; values: { label: string; value: number; detailLabel?: string }[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chartValues = values.length ? values : [{ label: "Keine Daten", value: 0 }];
@@ -6493,14 +6515,15 @@ function CasesView({
   const [casePeriodId, setCasePeriodId] = useState(() => defaultPeriodId(periodOptions));
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
   const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);
-  const filteredRows = useMemo(() => enableFilters
-    ? rows.filter((fall) => {
+  const filteredRows = useMemo(() => {
+    if (compact && !enableFilters) return rows;
+    return rows.filter((fall) => {
       const rowStandort = standorte.find((entry) => entry.id === fall.standortId);
       const matchesStandort = caseStandortFilter === "alle" || fall.standortId === caseStandortFilter;
       const matchesPeriod = rowStandort ? shortDateInPeriod(fall.sourceDate, casePeriod, rowStandort) : true;
       return matchesStandort && matchesPeriod;
-    })
-    : rows, [enableFilters, rows, caseStandortFilter, casePeriod]);
+    });
+  }, [compact, enableFilters, rows, caseStandortFilter, casePeriod]);
   const totalAmount = useMemo(() => filteredRows.reduce((sum, fall) => sum + fall.amount, 0), [filteredRows]);
   const oldestAge = useMemo(() => filteredRows.reduce((max, fall) => Math.max(max, fall.ageDays), 0), [filteredRows]);
   const highestCase = useMemo(() => filteredRows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined), [filteredRows]);
@@ -6520,7 +6543,7 @@ function CasesView({
           <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
-      {enableFilters && (
+      {!compact && (
         <div className="period-filter case-table-filter">
           <label className="select-label">
             Standort
@@ -6561,19 +6584,15 @@ function CasesView({
       </div>
       <section className="chart-grid visual-first-grid">
         <div className="visual-panel mini-chart">
-          <h2>Fallalter nach Ampel</h2>
-          <InteractiveBars title="Fallalter nach Ampel" values={caseTrafficDistribution(filteredRows)} />
-        </div>
-        <div className="visual-panel mini-chart">
           <h2>Offener Betrag je Standort</h2>
-          <InteractiveBars title="Offener Betrag je Standort" values={caseAmountByLocation(filteredRows)} />
+          <CaseColumnChart title="Offener Betrag je Standort" values={caseAmountByLocation(filteredRows)} valueKind="money" />
         </div>
         <div className="visual-panel mini-chart">
           <h2>Fallgründe</h2>
-          <InteractiveBars title="Fallgründe" values={caseReasonDistribution(filteredRows)} />
+          <CaseColumnChart title="Fallgründe" values={caseReasonDistribution(filteredRows)} valueKind="money" />
         </div>
       </section>
-      <div className={`table-wrap${tableScrollable ? " case-table-scroll" : ""}`}>
+      <div className={`table-wrap${compact ? "" : " case-table-scroll"}`}>
         <table>
           <thead>
             <tr>
@@ -6727,19 +6746,6 @@ function printCasesReport(rows: BfsCase[], title: string) {
   reportWindow.document.close();
 }
 
-function caseTrafficDistribution(rows: BfsCase[]) {
-  const labels: Record<string, string> = {
-    green: "0-7 Tage",
-    yellow: "8-14 Tage",
-    orange: "15-30 Tage",
-    red: ">30 Tage"
-  };
-  return ["green", "yellow", "orange", "red"].map((traffic) => ({
-    label: labels[traffic],
-    value: rows.filter((fall) => fall.traffic === traffic).length
-  }));
-}
-
 function caseAmountByLocation(rows: BfsCase[]) {
   const grouped = new Map<string, number>();
   rows.forEach((fall) => grouped.set(fall.locationName, (grouped.get(fall.locationName) ?? 0) + fall.amount));
@@ -6750,15 +6756,16 @@ function caseAmountByLocation(rows: BfsCase[]) {
 }
 
 function caseReasonDistribution(rows: BfsCase[]) {
-  const grouped = new Map<string, number>();
+  const grouped = new Map<string, { amount: number; count: number }>();
   rows.forEach((fall) => {
     const label = caseReasonLabel(fall.reason);
-    grouped.set(label, (grouped.get(label) ?? 0) + 1);
+    const current = grouped.get(label) ?? { amount: 0, count: 0 };
+    grouped.set(label, { amount: current.amount + fall.amount, count: current.count + 1 });
   });
   return [...grouped.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].amount - a[1].amount || b[1].count - a[1].count)
     .slice(0, 8)
-    .map(([label, value]) => ({ label, value }));
+    .map(([label, value]) => ({ label, value: value.amount, detailLabel: `${integerNumber.format(value.count)} Fälle` }));
 }
 
 function caseReasonLabel(reason: string) {

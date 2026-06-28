@@ -3174,9 +3174,12 @@ function caseSparklineForPeriod(cases: BfsCase[], period: PeriodOption, metric: 
 }
 
 function stornoAnswerSparkline(stornoRows: ReturnType<typeof stornoReviewFromImportRows>["rows"], metric: "total" | "done" | "open"): AnswerSparklineTrend {
-  const monthKeys = [...new Set(stornoRows.map((row) => monthKeyFromGermanDate(row.date)).filter(Boolean))].sort();
+  const monthForRow = (row: ReturnType<typeof stornoReviewFromImportRows>["rows"][number]) => metric === "done"
+    ? monthKeyFromGermanDate(row.recoveryDate || row.date)
+    : monthKeyFromGermanDate(row.date);
+  const monthKeys = [...new Set(stornoRows.map((row) => monthForRow(row)).filter(Boolean))].sort();
   const points = monthKeys.map((month) => {
-    const monthRows = stornoRows.filter((row) => monthKeyFromGermanDate(row.date) === month);
+    const monthRows = stornoRows.filter((row) => monthForRow(row) === month);
     if (metric === "done") return monthRows.filter((row) => row.done).length;
     if (metric === "open") return monthRows.filter((row) => row.open).length;
     return monthRows.length;
@@ -3886,7 +3889,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
   });
 
   stornoRows.forEach((row) => {
-    const month = monthKeyFromGermanDate(row.date);
+    const month = monthKeyFromGermanDate(row.recoveryDate || row.date);
     if (!month) return;
     if (row.open) ensurePoint(month).openStornoAmount += row.amount;
     if (!row.done) return;
@@ -3900,6 +3903,13 @@ function monthKeyFromGermanDate(value: string) {
   const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!match) return "";
   return `${match[3]}-${match[2]}`;
+}
+
+function germanDateFromIsoDate(value: string | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}.${date.getFullYear()}`;
 }
 
 function zeroMetrics() {
@@ -4609,8 +4619,22 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
 
 function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
-  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
+  const candidateByOriginalKey = new Map<string, ResubmissionCandidate>();
+  uniqueRecoveryCandidates(candidates).forEach((candidate) => {
+    const key = `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`;
+    const current = candidateByOriginalKey.get(key);
+    if (!current || importDateKey(candidate.newDate) < importDateKey(current.newDate)) {
+      candidateByOriginalKey.set(key, candidate);
+    }
+  });
   const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  const manualPaidDateByKey = new Map<string, string>();
+  manualCaseResolutions
+    .filter((resolution) => resolution.status === "paid_manual")
+    .forEach((resolution) => {
+      const resolvedDate = germanDateFromIsoDate(resolution.resolvedAt);
+      caseResolutionKeys(resolution).forEach((key) => manualPaidDateByKey.set(key, resolvedDate));
+    });
   const manualCancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
   const stornoRows = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
@@ -4632,11 +4656,18 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
           reason
         });
         const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
-        const doneByResubmission = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
+        const resubmissionCandidate = candidateByOriginalKey.get(key);
+        const doneByResubmission = Boolean(resubmissionCandidate) || movement.reasonCategory === "neue_rechnung";
+        const manualPaidDate = manualKeysForMovement.map((manualKey) => manualPaidDateByKey.get(manualKey)).find(Boolean) ?? "";
         const doneByManualResolution = manualKeysForMovement.some((manualKey) => manualPaidKeys.has(manualKey));
         const finalCancelled = manualKeysForMovement.some((manualKey) => manualCancelledKeys.has(manualKey));
         const done = doneByPayment || doneByResubmission || doneByManualResolution;
         const open = !done && !finalCancelled;
+        const recoveryDate = done
+          ? (doneByPayment
+            ? movement.date ?? row.date
+            : resubmissionCandidate?.newDate || (doneByManualResolution ? manualPaidDate : "") || row.date)
+          : "";
         return {
           id: `${row.fileHash ?? row.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
           standortId: standort.id,
@@ -4650,6 +4681,7 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
           done,
           finalCancelled,
           open,
+          recoveryDate,
           doneReason: doneByPayment ? "Zahlung nach Storno" : doneByResubmission ? "Neueinreichung erkannt" : doneByManualResolution ? "Manuell als bezahlt markiert" : finalCancelled ? "Endgültig storniert" : "offen"
         };
       });

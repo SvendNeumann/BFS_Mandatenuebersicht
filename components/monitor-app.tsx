@@ -663,7 +663,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         <div className="panel-heading">
           <div>
             <h2>Standort-Benchmark</h2>
-            <p>Ranking statt Tabelle: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
+            <p>Chronologisch nach Vertragsstart: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
           </div>
           <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
         </div>
@@ -820,14 +820,14 @@ function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, 
 }
 
 function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { snapshots: LocationSnapshot[]; onNavigate: (view: string) => void; compact?: boolean }) {
-  const visible = compact ? snapshots.slice(0, 4) : snapshots;
+  const visible = [...snapshots].sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
   return (
     <div className={compact ? "location-card-grid compact" : "location-card-grid"}>
-      {visible.map((entry, index) => (
+      {visible.map((entry) => (
         <article className={`location-benchmark-card ${entry.riskScore >= 35 ? "red" : entry.riskScore > 0 ? "amber" : "green"}`} key={entry.standort.id}>
           <div className="location-card-head">
             <div>
-              <span>#{index + 1} · {entry.status}</span>
+              <span>Seit {entry.standort.goLiveLabel} · {entry.status}</span>
               <strong>{entry.standort.name}</strong>
             </div>
             <StatusBadge status={entry.riskScore >= 35 ? "prüfen" : entry.riskScore > 0 ? "beobachten" : "OK"} />

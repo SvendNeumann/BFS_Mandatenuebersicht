@@ -4124,15 +4124,38 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
     .filter((claim) => !standortId || claim.standortId === standortId)
     .sort((a, b) => riskAssessmentRank(b) - riskAssessmentRank(a) || (b.eventAmount ?? 0) - (a.eventAmount ?? 0) || b.amount - a.amount);
   const reasonRows = aggregateNoProtectionReasons(rows);
-  const suspiciousRows = rows.filter((claim) => claim.assessment === "auffaellig");
-  const cleanRows = rows.filter((claim) => claim.assessment === "unauffaellig");
+  const paymentRisk = summarizeNoProtectionPaymentRisk(rows);
   return (
     <div className="content-stack">
       <section className="priority-grid">
-        <PriorityCard label="Ohne Schutz gesamt" value={String(rows.length)} hint={money.format(rows.reduce((sum, claim) => sum + claim.amount, 0))} tone={rows.length ? "amber" : "green"} />
-        <PriorityCard label="Davon auffällig" value={String(suspiciousRows.length)} hint="mit Storno/Rückgabe/Rückbelastung" tone={suspiciousRows.length ? "red" : "green"} />
-        <PriorityCard label="Bisher unauffällig" value={String(cleanRows.length)} hint="kein negatives Ereignis erkannt" tone="green" />
-        <PriorityCard label="Auffällige Summe" value={money.format(suspiciousRows.reduce((sum, claim) => sum + (claim.eventAmount ?? 0), 0))} hint="aus Kontoauszug-Bewegungen" tone={suspiciousRows.length ? "red" : "green"} />
+        <PriorityCard
+          label="Ohne-Schutz-Patienten"
+          value={String(paymentRisk.totalPatients)}
+          hint={`${rows.length} Positionen · ${money.format(rows.reduce((sum, claim) => sum + claim.amount, 0))}`}
+          tone={rows.length ? "amber" : "green"}
+          info={paymentRisk.info}
+        />
+        <PriorityCard
+          label="Davon nicht gezahlt"
+          value={String(paymentRisk.unpaidPatients)}
+          hint="nicht erledigte Storno-/Rückgabe-Bewegung"
+          tone={paymentRisk.unpaidPatients ? "red" : "green"}
+          info={paymentRisk.info}
+        />
+        <PriorityCard
+          label="Nichtzahlungsquote"
+          value={`${paymentRisk.unpaidRate.toFixed(1)} %`}
+          hint="kritische Patienten ohne Schutz"
+          tone={paymentRisk.unpaidRate >= 10 ? "red" : paymentRisk.unpaidRate ? "amber" : "green"}
+          info={paymentRisk.info}
+        />
+        <PriorityCard
+          label="Bisher unauffällig"
+          value={String(paymentRisk.cleanPatients)}
+          hint="kein negatives Ereignis erkannt"
+          tone="green"
+          info={paymentRisk.info}
+        />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -4216,6 +4239,42 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
       </section>
     </div>
   );
+}
+
+function summarizeNoProtectionPaymentRisk(rows: RiskClaim[]) {
+  const patients = new Map<string, { patientName: string; claims: RiskClaim[] }>();
+  rows.forEach((claim) => {
+    const key = `${claim.standortId}:${normalizePatientName(claim.patientName)}`;
+    const current = patients.get(key) ?? { patientName: claim.patientName, claims: [] };
+    current.claims.push(claim);
+    patients.set(key, current);
+  });
+
+  const patientRows = [...patients.values()];
+  const unpaidPatients = patientRows.filter((patient) => patient.claims.some((claim) => claim.assessment === "auffaellig")).length;
+  const resolvedPatients = patientRows.filter((patient) => patient.claims.some((claim) => claim.assessment === "erledigt") && !patient.claims.some((claim) => claim.assessment === "auffaellig")).length;
+  const cleanPatients = patientRows.filter((patient) => patient.claims.every((claim) => claim.assessment === "unauffaellig")).length;
+  const totalPatients = patientRows.length;
+  const unpaidRate = totalPatients ? (unpaidPatients / totalPatients) * 100 : 0;
+  const unpaidAmount = patientRows
+    .filter((patient) => patient.claims.some((claim) => claim.assessment === "auffaellig"))
+    .reduce((sum, patient) => sum + patient.claims.reduce((patientSum, claim) => patientSum + (claim.eventAmount ?? 0), 0), 0);
+  const info = [
+    `Herleitung: Grundgesamtheit sind ${totalPatients} eindeutige Patient(en), bei denen mindestens eine Forderung ohne Ausfallschutz erkannt wurde.`,
+    `Davon zählen ${unpaidPatients} Patient(en) als kritisch, weil zu ihnen eine nicht erledigte Storno-, Rückgabe- oder Rückbelastungsbewegung erkannt wurde.`,
+    `Nichtzahlungsquote: ${unpaidPatients} / ${totalPatients || 1} = ${unpaidRate.toFixed(1)} %.`,
+    `Als nicht kritisch gelten ${cleanPatients} Patient(en) ohne negative Bewegung und ${resolvedPatients} Patient(en) mit erkannter Zahlung/Erledigung. Erkannte kritische Summe: ${money.format(unpaidAmount)}.`
+  ].join(" ");
+
+  return {
+    totalPatients,
+    unpaidPatients,
+    resolvedPatients,
+    cleanPatients,
+    unpaidRate,
+    unpaidAmount,
+    info
+  };
 }
 
 function riskAssessmentRank(claim: RiskClaim) {

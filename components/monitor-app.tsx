@@ -1512,17 +1512,22 @@ function customBenchmarkSignal(stornoRate: number, recoveredRate: number, noProt
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [cockpitPeriodId, setCockpitPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const chartPeriod = useMemo(() => periodOptions.find((period) => period.id === chartPeriodId) ?? periodOptions[0], [periodOptions, chartPeriodId]);
-  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? chartPeriod, [periodOptions, benchmarkPeriodId, chartPeriod]);
+  const cockpitPeriod = useMemo(() => periodOptions.find((period) => period.id === cockpitPeriodId) ?? periodOptions[0], [periodOptions, cockpitPeriodId]);
+  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? cockpitPeriod, [periodOptions, benchmarkPeriodId, cockpitPeriod]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
+  const cockpitScopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
   const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [importRows, paidCaseKeys]);
-  const openCases = useMemo(() => dashboardCases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId)), [dashboardCases, filteredStandortIds]);
+  const openCases = useMemo(() => dashboardCases.filter((fall) => {
+    if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
+    const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
+    return fallStandort ? shortDateInPeriod(fall.sourceDate, cockpitPeriod, fallStandort) : false;
+  }), [cockpitPeriod, dashboardCases, filteredStandortIds, filteredStandorte]);
   const focusedCases = openCases;
   const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
@@ -1533,23 +1538,23 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases), [importRows, filteredStandorte, openCases]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod), [importRows, filteredStandorte, openCases, cockpitPeriod]);
   const managementRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, managementComparison.currentPeriod, rowStandort) : false;
   }), [importRows, filteredStandorte, managementComparison.currentPeriod]);
-  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows, chartPeriod), [filteredStandorte, importRows, chartPeriod]);
+  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows, managementComparison.currentPeriod), [filteredStandorte, importRows, managementComparison.currentPeriod]);
   const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases), [filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod };
   const groupKpis: KpiCardTuple[] = [
-    ["Eingereicht YTD 2026", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
-    ["Eingereicht Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...groupSparklineContext, period: managementComparison.previousPeriod })],
+    ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
+    ["Eingereicht Vorjahr", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...groupSparklineContext, period: managementComparison.previousPeriod })],
     ["Delta zum Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
-    ["BFS-Gebühren YTD", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
-    ["Gebührenquote YTD", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
+    ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
+    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
     ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
     ["Quote wieder reingeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
     ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
@@ -1559,27 +1564,22 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const cockpitAlerts = buildCockpitAlerts(locationSnapshots, managementComparison.currentMetrics, managementComparison.openCases);
   return (
     <div className="content-stack">
-      <GroupFilterBar
+      <CockpitFilterBar
+        periodOptions={periodOptions}
+        selectedPeriodId={cockpitPeriodId}
+        onPeriodChange={setCockpitPeriodId}
         selectedStandort={groupStandortFilter}
         onStandortChange={setGroupStandortFilter}
+        scopeLabel={cockpitScopeLabel}
+        detail={cockpitPeriod.detail}
       />
       <KpiGrid cards={groupKpis} />
-      <section className="panel period-filter chart-period-filter">
-        <label className="select-label">
-          Zeitraum Diagramme
-          <select value={chartPeriodId} onChange={(event) => setChartPeriodId(event.target.value)}>
-            {periodOptions.map((period) => (
-              <option key={period.id} value={period.id}>{period.label}</option>
-            ))}
-          </select>
-        </label>
-      </section>
       <section className="chart-grid management-chart-grid">
         {groupChartSeries.map((chart) => (
           <div className="panel mini-chart year-chart-panel" key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">
-              {chart.title.includes("Standortvergleich") ? `Je Standort · ${chartPeriod.label} vs. Vorjahr` : `Alle ausgewählten Standorte · ${chartPeriod.label} vs. Vorjahr`}
+              {chart.title.includes("Standortvergleich") ? `Je Standort · ${managementComparison.currentPeriod.label} vs. Vorjahr` : `${cockpitScopeLabel} · ${managementComparison.currentPeriod.label} vs. Vorjahr`}
             </small>
             <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
           </div>
@@ -2064,10 +2064,9 @@ function buildManagementChartSeries(rowsStandorte: Standort[], importRows: Impor
   ];
 }
 
-function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[]) {
-  const currentYear = todayReference.getFullYear();
-  const currentPeriod = ytdPeriod(currentYear);
-  const previousPeriod = comparablePreviousYtdPeriod(currentYear);
+function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[], period?: PeriodOption) {
+  const currentPeriod = comparableCurrentPeriod(period ?? ytdPeriod(todayReference.getFullYear()));
+  const previousPeriod = previousYearPeriod(currentPeriod);
   const currentRows = rowsForSparklinePeriod(importRows, relevantStandorte, currentPeriod);
   const previousRows = rowsForSparklinePeriod(importRows, relevantStandorte, previousPeriod);
   const currentMetrics = metricsFromRows(currentRows);
@@ -2561,27 +2560,48 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
   );
 }
 
-function GroupFilterBar({
+function CockpitFilterBar({
+  periodOptions,
+  selectedPeriodId,
+  onPeriodChange,
   selectedStandort,
-  onStandortChange
+  onStandortChange,
+  scopeLabel,
+  detail
 }: {
+  periodOptions: PeriodOption[];
+  selectedPeriodId: string;
+  onPeriodChange: (value: string) => void;
   selectedStandort: string;
   onStandortChange: (value: string) => void;
+  scopeLabel: string;
+  detail: string;
 }) {
   return (
-    <section className="panel group-filter-bar">
+    <section className="panel cockpit-filter-bar">
       <div>
-        <span className="eyebrow">Gruppenfilter</span>
-        <h2>Gesamtblick gezielt eingrenzen</h2>
+        <span className="eyebrow">Cockpit-Filter</span>
+        <h2>Kennzahlen steuern</h2>
+        <p>{scopeLabel} · {detail}</p>
       </div>
-      <div className="filter-pill-row" aria-label="Standortfilter">
-        <button className={selectedStandort === "alle" ? "active" : ""} onClick={() => onStandortChange("alle")}>Alle Standorte</button>
-        {orderedStandorte().map((standort) => (
-          <button key={standort.id} className={selectedStandort === standort.id ? "active" : ""} onClick={() => onStandortChange(standort.id)}>
-            {standort.name}
-            <span>{liveStatusLabel(standort)}</span>
-          </button>
-        ))}
+      <div className="cockpit-filter-controls">
+        <label className="select-label">
+          Zeitraum
+          <select value={selectedPeriodId} onChange={(event) => onPeriodChange(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort
+          <select value={selectedStandort} onChange={(event) => onStandortChange(event.target.value)}>
+            <option value="alle">Alle Standorte</option>
+            {orderedStandorte().map((standort) => (
+              <option key={standort.id} value={standort.id}>{standort.name} · {liveStatusLabel(standort)}</option>
+            ))}
+          </select>
+        </label>
       </div>
     </section>
   );
@@ -2982,10 +3002,12 @@ function rowsForSparklinePeriod(importRows: ImportPreviewRow[], relevantStandort
 }
 
 function previousYearPeriod(period: PeriodOption): PeriodOption {
+  const currentYear = period.start?.getFullYear();
+  const previousYear = currentYear ? currentYear - 1 : undefined;
   return {
     ...period,
     id: `${period.id}-previous-year`,
-    label: `${period.label} Vorjahr`,
+    label: currentYear && previousYear ? period.label.replace(String(currentYear), String(previousYear)) : `${period.label} Vorjahr`,
     start: period.start ? new Date(period.start.getFullYear() - 1, period.start.getMonth(), 1) : undefined,
     end: period.end ? new Date(period.end.getFullYear() - 1, period.end.getMonth(), period.end.getDate()) : undefined
   };

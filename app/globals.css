@@ -557,6 +557,48 @@ input {
   background: #102f42;
 }
 
+.cockpit-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
+  gap: 16px;
+  align-items: end;
+  border-color: rgba(121, 238, 231, 0.22);
+  background:
+    linear-gradient(135deg, rgba(49, 212, 201, 0.12), transparent 42%),
+    var(--panel-strong);
+}
+
+.cockpit-filter-bar h2 {
+  margin: 4px 0 6px;
+  font-size: 20px;
+}
+
+.cockpit-filter-bar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cockpit-filter-controls {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.48fr) minmax(170px, 0.52fr);
+  gap: 10px;
+}
+
+.cockpit-filter-controls select {
+  min-height: 44px;
+  border-color: rgba(121, 238, 231, 0.24);
+  background: rgba(9, 31, 47, 0.88);
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+
+.cockpit-filter-controls select option {
+  background: #082331;
+  color: #eaf6f7;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3297,6 +3339,8 @@ td small {
   .management-summary-grid,
   .case-board,
   .filter-grid,
+  .cockpit-filter-bar,
+  .cockpit-filter-controls,
   .period-filter,
   .answer-filter-panel,
   .case-table-filter,

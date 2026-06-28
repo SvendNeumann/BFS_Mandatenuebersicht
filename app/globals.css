@@ -2719,6 +2719,29 @@ td small {
   color: var(--muted);
 }
 
+.custom-kpi-view {
+  gap: 18px;
+}
+
+.custom-kpi-period {
+  margin-bottom: 0;
+}
+
+.custom-kpi-slider {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.custom-kpi-slider .priority-card {
+  min-height: 190px;
+}
+
+.custom-kpi-slider .priority-card strong {
+  font-size: clamp(30px, 2.7vw, 46px);
+  line-height: 1.02;
+}
+
 .cashflow-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3034,6 +3057,30 @@ td small {
   .preview-metrics,
   .confirmation-dialog dl {
     grid-template-columns: 1fr;
+  }
+
+  .custom-kpi-slider {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 2px 12px;
+    scroll-padding-left: 2px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .custom-kpi-slider > * {
+    flex: 0 0 min(86vw, 360px);
+    scroll-snap-align: start;
+  }
+
+  .custom-kpi-slider .priority-card {
+    min-height: 176px;
+  }
+
+  .custom-kpi-slider .priority-card strong {
+    font-size: clamp(28px, 9vw, 38px);
   }
 
   .upload-zone {

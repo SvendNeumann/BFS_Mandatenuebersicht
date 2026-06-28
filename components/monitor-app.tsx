@@ -81,6 +81,7 @@ const superAdminNav: NavSection[] = [
     title: "Management",
     items: [
       ["dashboard", "Cockpit", LayoutDashboard],
+      ["custom", "Individuell", BarChart3],
       ["answers", "Schnellantworten", ClipboardList],
       ["worklist", "Prioritäten heute", AlertCircle]
     ]
@@ -129,6 +130,7 @@ const leadNav: NavSection[] = [
     title: "Mein Standort",
     items: [
       ["dashboard", "Cockpit", LayoutDashboard],
+      ["custom", "Individuell", BarChart3],
       ["answers", "Schnellantworten", ClipboardList],
       ["worklist", "Meine Prioritäten", AlertCircle]
     ]
@@ -216,6 +218,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "dashboard",
+    "custom",
     "worklist",
     "answers",
     "quality",
@@ -553,6 +556,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
+            {activeView === "custom" && <CustomKpiView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
@@ -768,6 +772,7 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
     dashboard: role === "super_admin" && isGroupScope ? "Cockpit" : "Standort-Cockpit",
+    custom: "Individuell",
     answers: "Schnellantworten",
     benchmark: "Standorte",
     quality: "Forderungsqualität",
@@ -789,6 +794,71 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     settings: "Einstellungen"
   };
   return titles[view] ?? "Orisus BFS Monitor";
+}
+
+function CustomKpiView({ standort, importRows }: { standort?: Standort; importRows: ImportPreviewRow[] }) {
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const selectedPeriod = useMemo(
+    () => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0],
+    [periodOptions, periodId]
+  );
+  const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const relevantStandortNames = useMemo(() => new Set(relevantStandorte.map((entry) => entry.name)), [relevantStandorte]);
+  const scopedRows = useMemo(() => importRows.filter((row) => {
+    if (!relevantStandortNames.has(row.location)) return false;
+    const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [importRows, relevantStandortNames, relevantStandorte, selectedPeriod]);
+  const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
+  const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
+  const scopeHint = standort ? standort.name : "alle Standorte";
+
+  return (
+    <div className="content-stack custom-kpi-view">
+      <section className="panel period-filter custom-kpi-period">
+        <label className="select-label">
+          Zeitraum
+          <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>Individuelle KPI-Auswahl</strong>
+          <span>{scopeHint} · {selectedPeriod.detail}</span>
+        </div>
+      </section>
+
+      <section className="custom-kpi-slider" aria-label="Individuelle KPI-Kacheln">
+        <PriorityCard
+          label="Eingereichter Umsatz"
+          value={money.format(metrics.submitted)}
+          hint={scopeHint}
+          period={selectedPeriod.label}
+          tone="blue"
+          info={`Summe aller im gewählten Zeitraum eingereichten Forderungen für ${scopeHint}.`}
+        />
+        <PriorityCard
+          label="BFS-Gebühren"
+          value={money.format(metrics.fees)}
+          hint={`Gebührenquote ${formatFeeRate(metrics.feeRate)}`}
+          period={selectedPeriod.label}
+          tone="amber"
+          info="Summe der erkannten BFS-Gebühren im gewählten Zeitraum; die Quote bezieht sich auf den eingereichten Umsatz."
+        />
+        <PriorityCard
+          label="Ausgezahlter Umsatz"
+          value={money.format(metrics.payout)}
+          hint="nach BFS-Abrechnung"
+          period={selectedPeriod.label}
+          tone="green"
+          info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
+        />
+      </section>
+    </div>
+  );
 }
 
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {

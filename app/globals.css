@@ -605,6 +605,21 @@ input {
   gap: 14px;
 }
 
+.cockpit-kpi-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.cockpit-kpi-grid .kpi-card {
+  min-width: 0;
+  min-height: 176px;
+  padding: 16px;
+}
+
+.cockpit-kpi-grid .kpi-card strong {
+  overflow-wrap: anywhere;
+  font-size: clamp(23px, 1.55vw, 30px);
+}
+
 .kpi-card,
 .panel,
 .upload-zone,
@@ -3568,6 +3583,7 @@ body {
 .settings-panel h2,
 .answer-header h2,
 .custom-chart-head h2,
+.cockpit-filter-bar h2,
 .group-filter-bar h2,
 .command-panel h2,
 .preview-heading h2,

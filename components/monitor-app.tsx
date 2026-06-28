@@ -1549,17 +1549,18 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod };
+  const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
   const groupKpis: KpiCardTuple[] = [
-    ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
-    ["Eingereicht Vorjahr", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...groupSparklineContext, period: managementComparison.previousPeriod })],
-    ["Delta zum Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
-    ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
-    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
-    ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
-    ["Quote wieder reingeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
-    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
-    ["Offene operative Fälle", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
-    ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, kpiSparklineForLabel("Ältester Fall", groupSparklineContext)]
+    ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
+    ["Eingereicht Vorjahr", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForPeriod("submitted", importRows, filteredStandorte, managementComparison.previousPeriod)],
+    ["Delta zum Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, groupSparkline("submitted")],
+    ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, groupSparkline("fees")],
+    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, groupSparkline("feeRate")],
+    ["Rückbelastungen/Stornos", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, undefined, groupSparkline("deductionAmount")],
+    ["Quote wieder reingeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, undefined, groupSparkline("recoveryRate")],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, groupSparkline("noProtection")],
+    ["Offene operative Fälle", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, undefined, caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "count")],
+    ["Ältester Fall", `${oldestOpenCase} Tage`, "älteste offene Position", undefined, caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "oldest")]
   ];
   const cockpitAlerts = buildCockpitAlerts(locationSnapshots, managementComparison.currentMetrics, managementComparison.openCases);
   return (
@@ -1573,7 +1574,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
         scopeLabel={cockpitScopeLabel}
         detail={cockpitPeriod.detail}
       />
-      <KpiGrid cards={groupKpis} />
+      <KpiGrid cards={groupKpis} className="cockpit-kpi-grid" />
       <section className="chart-grid management-chart-grid">
         {groupChartSeries.map((chart) => (
           <div className="panel mini-chart year-chart-panel" key={chart.title}>
@@ -2900,6 +2901,8 @@ type AnswerSparklineMetric =
   | "feeNet"
   | "tax"
   | "feeRate"
+  | "deductionAmount"
+  | "recoveryRate"
   | "chargebackRate"
   | "openAmount"
   | "openCount"
@@ -2952,7 +2955,7 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte);
   const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte);
   const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
-  const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
+  const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "deductionAmount", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
   const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
   const tone = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
   const label = previousTotal
@@ -2965,6 +2968,32 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
     points: points.length ? points : [0, currentTotal, currentTotal],
     tone,
     label
+  };
+}
+
+function kpiSparklineForPeriod(metric: AnswerSparklineMetric, importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption): AnswerSparklineTrend {
+  const rows = rowsForSparklinePeriod(importRows, relevantStandorte, period);
+  const points = monthlySparklinePoints(metric, rows, relevantStandorte);
+  const total = valueForAnswerMetric(metric, rows, relevantStandorte);
+  const yearLabel = period.start?.getFullYear() ? String(period.start.getFullYear()) : period.label;
+  return {
+    points: points.length ? points : [0, total, total],
+    tone: "green",
+    label: `${yearLabel} Verlauf`
+  };
+}
+
+function caseSparklineForPeriod(cases: BfsCase[], period: PeriodOption, metric: "count" | "oldest"): AnswerSparklineTrend {
+  const monthKeys = [...new Set(cases.map((fall) => monthKeyFromShortDate(fall.sourceDate)).filter(Boolean))].sort();
+  const points = monthKeys.map((month) => {
+    const monthCases = cases.filter((fall) => monthKeyFromShortDate(fall.sourceDate) === month);
+    return metric === "count" ? monthCases.length : monthCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  });
+  const total = metric === "count" ? cases.length : cases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  return {
+    points: points.length ? points : [0, total, total],
+    tone: total ? "red" : "green",
+    label: metric === "count" ? "offener Verlauf" : "Fallalter"
   };
 }
 
@@ -3030,6 +3059,13 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
   if (metric === "tax") return metrics.feeVat + metrics.ewmaVat;
   if (metric === "fees") return metrics.fees;
   if (metric === "feeRate") return metrics.feeRate;
+  if (metric === "deductionAmount") return metrics.returnAmount + metrics.cancellationAmount;
+  if (metric === "recoveryRate") {
+    const deductionAmount = metrics.returnAmount + metrics.cancellationAmount;
+    const recoveredAmount = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows))
+      .reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+    return deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
+  }
   if (metric === "chargebackRate") return metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
   if (metric === "noProtection") return metrics.noProtectionAmount;
 
@@ -4570,14 +4606,18 @@ function periodStatusLabel(standort: Standort, period: PeriodOption) {
 }
 
 function shortDateInPeriod(value: string | undefined, period: PeriodOption, standort: Standort) {
-  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (!match) return true;
-  const month = `${match[3]}-${match[2]}`;
+  const month = monthKeyFromShortDate(value);
+  if (!month) return true;
   const metricDate = new Date(`${month}-01T00:00:00`);
   if (!period.start && !period.end) return month >= standort.goLiveDate.slice(0, 7);
   if (period.start && metricDate < new Date(period.start.getFullYear(), period.start.getMonth(), 1)) return false;
   if (period.end && metricDate > new Date(period.end.getFullYear(), period.end.getMonth(), 1)) return false;
   return true;
+}
+
+function monthKeyFromShortDate(value: string | undefined) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}` : "";
 }
 
 function buildRecentMonthlyTrend(standortIds: string[], period?: PeriodOption, importRows: ImportPreviewRow[] = []) {
@@ -4673,7 +4713,7 @@ function formatMonth(date: Date) {
 
 type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend];
 
-function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[] }) {
+function KpiGrid({ standort, cards: customCards, importRows = [], className = "" }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[]; className?: string }) {
   const cards = useMemo(() => {
     if (customCards) return customCards;
     const importSummary = summarizeImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows);
@@ -4694,7 +4734,7 @@ function KpiGrid({ standort, cards: customCards, importRows = [] }: { standort?:
         ] satisfies KpiCardTuple[];
   }, [customCards, importRows, standort]);
   return (
-    <section className="kpi-grid">
+    <section className={className ? `kpi-grid ${className}` : "kpi-grid"}>
       {cards.map(([label, value, hint, info, trend]) => (
         <article className="kpi-card" key={label}>
           <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(hint)))} />

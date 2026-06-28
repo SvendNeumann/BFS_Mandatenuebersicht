@@ -181,6 +181,23 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
   const hasUploadData = liveImportRows.length > 0;
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
+  const viewsWithStandortScope = [
+    "dashboard",
+    "worklist",
+    "answers",
+    "quality",
+    "claims",
+    "cases",
+    "chargebacks",
+    "followups",
+    "risks",
+    "repeatRisks",
+    "patientClasses",
+    "matches",
+    "reports",
+    "outcomes"
+  ];
+  const showStandortTabs = viewsWithStandortScope.includes(activeView);
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
     const resolvedKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
@@ -386,7 +403,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </div>
         </div>
 
-        {activeView !== "benchmark" && (
+        {showStandortTabs && (
           <StandortTabs
             role={role}
             selectedStandortId={selectedStandortId}

@@ -932,6 +932,80 @@ input {
   line-height: 1.05;
 }
 
+.location-trend-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.location-trend-panel {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
+.year-legend.detailed {
+  gap: 10px;
+}
+
+.year-line-chart {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.year-line-svg {
+  width: 100%;
+  height: auto;
+  min-height: 210px;
+  overflow: visible;
+}
+
+.year-line-svg .grid-line {
+  stroke: rgba(178, 226, 229, 0.11);
+  stroke-width: 1;
+}
+
+.year-line-svg .line {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.year-line-svg .previous-line {
+  stroke: #8bb8ff;
+  filter: drop-shadow(0 0 10px rgba(139, 184, 255, 0.18));
+}
+
+.year-line-svg .current-line {
+  stroke: #65f4ec;
+  filter: drop-shadow(0 0 12px rgba(101, 244, 236, 0.26));
+}
+
+.year-line-svg .line-hit {
+  cursor: pointer;
+  fill: transparent;
+  stroke-width: 2;
+}
+
+.year-line-svg .previous-hit {
+  stroke: rgba(139, 184, 255, 0.22);
+}
+
+.year-line-svg .current-hit {
+  stroke: rgba(101, 244, 236, 0.26);
+}
+
+.year-line-svg .line-hit:focus {
+  outline: none;
+  stroke-width: 4;
+}
+
+.year-line-svg .line-axis-label {
+  fill: rgba(205, 226, 232, 0.78);
+  font-size: 11px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
 .operative-entry-panel {
   display: grid;
   gap: 14px;
@@ -6272,6 +6346,28 @@ label,
 
   .axis span {
     font-size: 10px !important;
+  }
+
+  .location-trend-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow: visible !important;
+  }
+
+  .location-trend-panel {
+    width: 100% !important;
+  }
+
+  .year-line-svg {
+    min-height: 174px !important;
+  }
+
+  .year-line-svg .line {
+    stroke-width: 3.2;
+  }
+
+  .year-line-svg .line-axis-label {
+    font-size: 10px;
   }
 
   .workspace {

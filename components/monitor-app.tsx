@@ -1056,6 +1056,103 @@ function YearComparisonBars({
   );
 }
 
+function YearComparisonLines({
+  title,
+  values,
+  format
+}: {
+  title: string;
+  values: { label: string; current: number; previous: number; context?: string; currentYear?: number; previousYear?: number }[];
+  format: (value: number) => string;
+}) {
+  const defaultCurrentYear = values[0]?.currentYear ?? todayReference.getFullYear();
+  const defaultPreviousYear = values[0]?.previousYear ?? defaultCurrentYear - 1;
+  const [activePoint, setActivePoint] = useState<{ label: string; year: number; value: number; context?: string } | null>(null);
+  const chartValues = values.length ? values : [{ label: "01", current: 0, previous: 0, currentYear: defaultCurrentYear, previousYear: defaultPreviousYear }];
+  const maxValue = Math.max(...chartValues.flatMap((value) => [value.current, value.previous]), 1);
+  const minValue = Math.min(...chartValues.flatMap((value) => [value.current, value.previous]), 0);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 360;
+  const height = 190;
+  const padding = { top: 22, right: 18, bottom: 34, left: 18 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const active = activePoint ?? {
+    label: chartValues[chartValues.length - 1].label,
+    year: chartValues[chartValues.length - 1].currentYear ?? defaultCurrentYear,
+    value: chartValues[chartValues.length - 1].current,
+    context: chartValues[chartValues.length - 1].context
+  };
+  const pointFor = (entry: typeof chartValues[number], index: number, key: "current" | "previous") => {
+    const x = padding.left + (chartValues.length === 1 ? plotWidth / 2 : (index / (chartValues.length - 1)) * plotWidth);
+    const y = padding.top + plotHeight - (((entry[key] - minValue) / range) * plotHeight);
+    return { x, y };
+  };
+  const pathFor = (key: "current" | "previous") => chartValues.map((entry, index) => {
+    const point = pointFor(entry, index, key);
+    return `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+  }).join(" ");
+
+  return (
+    <div className="year-line-chart" aria-label={title}>
+      <div className="year-chart-head">
+        <div className="year-legend detailed">
+          <span><i className="previous" /> Vorjahr {defaultPreviousYear}</span>
+          <span><i className="current" /> Aktuell {defaultCurrentYear}</span>
+        </div>
+        <div className="year-active-value">
+          <span>{active.context ?? title}</span>
+          <em>{active.year} · {active.label.length <= 2 ? `Monat ${active.label}` : active.label}</em>
+          <strong>{format(active.value)}</strong>
+        </div>
+      </div>
+      <svg className="year-line-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: Vorjahr gegen aktuelles Jahr`}>
+        {[0.25, 0.5, 0.75].map((ratio) => (
+          <line key={ratio} className="grid-line" x1={padding.left} x2={width - padding.right} y1={padding.top + plotHeight * ratio} y2={padding.top + plotHeight * ratio} />
+        ))}
+        <path className="line previous-line" d={pathFor("previous")} />
+        <path className="line current-line" d={pathFor("current")} />
+        {chartValues.map((entry, index) => {
+          const previousPoint = pointFor(entry, index, "previous");
+          const currentPoint = pointFor(entry, index, "current");
+          return (
+            <g key={entry.label}>
+              <circle
+                className="line-hit previous-hit"
+                cx={previousPoint.x}
+                cy={previousPoint.y}
+                r="12"
+                tabIndex={0}
+                role="button"
+                aria-label={`${entry.context ?? title}, Vorjahr ${entry.previousYear ?? defaultPreviousYear}, Monat ${entry.label}: ${format(entry.previous)}`}
+                onFocus={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
+                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
+                onClick={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
+              />
+              <circle
+                className="line-hit current-hit"
+                cx={currentPoint.x}
+                cy={currentPoint.y}
+                r="12"
+                tabIndex={0}
+                role="button"
+                aria-label={`${entry.context ?? title}, aktuell ${entry.currentYear ?? defaultCurrentYear}, Monat ${entry.label}: ${format(entry.current)}`}
+                onFocus={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
+                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
+                onClick={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
+              />
+            </g>
+          );
+        })}
+        {chartValues.map((entry, index) => {
+          const point = pointFor(entry, index, "current");
+          return <text className="line-axis-label" key={`label-${entry.label}`} x={point.x} y={height - 8}>{entry.label}</text>;
+        })}
+      </svg>
+    </div>
+  );
+}
+
 function chartLegendLabel(title: string) {
   if (title.toLowerCase().includes("quote")) return "Quote";
   if (title.toLowerCase().includes("fälle") || title.toLowerCase().includes("anzahl")) return "Anzahl";
@@ -1716,16 +1813,16 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
         </label>
       </section>
       <KpiGrid cards={locationKpis} />
-      <section className="chart-grid">
-        <article className="panel mini-chart year-chart-panel">
+      <section className="chart-grid location-trend-grid">
+        <article className="panel mini-chart year-chart-panel location-trend-panel">
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Standort über Zeit</span>
               <h2>{standort.name} im Verlauf</h2>
-              <p>Der Standort wird gegen Vorjahr und Gruppenschnitt gelesen, nicht nur als Detailtabelle.</p>
+              <p>Der Verlauf zeigt das aktuelle Jahr gegen den gleichen Zeitraum im Vorjahr, ohne internes Diagramm-Scrolling.</p>
             </div>
           </div>
-          <YearComparisonBars
+          <YearComparisonLines
             title={`Monatsentwicklung ${standort.name}`}
             values={buildYearMonthComparison([standort], importRows, "submitted", selectedPeriod)}
             format={(value) => money.format(value)}

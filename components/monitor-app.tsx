@@ -3875,7 +3875,9 @@ function defaultPeriodId(periods: PeriodOption[]) {
 }
 
 function buildCustomChartPeriods(): PeriodOption[] {
-  const basePeriods = buildCashflowPeriods().filter((period) => period.id !== "since-start");
+  const basePeriods = buildCashflowPeriods().map((period) => period.id === "since-start"
+    ? { ...period, label: "ab Standortstart" }
+    : period);
   const earliestGoLive = new Date(`${standorte.map((entry) => entry.goLiveDate).sort()[0]}T00:00:00`);
   const earliestStartYear = earliestGoLive.getFullYear();
   const currentYear = todayReference.getFullYear();

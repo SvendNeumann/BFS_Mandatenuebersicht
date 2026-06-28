@@ -1173,7 +1173,6 @@ function CustomComboChart({
       <div className="custom-chart-head">
         <div>
           <h2>{title}</h2>
-          <span>{active.label}: {barLabel} {format(Number(active[barKey]))} · {lineLabel} {format(Number(active[lineKey]))}</span>
         </div>
         <div className="custom-chart-legend">
           <span><i className="bar-dot" /> {barLabel}</span>
@@ -1259,7 +1258,6 @@ function CustomDualAxisChart({
       <div className="custom-chart-head">
         <div>
           <h2>{title}</h2>
-          <span>{active.label}: {barLabel} {formatBar(Number(active[barKey]))} · {lineLabel} {formatLine(Number(active[lineKey]))}</span>
         </div>
         <div className="custom-chart-legend">
           <span><i className="bar-dot" /> {barLabel}</span>

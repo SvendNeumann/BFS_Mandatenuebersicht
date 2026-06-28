@@ -2741,6 +2741,10 @@ td small {
   gap: 14px;
 }
 
+.custom-kpi-secondary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .custom-kpi-slider .priority-card {
   min-height: 190px;
 }
@@ -3270,19 +3274,11 @@ td small {
   }
 
   .custom-kpi-slider {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 14px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0 2px 12px;
-    scroll-padding-left: 2px;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .custom-kpi-slider > * {
-    flex: 0 0 min(86vw, 360px);
-    scroll-snap-align: start;
+    overflow: visible;
+    padding: 0;
   }
 
   .custom-kpi-slider .priority-card {

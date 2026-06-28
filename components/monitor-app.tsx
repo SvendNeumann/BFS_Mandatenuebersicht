@@ -844,6 +844,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
     const parsedCount = row.parsedClaims?.length ?? 0;
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
+  const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
 
   return (
@@ -899,7 +900,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
         />
       </section>
 
-      <section className="custom-kpi-slider" aria-label="Individuelle Storno- und Rechnungs-KPI">
+      <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Individuelle Storno- und Rechnungs-KPI">
         <PriorityCard
           label="Anzahl Stornierungen"
           value={integerNumber.format(stornoReview.total)}
@@ -923,6 +924,14 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           period={selectedPeriod.label}
           tone="blue"
           info={`Gezählt werden die erkannten Forderungspositionen aus den importierten Abrechnungen für ${scopeHint}. Wenn keine Positionsliste erkannt wurde, nutzt die App die erkannte Kopfanzahl als Fallback.`}
+        />
+        <PriorityCard
+          label="Ø Wert je Forderung"
+          value={money.format(averageClaimValue)}
+          hint="eingereicht / Forderungen"
+          period={selectedPeriod.label}
+          tone="blue"
+          info={`Berechnung: eingereichter Umsatz ${money.format(metrics.submitted)} geteilt durch ${integerNumber.format(invoiceCount)} erkannte Forderungs-/Rechnungspositionen im gewählten Zeitraum für ${scopeHint}.`}
         />
       </section>
 

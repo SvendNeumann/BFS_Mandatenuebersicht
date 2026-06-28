@@ -60,6 +60,7 @@ button {
   width: 100%;
   overflow-x: clip;
   background: transparent;
+  align-items: start;
 }
 
 .sidebar {
@@ -391,9 +392,15 @@ nav {
 }
 
 .workspace {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+  min-height: 100vh;
   padding: 26px 30px 48px;
   overflow-x: hidden;
+  background:
+    radial-gradient(circle at 72% 8%, rgba(117, 190, 199, 0.08), transparent 28rem),
+    linear-gradient(180deg, rgba(7, 28, 43, 0.42), rgba(7, 28, 43, 0.12));
 }
 
 .topbar {
@@ -494,6 +501,8 @@ input {
   display: grid;
   gap: 18px;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .group-filter-bar {
@@ -555,6 +564,7 @@ input {
   border-radius: 8px;
   box-shadow: var(--shadow);
   color: var(--text);
+  position: relative;
 }
 
 .location-editor-grid {
@@ -749,7 +759,7 @@ input {
   min-width: 0;
   border: 1px solid var(--soft-line);
   border-radius: 8px;
-  background: rgba(248, 250, 252, 0.96);
+  background: var(--panel-strong);
   color: #a6bfca;
   padding: 11px;
   font-size: 12px;
@@ -757,7 +767,7 @@ input {
 }
 
 .management-delta-grid b {
-  color: #101828;
+  color: #f8ffff;
   font-size: 18px;
   line-height: 1.1;
 }

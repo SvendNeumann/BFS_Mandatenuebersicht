@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import {
@@ -1721,7 +1722,6 @@ function LocationRevenueBars({ title, values }: { title: string; values: { label
 
   return (
     <div className="location-revenue-chart">
-      <MetricInfo title={title} text={chartExplanation(title, chartValues)} />
       {activeValue && (
         <div className="location-revenue-tooltip">
           <strong>{activeValue.label}</strong>
@@ -1747,8 +1747,9 @@ function LocationRevenueBars({ title, values }: { title: string; values: { label
               onClick={() => setActiveIndex(index)}
             >
               <b>{value.label}</b>
-              <span className="location-revenue-bar-track">
+              <span className="location-revenue-bar-track" style={{ "--bar-width": `${width}%` } as CSSProperties & Record<"--bar-width", string>}>
                 <i style={{ width: `${width}%` }} />
+                <small>{money.format(value.value)}</small>
               </span>
             </button>
           );
@@ -2530,6 +2531,7 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
       <section className="chart-grid benchmark-chart-grid">
         {benchmarkCharts.map((chart) => (
           <div className={chart.title.includes("Umsatz") ? "panel mini-chart benchmark-revenue-card" : "panel mini-chart"} key={chart.title}>
+            {chart.title.includes("Umsatz") && <MetricInfo title={chart.title} text={chartExplanation(chart.title, chart.values)} />}
             <h2>{chart.title}</h2>
             <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
             {chart.title.includes("Umsatz")

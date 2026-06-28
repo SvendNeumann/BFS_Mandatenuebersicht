@@ -2105,6 +2105,15 @@ td small {
   min-height: 460px;
 }
 
+.benchmark-revenue-card .metric-info {
+  top: 18px;
+  right: 18px;
+}
+
+.benchmark-revenue-card h2 {
+  padding-right: 52px;
+}
+
 .location-revenue-chart {
   position: relative;
   display: grid;
@@ -2191,6 +2200,7 @@ td small {
 }
 
 .location-revenue-bar-track {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: start;
@@ -2232,14 +2242,19 @@ td small {
 }
 
 .location-revenue-bar small {
+  position: absolute;
+  left: min(calc(var(--bar-width) + 10px), calc(100% - 92px));
+  top: 50%;
+  transform: translateY(-50%);
   overflow: hidden;
+  width: 90px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: right;
+  text-align: left;
 }
 
 .bars {

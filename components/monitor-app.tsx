@@ -441,6 +441,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     }
   }
 
+  async function resolveResubmissionCandidate(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
+    const resolution = await saveManualCaseResolution(resubmissionCandidateToCase(candidate), status);
+    setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
+  }
+
   function closeResolveCaseDialog() {
     if (caseResolveSaving) return;
     setCaseToResolve(null);
@@ -569,7 +574,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
-            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />)}
@@ -4589,6 +4594,27 @@ function resubmissionResolutionKeys(candidate: ResubmissionCandidate) {
   });
 }
 
+function resubmissionCandidateToCase(candidate: ResubmissionCandidate): BfsCase {
+  const standort = standorte.find((entry) => entry.name === candidate.locationName);
+  return {
+    id: `resubmission-${resubmissionResolutionKey(candidate)}`,
+    resolutionKey: resubmissionResolutionKey(candidate),
+    standortId: standort?.id ?? candidate.locationName,
+    locationName: candidate.locationName,
+    patientName: candidate.patientName,
+    invoiceNo: candidate.invoiceNo,
+    bfsNo: candidate.bfsNo,
+    amount: candidate.originalAmount,
+    reason: candidate.reason,
+    sourceDate: candidate.originalDate,
+    ageDays: 0,
+    traffic: "green",
+    status: "neueinreichung_match",
+    dueDate: "-",
+    lastComment: candidate.originalStatementNo
+  };
+}
+
 function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
   const groups = new Map<string, {
     patientName: string;
@@ -4767,14 +4793,17 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
 
 function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
+  const manualCancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
   const candidateByOriginalKey = new Map<string, ResubmissionCandidate>();
-  uniqueRecoveryCandidates(candidates).forEach((candidate) => {
-    const key = `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`;
-    const current = candidateByOriginalKey.get(key);
-    if (!current || importDateKey(candidate.newDate) < importDateKey(current.newDate)) {
-      candidateByOriginalKey.set(key, candidate);
-    }
-  });
+  uniqueRecoveryCandidates(candidates)
+    .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => manualCancelledKeys.has(key)))
+    .forEach((candidate) => {
+      const key = `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`;
+      const current = candidateByOriginalKey.get(key);
+      if (!current || importDateKey(candidate.newDate) < importDateKey(current.newDate)) {
+        candidateByOriginalKey.set(key, candidate);
+      }
+    });
   const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   const manualPaidDateByKey = new Map<string, string>();
   manualCaseResolutions
@@ -4783,7 +4812,6 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
       const resolvedDate = germanDateFromIsoDate(resolution.resolvedAt);
       caseResolutionKeys(resolution).forEach((key) => manualPaidDateByKey.set(key, resolvedDate));
     });
-  const manualCancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
   const stornoRows = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort || (standortId && standort.id !== standortId)) return [];
@@ -7328,12 +7356,40 @@ function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFro
     .map(([label, value]) => ({ label, value }));
 }
 
-function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolutions = [] }: { cases: BfsCase[]; importRows?: ImportPreviewRow[]; standort?: Standort; manualCaseResolutions?: ManualCaseResolution[] }) {
+function MatchesView({
+  cases: rows,
+  importRows = [],
+  standort,
+  manualCaseResolutions = [],
+  onResolveCandidate
+}: {
+  cases: BfsCase[];
+  importRows?: ImportPreviewRow[];
+  standort?: Standort;
+  manualCaseResolutions?: ManualCaseResolution[];
+  onResolveCandidate?: (candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") => Promise<void>;
+}) {
+  const [savingCandidateKey, setSavingCandidateKey] = useState("");
+  const [matchActionError, setMatchActionError] = useState("");
   const scopedImportRows = useMemo(() => standort ? importRows.filter((row) => row.location === standort.name) : importRows, [standort, importRows]);
-  const cancelledKeys = useMemo(() => buildCancelledResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
-    .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => cancelledKeys.has(key))), [cancelledKeys, scopedImportRows]);
+    .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => closedKeys.has(key))), [closedKeys, scopedImportRows]);
   const scopeLabel = standort?.name ?? "Gruppe";
+  async function handleCandidateAction(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
+    if (!onResolveCandidate) return;
+    const key = `${resubmissionResolutionKey(candidate)}:${status}`;
+    setSavingCandidateKey(key);
+    setMatchActionError("");
+    try {
+      await onResolveCandidate(candidate, status);
+    } catch (error) {
+      setMatchActionError(error instanceof Error ? error.message : "Neueinreichung konnte nicht gespeichert werden.");
+    } finally {
+      setSavingCandidateKey("");
+    }
+  }
+
   if (candidates.length) {
     return (
       <div className="content-stack">
@@ -7343,20 +7399,6 @@ function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolut
           <PriorityCard label="Ursprungsbetrag" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0))} hint="stornierte/rückgegebene Beträge" tone="red" />
           <PriorityCard label="Neue Summe" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0))} hint="spätere Forderungen" tone="green" />
         </section>
-        <section className="chart-grid">
-          <div className="panel mini-chart">
-            <h2>Abzug vs. neue Einreichung</h2>
-            <InteractiveBars title="Abzug vs neue Einreichung" values={[
-              { label: "Ursprung", value: candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0) },
-              { label: "neu", value: candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0) },
-              { label: "angerechnet", value: candidates.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0) }
-            ]} />
-          </div>
-          <div className="panel mini-chart">
-            <h2>Neueinreichungen je Standort</h2>
-            <InteractiveBars title="Neueinreichungen je Standort" values={aggregateResubmissionsByLocation(candidates)} />
-          </div>
-        </section>
         <section className="panel">
           <div className="panel-heading">
             <div>
@@ -7364,7 +7406,8 @@ function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolut
               <p>Automatisch erkannte Fälle im gewählten Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
             </div>
           </div>
-          <div className="table-wrap">
+          {matchActionError && <p className="form-error">{matchActionError}</p>}
+          <div className="table-wrap case-table-scroll">
             <table>
               <thead>
                 <tr>
@@ -7374,19 +7417,36 @@ function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolut
                   <th>Neue Einreichung</th>
                   <th>Beträge</th>
                   <th>AbrechnungsNr.</th>
+                  <th>Entscheidung</th>
                 </tr>
               </thead>
               <tbody>
-                {candidates.slice(0, 60).map((candidate) => (
-                  <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
-                    <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
-                    <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
-                    <td>{candidate.reason}</td>
-                    <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
-                    <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
-                    <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
-                  </tr>
-                ))}
+                {candidates.map((candidate) => {
+                  const baseKey = resubmissionResolutionKey(candidate);
+                  const acceptKey = `${baseKey}:paid_manual`;
+                  const rejectKey = `${baseKey}:cancelled_manual`;
+                  const isSaving = savingCandidateKey === acceptKey || savingCandidateKey === rejectKey;
+                  return (
+                    <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
+                      <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
+                      <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
+                      <td>{candidate.reason}</td>
+                      <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
+                      <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
+                      <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
+                      <td>
+                        <div className="case-action-stack">
+                          <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "paid_manual")}>
+                            <CheckCircle2 size={15} /> Stimmt
+                          </button>
+                          <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "cancelled_manual")}>
+                            <X size={15} /> Abgelehnt
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -7398,14 +7458,6 @@ function MatchesView({ cases: rows, importRows = [], standort, manualCaseResolut
   return (
     <CasesView cases={matched} title="Neueinreichungsvorschläge" description="Keine automatisch erkannten Neueinreichungen im aktuellen Datenstand." />
   );
-}
-
-function aggregateResubmissionsByLocation(candidates: ResubmissionCandidate[]) {
-  const grouped = new Map<string, number>();
-  candidates.forEach((candidate) => grouped.set(candidate.locationName, (grouped.get(candidate.locationName) ?? 0) + 1));
-  return [...grouped.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([label, value]) => ({ label, value }));
 }
 
 function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {

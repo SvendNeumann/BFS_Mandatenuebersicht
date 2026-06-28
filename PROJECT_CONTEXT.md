@@ -1,64 +1,101 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 01:15 Uhr
+Stand: 28.06.2026, ca. 08:40 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Code-Fix: Manuelle Klärfall-Erledigung mit Import-übergreifendem Ausblenden  
-Aktueller Head: per `git log -1 --oneline` pruefen
+Aktueller Fokus: Produktstruktur Richtung CFO-/Management-Cockpit, stabile Live-Daten, bessere mobile/tablet Bedienbarkeit und performante Auswertungen.
 
 ## Prompt fuer den naechsten Chat
 
 ```text
 Bitte lies zuerst `/Users/svendneumann/Documents/BFS_Mandantenportal/PROJECT_CONTEXT.md` vollstaendig ein und arbeite danach im Projekt `/Users/svendneumann/Documents/BFS_Mandantenportal` weiter.
 
-Antworte auf Deutsch. Nutze die bestehende App-Struktur. Wenn du Code aenderst: zuerst relevante Dateien lesen, dann gezielt patchen, danach `pnpm run typecheck` und `pnpm run build` ausfuehren, committen und pushen.
+Antworte auf Deutsch. Nutze die bestehende App-Struktur. Wenn du Code aenderst: zuerst relevante Dateien lesen, dann gezielt patchen, danach mindestens `pnpm run typecheck`, `pnpm run build` und `git diff --check` ausfuehren, committen und auf `origin/main` pushen.
 
 Wichtige Dateien:
 - `components/monitor-app.tsx`
+- `app/globals.css`
 - `app/api/imports/parse/route.ts`
+- `app/api/cases/resolutions/route.ts`
+- `app/api/admin/users/route.ts`
+- `app/api/admin/users/[userId]/route.ts`
 - `lib/bfs-parser.ts`
+- `lib/demo-data.ts`
 - `lib/demo-import.ts`
 - `lib/server-auth.ts`
 - `proxy.ts`
-- `app/globals.css`
 - `supabase/migrations/*`
 
-App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen fuer Orisus-Standorte produktiv importieren, auswerten und statistisch analysieren: Umsatz eingereicht, Auszahlung, BFS-Gebuehr netto, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Reports.
+App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als CFO-/Management-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark und Reports.
 ```
+
+## Sinn der App
+
+Die App ist das zentrale Steuerungsboard fuer die Orisus-Gruppe rund um BFS-Factoring und Abrechnungsqualitaet.
+
+Sie soll nicht nur Daten anzeigen, sondern fachlich beantworten:
+- Was wurde je Standort und Gruppe eingereicht?
+- Wie entwickeln sich Eingang, Auszahlung, BFS-Kosten, Gebuehrenquote, Rueckbelastungen und Stornos?
+- Wo entstehen offene Klaerfaelle oder echte operative Risiken?
+- Welche Patienten/Standorte sind auffaellig?
+- Welche Stornos/Rueckgaben wurden spaeter wieder reingeholt oder manuell als bezahlt geklaert?
+- Was muss eine Standortleitung konkret bearbeiten?
+- Welche Reports koennen direkt als PDF/CSV an Standortleitungen gehen?
+
+Das Zielbild ist: "Das ist die Lage. Das ist auffaellig. Hier musst du handeln." Nicht: "Hier sind alle Tabellen."
 
 ## Produktstruktur / Zielbild
 
-Die App ist fachlich als Steuerungsprodukt aufgebaut, nicht als reine Tabellenauswertung:
+Die App soll fachlich in drei Ebenen denken:
 
 1. Management-Cockpit
-   - Startseite nach Login.
-   - Zeitraum-/Standortbezug, zentrale KPI-Kacheln, Charts, Standort-Benchmark und klare Hinweise: was ist auffaellig, was muss geprueft werden.
-   - Tabellen erst nachgelagert.
+   - Erste Sicht nach Login.
+   - Fokus auf Lage, Entwicklung und Handlung.
+   - KPI-Kacheln, Trends, Vorjahresvergleich, Standortvergleich, Ampeln und klare Hinweise.
+   - Tabellen nur sehr nachgelagert.
 
 2. Analyse & Benchmarking
-   - Standortvergleich als Karten/Ranking statt Tabellenfriedhof.
-   - Forderungen & Geldfluss fuer Kosten, Gebuehren, Rueckgaben, Stornos und Auszahlung.
-   - Forderungsqualitaet trennt Risiko und Fallarbeit: `Ohne Ausfallschutz` ist Risikobestand, `Rueckbelastung/Storno` ist operativer Klaerfall.
+   - Erklaert, warum etwas auffaellig ist.
+   - Standortvergleich, Forderungen & Geldfluss, Forderungsqualitaet, Patientenqualitaet.
+   - Mehr Charts, Rankings, Entwicklungslinien, Benchmark-Karten und Quoten.
 
 3. Operative Fallarbeit
-   - Klaerfaelle, Matching/Neueinreichungen, Rueckbelastungen und Wiedervorlagen.
-   - Tabellen sind hier erlaubt und sinnvoll, aber mit vorgelagertem Arbeitsboard/KPI-Ueberblick.
+   - Hier gehoeren Detailtabellen hin.
+   - Klaerfaelle, Matching/Neueinreichungen, Rueckbelastungen, Wiedervorlagen.
+   - Tabellen muessen kompakt und intern scrollbar sein, damit Seiten nicht endlos lang werden.
 
-Grundsatz: Hauptseiten sollen zuerst Lage, Auffaelligkeit und Handlung zeigen. Detailtabellen stehen unten oder auf operativen Drilldown-Seiten.
+Navigationslogik aktuell:
+- Management
+- Analyse & Benchmarking
+- Operative Fallarbeit
+- Reports
+- Import & Pruefung
+- Admin Bereich
 
-Standort-Reihenfolge:
-- Standorte werden fachlich immer nach Vertragsstart/Go-live angezeigt: Kirchberg, Essen, Kehl, Ulmet, Huettenberg, Kassel.
-- Auch Tabs, Standortfilter, Benchmark-Karten, Storno-Quercheck, Import-Historie und Admin-Dropdowns folgen dieser Reihenfolge. Rankings duerfen Kennzahlen ausweisen, aber die sichtbare Standortliste bleibt chronologisch.
+## Wichtigste fachliche Weiterentwicklung
 
-Aktuelle Zusatzlogik:
-- `Forderungsqualitaet` und `Massnahmenkontrolle` zeigen einen Storno-Quercheck.
-- Ausgewertet wird: Stornos gesamt, davon erledigt, noch offen, Erledigungsquote gesamt und je Standort.
-- Als erledigt zaehlt ein Storno, wenn im Datenstand `Zahlung nach Storno`, eine direkte Erledigung, eine spaetere Neueinreichung/Matching desselben Patienten oder eine manuelle Markierung als bezahlt erkannt wird.
-- Die Erledigungs-/Recovery-Quote in `Forderungen & Geldfluss` zaehlt automatische Neueinreichungen und manuell bezahlte Klaerfaelle zusammen, entdoppelt aber denselben Ursprungsfall.
-- Klärfälle können in der Falltabelle manuell als bezahlt markiert werden.
-- Die manuelle Erledigung wird serverseitig im `audit_log` als `manual_case_resolved` mit stabilem Fall-Schluessel gespeichert.
-- Der Fall-Schluessel basiert auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund. Dadurch wird derselbe Fall bei spaeteren Importen wieder ausgeblendet.
+Der aktuelle Stand kann bereits importieren, auswerten, Klaerfaelle anzeigen und Standortdaten vergleichen. Der naechste grosse Produktschritt sollte aber klarer in Richtung CFO-Cockpit gehen.
+
+Was im ersten Blick staerker sichtbar werden soll:
+- Eingereicht YTD 2026 vs. Vorjahr YTD
+- Eingereicht aktuelles Quartal vs. Vorquartal und Vorjahresquartal
+- Monatsentwicklung je Standort und Gruppe
+- Gebuehrenquote im Zeitverlauf
+- BFS-Kosten absolut und relativ
+- Rueckbelastungs-/Stornoquote im Zeitverlauf
+- Anteil ohne Ausfallschutz
+- Anteil der Ohne-Ausfallschutz-Faelle, die tatsaechlich nicht zahlen oder operativ auffaellig werden
+- offene Klaerfaelle nach Alter
+- Top-Standorte nach Risiko, Kosten, Wachstum, Abweichung
+- Patientenqualitaet und Wiederholer
+
+Empfohlener Aufbau jeder Management-/Analyse-Seite:
+1. Oben: Standort, Zeitraum, Datenstatus
+2. Dann: wichtigste KPI-Kacheln mit Trend/Vorjahr
+3. Dann: 1-2 aussagekraeftige Diagramme
+4. Dann: "Was ist auffaellig?" und "Was muss geprueft werden?"
+5. Erst unten: Detailtabelle oder Drilldown
 
 ## Aktueller Live-Stand
 
@@ -67,358 +104,266 @@ Die App ist live auf Vercel und mit Supabase verbunden.
 Supabase:
 - Project ref: `dozcaktodvogbkiomcqo`
 - URL: `https://dozcaktodvogbkiomcqo.supabase.co`
-- Supabase-Verbindung wurde am 28.06.2026 erneut geprueft:
-  - Supabase MCP/SQL erreichbar.
-  - REST-Zugriff mit Publishable Key und Secret Key erfolgreich.
-  - API-Logs zeigen erfolgreiche App-Schreibzugriffe auf Storage, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen` und `bfs_bewegungen`.
-- Auth laeuft wieder sauber ueber Supabase Auth.
+- Auth laeuft ueber Supabase Auth.
 - Super-Admin: `svend.neumann@orisus.de`
-- Supabase bestaetigte zuletzt:
-  - E-Mail bestaetigt
-  - nicht gesperrt
-  - Profil `super_admin`
-  - `active=true`
-  - Login war erfolgreich sichtbar ueber `last_sign_in_at`
+- Wichtige Tabellen: `bfs_import_batches`, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen`, `bfs_bewegungen`, `bfs_cases`, `audit_log`
 
 Vercel:
-- Production Env ist gesetzt:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` / Publishable Key
-  - `SUPABASE_SERVICE_ROLE_KEY`
-- Lokale `.env.local` wurde am 28.06.2026 wiederhergestellt, damit lokale Tests und Builds dieselbe Supabase-Umgebung nutzen. Datei ist per `.gitignore` ausgeschlossen und wird nicht gepusht.
-- Dieses Repo ist lokal mit dem Vercel-Projekt `bfs-mandatenuebersicht` verknuepft.
-- Nicht verwechseln mit dem separaten Vercel-Projekt `orisus-cfo-dashboard`.
-- Letzter Production-Deploy: `dpl_9WhLeNvoQKxUdZsQV5RDzrGzKRUS`.
-- Alias: `https://bfs-mandatenuebersicht.vercel.app`.
-- Deploy-URL: `https://bfs-mandatenuebersicht-app55433c-orisus.vercel.app`.
-- Smoke-Test nach Deploy: `/login` erreichbar mit HTTP 200; lokale Supabase-REST-Pruefung mit `.env.local` erfolgreich.
-- Deploys laufen ueber Git push auf `main` oder direkt per Vercel CLI.
-- GitHub-Push war kurz blockiert, weil Git keinen Credential-Helper nutzte. Reparatur: Repo-lokaler Credential-Helper `/Library/Developer/CommandLineTools/usr/libexec/git-core/git-credential-osxkeychain`.
-- Danach funktionierte `git push origin main` wieder.
-- GitHub, Vercel und Supabase wurden am 28.06.2026 aus diesem Projekt heraus geprueft:
-  - GitHub Remote erreichbar, `origin/main` zeigt auf `0fecca1d`.
-  - Vercel CLI eingeloggt als `svendneumann-8070`, Projektlink zeigt auf `bfs-mandatenuebersicht`.
-  - Vercel Production Env wurde explizit neu gesetzt und danach neu deployed.
-  - Supabase CLI ist nicht eingeloggt; Supabase MCP funktioniert aber fuer Projektverwaltung/SQL.
+- Projekt: `bfs-mandatenuebersicht`
+- Live-Alias: `https://bfs-mandatenuebersicht.vercel.app`
+- Nicht verwechseln mit separatem Projekt `orisus-cfo-dashboard`.
+- Deploys laufen ueber Push auf `origin/main`.
 
-## Letzte wichtige Commits
+Git:
+- Immer auf `origin/main` pushen, wenn Aenderungen abgeschlossen sind.
+- GitHub-Verbindung wurde repariert und funktionierte zuletzt.
 
-- `0b494e47 Remove remaining live demo values`
-  - Live-App zeigt keine Demo-, Beispiel- oder Planwerte mehr.
-  - Standort-Stammdaten bleiben fuer Mapping/Navigation erhalten, aber alle Kennzahlen/Risiken/Nutzer/Reports kommen nur aus Supabase bzw. aktuellem Import.
-  - Bei fehlenden Daten werden `0`, `-` oder leere Tabellen mit Hinweis angezeigt.
+## Daten- und Live-Grundsatz
 
-- `9809bf05 Fix imported dataset metric fallbacks`
-  - Nach echtem Import werden fehlende Standortdaten nicht mehr mit Demo-/Planwerten aufgefuellt.
-  - Wenn nur Kirchberg importiert ist, zeigen Kehl/Ulmet/Essen/Huettenberg/Kassel in Schnellantworten, Tabs, Standortdashboard, Geldfluss und Risiko 0 statt Demo-Werte.
+Es duerfen nirgends Demo- oder Beispielwerte angezeigt werden.
 
-- `0fecca1d Update import fix project context`
-  - Projektkontext nach Import- und Deployment-Fixes aktualisiert.
+Regel:
+- Wenn keine Live-/Importdaten vorhanden sind: `0`, `-` oder leerer Zustand mit Hinweis.
+- Standort-Stammdaten duerfen fuer Navigation, Mapping und Go-live-Logik existieren.
+- Kennzahlen, Risiken, Reports und Falllisten duerfen nicht durch Demo-Fallbacks gefuellt werden.
 
-- `17de9a71 Replace stale failed PDF imports`
-  - Alte fehlerhafte PDF.js-Importe werden nicht mehr als gueltige Dubletten behandelt.
-  - Persistierte kaputte Vorschauzeilen mit fehlender PDF-Extraktion werden ausgeblendet bzw. beim Reupload ersetzt.
+Standorte werden immer chronologisch nach Vertragsstart angezeigt:
+- Kirchberg: 01.07.2024
+- Essen: 01.01.2025
+- Kehl: 01.04.2025
+- Ulmet: 01.07.2025
+- Huettenberg: 01.01.2026
+- Kassel: 01.07.2026
 
-- `41c5e37b Fix Vercel PDF worker loading`
-  - Vercel/Node PDF.js Fehler `Setting up fake worker failed` behoben.
-  - Server-PDF-Extraktion laedt den PDF.js Worker vor und funktioniert wieder mit echten BFS-PDFs.
+Standard-Zeitraum:
+- Alle waehlbaren Zeitraumfilter sollen standardmaessig auf YTD 2026 stehen.
+- In der UI heisst das aktuell `2026 gesamt`.
 
-- `2280eb6b Document metric wording normalization`
-  - Projektkontext nach Kacheltext-Fix aktualisiert.
+Zahlenformat:
+- Zahlen ohne Nachkommastellen.
+- Prozente mit einer Nachkommastelle.
+- Ausnahme: Gebuehrenquote immer mit zwei Nachkommastellen.
 
-- `fd43d82c Normalize import wording in metric cards`
-  - Kachel-Hinweise und Zeitraum-Badges normalisieren alte gespeicherte Testupload-Wortlaute zu produktiven Begriffen.
-  - Sichtbare Kacheltexte zeigen `aktueller Import` statt `aktueller Testupload`.
+## Import / Verarbeitung
 
-- `7b698194 Fix metric info popovers`
-  - KPI-/Metric-Infoboxen werden nicht mehr von Karten abgeschnitten.
-  - Es bleibt appweit nur eine Infobox offen; Klick auf das naechste `i` schliesst die vorherige.
-  - Infobox schliesst auch bei Escape, Scroll, Resize und Hintergrundklick.
-
-- `adb9511b Improve import confirmation contrast`
-  - Import-Bestaetigungsdialog lesbar gemacht: dunkle Kacheln, helle Werte, kontrastreiche Labels.
-
-- `4a8df726 Preserve monitor view on reload`
-  - Browser-Refresh und Button `Neu laden` behalten aktuelle Ansicht und Standortauswahl bei.
-  - Datenstand wird trotzdem vollstaendig neu geladen.
-
-- `e2259a6f Reset server import data with upload reset`
-  - Upload-Reset archiviert serverseitig importierte Dokumente.
-  - Tabwechsel/Refresh holt danach nicht wieder alte Importdaten zurueck.
-
-- `68a5a1c8 Remove test wording from import flow`
-  - Sichtbare Test-/Demo-Begriffe im Import-Center entfernt.
-
-- `a255e908 Add import issue report and preserve failed files`
-  - Fehlerbericht/Druck-PDF fuer Importanalyse ergaenzt.
-  - Einzelne fehlerhafte Importdateien bleiben sichtbar.
-
-- `afc8e68d Redesign BFS landing login page`
-  - Startseite nach Referenzaufbau neu gestaltet mit BFS-/Orisus-Inhalten und Login-Panel.
-
-- `9c43431a Chunk large folder imports`
-  - grosser Ordnerupload wird clientseitig in kleine Chunks gesplittet
-  - max. 6 PDFs bzw. ca. 3,5 MB pro Request
-  - fehlerhafte Chunks werden rekursiv halbiert
-  - einzelne Problemdateien werden isoliert statt ganzen Upload abzubrechen
-  - alte `error`-Dokumente blockieren Reimport mit gleichem Hash nicht mehr
-
-- `225c0d8c Fix mobile summary label wrapping`
-  - Mobile-Label-Overflow in Zusammenfassungs-Kacheln behoben
-
-- `5df17062 Tighten responsive layout guardrails`
-  - Desktop/Tablet/Mobile Layout guardrails
-  - Standort-Tabs auf Tablet/Mobile stabilisiert
-
-- `5f899f66 Clear stale import previews and preserve folder paths`
-  - alte lokale IndexedDB-Vorschauen werden nicht mehr als Wahrheit angezeigt, wenn Serverdaten leer sind
-  - Import-API `GET/POST` mit `no-store`
-  - relative Ordnerpfade werden explizit als `paths` mitgesendet
-
-- `db60de0b Fix server PDF text extraction`
-  - Vercel/Node PDF.js Fehler `DOMMatrix is not defined` behoben
-  - serverseitige PDF-Extraktion funktioniert wieder mit echten BFS-PDFs
-
-- `0d8529bc Make import status and dashboard data consistent`
-  - Supabase ist die serverseitige Import-Datenquelle
-  - Kacheln laden persistierte Importdaten aus Supabase
-  - Status unterscheidet importiert / Dublette / Fehler
-
-- `972a32e5 Remove super admin auth fallback`
-  - Notfall-App-Session-Fallback entfernt
-  - Login nur noch Supabase Auth
-
-## Upload / Import
-
-Aktuelle Architektur:
+Architektur:
 - Frontend: `components/monitor-app.tsx`
 - Server-Endpoint: `app/api/imports/parse/route.ts`
 - Parser: `lib/bfs-parser.ts`, `lib/demo-import.ts`
 - Storage: privater Supabase Bucket `bfs-documents`
-- Tabellen:
-  - `bfs_import_batches`
-  - `bfs_documents`
-  - `bfs_abrechnungen`
-  - `bfs_forderungen`
-  - `bfs_bewegungen`
-  - `bfs_cases`
 
-Wichtig:
+Import-Regeln:
 - Nur PDFs werden verarbeitet.
-- Nicht-PDFs im Ordner werden ausgesortiert.
+- Nicht-PDFs werden ausgesortiert.
+- Ordner inkl. Unterordner werden unterstuetzt.
+- Grosse Ordner werden in Chunks verarbeitet.
 - Dubletten werden ueber Hash und fachliche Identitaet erkannt.
 - Fachliche Identitaet: Mandant-Nr. + Abrechnungs-Nr. + Standort.
-- Eine Abrechnung mit gleicher Abrechnungsnummer darf nicht doppelt gerechnet werden.
-- Alte fehlgeschlagene `error`-Dokumente blockieren erneuten Upload nicht mehr.
-- Alte fehlgeschlagene PDF.js-/Fake-Worker-Importe blockieren erneuten Upload nicht mehr, auch wenn sie vorher faelschlich als `imported` gespeichert wurden.
+- Alte fehlerhafte PDF-Imports duerfen erneuten Upload nicht blockieren.
+- Upload-Reset muss serverseitige Importdaten und Zwischenstaende sauber entfernen bzw. archivieren.
 
-Grosser Ordner:
-- User-Ordner: `/Users/svendneumann/Desktop/BFS Uploads/`
-- Gemessen: 839 PDFs, ca. 542 MB.
-- Ein einzelner Request ist fuer Vercel zu gross.
-- Deshalb chunked Upload:
-  - max. 6 PDFs pro Chunk
-  - max. ca. 3,5 MB pro Chunk
-  - automatisches Splitten bei Fehlern
-  - Fortschritt zeigt `Paket x/y`
+Bekannte Altfehler wurden bereits behoben:
+- PDF.js `DOMMatrix is not defined`
+- PDF.js Fake-Worker-Fehler auf Vercel
+- alte kaputte PDF-Importe als falsche Dubletten
+- lokale Browserdaten als irrefuehrende Wahrheit nach Reset
 
-Wenn der grosse Ordner weiter scheitert:
-- zuerst pruefen, ob der aktuellste Vercel-Deploy mit `17de9a71` aktiv ist.
-- hart neu laden.
-- Browser-Konsole/Network fuer `/api/imports/parse` pruefen.
-- Wenn einzelne Chunks scheitern, sollte Status die konkrete Einzeldatei nennen.
-- Naechster sinnvoller Schritt waere eine echte Job-/Queue-Architektur, falls Vercel Function-Laufzeit trotz Chunking fuer 839 PDFs noch zu eng wird.
+Wenn grosse Uploads wieder haken:
+- Network-Response von `/api/imports/parse` pruefen.
+- Klaeren, ob einzelnes PDF, Vercel Timeout oder Datenbank-Limit.
+- Langfristig waere fuer sehr grosse Ordner eine echte Job-/Queue-Architektur sauberer.
 
-Aktueller Datenbefund nach Kirchberg-Upload:
-- Supabase enthaelt aktuell `252` importierte Kirchberg-Dokumente mit ca. `1.854.921,52 EUR` eingereichtem Umsatz.
-- Essen, Kehl, Ulmet, Huettenberg und Kassel enthalten `0` importierte Dokumente und `0,00 EUR` Umsatz.
-- Falls andere Standorte dennoch Werte zeigen, ist das UI-Demo-Fallback und kein Datenbankinhalt. Fix dafuer: `9809bf05 Fix imported dataset metric fallbacks`.
-
-Live-Daten-Grundsatz:
-- Es duerfen nirgends Demo- oder Beispielwerte angezeigt werden.
-- Ohne Datenquelle gilt: `0`, `-` oder ein leerer Zustand mit Hinweis.
-- `lib/demo-data.ts` enthaelt nur noch Standort-Stammdaten; alle Beispielkennzahlen, Beispielrisiken, Beispielnutzer und Beispielimportzeilen sind leer.
-
-## Bekannter alter Fehler und Bereinigung
-
-Alte Fehler:
-- Server-PDF-Parsing scheiterte mit `DOMMatrix is not defined`.
-- Dadurch wurden zwei Dokumente ohne Summen gespeichert.
-- Server-PDF-Parsing scheiterte spaeter auf Vercel mit `Setting up fake worker failed`.
-- Dadurch wurden viele Dokumente ohne Abrechnungsdaten, ohne Kontoauszug und mit PDF.js-Parse-Notiz gespeichert.
-
-Bereinigt:
-- Diese alten Dokumente wurden in Supabase auf `status='error'` gesetzt.
-- Zugehoerige Batches wurden auf `failed` korrigiert.
-- Dashboard-Quelle liest nur `bfs_documents.status='imported'`.
-- Nach Reupload werden diese PDFs neu verarbeitet.
-- Seit `17de9a71` werden kaputte PDF.js-Importe beim Laden der Vorschau herausgefiltert und beim Reupload ersetzt, statt als Dubletten uebersprungen zu werden.
-
-## Auth / Nutzer
+## Rollen / Rechte
 
 Login:
-- nur noch Supabase Auth.
-- `proxy.ts` prueft geschuetzte Routen serverseitig.
-- `lib/server-auth.ts` liest Supabase-Session-Cookie und Profil.
-- App-Session-Fallback wurde entfernt.
-- Der Legacy-Cookie `orisus_bfs_app_session` wird nur noch geloescht, nicht akzeptiert.
+- Nur Supabase Auth.
+- `proxy.ts` schuetzt Routen.
+- `lib/server-auth.ts` liest Session und Profil.
+- Legacy-App-Session-Fallback ist entfernt.
 
-Admin-Nutzeranlage:
-- Super Admin kann Nutzer in der App anlegen.
-- Admin vergibt temporaeres Passwort.
-- Nutzer muss beim ersten Login ein eigenes Passwort setzen.
-- Wichtige APIs:
-  - `app/api/admin/users/route.ts`
-  - `app/api/admin/users/[userId]/route.ts`
-  - `app/api/auth/complete-password-change/route.ts`
+Wichtige aktuelle Korrektur:
+- Standortleitungen duerfen relevante Serverdaten lesen, statt auf lokale Browserdaten zurueckzufallen.
+- Manuelle Fall-Erledigung wurde fuer Super-Admins repariert, indem App-Standort-IDs korrekt auf Supabase-Standort-UUIDs gemappt werden.
 
-## Responsive / UI
+Admin:
+- Super Admin kann Nutzer anlegen und Rollen/Standorte verwalten.
+- Nutzer koennen ein temporaeres Passwort erhalten und beim ersten Login wechseln.
+- Admin-Benutzer-API sollte vorsichtig bleiben: Standortzuordnungen duerfen nicht versehentlich geleert werden, wenn kein Standortpayload kommt.
 
-Geprueft per Browser-Automation auf Live-App:
-- Desktop 1440x900
-- Tablet 1024x768
-- Mobile 390x844
+## Klaerfaelle / Manuelle Bearbeitung
 
-Ergebnis nach Fixes:
-- Dashboard: kein Page-Overflow, keine sichtbaren Elemente ausserhalb, kein Textoverflow.
-- Import-Center: Tabellen scrollen innerhalb `.table-wrap`, nicht die ganze Seite.
-- Nutzerverwaltung: Mobile/Tablet sauber, Tabellen intern scrollbar.
-- Sidebar:
-  - Desktop sticky sichtbar
-  - Tablet/Mobile fixed off-canvas Drawer
-  - Mobile-Menuebutton sichtbar
-- Standort-Tabs:
-  - Desktop normal
-  - Tablet bruch-/wrap-faehig
-  - Mobile horizontal scrollbar
+Klaerfaelle koennen operativ bearbeitet werden.
 
-Logo:
-- Transparentes Orisus-Zahnmedizin-Logo liegt in `public/orisus-zahnmedizin-transparent.png`.
-- Wird in `components/monitor-app.tsx` als `.orisus-wordmark` verwendet.
+Aktuelle Logik:
+- Fall als bezahlt/erledigt markieren.
+- Markierung wird serverseitig im `audit_log` gespeichert.
+- Stabile Fall-Schluessel basieren auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund.
+- Erledigte Faelle werden importuebergreifend ausgeblendet, wenn derselbe Vorgang spaeter wieder auftaucht.
+- Manuell erledigte Faelle zaehlen bei Recovery-/Erledigungsquoten mit.
+- Doppelte Audit-Eintraege fuer denselben Fall wurden als Risiko erkannt und sollten weiterhin verhindert werden.
 
-## Standorte / Mandanten
+Noch wichtig fuer Produktlogik:
+- "Bezahlt/erledigt" bedeutet: fachlich geklaert und nicht mehr operativ offen.
+- "Weiterhin offen" bedeutet: nicht als bezahlt bestaetigt und muss in Klaerfaelle/Fallarbeit sichtbar bleiben.
+- Browser-native Confirm-Dialoge sollen nicht verwendet werden; stattdessen App-Popups/Dialoge.
 
-Standorte:
-- Kirchberg, live seit 01.07.2024
-- Essen, live seit 01.01.2025
-- Kehl, live seit 01.04.2025
-- Ulmet, live seit 01.07.2025
-- Huettenberg, live seit 01.01.2026
-- Kassel, vorbereitet ab 01.07.2026
+## Storno / Rueckgabe / Recovery
 
-Bekannte Mandantennummern:
-- Essen: `18790`
-- Ulmet: `19260`, `19668`, `19669`
-- Kassel/Spohr: `20309`, `20902`
-- Weitere Zuordnungen liegen in `lib/demo-data.ts` und Supabase-Tabelle `standort_mandanten`.
+Die App unterscheidet:
+- Rueckgabe/Rueckbelastung/Storno: urspruenglicher Abzug bzw. negativer Vorgang.
+- Neueinreichung/Recovery: spaeter erkannte erneute Forderung desselben Patienten/Vorgangs.
+- Manuell bezahlt: fachlich vom Nutzer als erledigt bestaetigt.
+- Operativ offen: echter Fallbestand, der noch bearbeitet werden muss.
 
-## Parser / Fachlogik
+Wichtig bei Beschriftungen:
+- Recovery-Betrag kann hoeher sein als urspruenglicher Abzug, wenn spaetere Neueinreichungen mehr als den alten Abzug enthalten. Das muss eindeutig als "spaeter erneut eingereichte Summe" oder aehnlich beschriftet sein, nicht als 1:1 Rueckholung des alten Betrags.
+- Quoten muessen klar sagen, ob sie sich auf Anzahl Faelle, Abzugssumme oder eingereichten Umsatz beziehen.
+- `110/226 erledigt` und `operativ offen 161` duerfen nicht missverstaendlich addiert werden, wenn sie unterschiedliche Grundgesamtheiten/Definitionen haben. Entweder logisch entdoppeln oder sehr klar beschriften.
 
-Parser kann aus BFS-PDFs erkennen:
-- Mandant-Nr.
-- Abrechnungsnummer
-- Abrechnungsdatum
-- Forderungsanzahl
-- Forderungssumme
-- Forderungsliste / Patienten / Rechnungsnummern / BFS-Nr.
-- Kontoauszug-Bewegungen
-- Auszahlung
-- BFS-Gebuehr netto
-- MwSt
-- EWMA/Meldeamtabfragen
-- Ohne-Ausfallschutz-Markierungen
-- Rueckgaben/Stornos inkl. Grundklassifizierung
+## Patientenqualitaet
 
-Lokal verifiziert nach `DOMMatrix`-Fix mit echten PDFs:
-- `AbrechnungsNachweis_19092_1.pdf`
-  - Mandant `19092`
-  - Abrechnung `1`
-  - Datum `03.04.2025`
-  - Forderungssumme `189,16`
-  - Auszahlung `184,09`
-  - Gebuehr netto `4,26`
-  - MwSt `0,81`
-- `AbrechnungsNachweis_19092_9.pdf`
-  - Mandant `19092`
-  - Abrechnung `9`
-  - Datum `23.04.2025`
-  - Forderungssumme `1.691,88`
-  - Auszahlung `1.581,10`
-  - Gebuehr netto `38,07`
-  - MwSt `7,23`
+Patientenklassifizierung:
+- Patienten werden je Standort anhand von Zahlungs-/Storno-/Rueckgabe-Verhalten, ohne Ausfallschutz, Wiederholungen und Risikosumme klassifiziert.
+- A/B/C/D-Kacheln brauchen immer echte Erklaertexte im Info-Popup.
+- Ohne Ausfallschutz ist ein Risikobestand, aber nicht automatisch ein Klaerfall.
+- Fachlich wichtig ist die Quote: Anteil Ohne-Ausfallschutz-Patienten, die spaeter wirklich nicht zahlen, rueckbelastet/storniert werden oder operativ auffaellig werden.
 
-## Fachliche Auswertungen
+Gewuenschte Steuerungsfrage:
+- Wie gross ist der Anteil der Patienten ohne Ausfallschutz an allen eingereichten Faellen?
+- Wie viele dieser Patienten verursachen tatsaechlich offene Faelle, Stornos oder Rueckbelastungen?
+- Welche Standorte haben eine schlechte Risikoselektion?
 
-Die App soll statistisch auswerten:
-- Umsatz eingereicht
-- Auszahlungsbetrag
-- BFS-Gebuehr netto
-- MwSt
-- EWMA/Meldeamtabfragen
-- Rueckgaben/Rueckbelastungen
-- Stornos
-- offene Klaerfaelle
-- offene Summe
-- ohne Ausfallschutz
-- Matching/Neueinreichungen
-- Standortzuordnung ueber Mandantennummern
+## Reports
 
-Definitionen:
-- Gesamtkosten BFS = BFS-Gebuehr netto + MwSt auf BFS-Gebuehr
-- Zusatzkosten ohne Steuer = BFS-Gebuehr netto + EWMA/Meldeamtabfragen netto
-- Stornos/Rueckgaben sind Umsatz-/Liquiditaetsabfluss, nicht normale Kosten
-- Dubletten duerfen nicht doppelt in Auswertungen eingehen
+Reports sollen Standortleitungen direkt helfen.
 
-## Wichtige Kommandos
+Gewuenscht/teilweise umgesetzt:
+- PDF-/Druckexport fuer offene Faelle.
+- CSV-Export.
+- Report-Center ohne ueberfluessige Kacheln wie Exportformate/Empfaengerlogik.
+- Kommentare/Quellen in Tabellen kurz halten: wenn moeglich nur Abrechnungsnummer statt langer Pfade.
+- Offene-Faelle-Reports sollen nach Standort und Zeitraum filterbar sein.
 
-Immer mit Node-PATH ausfuehren, wenn Shell `node: not found` meldet:
+Naechster sinnvoller Report-Ausbau:
+- Standortleiter-Monatsreport mit:
+  - Eingereicht, Auszahlung, BFS-Kosten, Gebuehrenquote
+  - offene Klaerfaelle
+  - Stornos/Rueckgaben
+  - Ohne-Ausfallschutz-Risiko
+  - Wiederholer
+  - konkrete Fallliste
+  - Management-Kommentar / Handlungsempfehlung
+
+## UI / Responsive / Bedienung
+
+Gestaltungsrichtung:
+- Dunkles CFO-/Controlling-Dashboard.
+- Navy/Petrol, transparente Cards, cyan/tuerkise Akzente.
+- Ruhig, professionell, internes Boardroom-Tool.
+- Keine Marketing-Landingpage, keine Spielerei.
+
+Aktuell wichtige UI-Entscheidungen:
+- Mobile Header mit Logo und Menuebutton wurde neu proportioniert.
+- Klick auf Logo soll immer ins Cockpit fuehren.
+- Standortleiste und relevante Content-Steuerung sollen sticky bleiben, solange darunter Inhalte darauf reagieren.
+- Desktop/Tablet: linke Navigation sticky.
+- Mobile: Drawer/Off-canvas Navigation.
+- KPI-Karten auf Tablet muessen in sinnvoll grossen Grids laufen, nicht zu schmal werden.
+- Tabellen appweit kompakter und intern scrollbar.
+- Lange Detailtabellen duerfen Seiten nicht endlos verlaengern.
+
+KPI-Kacheln:
+- Einheitliche dunkle Cards.
+- Icon, Titel, grosser Wert, Unterzeile, Zeitraum-Badge, Info-Button.
+- Sparklines sollen sich auf die jeweilige Kennzahl und den Filterzeitraum beziehen.
+- Sparkline-Farbe: positiv gruen/tuerkis, kritisch orange/rot.
+- Trends sollen Vorjahr/Vorperiode logisch widerspiegeln.
+- Info-Buttons muessen echte Herleitung liefern, keine Platzhalter.
+
+Diagramme:
+- Moderne Balken mit sauberer Umrandung, lesbaren Labels und guter Touch-/Hover-Anzeige.
+- Mobile Diagramme muessen bei Einzelstandort nicht als riesiger einzelner Balken erscheinen.
+- Tooltips muessen innerhalb der Karte bleiben und nicht abgeschnitten oder halb ausserhalb liegen.
+- Balken duerfen nicht verwirrend doppelt oder optisch ueberlagert wirken.
+
+## Zuletzt umgesetzte wichtige Aenderungen
+
+Aktuelle letzte Commits:
+- `29075bfe Keep content controls sticky while scrolling`
+- `76c473fc Default period filters to 2026 YTD`
+- `4f71bf83 Improve tablet answer cards`
+- `ac27a80f Improve tablet KPI cards`
+- `c65d9704 Fix manual case resolution permissions`
+- `3a0586ec Clean up mobile chart bars`
+- `15792694 Format fee rate with two decimals`
+- `df5e7a26 Refine mobile header proportions`
+- `ad9b32b3 Fix single-location chart bars`
+- `a2f04fa4 Make logo open cockpit`
+- `9c9a5444 Add sparklines to KPI cards`
+- `ca1c1086 Add KPI sparklines to answer cards`
+
+Damit ist zuletzt erledigt:
+- Super-Admin kann manuelle Fall-Erledigung wieder ausloesen.
+- Mobile/Tablet KPI-Kacheln wurden verbessert.
+- Antwort-Cockpit-Kacheln wurden auf Tablet besser verteilt.
+- Zeitraumfilter starten standardmaessig auf 2026 YTD.
+- Standort-/Content-Steuerung bleibt beim Scrollen besser erreichbar.
+- Gebuehrenquote wird mit zwei Nachkommastellen gezeigt.
+- Logo fuehrt ins Cockpit.
+- Sparklines wurden in KPI-/Antwort-Kacheln eingefuehrt.
+
+## Technische Qualitaet / Checks
+
+Zuletzt bei Code-Aenderungen verwendet:
 
 ```bash
-PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" pnpm run typecheck
-PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" pnpm run build
+PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm run typecheck
+PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm run build
+git diff --check
 ```
 
-Normale Git-Kommandos:
+Wichtige offene technische Punkte:
+- Automatisierte Tests fehlen weiterhin.
+- Besonders testwuerdig:
+  - Import
+  - Rollenrechte
+  - Standortleitungszugriff
+  - manuell erledigte Klaerfaelle
+  - Reset-Logik
+  - Report-/PDF-Export
+  - Storno-/Recovery-Entdoppelung
+- Lint-Konfiguration war frueher kaputt/falsch angebunden. Typecheck und Build sind aktuell die verlaesslichen Checks.
+- Importdaten duerfen nicht hart bei 5000 Dokumenten abgeschnitten werden, ohne sichtbar darauf hinzuweisen oder zu paginieren.
+- Reset sollte Fehler-/Duplikat-/Zwischenstaende sauber mitraeumen.
 
-```bash
-git status --short
-git log --oneline -10
-git add <files>
-git commit -m "<message>"
-git push
-```
+## Wenn ich als CFO/Geschaeftsfuehrer weiterentwickeln wuerde
 
-## Offene Risiken / Naechste sinnvolle Checks
+Die App ist funktional schon deutlich nutzbar, aber der groesste Mehrwert entsteht jetzt durch mehr Management-Visualisierung.
 
-1. Grossen Ordner nach Deploy von `adb9511b` erneut testen.
-   - Erwartung: Status zeigt `Paket x/y`.
-   - Keine 542-MB-Einzelrequest mehr.
+Prioritaet 1: Cockpit als echte Lagekarte
+- 2026 YTD vs 2025 YTD
+- aktueller Monat vs Vormonat
+- aktuelles Quartal vs Vorquartal/Vorjahresquartal
+- eingereicht, Auszahlung, BFS-Kosten, Gebuehrenquote, Stornoquote, offene Faelle, Risikobestand
+- Ampel: gut / beobachten / pruefen
 
-2. Wenn weiter Fehler:
-   - Network-Response von `/api/imports/parse` lesen.
-   - Pruefen, ob Fehler einzelne PDF betrifft oder Function Timeout.
-   - Falls Timeout: echte Queue/Job-Architektur bauen.
+Prioritaet 2: Standortentwicklung statt nur Standortliste
+- je Standort Monatslinie: Eingang, Gebuehrenquote, Stornoquote, offene Faelle
+- Abweichung vom Gruppenschnitt
+- Ranking nach Risiko/Kosten/Wachstum
+- klare Handlung: "Kehl pruefen wegen offener Faelle", "Essen Gebuehrenquote beobachten", etc.
 
-3. Nach erfolgreichem Grossimport:
-   - Dashboard-Kacheln pruefen.
-   - Import-Historie pruefen.
-   - Stichprobe Summen gegen BFS-PDF:
-     - Umsatz eingereicht
-     - Auszahlung
-     - Gebuehr netto
-     - MwSt
-     - EWMA
-     - Rueckgaben/Stornos
-     - Ohne Ausfallschutz
-     - Monat/Standort
+Prioritaet 3: Patientenqualitaet als Managementsicht
+- Anteil A/B/C/D
+- Anteil ohne Ausfallschutz
+- Anteil ohne Ausfallschutz mit echter Nichtzahlung/Rueckgabe/Storno
+- Wiederholer je Standort
+- Top-Risikopatienten fuer operative Fallarbeit
 
-4. Lint-Script ist noch falsch/irrelevant:
-   - `pnpm run lint` sucht aktuell einen falschen Pfad/ist nicht verlaesslich.
-   - Typecheck und Build sind die verbindlichen Checks.
+Prioritaet 4: Operative Arbeit sauber getrennt halten
+- Klaerfaelle als Arbeitsliste/Kanban
+- Jede Fallentscheidung persistent und importuebergreifend
+- Reports fuer Standortleitung auf Knopfdruck
+- Tabellen immer kompakt, scrollbar, exportierbar
 
-## Aktueller Status
-
-- GitHub `origin/main` war nach dem Push synchron mit lokalem `main`.
-- Letzter produktiver Code-Commit: `fd43d82c Normalize import wording in metric cards`.
-- Production-Deploy `dpl_FfmH2WqFDsikUpDPH1kWVkqNjJYF` ist READY und auf `https://bfs-mandatenuebersicht.vercel.app` aliasiert.
-- Vercel zeigt zwei Deployments fuer `adb9511b`, weil einmal der GitHub-Push und einmal ein direkter Vercel-CLI-Deploy gelaufen ist. Das ist unkritisch, beide basieren auf demselben Commit.
+Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf zeigen. Die Detailtabelle ist Beleg und Arbeitswerkzeug, nicht die Hauptgeschichte.

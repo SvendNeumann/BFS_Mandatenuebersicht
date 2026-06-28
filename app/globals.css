@@ -1437,6 +1437,11 @@ input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.report-priority-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+
 .deduction-priority-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -2442,12 +2447,19 @@ td small {
 }
 
 .case-chart-grid .case-column-plot {
-  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
-  gap: 8px;
+  display: flex;
+  align-items: end;
+  justify-content: space-around;
+  gap: 14px;
 }
 
 .case-chart-grid .case-column-track {
-  width: min(100%, 78px);
+  width: min(100%, 62px);
+}
+
+.case-chart-grid .case-column-slot {
+  flex: 1 1 78px;
+  max-width: 112px;
 }
 
 .upload-zone {
@@ -3111,6 +3123,24 @@ td small {
   margin-right: auto;
 }
 
+.report-period-filter {
+  grid-template-columns: minmax(220px, 0.24fr) minmax(0, 1fr);
+}
+
+.report-screen .insight-grid {
+  align-items: stretch;
+}
+
+.report-screen .insight-card {
+  height: 100%;
+  align-content: start;
+}
+
+.report-screen .priority-card .period-note {
+  font-size: 10px;
+  opacity: 0.48;
+}
+
 .print-report header,
 .report-summary {
   display: flex;
@@ -3130,8 +3160,8 @@ td small {
 }
 
 .report-summary {
-  justify-content: flex-start;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   background:
     linear-gradient(145deg, rgba(15, 52, 70, 0.82), rgba(5, 20, 32, 0.9));
   border: 1px solid rgba(157, 226, 230, 0.18);
@@ -3140,14 +3170,23 @@ td small {
   margin-bottom: 18px;
 }
 
+.report-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .report-summary strong {
   color: #f7ffff;
   font-size: 20px;
+  line-height: 1.05;
 }
 
 .report-summary span {
   color: #a9c3cc;
   font-weight: 800;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .answer-cockpit {

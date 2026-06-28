@@ -1676,7 +1676,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeValue = activeIndex === null ? undefined : values[activeIndex] ?? values[0];
   const valueLabel = activeValue ? formatChartValue(title, activeValue.value) : "";
-  const maxValue = Math.max(...values.map((value) => value.value), 100);
+  const maxValue = Math.max(...values.map((value) => value.value), 1);
   const isSingleValue = values.length === 1;
   const rawActiveLeft = activeIndex === null || !values.length ? 50 : ((activeIndex + 0.5) / values.length) * 100;
   const activeLeft = Math.min(78, Math.max(22, rawActiveLeft));
@@ -1708,7 +1708,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
             <button
               type="button"
               className={index === activeIndex ? "active" : ""}
-              style={{ height: `${isSingleValue && value.value > 0 ? 72 : Math.max(14, (value.value / maxValue) * 100)}%` }}
+              style={{ height: `${isSingleValue && value.value > 0 ? 72 : Math.max(value.value ? 18 : 3, (value.value / maxValue) * 100)}%` }}
               aria-label={`${value.label}: ${formatChartValue(title, value.value)}${value.detailLabel ? ` (${value.detailLabel})` : ""}`}
               onPointerEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
@@ -6660,7 +6660,7 @@ function CasesView({
           <CaseColumnChart title="Fallgründe" values={caseReasonDistribution(filteredRows)} valueKind="money" />
         </div>
       </section>
-      <div className={`table-wrap${compact ? "" : " case-table-scroll"}`}>
+      <div className={`table-wrap${compact && !tableScrollable ? "" : " case-table-scroll"}`}>
         <table>
           <thead>
             <tr>
@@ -6885,11 +6885,11 @@ function formatStatementReference(statementNo?: string, fileName?: string) {
   return fileName ? formatCaseAbrechnungReference(fileName) : "-";
 }
 
-function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
+function RiskView({ standortId, importRows = [], periodOverride }: { standortId?: string; importRows?: ImportPreviewRow[]; periodOverride?: PeriodOption }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [selectedStandortId, setSelectedStandortId] = useState(() => standortId ?? "alle");
-  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const selectedPeriod = useMemo(() => periodOverride ?? periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, periodOverride, selectedPeriodId]);
   const selectableStandorte = useMemo(() => standortId ? orderedStandorte().filter((entry) => entry.id === standortId) : orderedStandorte(), [standortId]);
   const selectedStandorte = useMemo(() => {
     if (standortId) return selectableStandorte;
@@ -6907,15 +6907,16 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
   const paymentRisk = useMemo(() => summarizeNoProtectionPaymentRisk(rows), [rows]);
   return (
     <div className="content-stack">
-      <section className="panel period-filter deduction-analysis-filter">
-        <label className="select-label">
-          Zeitraum ohne Schutz
-          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            {periodOptions.map((period) => (
-              <option key={period.id} value={period.id}>{period.label}</option>
-            ))}
-          </select>
-        </label>
+      {!periodOverride && (
+        <section className="panel period-filter deduction-analysis-filter">
+          <label className="select-label">
+            Zeitraum ohne Schutz
+            <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
         <label className="select-label">
           Standort ohne Schutz
           <select value={standortId ?? selectedStandortId} onChange={(event) => setSelectedStandortId(event.target.value)} disabled={Boolean(standortId)}>
@@ -6929,7 +6930,8 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
           <strong>{selectedStandorte.length === 1 ? selectedStandorte[0].name : "Alle Standorte"}</strong>
           <span>{selectedPeriod.detail}</span>
         </div>
-      </section>
+        </section>
+      )}
       <section className="priority-grid">
         <PriorityCard
           label="Ohne-Schutz-Patienten"
@@ -7098,34 +7100,36 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
                 </article>
               ))}
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Patient</th>
-                    <th>Standort</th>
-                    <th>Einreichungen</th>
-                    <th>Summe</th>
-                    <th>Auffälligkeiten</th>
-                    <th>Letzte Abrechnung</th>
-                    <th>Empfehlung</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profiles.map((profile) => (
-                    <tr key={`${profile.id}-row`}>
-                      <td><strong>{profile.patientName}</strong><span>{profile.claims.map((claim) => claim.invoiceNo).join(", ")}</span></td>
-                      <td>{profile.standortName}</td>
-                      <td>{profile.count}</td>
-                      <td>{money.format(profile.total)}</td>
-                      <td>{profile.eventCount}<span>{money.format(profile.eventAmount)}</span></td>
-                      <td>{profile.lastDate}</td>
-                      <td><StatusBadge status={profile.recommendation} /></td>
+            {!compact && (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Standort</th>
+                      <th>Einreichungen</th>
+                      <th>Summe</th>
+                      <th>Auffälligkeiten</th>
+                      <th>Letzte Abrechnung</th>
+                      <th>Empfehlung</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {profiles.map((profile) => (
+                      <tr key={`${profile.id}-row`}>
+                        <td><strong>{profile.patientName}</strong><span>{profile.claims.map((claim) => claim.invoiceNo).join(", ")}</span></td>
+                        <td>{profile.standortName}</td>
+                        <td>{profile.count}</td>
+                        <td>{money.format(profile.total)}</td>
+                        <td>{profile.eventCount}<span>{money.format(profile.eventAmount)}</span></td>
+                        <td>{profile.lastDate}</td>
+                        <td><StatusBadge status={profile.recommendation} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         ) : (
           <p className="empty-state">Keine mehrfachen Patienten ohne Ausfallschutz im aktuellen Datenstand.</p>
@@ -7537,22 +7541,44 @@ function MatchesView({
 }
 
 function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
-  const reportCases = cases.filter((fall) => fall.status !== "erledigt_automatisch");
-  const comparison = useMemo(() => buildManagementComparison(importRows, [standort], reportCases), [importRows, reportCases, standort]);
-  const riskClaims = useMemo(() => riskClaimsFromImportRows(importRows.filter((row) => row.location === standort.name)), [importRows, standort.name]);
-  const recurring = useMemo(() => getRecurringRiskProfiles(standort.id, importRows), [importRows, standort.id]);
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const scopedImportRows = useMemo(() => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort]);
+  const reportCases = useMemo(() => cases
+    .filter((fall) => fall.status !== "erledigt_automatisch" && fall.standortId === standort.id)
+    .filter((fall) => shortDateInPeriod(fall.sourceDate, selectedPeriod, standort)), [cases, selectedPeriod, standort]);
+  const comparison = useMemo(() => buildManagementComparison(importRows, [standort], reportCases, selectedPeriod), [importRows, reportCases, selectedPeriod, standort]);
+  const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
+  const recurring = useMemo(() => getRecurringRiskProfiles(standort.id, scopedImportRows), [scopedImportRows, standort.id]);
+  const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
   const reportComment = buildLocationReportComment(standort, comparison, reportCases, riskClaims, recurring);
   function exportCsv() {
     downloadTextFile(`offene-bfs-klaerfaelle-${standort.name.toLowerCase()}.csv`, createCasesCsv(reportCases));
   }
   return (
     <div className="content-stack report-screen">
-      <section className="priority-grid">
-        <PriorityCard label="Eingereicht YTD" value={money.format(comparison.currentMetrics.submitted)} hint={comparison.currentPeriod.label} tone="blue" />
-        <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
-        <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
-        <PriorityCard label="Reportfälle" value={String(reportCases.length)} hint="offen und reportfähig" tone={reportCases.length ? "amber" : "green"} />
-        <PriorityCard label="Offener Betrag" value={money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))} hint={standort.name} tone="blue" />
+      <section className="panel period-filter report-period-filter">
+        <label className="select-label">
+          Report-Zeitraum
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{standort.name}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
+      </section>
+      <section className="priority-grid report-priority-grid">
+        <PriorityCard label="Eingereicht" value={money.format(comparison.currentMetrics.submitted)} hint="Summe Forderungen" period={comparison.currentPeriod.label} tone="blue" />
+        <PriorityCard label="Ausgezahlt" value={money.format(comparison.currentMetrics.payout)} hint="BFS-Auszahlungsbetrag" period={comparison.currentPeriod.label} tone="green" />
+        <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} period={comparison.currentPeriod.label} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
+        <PriorityCard label="Offene Klärfälle" value={String(reportCases.length)} hint="offen und reportfähig" period={comparison.currentPeriod.label} tone={reportCases.length ? "amber" : "green"} />
+        <PriorityCard label="Offener Betrag" value={money.format(openAmount)} hint={standort.name} period={comparison.currentPeriod.label} tone="blue" />
+        <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} period={comparison.currentPeriod.label} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
       </section>
       <section className="panel report-toolbar">
         <div>
@@ -7576,17 +7602,18 @@ function ReportsView({ role, standort, cases, importRows = [] }: { role: AppRole
           <p>Erstellt am {formatGermanDate(todayReference.toISOString().slice(0, 10))}</p>
         </header>
         <div className="report-summary">
-          <strong>{money.format(comparison.currentMetrics.submitted)}</strong><span>YTD eingereicht</span>
-          <strong>{formatFeeRate(comparison.currentMetrics.feeRate)}</strong><span>Gebührenquote</span>
-          <strong>{reportCases.length}</strong><span>offene Klärfälle</span>
-          <strong>{money.format(reportCases.reduce((sum, fall) => sum + fall.amount, 0))}</strong><span>offener Betrag</span>
+          <div><strong>{money.format(comparison.currentMetrics.submitted)}</strong><span>{comparison.currentPeriod.label} eingereicht</span></div>
+          <div><strong>{money.format(comparison.currentMetrics.payout)}</strong><span>ausgezahlt</span></div>
+          <div><strong>{formatFeeRate(comparison.currentMetrics.feeRate)}</strong><span>Gebührenquote</span></div>
+          <div><strong>{reportCases.length}</strong><span>offene Klärfälle</span></div>
+          <div><strong>{money.format(openAmount)}</strong><span>offener Betrag</span></div>
         </div>
         <h3>Abschnitt 1: Offene Rückbelastungen / Klärfälle</h3>
-        <CasesView cases={reportCases} compact />
+        <CasesView cases={reportCases} compact tableScrollable />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
-        <RiskView standortId={standort.id} importRows={importRows} />
+        <RiskView standortId={standort.id} importRows={scopedImportRows} periodOverride={selectedPeriod} />
         <h3>Abschnitt 3: Wiederholer ohne Ausfallschutz</h3>
-        <RecurringRiskView standortId={standort.id} compact importRows={importRows} />
+        <RecurringRiskView standortId={standort.id} compact importRows={scopedImportRows} />
       </section>
     </div>
   );

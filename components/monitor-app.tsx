@@ -2308,7 +2308,7 @@ function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: st
       const current = groups.get(key) ?? emptyPatientProfile(claim.patientName, standort.name);
       current.claimCount += 1;
       current.claimAmount += claim.amount;
-      current.examples.add(claim.invoiceNo);
+      current.examples.add(row.statementNo);
       if (claim.protectionStatus === "ohne_ausfallschutz") {
         current.noProtectionCount += 1;
         current.noProtectionAmount += claim.amount;
@@ -2324,7 +2324,7 @@ function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: st
         const current = groups.get(key) ?? emptyPatientProfile(patientName, standort.name);
         current.badEventCount += 1;
         current.badAmount += Math.abs(movement.amount ?? 0);
-        current.examples.add(movement.invoiceNo ?? movement.bfsNo ?? reasonLabel(movement.reasonCategory));
+        current.examples.add(movement.matchedStatementNo ?? row.statementNo);
         groups.set(key, current);
       });
   });
@@ -2372,7 +2372,7 @@ function classifyPatientProfile(profile: ReturnType<typeof emptyPatientProfile>)
     grade,
     badRate,
     riskAmount,
-    examples: [...profile.examples].slice(0, 4),
+    examples: [...profile.examples].filter(Boolean).slice(0, 3),
     recommendation
   };
 }
@@ -4403,7 +4403,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
               {profiles.slice(0, 100).map((profile) => (
                 <tr key={`${profile.locationName}-${profile.patientName}`}>
                   <td><StatusBadge status={`Klasse ${profile.grade}`} /></td>
-                  <td><strong>{profile.patientName}</strong><span>{profile.examples.join(", ")}</span></td>
+                  <td><strong>{profile.patientName}</strong><span>Abr.-Nr. {profile.examples.join(", ") || "-"}</span></td>
                   <td>{profile.locationName}</td>
                   <td>{profile.claimCount}</td>
                   <td>{profile.badEventCount}</td>

@@ -4577,6 +4577,47 @@ function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {
   return [...byKey.values()];
 }
 
+function matchingCandidateTotals(candidates: ResubmissionCandidate[]) {
+  const originals = new Map<string, { originalAmount: number; newClaims: Map<string, number> }>();
+  candidates.forEach((candidate) => {
+    const originalKey = resubmissionResolutionKey(candidate);
+    const current = originals.get(originalKey) ?? { originalAmount: candidate.originalAmount, newClaims: new Map<string, number>() };
+    current.originalAmount = Math.max(current.originalAmount, candidate.originalAmount);
+    current.newClaims.set(matchingNewClaimKey(candidate), candidate.newAmount);
+    originals.set(originalKey, current);
+  });
+
+  const rows = [...originals.values()].map((entry) => {
+    const newAmount = [...entry.newClaims.values()].reduce((sum, amount) => sum + amount, 0);
+    return {
+      originalAmount: entry.originalAmount,
+      newAmount,
+      creditedAmount: Math.min(entry.originalAmount, newAmount)
+    };
+  });
+
+  const originalAmount = rows.reduce((sum, row) => sum + row.originalAmount, 0);
+  const newAmount = rows.reduce((sum, row) => sum + row.newAmount, 0);
+  const creditedAmount = rows.reduce((sum, row) => sum + row.creditedAmount, 0);
+  return {
+    originalAmount,
+    newAmount,
+    creditedAmount,
+    difference: newAmount - originalAmount
+  };
+}
+
+function matchingNewClaimKey(candidate: ResubmissionCandidate) {
+  return [
+    resubmissionResolutionKey(candidate),
+    candidate.newDate,
+    candidate.newStatementNo,
+    candidate.newInvoiceNo,
+    candidate.newBfsNo,
+    Math.round(candidate.newAmount * 100)
+  ].join("|");
+}
+
 function resubmissionResolutionKey(candidate: ResubmissionCandidate) {
   return resubmissionResolutionKeys(candidate)[0];
 }
@@ -7386,8 +7427,7 @@ function MatchesView({
   const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
     .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => closedKeys.has(key))), [closedKeys, scopedImportRows]);
   const scopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
-  const originalAmount = candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0);
-  const newAmount = candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0);
+  const matchTotals = useMemo(() => matchingCandidateTotals(candidates), [candidates]);
   const patientCount = new Set(candidates.map((candidate) => candidate.patientName)).size;
   async function handleCandidateAction(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
     if (!onResolveCandidate) return;
@@ -7431,8 +7471,9 @@ function MatchesView({
       <section className="priority-grid">
         <PriorityCard label="Neueinreichungen" value={String(candidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
-        <PriorityCard label="Ursprungsbetrag" value={money.format(originalAmount)} hint="stornierte/rückgegebene Beträge" period={selectedPeriod.label} tone={originalAmount ? "red" : "green"} />
-        <PriorityCard label="Neue Summe" value={money.format(newAmount)} hint="spätere Forderungen" period={selectedPeriod.label} tone={newAmount ? "green" : "blue"} />
+        <PriorityCard label="Urspr. Abzugsbetrag" value={money.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
+        <PriorityCard label="Neue Forderungssumme" value={money.format(matchTotals.newAmount)} hint={`Differenz ${money.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
+        <PriorityCard label="Angerechnete Erledigung" value={money.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} />
       </section>
       <section className="panel">
         <div className="panel-heading">

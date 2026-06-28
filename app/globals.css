@@ -1444,6 +1444,7 @@ input {
 
 .deduction-priority-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
 }
 
 .recovery-priority-grid {
@@ -1890,6 +1891,26 @@ input {
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.deduction-breakdown-table {
+  margin-top: 18px;
+  max-height: min(360px, 42vh) !important;
+}
+
+.deduction-breakdown-table table {
+  min-width: 860px;
+}
+
+.deduction-breakdown-table th,
+.deduction-breakdown-table td {
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.deduction-breakdown-table td strong {
+  font-size: 14px;
 }
 
 .primary-button,

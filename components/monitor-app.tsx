@@ -3643,7 +3643,7 @@ function ClaimsFlowView({
           <PriorityCard label="Storno/Rückgabe" value={money.format(analysisDeductionAmount)} hint="ursprünglicher Abzug aus Kontoauszug" period={deductionPeriod.label} tone={analysisDeductionAmount ? "red" : "green"} />
           <PriorityCard label="Storno zurückgeholt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoveredByResubmission.length} Matches plus manuell bezahlt`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} />
         </div>
-        <div className="table-wrap compact-table recovery-table-scroll">
+        <div className="table-wrap compact-table recovery-table-scroll deduction-breakdown-table">
           <table>
             <thead>
               <tr>

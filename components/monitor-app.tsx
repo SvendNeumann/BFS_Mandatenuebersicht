@@ -228,7 +228,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "risks",
     "repeatRisks",
     "patientClasses",
-    "matches",
     "reports",
     "outcomes"
   ];
@@ -574,7 +573,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
-            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
+            {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />)}
@@ -7357,25 +7356,39 @@ function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFro
 }
 
 function MatchesView({
-  cases: rows,
   importRows = [],
   standort,
   manualCaseResolutions = [],
   onResolveCandidate
 }: {
-  cases: BfsCase[];
   importRows?: ImportPreviewRow[];
   standort?: Standort;
   manualCaseResolutions?: ManualCaseResolution[];
   onResolveCandidate?: (candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") => Promise<void>;
 }) {
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [selectedStandortFilterId, setSelectedStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [savingCandidateKey, setSavingCandidateKey] = useState("");
   const [matchActionError, setMatchActionError] = useState("");
-  const scopedImportRows = useMemo(() => standort ? importRows.filter((row) => row.location === standort.name) : importRows, [standort, importRows]);
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const filteredStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (selectedStandortFilterId === "alle") return selectableStandorte;
+    return selectableStandorte.filter((entry) => entry.id === selectedStandortFilterId);
+  }, [selectableStandorte, selectedStandortFilterId, standort]);
+  const scopedImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = filteredStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [filteredStandorte, importRows, selectedPeriod]);
   const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
     .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => closedKeys.has(key))), [closedKeys, scopedImportRows]);
-  const scopeLabel = standort?.name ?? "Gruppe";
+  const scopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
+  const originalAmount = candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0);
+  const newAmount = candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0);
+  const patientCount = new Set(candidates.map((candidate) => candidate.patientName)).size;
   async function handleCandidateAction(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
     if (!onResolveCandidate) return;
     const key = `${resubmissionResolutionKey(candidate)}:${status}`;
@@ -7390,73 +7403,95 @@ function MatchesView({
     }
   }
 
-  if (candidates.length) {
-    return (
-      <div className="content-stack">
-        <section className="priority-grid">
-          <PriorityCard label="Neueinreichungen" value={String(candidates.length)} hint="nach Storno/Rückgabe erkannt" tone="blue" />
-          <PriorityCard label="Betroffene Patienten" value={String(new Set(candidates.map((candidate) => candidate.patientName)).size)} hint="aus aktuellem Upload" tone="amber" />
-          <PriorityCard label="Ursprungsbetrag" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.originalAmount, 0))} hint="stornierte/rückgegebene Beträge" tone="red" />
-          <PriorityCard label="Neue Summe" value={money.format(candidates.reduce((sum, candidate) => sum + candidate.newAmount, 0))} hint="spätere Forderungen" tone="green" />
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
-              <p>Automatisch erkannte Fälle im gewählten Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
-            </div>
-          </div>
-          {matchActionError && <p className="form-error">{matchActionError}</p>}
-          <div className="table-wrap case-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Patient</th>
-                  <th>Ursprung</th>
-                  <th>Grund</th>
-                  <th>Neue Einreichung</th>
-                  <th>Beträge</th>
-                  <th>AbrechnungsNr.</th>
-                  <th>Entscheidung</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((candidate) => {
-                  const baseKey = resubmissionResolutionKey(candidate);
-                  const acceptKey = `${baseKey}:paid_manual`;
-                  const rejectKey = `${baseKey}:cancelled_manual`;
-                  const isSaving = savingCandidateKey === acceptKey || savingCandidateKey === rejectKey;
-                  return (
-                    <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
-                      <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
-                      <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
-                      <td>{candidate.reason}</td>
-                      <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
-                      <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
-                      <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
-                      <td>
-                        <div className="case-action-stack">
-                          <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "paid_manual")}>
-                            <CheckCircle2 size={15} /> Stimmt
-                          </button>
-                          <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "cancelled_manual")}>
-                            <X size={15} /> Abgelehnt
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    );
-  }
-  const matched = rows.filter((fall) => fall.status.includes("automatisch"));
   return (
-    <CasesView cases={matched} title="Neueinreichungsvorschläge" description="Keine automatisch erkannten Neueinreichungen im aktuellen Datenstand." />
+    <div className="content-stack">
+      <section className="panel period-filter deduction-analysis-filter">
+        <label className="select-label">
+          Zeitraum
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort
+          <select value={standort ? standort.id : selectedStandortFilterId} onChange={(event) => setSelectedStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {selectableStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{scopeLabel}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
+      </section>
+      <section className="priority-grid">
+        <PriorityCard label="Neueinreichungen" value={String(candidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Ursprungsbetrag" value={money.format(originalAmount)} hint="stornierte/rückgegebene Beträge" period={selectedPeriod.label} tone={originalAmount ? "red" : "green"} />
+        <PriorityCard label="Neue Summe" value={money.format(newAmount)} hint="spätere Forderungen" period={selectedPeriod.label} tone={newAmount ? "green" : "blue"} />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
+            <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
+          </div>
+        </div>
+        {matchActionError && <p className="form-error">{matchActionError}</p>}
+        <div className="table-wrap case-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Ursprung</th>
+                <th>Grund</th>
+                <th>Neue Einreichung</th>
+                <th>Beträge</th>
+                <th>AbrechnungsNr.</th>
+                <th>Entscheidung</th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map((candidate) => {
+                const baseKey = resubmissionResolutionKey(candidate);
+                const acceptKey = `${baseKey}:paid_manual`;
+                const rejectKey = `${baseKey}:cancelled_manual`;
+                const isSaving = savingCandidateKey === acceptKey || savingCandidateKey === rejectKey;
+                return (
+                  <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
+                    <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
+                    <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
+                    <td>{candidate.reason}</td>
+                    <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
+                    <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
+                    <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
+                    <td>
+                      <div className="case-action-stack">
+                        <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "paid_manual")}>
+                          <CheckCircle2 size={15} /> Stimmt
+                        </button>
+                        <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "cancelled_manual")}>
+                          <X size={15} /> Abgelehnt
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!candidates.length && (
+                <tr>
+                  <td colSpan={7}>Keine Neueinreichungsvorschläge für den gewählten Zeitraum und Standort.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 

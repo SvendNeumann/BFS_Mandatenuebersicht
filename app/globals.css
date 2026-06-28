@@ -6181,6 +6181,17 @@ td span {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.answer-cockpit .answer-filter-panel {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  margin: 0 0 4px !important;
+}
+
+.answer-cockpit.compact {
+  gap: 16px;
+}
+
 .answer-grid .answer-sparkline.green {
   color: #34d399 !important;
 }

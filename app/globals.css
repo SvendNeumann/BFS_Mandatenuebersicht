@@ -2746,12 +2746,16 @@ td small {
 }
 
 .custom-kpi-slider .priority-card {
-  min-height: 190px;
+  min-height: 224px;
 }
 
 .custom-kpi-slider .priority-card strong {
   font-size: clamp(30px, 2.7vw, 46px);
   line-height: 1.02;
+}
+
+.custom-kpi-secondary .priority-card strong {
+  font-size: clamp(28px, 2vw, 38px);
 }
 
 .custom-chart-period {
@@ -3282,7 +3286,7 @@ td small {
   }
 
   .custom-kpi-slider .priority-card {
-    min-height: 176px;
+    min-height: 214px;
   }
 
   .custom-kpi-slider .priority-card strong {

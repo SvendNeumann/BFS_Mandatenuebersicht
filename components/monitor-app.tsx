@@ -837,6 +837,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, stornoReview.rows), [scopedRows, stornoReview.rows]);
   const chartStornoReview = useMemo(() => stornoReviewFromImportRows(chartRows, standort?.id, manualCaseResolutions), [chartRows, standort?.id, manualCaseResolutions]);
   const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, chartStornoReview.rows), [chartRows, chartStornoReview.rows]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
@@ -880,6 +881,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint={scopeHint}
           period={selectedPeriod.label}
           tone="blue"
+          trend={customKpiTrend("submitted", kpiTrendPoints)}
           info={`Summe aller im gewählten Zeitraum eingereichten Forderungen für ${scopeHint}.`}
         />
         <PriorityCard
@@ -888,6 +890,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint={`Gebührenquote ${formatFeeRate(metrics.feeRate)}`}
           period={selectedPeriod.label}
           tone="amber"
+          trend={customKpiTrend("fees", kpiTrendPoints, true)}
           info="Summe der erkannten BFS-Gebühren im gewählten Zeitraum; die Quote bezieht sich auf den eingereichten Umsatz."
         />
         <PriorityCard
@@ -896,6 +899,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint="nach BFS-Abrechnung"
           period={selectedPeriod.label}
           tone="green"
+          trend={customKpiTrend("payout", kpiTrendPoints)}
           info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
         />
       </section>
@@ -907,6 +911,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint={`${integerNumber.format(stornoReview.open)} noch nicht gewandelt`}
           period={selectedPeriod.label}
           tone={stornoReview.open ? "amber" : stornoReview.total ? "green" : "blue"}
+          trend={customKpiTrend("cancellations", kpiTrendPoints, true)}
           info={`Grundmenge: alle erkannten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Davon sind ${integerNumber.format(stornoReview.done)} gewandelt und ${integerNumber.format(stornoReview.open)} noch offen. Storno-Betrag gesamt: ${money.format(stornoReview.amount)}.`}
         />
         <PriorityCard
@@ -915,6 +920,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint={`${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
           period={selectedPeriod.label}
           tone={stornoReview.done ? "green" : stornoReview.total ? "amber" : "blue"}
+          trend={customKpiTrend("recoveredStornos", kpiTrendPoints)}
           info="Lesart: Von der Storno-Grundmenge links wurden diese Fälle erfolgreich gewandelt. Als gewandelt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuelle Markierung als bezahlt."
         />
         <PriorityCard
@@ -923,6 +929,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint="Patienten-/Rechnungspositionen"
           period={selectedPeriod.label}
           tone="blue"
+          trend={customKpiTrend("claims", kpiTrendPoints)}
           info={`Gezählt werden die erkannten Forderungspositionen aus den importierten Abrechnungen für ${scopeHint}. Wenn keine Positionsliste erkannt wurde, nutzt die App die erkannte Kopfanzahl als Fallback.`}
         />
         <PriorityCard
@@ -931,6 +938,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           hint="eingereicht / Forderungen"
           period={selectedPeriod.label}
           tone="blue"
+          trend={customKpiTrend("averageClaim", kpiTrendPoints)}
           info={`Berechnung: eingereichter Umsatz ${money.format(metrics.submitted)} geteilt durch ${integerNumber.format(invoiceCount)} erkannte Forderungs-/Rechnungspositionen im gewählten Zeitraum für ${scopeHint}.`}
         />
       </section>
@@ -1004,6 +1012,7 @@ type CustomChartPoint = {
   label: string;
   submitted: number;
   payout: number;
+  fees: number;
   claims: number;
   cancellations: number;
   recoveredStornos: number;
@@ -1202,12 +1211,41 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
     label,
     submitted: 0,
     payout: 0,
+    fees: 0,
     claims: 0,
     cancellations: 0,
     recoveredStornos: 0,
     protectedClaims: 0,
     noProtectionClaims: 0
   };
+}
+
+type CustomKpiTrendMetric = "submitted" | "fees" | "payout" | "cancellations" | "recoveredStornos" | "claims" | "averageClaim";
+
+function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[], lowerIsBetter = false): AnswerSparklineTrend {
+  const values = points.map((point) => customKpiTrendValue(metric, point)).slice(-12);
+  const nonEmptyValues = values.length ? values : [0, 0, 0];
+  const first = nonEmptyValues[0] ?? 0;
+  const last = nonEmptyValues[nonEmptyValues.length - 1] ?? 0;
+  const delta = first ? ((last - first) / first) * 100 : last ? 100 : 0;
+  const desiredDelta = lowerIsBetter ? -delta : delta;
+  const tone: AnswerSparklineTrend["tone"] = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
+  const label = first
+    ? `Trend ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
+    : last
+      ? "Trend neu"
+      : "kein Trend";
+
+  return {
+    points: nonEmptyValues,
+    tone,
+    label
+  };
+}
+
+function customKpiTrendValue(metric: CustomKpiTrendMetric, point: CustomChartPoint) {
+  if (metric === "averageClaim") return point.claims ? point.submitted / point.claims : 0;
+  return Number(point[metric]);
 }
 
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
@@ -3186,7 +3224,7 @@ function CaseWorkflowBoard({ cases: rows }: { cases: BfsCase[] }) {
   );
 }
 
-function PriorityCard({ label, value, hint, tone, info, period }: { label: string; value: string; hint: string; tone: string; info?: string; period?: string }) {
+function PriorityCard({ label, value, hint, tone, info, period, trend }: { label: string; value: string; hint: string; tone: string; info?: string; period?: string; trend?: AnswerSparklineTrend }) {
   const displayHint = normalizeProductCopy(hint);
   const periodText = period ? periodLabelFromHint(period) : periodLabelFromHint(displayHint);
   const infoText = normalizeProductCopy(info ?? metricExplanation(label, value, displayHint, periodText));
@@ -3197,6 +3235,7 @@ function PriorityCard({ label, value, hint, tone, info, period }: { label: strin
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{displayHint}</small>
+      {trend && <AnswerSparkline trend={trend} />}
       <small className="period-note">{periodText}</small>
     </article>
   );
@@ -3313,6 +3352,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
     const point = ensurePoint(month);
     point.submitted += rowSubmittedAmount(row);
     point.payout += row.payout ?? 0;
+    point.fees += rowFeeAmount(row);
     const parsedClaims = row.parsedClaims ?? [];
     const claimCount = parsedClaims.length || row.claimsExtracted || row.claimsHeader || 0;
     point.claims += claimCount;

@@ -63,6 +63,11 @@ export type RiskClaim = {
   marker: string;
   markerReason?: string;
   markerCategory?: string;
+  eventCount?: number;
+  eventAmount?: number;
+  eventLabels?: string[];
+  assessment?: "unauffaellig" | "auffaellig" | "erledigt";
+  assessmentLabel?: string;
 };
 
 export type ImportPreviewRow = {

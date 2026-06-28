@@ -808,7 +808,16 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
     const oldest = locationCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
     const chargebackAmount = metrics.returnAmount + metrics.cancellationAmount;
     const chargebackRate = metrics.submitted ? (chargebackAmount / metrics.submitted) * 100 : 0;
-    const riskScore = chargebackRate * 2 + (metrics.noProtectionAmount ? Math.min(35, (metrics.noProtectionAmount / Math.max(metrics.submitted, 1)) * 100) : 0) + (oldest > 30 ? 20 : oldest > 14 ? 10 : 0);
+    const riskClaims = riskClaimsFromImportRows(locationRows);
+    const suspiciousNoProtectionAmount = riskClaims
+      .filter((claim) => claim.assessment === "auffaellig")
+      .reduce((sum, claim) => sum + claim.amount, 0);
+    const cleanNoProtectionShare = Math.max(metrics.noProtectionAmount - suspiciousNoProtectionAmount, 0) / Math.max(metrics.submitted, 1);
+    const suspiciousNoProtectionShare = suspiciousNoProtectionAmount / Math.max(metrics.submitted, 1);
+    const riskScore = chargebackRate * 2
+      + Math.min(10, cleanNoProtectionShare * 100)
+      + Math.min(35, suspiciousNoProtectionShare * 150)
+      + (oldest > 30 ? 20 : oldest > 14 ? 10 : 0);
     return {
       standort,
       metrics,
@@ -2032,12 +2041,15 @@ function countOpenCasesByStandort(rows: ImportPreviewRow[]) {
 }
 
 function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
+  const activityByClaim = buildRiskClaimActivityLookup(rows);
   return rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort) return [];
     return (row.parsedClaims ?? [])
       .filter((claim) => claim.protectionStatus === "ohne_ausfallschutz")
-      .map((claim, index) => ({
+      .map((claim, index) => {
+        const activity = activityForRiskClaim(activityByClaim, standort.id, claim.patientName, claim.invoiceNo, claim.bfsNo);
+        return {
         id: `import-risk-${row.fileHash ?? row.file}-${claim.bfsNo}-${index}`,
         standortId: standort.id,
         patientName: claim.patientName,
@@ -2048,9 +2060,108 @@ function riskClaimsFromImportRows(rows: ImportPreviewRow[]): RiskClaim[] {
         date: row.date,
         marker: claim.marker ?? "*KA",
         markerReason: claim.markerReason ?? protectionMarkerLabel(claim.marker),
-        markerCategory: claim.markerCategory ?? protectionMarkerCategory(claim.marker)
-      }));
+        markerCategory: claim.markerCategory ?? protectionMarkerCategory(claim.marker),
+        eventCount: activity.eventCount,
+        eventAmount: activity.eventAmount,
+        eventLabels: activity.eventLabels,
+        assessment: activity.assessment,
+        assessmentLabel: activity.assessmentLabel
+        };
+      });
   });
+}
+
+function buildRiskClaimActivityLookup(rows: ImportPreviewRow[]) {
+  const lookup = new Map<string, {
+    negativeCount: number;
+    negativeAmount: number;
+    resolvedCount: number;
+    labels: Set<string>;
+  }>();
+
+  rows.forEach((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort) return;
+    (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .forEach((movement) => {
+        const keys = riskActivityKeys(standort.id, movement.patientName ?? "", movement.invoiceNo, movement.bfsNo);
+        if (!keys.length) return;
+        const isResolved = isResolvedMovement(movement);
+        keys.forEach((key) => {
+          const current = lookup.get(key) ?? { negativeCount: 0, negativeAmount: 0, resolvedCount: 0, labels: new Set<string>() };
+          if (isResolved) {
+            current.resolvedCount += 1;
+          } else {
+            current.negativeCount += 1;
+            current.negativeAmount += Math.abs(movement.amount ?? 0);
+          }
+          current.labels.add(movement.reason ?? reasonLabel(movement.reasonCategory));
+          lookup.set(key, current);
+        });
+      });
+  });
+
+  return lookup;
+}
+
+function activityForRiskClaim(
+  lookup: ReturnType<typeof buildRiskClaimActivityLookup>,
+  standortId: string,
+  patientName: string,
+  invoiceNo?: string,
+  bfsNo?: string
+) {
+  const keys = riskActivityKeys(standortId, patientName, invoiceNo, bfsNo);
+  const combined = keys
+    .map((key) => lookup.get(key))
+    .find((entry) => entry && (entry.negativeCount > 0 || entry.resolvedCount > 0))
+    ?? { negativeCount: 0, negativeAmount: 0, resolvedCount: 0, labels: new Set<string>() };
+
+  const eventLabels = [...combined.labels].slice(0, 3);
+  if (combined.negativeCount > 0) {
+    return {
+      eventCount: combined.negativeCount,
+      eventAmount: Math.round(combined.negativeAmount * 100) / 100,
+      eventLabels,
+      assessment: "auffaellig" as const,
+      assessmentLabel: `${combined.negativeCount} Storno/Rückgabe erkannt`
+    };
+  }
+  if (combined.resolvedCount > 0) {
+    return {
+      eventCount: 0,
+      eventAmount: 0,
+      eventLabels,
+      assessment: "erledigt" as const,
+      assessmentLabel: "Zahlung/Erledigung erkannt"
+    };
+  }
+  return {
+    eventCount: 0,
+    eventAmount: 0,
+    eventLabels: [],
+    assessment: "unauffaellig" as const,
+    assessmentLabel: "bisher keine Auffälligkeit"
+  };
+}
+
+function riskActivityKeys(standortId: string, patientName: string, invoiceNo?: string, bfsNo?: string) {
+  const patientKey = normalizePatientName(patientName);
+  if (!patientKey) return [];
+  return [
+    invoiceNo ? `${standortId}:invoice:${invoiceNo}` : "",
+    bfsNo ? `${standortId}:bfs:${bfsNo}` : "",
+    `${standortId}:patient:${patientKey}`
+  ].filter(Boolean);
+}
+
+function isResolvedMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  const reasonText = `${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
+  return movement.reasonCategory === "zahlung_nach_storno"
+    || movement.reasonCategory === "neue_rechnung"
+    || reasonText.includes("zahlung nach storno")
+    || reasonText.includes("direktzahlung");
 }
 
 function protectionMarkerLabel(marker?: string) {
@@ -2239,19 +2350,21 @@ function classifyPatientProfile(profile: ReturnType<typeof emptyPatientProfile>)
   const riskAmount = profile.badAmount + profile.noProtectionAmount;
   const denominator = Math.max(profile.claimCount, profile.badEventCount, 1);
   const badRate = (profile.badEventCount / denominator) * 100;
-  const grade = profile.badEventCount >= 5 || profile.noProtectionCount >= 4 || riskAmount >= 2500
+  const grade = profile.badEventCount >= 5 || (profile.badEventCount >= 2 && riskAmount >= 2500)
     ? "D"
-    : profile.badEventCount >= 2 || profile.noProtectionCount >= 2 || riskAmount >= 500
+    : profile.badEventCount >= 2 || profile.badAmount >= 500
       ? "C"
-      : profile.badEventCount === 1 || profile.noProtectionCount === 1
+      : profile.badEventCount === 1 || profile.noProtectionCount > 0
         ? "B"
         : "A";
   const recommendation = grade === "D"
     ? "BFS-Sperrhinweis / Vorkasseprozess prüfen"
     : grade === "C"
       ? "Standort aktiv informieren und Behandlung/Factoring prüfen"
-      : grade === "B"
+      : grade === "B" && profile.badEventCount > 0
         ? "Beobachten und bei Neueinreichung prüfen"
+        : grade === "B"
+          ? "Ohne Schutz, bisher unauffällig"
         : "Unauffällig";
 
   return {
@@ -3995,10 +4108,20 @@ function caseReportRowHtml(fall: BfsCase) {
 
 function RiskView({ standortId, importRows = [] }: { standortId?: string; importRows?: ImportPreviewRow[] }) {
   const importedRisks = riskClaimsFromImportRows(importRows);
-  const rows = importedRisks.filter((claim) => !standortId || claim.standortId === standortId);
+  const rows = importedRisks
+    .filter((claim) => !standortId || claim.standortId === standortId)
+    .sort((a, b) => riskAssessmentRank(b) - riskAssessmentRank(a) || (b.eventAmount ?? 0) - (a.eventAmount ?? 0) || b.amount - a.amount);
   const reasonRows = aggregateNoProtectionReasons(rows);
+  const suspiciousRows = rows.filter((claim) => claim.assessment === "auffaellig");
+  const cleanRows = rows.filter((claim) => claim.assessment === "unauffaellig");
   return (
     <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Ohne Schutz gesamt" value={String(rows.length)} hint={money.format(rows.reduce((sum, claim) => sum + claim.amount, 0))} tone={rows.length ? "amber" : "green"} />
+        <PriorityCard label="Davon auffällig" value={String(suspiciousRows.length)} hint="mit Storno/Rückgabe/Rückbelastung" tone={suspiciousRows.length ? "red" : "green"} />
+        <PriorityCard label="Bisher unauffällig" value={String(cleanRows.length)} hint="kein negatives Ereignis erkannt" tone="green" />
+        <PriorityCard label="Auffällige Summe" value={money.format(suspiciousRows.reduce((sum, claim) => sum + (claim.eventAmount ?? 0), 0))} hint="aus Kontoauszug-Bewegungen" tone={suspiciousRows.length ? "red" : "green"} />
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -4036,7 +4159,7 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
         <div className="panel-heading">
           <div>
             <h2>Laufend ohne Ausfallschutz</h2>
-            <p>Risikohinweise, noch keine offenen To-dos. Erst eine Rückgabe erzeugt einen Klärfall.</p>
+            <p>Risikohinweise mit Querprüfung gegen Storno, Rückgabe, Rückbelastung und erkennbare Erledigung. Erst eine echte Auffälligkeit wird operativ priorisiert.</p>
           </div>
         </div>
         <div className="table-wrap">
@@ -4050,6 +4173,7 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
                 <th>Abrechnung</th>
                 <th>Kennzeichen</th>
                 <th>Grund</th>
+                <th>Querprüfung</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -4063,15 +4187,35 @@ function RiskView({ standortId, importRows = [] }: { standortId?: string; import
                   <td>{claim.statementNo} / {claim.date}</td>
                   <td>{claim.marker}</td>
                   <td>{claim.markerReason ?? protectionMarkerLabel(claim.marker)}</td>
-                  <td><StatusBadge status="Ausgezahlt ohne Ausfallschutz" /></td>
+                  <td>
+                    <strong>{claim.assessmentLabel ?? "bisher keine Auffälligkeit"}</strong>
+                    {!!claim.eventLabels?.length && <span>{claim.eventLabels.join(", ")}</span>}
+                    {!!claim.eventAmount && <small>{money.format(claim.eventAmount)}</small>}
+                  </td>
+                  <td><StatusBadge status={riskAssessmentStatus(claim)} /></td>
                 </tr>
               ))}
+              {!rows.length && (
+                <tr><td colSpan={9}>Keine Fälle ohne Ausfallschutz im aktuellen Datenstand.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
     </div>
   );
+}
+
+function riskAssessmentRank(claim: RiskClaim) {
+  if (claim.assessment === "auffaellig") return 3;
+  if (claim.assessment === "erledigt") return 2;
+  return 1;
+}
+
+function riskAssessmentStatus(claim: RiskClaim) {
+  if (claim.assessment === "auffaellig") return "Priorität: auffällig";
+  if (claim.assessment === "erledigt") return "Erledigung erkannt";
+  return "Beobachten, bisher unauffällig";
 }
 
 function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreviewRow[] = [], hasImportDataset = importRows.length > 0) {
@@ -4091,18 +4235,25 @@ function getRecurringRiskProfiles(standortId?: string, importRows: ImportPreview
       const standort = standorte.find((entry) => entry.id === first.standortId);
       const sortedClaims = [...claims].sort((a, b) => parseGermanDate(b.date).getTime() - parseGermanDate(a.date).getTime());
       const total = claims.reduce((sum, claim) => sum + claim.amount, 0);
-      const tone = claims.length >= 3 || total >= 500 ? "red" : "amber";
+      const eventCount = claims.reduce((sum, claim) => sum + (claim.eventCount ?? 0), 0);
+      const eventAmount = claims.reduce((sum, claim) => sum + (claim.eventAmount ?? 0), 0);
+      const hasNegativeEvent = claims.some((claim) => claim.assessment === "auffaellig");
+      const tone = hasNegativeEvent || claims.length >= 4 || total >= 1500 ? "red" : "amber";
       return {
         id: `${first.standortId}-${first.patientName}`,
         standortName: standort?.name ?? first.standortId,
         patientName: first.patientName,
         count: claims.length,
         total,
+        eventCount,
+        eventAmount,
         lastDate: sortedClaims[0].date,
         tone,
-        recommendation: tone === "red"
-          ? "Sperrhinweis / Praxisprozess prüfen"
-          : "Standort informieren und beobachten",
+        recommendation: hasNegativeEvent
+          ? "Auffällig: Praxisprozess prüfen"
+          : tone === "red"
+            ? "Mehrfach ohne Schutz beobachten"
+            : "Unauffällig beobachten",
         claims: sortedClaims
       };
     })
@@ -4124,7 +4275,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
       {!compact && (
         <section className="priority-grid">
           <PriorityCard label="Wiederholer" value={String(profiles.length)} hint="Patienten mehrfach ohne Schutz" tone={urgent.length ? "red" : "amber"} />
-          <PriorityCard label="Maßnahme nötig" value={String(urgent.length)} hint="ab 3 Einreichungen oder hoher Summe" tone="red" />
+          <PriorityCard label="Maßnahme nötig" value={String(urgent.length)} hint="bei Storno/Rückgabe oder hoher Wiederholung" tone="red" />
           <PriorityCard label="Risikosumme" value={money.format(total)} hint="mehrfach eingereicht ohne Schutz" tone="amber" />
           <PriorityCard label="Letzte Sichtung" value={profiles[0]?.lastDate ?? "-"} hint="neueste betroffene Abrechnung" tone="blue" />
         </section>
@@ -4148,6 +4299,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
                   <dl>
                     <div><dt>Einreichungen</dt><dd>{profile.count}</dd></div>
                     <div><dt>Risikosumme</dt><dd>{money.format(profile.total)}</dd></div>
+                    <div><dt>Auffälligkeiten</dt><dd>{profile.eventCount}</dd></div>
                     <div><dt>zuletzt</dt><dd>{profile.lastDate}</dd></div>
                   </dl>
                   <StatusBadge status={profile.recommendation} />
@@ -4162,6 +4314,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
                     <th>Standort</th>
                     <th>Einreichungen</th>
                     <th>Summe</th>
+                    <th>Auffälligkeiten</th>
                     <th>Letzte Abrechnung</th>
                     <th>Empfehlung</th>
                   </tr>
@@ -4173,6 +4326,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
                       <td>{profile.standortName}</td>
                       <td>{profile.count}</td>
                       <td>{money.format(profile.total)}</td>
+                      <td>{profile.eventCount}<span>{money.format(profile.eventAmount)}</span></td>
                       <td>{profile.lastDate}</td>
                       <td><StatusBadge status={profile.recommendation} /></td>
                     </tr>

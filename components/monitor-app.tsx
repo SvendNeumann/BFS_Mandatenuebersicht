@@ -6610,7 +6610,7 @@ function CasesView({
           <strong>{money.format(highestCase?.amount ?? 0)}</strong>
         </article>
       </div>
-      <section className="chart-grid visual-first-grid">
+      <section className="chart-grid visual-first-grid case-chart-grid">
         <div className="visual-panel mini-chart">
           <h2>Offener Betrag je Standort</h2>
           <CaseColumnChart title="Offener Betrag je Standort" values={caseAmountByLocation(filteredRows)} valueKind="money" />
@@ -6792,7 +6792,7 @@ function caseReasonDistribution(rows: BfsCase[]) {
   });
   return [...grouped.entries()]
     .sort((a, b) => b[1].amount - a[1].amount || b[1].count - a[1].count)
-    .slice(0, 8)
+    .slice(0, 6)
     .map(([label, value]) => ({ label, value: value.amount, detailLabel: `${integerNumber.format(value.count)} Fälle` }));
 }
 

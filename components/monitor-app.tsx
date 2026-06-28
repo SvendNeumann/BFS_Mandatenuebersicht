@@ -80,8 +80,8 @@ const superAdminNav: NavSection[] = [
   {
     title: "Management",
     items: [
+      ["custom", "Zusammenfassung", BarChart3],
       ["dashboard", "Cockpit", LayoutDashboard],
-      ["custom", "Individuell", BarChart3],
       ["answers", "Schnellantworten", ClipboardList],
       ["worklist", "Prioritäten heute", AlertCircle]
     ]
@@ -129,8 +129,8 @@ const leadNav: NavSection[] = [
   {
     title: "Mein Standort",
     items: [
+      ["custom", "Zusammenfassung", BarChart3],
       ["dashboard", "Cockpit", LayoutDashboard],
-      ["custom", "Individuell", BarChart3],
       ["answers", "Schnellantworten", ClipboardList],
       ["worklist", "Meine Prioritäten", AlertCircle]
     ]
@@ -772,7 +772,7 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
     dashboard: role === "super_admin" && isGroupScope ? "Cockpit" : "Standort-Cockpit",
-    custom: "Individuell",
+    custom: "Zusammenfassung",
     answers: "Schnellantworten",
     benchmark: "Standorte",
     quality: "Forderungsqualität",
@@ -886,11 +886,11 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           </select>
         </label>
         <div>
-          <strong>Individuelle KPI-Auswahl</strong>
+          <strong>Zusammenfassung</strong>
           <span>{scopeHint} · {selectedPeriod.detail}</span>
         </div>
         <div className="custom-export-actions">
-          <button className="secondary-button custom-export-action" type="button" onClick={() => printCustomTabPdf(exportRef.current, `Individuell · ${scopeHint} · ${selectedPeriod.label}`)}>
+          <button className="secondary-button custom-export-action" type="button" onClick={() => printCustomTabPdf(exportRef.current, `Zusammenfassung · ${scopeHint} · ${selectedPeriod.label}`)}>
             <Printer size={16} /> PDF Export
           </button>
           <button
@@ -905,7 +905,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
         </div>
       </section>
 
-      <section className="custom-kpi-slider" aria-label="Individuelle KPI-Kacheln">
+      <section className="custom-kpi-slider" aria-label="Zusammenfassung KPI-Kacheln">
         <PriorityCard
           label="Eingereichter Umsatz"
           value={money.format(metrics.submitted)}
@@ -944,7 +944,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
         />
       </section>
 
-      <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Individuelle Storno- und Rechnungs-KPI">
+      <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung Storno- und Rechnungs-KPI">
         <PriorityCard
           label="Anzahl Stornierungen"
           value={integerNumber.format(stornoReview.total)}
@@ -1007,7 +1007,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
         </div>
       </section>
 
-      <section className="custom-chart-grid" aria-label="Individuelle Diagramme">
+      <section className="custom-chart-grid" aria-label="Zusammenfassung Diagramme">
         <CustomComboChart
           title="Umsatz eingereicht vs. ausgezahlt"
           values={chartPoints}

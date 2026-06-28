@@ -2102,8 +2102,7 @@ td small {
 }
 
 .benchmark-revenue-card {
-  grid-column: 1 / -1;
-  min-height: 430px;
+  min-height: 460px;
 }
 
 .location-revenue-chart {
@@ -2164,28 +2163,24 @@ td small {
 
 .location-revenue-scroll {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(116px, 1fr);
-  align-items: end;
-  gap: 12px;
-  min-height: 250px;
+  gap: 10px;
+  min-height: 300px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 14px 2px 10px;
-  border-bottom: 1px solid var(--line);
+  padding: 12px 2px 10px;
   background:
-    linear-gradient(180deg, rgba(178, 226, 229, 0.07) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(4, 21, 33, 0.34), transparent);
-  background-size: 100% 42px, 100% 100%;
+    linear-gradient(90deg, rgba(178, 226, 229, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(4, 21, 33, 0.34), transparent);
+  background-size: 20% 100%, 100% 100%;
   scrollbar-gutter: stable;
 }
 
 .location-revenue-bar {
   display: grid;
-  grid-template-rows: minmax(190px, 1fr) auto auto;
-  gap: 8px;
-  align-items: end;
-  min-width: 0;
+  grid-template-columns: minmax(84px, 0.34fr) minmax(190px, 1fr) minmax(92px, 0.38fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 420px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -2195,17 +2190,19 @@ td small {
 
 .location-revenue-bar-track {
   display: flex;
-  align-items: end;
-  justify-content: center;
-  min-height: 190px;
+  align-items: center;
+  justify-content: start;
+  min-width: 0;
+  height: 26px;
+  border-bottom: 1px solid rgba(178, 226, 229, 0.16);
 }
 
 .location-revenue-bar-track i {
   display: block;
-  width: min(74px, 76%);
-  min-height: 5px;
-  border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #7cf7ee 0%, #30d5c8 52%, #0f8b96 100%);
+  height: 22px;
+  min-width: 5px;
+  border-radius: 0 8px 8px 0;
+  background: linear-gradient(90deg, #7cf7ee 0%, #30d5c8 52%, #0f8b96 100%);
   box-shadow: 0 14px 30px rgba(48, 213, 200, 0.16);
   transition: filter 140ms ease, transform 140ms ease;
 }
@@ -2214,7 +2211,7 @@ td small {
 .location-revenue-bar:hover .location-revenue-bar-track i,
 .location-revenue-bar:focus-visible .location-revenue-bar-track i {
   filter: brightness(1.16);
-  transform: translateY(-3px);
+  transform: translateX(3px);
 }
 
 .location-revenue-bar:focus-visible {
@@ -2229,6 +2226,7 @@ td small {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
 }
 
 .location-revenue-bar small {
@@ -2239,6 +2237,7 @@ td small {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 
 .bars {
@@ -3921,6 +3920,18 @@ td small {
 
   .benchmark-chart-grid > .benchmark-revenue-card {
     flex-basis: min(150vw, 760px);
+  }
+
+  .benchmark-chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
+    padding-bottom: 0;
+    scroll-snap-type: none;
+  }
+
+  .benchmark-chart-grid > * {
+    flex: initial;
   }
 
   .panel-heading,

@@ -1732,12 +1732,12 @@ function LocationRevenueBars({ title, values }: { title: string; values: { label
       </div>
       <div className="location-revenue-tooltip">
         <strong>{activeValue.label}</strong>
-        <span>Umsatz kumuliert: {money.format(activeValue.value)}</span>
+        <span>{title.includes("ausgezahlt") ? "Umsatz ausgezahlt" : "Umsatz kumuliert"}: {money.format(activeValue.value)}</span>
         {activeValue.detailLabel && <em>{activeValue.detailLabel}</em>}
       </div>
       <div className="location-revenue-scroll" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(0)}>
         {chartValues.map((value, index) => {
-          const height = value.value ? Math.max(8, (value.value / maxValue) * 100) : 2;
+          const width = value.value ? Math.max(3, (value.value / maxValue) * 100) : 1;
           return (
             <button
               type="button"
@@ -1748,10 +1748,10 @@ function LocationRevenueBars({ title, values }: { title: string; values: { label
               onFocus={() => setActiveIndex(index)}
               onClick={() => setActiveIndex(index)}
             >
-              <span className="location-revenue-bar-track">
-                <i style={{ height: `${height}%` }} />
-              </span>
               <b>{value.label}</b>
+              <span className="location-revenue-bar-track">
+                <i style={{ width: `${width}%` }} />
+              </span>
               <small>{money.format(value.value)}</small>
             </button>
           );
@@ -2179,24 +2179,13 @@ function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOpti
       })
     },
     {
-      title: "Gesamtkosten BFS je Standort",
+      title: "Umsatz ausgezahlt je Standort",
       values: sourceRows.map((standort) => {
         const metrics = metricsFor(standort);
         return {
           label: standort.name,
-          value: metrics.fees,
-          detailLabel: `${formatFeeRate(metrics.submitted ? (metrics.fees / metrics.submitted) * 100 : 0)} vom Umsatz`
-        };
-      })
-    },
-    {
-      title: "Rückbelastungen je Standort",
-      values: sourceRows.map((standort) => {
-        const metrics = metricsFor(standort);
-        return {
-          label: standort.name,
-          value: metrics.returnCount,
-          detailLabel: `${formatPercent(metrics.submitted ? (metrics.returnAmount / metrics.submitted) * 100 : 0)} vom Umsatz`
+          value: metrics.payout,
+          detailLabel: `${formatPercent(metrics.submitted ? (metrics.payout / metrics.submitted) * 100 : 0)} vom eingereichten Umsatz`
         };
       })
     }
@@ -2543,10 +2532,10 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
       </section>
       <section className="chart-grid benchmark-chart-grid">
         {benchmarkCharts.map((chart) => (
-          <div className={chart.title === "Umsatz eingereicht je Standort" ? "panel mini-chart benchmark-revenue-card" : "panel mini-chart"} key={chart.title}>
+          <div className={chart.title.includes("Umsatz") ? "panel mini-chart benchmark-revenue-card" : "panel mini-chart"} key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
-            {chart.title === "Umsatz eingereicht je Standort"
+            {chart.title.includes("Umsatz")
               ? <LocationRevenueBars title={chart.title} values={chart.values} />
               : <InteractiveBars title={chart.title} values={chart.values} />}
           </div>

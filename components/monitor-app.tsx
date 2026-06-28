@@ -218,7 +218,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "dashboard",
-    "custom",
     "worklist",
     "answers",
     "quality",
@@ -232,7 +231,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["benchmark", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "locations", "users", "upload", "preview", "history"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -556,7 +555,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
-            {activeView === "custom" && <CustomKpiView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
+            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}

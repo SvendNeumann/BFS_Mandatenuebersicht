@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 08:40 Uhr
+Stand: 28.06.2026, ca. 18:20 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Fokus: Produktstruktur Richtung CFO-/Management-Cockpit, stabile Live-Daten, bessere mobile/tablet Bedienbarkeit und performante Auswertungen.
+Aktueller Fokus: CFO-/Management-Cockpit, individuelles KPI-/Benchmark-Tab, stabile Live-Daten, saubere Rollenrechte, mobile/Desktop-Qualitaet und exportfaehige Steuerungsansichten.
 
 ## Prompt fuer den naechsten Chat
 
@@ -72,6 +72,14 @@ Navigationslogik aktuell:
 - Reports
 - Import & Pruefung
 - Admin Bereich
+
+Wichtige neue Sicht:
+- `Individuell`
+  - Frei gestalteter KPI-/Chart-/Benchmark-Bereich fuer zentrale Steuerungskennzahlen.
+  - Eigene KPI-Zeitraum- und Standortauswahl.
+  - Eigene Diagramm-Zeitraum- und Standortauswahl.
+  - Eigene Benchmark-Zeitauswahl fuer die Tabelle "Standorte nach Kennzahlen vergleichen".
+  - PDF-Export des gesamten Tabs im Querformat, auf eine Seite skaliert.
 
 ## Wichtigste fachliche Weiterentwicklung
 
@@ -220,6 +228,12 @@ Wichtig bei Beschriftungen:
 - Quoten muessen klar sagen, ob sie sich auf Anzahl Faelle, Abzugssumme oder eingereichten Umsatz beziehen.
 - `110/226 erledigt` und `operativ offen 161` duerfen nicht missverstaendlich addiert werden, wenn sie unterschiedliche Grundgesamtheiten/Definitionen haben. Entweder logisch entdoppeln oder sehr klar beschriften.
 
+Aktuelle Korrektur im individuellen Tab:
+- KPI `Anzahl Stornierungen` zeigt die Storno-Grundmenge im gewaehlten Zeitraum.
+- KPI `Davon gewandelt` zeigt, wie viele dieser Storno-Zeilen inzwischen erledigt/gewandelt sind.
+- Als gewandelt gelten Zahlung nach Storno, erkannte spaetere Neueinreichung oder manuelle Markierung als bezahlt.
+- Das Diagramm `Stornierungen vs. zurueckgeholt` ordnet `zurueckgeholt` dem urspruenglichen Storno-Monat zu. Dadurch passt die Linie zur Storno-Grundmenge und faellt nicht faelschlich auf 0, nur weil die erfolgreiche Wandlung spaeter datiert ist.
+
 ## Patientenqualitaet
 
 Patientenklassifizierung:
@@ -243,6 +257,7 @@ Gewuenscht/teilweise umgesetzt:
 - Report-Center ohne ueberfluessige Kacheln wie Exportformate/Empfaengerlogik.
 - Kommentare/Quellen in Tabellen kurz halten: wenn moeglich nur Abrechnungsnummer statt langer Pfade.
 - Offene-Faelle-Reports sollen nach Standort und Zeitraum filterbar sein.
+- Im Tab `Individuell` existiert ein PDF-Export fuer den gesamten Tab. Ziel: A4 Querformat, komplette Ansicht auf eine Seite skaliert, kein mehrseitiger zerhackter Druck. Technisch oeffnet die App ein Druckfenster; bei blockiertem Popup gibt es einen HTML-Fallback.
 
 Naechster sinnvoller Report-Ausbau:
 - Standortleiter-Monatsreport mit:
@@ -285,10 +300,32 @@ Diagramme:
 - Mobile Diagramme muessen bei Einzelstandort nicht als riesiger einzelner Balken erscheinen.
 - Tooltips muessen innerhalb der Karte bleiben und nicht abgeschnitten oder halb ausserhalb liegen.
 - Balken duerfen nicht verwirrend doppelt oder optisch ueberlagert wirken.
+- Im individuellen Tab haben `Umsatz eingereicht vs. ausgezahlt` und `Forderungen vs. Stornierungen` echte Tooltips im Diagramm. Linienpunkte sind auf die Balkenmitte ausgerichtet.
+
+Individuell-Tab aktueller Aufbau:
+1. Oben Zeitraum + Standort fuer KPI-Kacheln und PDF-Export.
+2. KPI-Reihe 1: Eingereichter Umsatz, BFS-Gebuehren, Ausgezahlter Umsatz.
+3. KPI-Reihe 2: Anzahl Stornierungen, Davon gewandelt, Eingereichte Rechnungen, Durchschnittlicher Wert je Forderung.
+4. KPI-Kacheln haben Sparklines und Info-Herleitungen.
+5. Darunter eigene Zeitraum-/Standortauswahl fuer Diagramme.
+6. Diagramme:
+   - Umsatz eingereicht vs. ausgezahlt als Kombi-Chart.
+   - Forderungen vs. Stornierungen mit zweiter Skala fuer Stornos.
+   - Patienten mit/ohne Ausfallschutz als Donut.
+   - Stornierungen vs. zurueckgeholt.
+7. Darunter Benchmark-Tabelle mit eigener Zeitauswahl.
+8. Desktop: grosse, zweispaltige Charts; mobile: untereinander/scrollbar passend.
 
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits:
+- `80aac379 Add separate custom benchmark period filter`
+- `38e5b78f Improve custom chart tooltips and storno recovery`
+- `7dd08f91 Add one-page custom PDF export`
+- `beac01ec Add custom benchmark table`
+- `8fd2777b Add custom KPI sparklines`
+- `bddec3c7 Add average claim KPI`
+- `cd6be5a4 Align storno counts across app`
 - `29075bfe Keep content controls sticky while scrolling`
 - `76c473fc Default period filters to 2026 YTD`
 - `4f71bf83 Improve tablet answer cards`
@@ -303,6 +340,14 @@ Aktuelle letzte Commits:
 - `ca1c1086 Add KPI sparklines to answer cards`
 
 Damit ist zuletzt erledigt:
+- Individuell-Tab mit 7 KPI-Kacheln, Sparklines und Info-Herleitungen.
+- Individuell-Tab hat vier Charts mit separater Zeitraum-/Standortsteuerung.
+- Individuell-Tab hat Benchmark-Tabelle mit eigener Zeitauswahl fuer Jahre, Quartale und Monate.
+- PDF-Export fuer gesamten Individuell-Tab im Querformat, auf eine Seite skaliert.
+- Chart-Tooltips fuer individuelle Kombi-/Dual-Axis-Charts.
+- Storno-/Recovery-Chartlogik an KPI-Logik angepasst.
+- Durchschnittlicher Wert je Forderung als KPI.
+- Benchmark-Tabelle mit Kennzahlen je Standort: Umsatz, Monatsdurchschnitt, Forderungen, Durchschnittsforderung, Stornos, Stornoquote, gewandelt, ohne Schutz, Gebuehr, Signal.
 - Super-Admin kann manuelle Fall-Erledigung wieder ausloesen.
 - Mobile/Tablet KPI-Kacheln wurden verbessert.
 - Antwort-Cockpit-Kacheln wurden auf Tablet besser verteilt.
@@ -325,6 +370,9 @@ git diff --check
 Wichtige offene technische Punkte:
 - Automatisierte Tests fehlen weiterhin.
 - Besonders testwuerdig:
+  - Individuell-Tab PDF-Export in echten Browsern auf Desktop/Mobile
+  - Individuell-Tab Benchmark-Zeitraumfilter
+  - Storno-/Recovery-Zuordnung im Chart gegen echte Importdaten
   - Import
   - Rollenrechte
   - Standortleitungszugriff

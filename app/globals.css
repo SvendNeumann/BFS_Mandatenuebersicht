@@ -1401,6 +1401,16 @@ input {
   color: #a6bfca;
 }
 
+.benchmark-signal-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.benchmark-signal-grid .insight-card {
+  min-height: 156px;
+  align-content: start;
+  background: linear-gradient(180deg, rgba(12, 49, 67, 0.9), rgba(7, 31, 45, 0.94));
+}
+
 .priority-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -3957,6 +3967,10 @@ td small {
     flex: initial;
   }
 
+  .benchmark-signal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .panel-heading,
   .answer-header,
   .case-list-actions,
@@ -4114,6 +4128,16 @@ input {
 
   .period-note {
     font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .benchmark-signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benchmark-signal-grid .insight-card {
+    min-height: 0;
   }
 }
 

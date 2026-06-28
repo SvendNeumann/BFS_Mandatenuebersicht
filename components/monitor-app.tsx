@@ -2528,6 +2528,11 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
+      <section className="insight-grid benchmark-signal-grid">
+        {benchmarkSignals.map((signal) => (
+          <InsightCard key={signal.title} title={signal.title} items={signal.items} />
+        ))}
+      </section>
       <section className="chart-grid benchmark-chart-grid">
         {benchmarkCharts.map((chart) => (
           <div className={chart.title.includes("Umsatz") ? "panel mini-chart benchmark-revenue-card" : "panel mini-chart"} key={chart.title}>
@@ -2538,11 +2543,6 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
               ? <LocationRevenueBars title={chart.title} values={chart.values} />
               : <InteractiveBars title={chart.title} values={chart.values} />}
           </div>
-        ))}
-      </section>
-      <section className="insight-grid benchmark-signal-grid">
-        {benchmarkSignals.map((signal) => (
-          <InsightCard key={signal.title} title={signal.title} items={signal.items} />
         ))}
       </section>
       <section className="panel">

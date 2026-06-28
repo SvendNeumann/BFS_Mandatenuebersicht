@@ -1366,6 +1366,7 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
   const rowsStandorte = standort ? [standort] : standorte;
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
+  const [standortPeriodIds, setStandortPeriodIds] = useState<Record<string, string>>({});
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
   const scopedImportRows = importRows.filter((row) => {
     const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
@@ -1482,7 +1483,9 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
           {rowsStandorte.map((entry) => {
             const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
             const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
-            const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, selectedPeriod, entry)));
+            const cardPeriodId = standortPeriodIds[entry.id] ?? selectedPeriodId;
+            const cardPeriod = periodOptions.find((period) => period.id === cardPeriodId) ?? selectedPeriod;
+            const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, cardPeriod, entry)));
             const periodCashflow = rowImportSummary.rows ? cashflowFromImportSummary(rowImportSummary) : zeroCashflow();
             const periodRiskAmount = periodCashflow.withoutProtection;
             const paidEstimate = periodCashflow.payout || Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
@@ -1491,7 +1494,18 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
                 <div>
                   <strong>{entry.name}</strong>
                   <span>{entry.praxisname}</span>
-                  <small>{periodCashflow.activeMonths ? `${periodCashflow.activeMonths} aktive Monate ab ${periodCashflow.startLabel}` : `noch nicht live im Zeitraum, Start ${entry.goLiveLabel}`}</small>
+                  <small>{periodCashflow.activeMonths ? `${periodCashflow.activeMonths} aktive Monate im Zeitraum ${cardPeriod.label}` : `noch nicht live im Zeitraum, Start ${entry.goLiveLabel}`}</small>
+                  <label className="cashflow-card-period">
+                    Zeitraum
+                    <select
+                      value={cardPeriodId}
+                      onChange={(event) => setStandortPeriodIds((current) => ({ ...current, [entry.id]: event.target.value }))}
+                    >
+                      {periodOptions.map((period) => (
+                        <option key={period.id} value={period.id}>{period.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <dl>
                   <div><dt>Umsatz eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>

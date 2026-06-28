@@ -2144,6 +2144,35 @@ td small {
   color: var(--muted);
 }
 
+.cashflow-card-period {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.cashflow-card-period select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(157, 226, 230, 0.22);
+  border-radius: 8px;
+  background: rgba(6, 23, 37, 0.92);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 8px 10px;
+}
+
+.cashflow-card-period option {
+  background: #ffffff;
+  color: #111827;
+}
+
 .cashflow-card dl {
   display: grid;
   gap: 8px;

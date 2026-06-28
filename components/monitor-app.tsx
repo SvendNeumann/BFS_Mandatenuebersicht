@@ -219,7 +219,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
-    "cashflow",
     "cases",
     "risks",
     "repeatRisks",
@@ -227,7 +226,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "reports", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "reports", "locations", "users", "upload", "preview", "history"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -561,7 +560,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
-            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}

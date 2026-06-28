@@ -12,7 +12,7 @@ type ManualCaseResolution = {
   bfsNo: string;
   amount: number;
   reason: string;
-  status: "paid_manual";
+  status: "paid_manual" | "open_manual";
   comment: string;
   resolvedAt: string;
   resolvedBy: string;
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     if (auditError) return NextResponse.json({ error: auditError.message }, { status: 500 });
 
-    await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
+    if (resolution.status === "paid_manual") await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
     return NextResponse.json({ resolution }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -103,8 +103,8 @@ function normalizeResolution(value: any, userId: string): ManualCaseResolution {
     bfsNo: stringValue(value.bfsNo) || "-",
     amount: Number(value.amount) || 0,
     reason: stringValue(value.reason) || "Manuell erledigt",
-    status: "paid_manual",
-    comment: stringValue(value.comment) || "Manuell geprüft: bezahlt.",
+    status: value.status === "open_manual" ? "open_manual" : "paid_manual",
+    comment: stringValue(value.comment) || (value.status === "open_manual" ? "Manuell geprüft: weiterhin offen." : "Manuell geprüft: bezahlt."),
     resolvedAt: new Date().toISOString(),
     resolvedBy: userId
   };
@@ -113,7 +113,7 @@ function normalizeResolution(value: any, userId: string): ManualCaseResolution {
 function parseResolution(value: unknown): ManualCaseResolution | null {
   if (!value || typeof value !== "object") return null;
   const entry = value as Partial<ManualCaseResolution>;
-  if (!entry.caseKey || !entry.standortId || entry.status !== "paid_manual") return null;
+  if (!entry.caseKey || !entry.standortId || !["paid_manual", "open_manual"].includes(entry.status ?? "")) return null;
   return entry as ManualCaseResolution;
 }
 

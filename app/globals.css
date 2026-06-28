@@ -895,6 +895,12 @@ input {
   white-space: nowrap;
 }
 
+.case-action-stack {
+  display: grid;
+  gap: 7px;
+  min-width: 178px;
+}
+
 .risk-profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));

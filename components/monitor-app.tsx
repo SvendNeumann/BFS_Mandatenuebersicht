@@ -154,7 +154,7 @@ type ManualCaseResolution = {
   bfsNo: string;
   amount: number;
   reason: string;
-  status: "paid_manual";
+  status: "paid_manual" | "open_manual";
   comment: string;
   resolvedAt: string;
   resolvedBy: string;
@@ -178,6 +178,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
+  const [caseResolutionMode, setCaseResolutionMode] = useState<ManualCaseResolution["status"]>("paid_manual");
   const [caseResolveError, setCaseResolveError] = useState("");
   const [caseResolveSaving, setCaseResolveSaving] = useState(false);
   const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
@@ -203,7 +204,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
-    const resolvedKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
+    const resolvedKeys = new Set(manualCaseResolutions.filter((resolution) => resolution.status === "paid_manual").map((resolution) => resolution.caseKey));
     return casesFromImportRows(liveImportRows).filter((fall) => !resolvedKeys.has(caseResolutionKey(fall)));
   }, [liveImportRows, manualCaseResolutions]);
   const visibleCases = useMemo(
@@ -304,6 +305,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function resolveCaseAsPaid(fall: BfsCase) {
+    setCaseResolutionMode("paid_manual");
+    setCaseResolveError("");
+    setCaseToResolve(fall);
+  }
+
+  function markCaseStillOpen(fall: BfsCase) {
+    setCaseResolutionMode("open_manual");
     setCaseResolveError("");
     setCaseToResolve(fall);
   }
@@ -313,7 +321,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setCaseResolveSaving(true);
     setCaseResolveError("");
     try {
-      const resolution = await saveManualCaseResolution(caseToResolve);
+      const resolution = await saveManualCaseResolution(caseToResolve, caseResolutionMode);
       setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
       setCaseToResolve(null);
     } catch (error) {
@@ -447,7 +455,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "benchmark" && <BenchmarkView onNavigate={navigateTo} importRows={liveImportRows} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." onResolvePaid={resolveCaseAsPaid} />}
@@ -470,10 +478,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={closeResolveCaseDialog} />
           <section className="confirmation-dialog case-resolution-dialog">
             <div className="case-resolution-icon"><CheckCircle2 size={24} /></div>
-            <h2>Fall als bezahlt markieren?</h2>
+            <h2>{caseResolutionMode === "paid_manual" ? "Fall als bezahlt markieren?" : "Fall weiterhin offen lassen?"}</h2>
             <p>
-              {caseToResolve.patientName} wird als manuell geprüft und bezahlt gespeichert.
-              Der Vorgang wird danach aus den offenen Klärfällen ausgeblendet, auch wenn derselbe Importfall erneut auftaucht.
+              {caseResolutionMode === "paid_manual"
+                ? `${caseToResolve.patientName} wird als manuell geprüft und bezahlt gespeichert. Der Vorgang wird danach aus den offenen Klärfällen ausgeblendet, auch wenn derselbe Importfall erneut auftaucht.`
+                : `${caseToResolve.patientName} wird als geprüft, aber weiterhin offen gespeichert. Der Vorgang verschwindet aus dieser Geldfluss-Prüfliste und bleibt in den Klärfällen für die operative Bearbeitung sichtbar.`}
             </p>
             <dl>
               <div><dt>Standort</dt><dd>{caseToResolve.locationName}</dd></div>
@@ -487,7 +496,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 Abbrechen
               </button>
               <button className="primary-button" disabled={caseResolveSaving} onClick={() => void confirmResolveCaseAsPaid()}>
-                <CheckCircle2 size={16} /> {caseResolveSaving ? "Speichern..." : "Als bezahlt markieren"}
+                <CheckCircle2 size={16} /> {caseResolveSaving ? "Speichern..." : caseResolutionMode === "paid_manual" ? "Als bezahlt markieren" : "Weiterhin offen speichern"}
               </button>
             </div>
           </section>
@@ -1422,7 +1431,21 @@ function AnswerCockpit({
   );
 }
 
-function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function ClaimsFlowView({
+  standort,
+  cases: rows,
+  importRows = [],
+  manualCaseResolutions = [],
+  onResolvePaid,
+  onKeepOpen
+}: {
+  standort?: Standort;
+  cases: BfsCase[];
+  importRows?: ImportPreviewRow[];
+  manualCaseResolutions?: ManualCaseResolution[];
+  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
+  onKeepOpen?: (fall: BfsCase) => void | Promise<void>;
+}) {
   const rowsStandorte = standort ? [standort] : standorte;
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
@@ -1476,6 +1499,8 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
   const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
+  const reviewedCaseKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
+  const openCashflowReviewCases = rows.filter((fall) => !fall.status.includes("erledigt") && !reviewedCaseKeys.has(caseResolutionKey(fall)));
 
   return (
     <div className="content-stack">
@@ -1744,9 +1769,11 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
         </article>
       </section>
       <CasesView
-        cases={rows.filter((fall) => !fall.status.includes("erledigt"))}
+        cases={openCashflowReviewCases}
         title="Offene Positionen zu diesem Geldfluss"
-        description="Alle offenen Fälle, die den Forderungs- und Rückläuferstand erklären."
+        description="Prüfliste für offene Positionen. Als bezahlt markieren blendet den Fall aus den Klärfällen aus; weiterhin offen lässt ihn in der operativen Fallarbeit."
+        onResolvePaid={onResolvePaid}
+        onKeepOpen={onKeepOpen}
         enableFilters
         tableScrollable
       />
@@ -3917,7 +3944,7 @@ async function loadManualCaseResolutions() {
   return payload.resolutions ?? [];
 }
 
-async function saveManualCaseResolution(fall: BfsCase) {
+async function saveManualCaseResolution(fall: BfsCase, status: ManualCaseResolution["status"] = "paid_manual") {
   const response = await fetch("/api/cases/resolutions", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -3930,7 +3957,8 @@ async function saveManualCaseResolution(fall: BfsCase) {
       bfsNo: fall.bfsNo,
       amount: fall.amount,
       reason: fall.reason,
-      comment: "Manuell geprüft: bezahlt."
+      status,
+      comment: status === "paid_manual" ? "Manuell geprüft: bezahlt." : "Manuell geprüft: weiterhin offen."
     })
   });
   const payload = await response.json().catch(() => null) as { resolution?: ManualCaseResolution; error?: string } | null;
@@ -4054,6 +4082,7 @@ function CasesView({
   title,
   description,
   onResolvePaid,
+  onKeepOpen,
   enableFilters = false,
   tableScrollable = false
 }: {
@@ -4062,6 +4091,7 @@ function CasesView({
   title?: string;
   description?: string;
   onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
+  onKeepOpen?: (fall: BfsCase) => void | Promise<void>;
   enableFilters?: boolean;
   tableScrollable?: boolean;
 }) {
@@ -4154,7 +4184,7 @@ function CasesView({
               <th>Status</th>
               <th>Wiedervorlage</th>
               <th>AbrechnungsNr</th>
-              {onResolvePaid && <th>Aktion</th>}
+              {(onResolvePaid || onKeepOpen) && <th>Aktion</th>}
             </tr>
           </thead>
           <tbody>
@@ -4170,18 +4200,27 @@ function CasesView({
                 <td><StatusBadge status={fall.status} /></td>
                 <td>{fall.dueDate}</td>
                 <td>{formatCaseAbrechnungReference(fall.lastComment)}</td>
-                {onResolvePaid && (
+                {(onResolvePaid || onKeepOpen) && (
                   <td>
-                    <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
-                      <CheckCircle2 size={15} /> Bezahlt markieren
-                    </button>
+                    <div className="case-action-stack">
+                      {onResolvePaid && (
+                        <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
+                          <CheckCircle2 size={15} /> Erledigt / bezahlt
+                        </button>
+                      )}
+                      {onKeepOpen && (
+                        <button className="secondary-button resolve-case-button" onClick={() => void onKeepOpen(fall)}>
+                          <AlertCircle size={15} /> Weiterhin offen
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>
             ))}
             {!filteredRows.length && (
               <tr>
-                <td colSpan={onResolvePaid ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
+                <td colSpan={onResolvePaid || onKeepOpen ? 11 : 10}>Keine Klärfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>

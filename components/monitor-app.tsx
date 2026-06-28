@@ -702,10 +702,6 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
             ))}
           </select>
         </label>
-        <div>
-          <strong>{selectedPeriod.label}</strong>
-          <span>{selectedPeriod.detail}. Jeder Standort wird erst ab seinem Vertragsstart gezählt: Kirchberg 01.07.2024, Essen 01.01.2025, Kehl 01.04.2025, Ulmet 01.07.2025, Hüttenberg 01.01.2026, Kassel ab 01.07.2026.</span>
-        </div>
       </section>
       <KpiGrid cards={groupKpis} />
       <section className="dashboard-grid cockpit-action-grid">
@@ -995,10 +991,6 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
             {periodOptions.map((period) => <option key={period.id} value={period.id}>{period.label}</option>)}
           </select>
         </label>
-        <div>
-          <strong>{selectedPeriod.label}</strong>
-          <span>Gruppenvergleich aller Standorte nach Volumen, Gebührenquote, Rückbelastungen, Ohne-Ausfallschutz und offenen Fällen.</span>
-        </div>
       </section>
       <section className="priority-grid">
         <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
@@ -1245,10 +1237,6 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
             ))}
           </select>
         </label>
-        <div>
-          <strong>{periodLabel}</strong>
-          <span>{importRows.length && !importSummary.rows ? `Für ${standort.name} liegen im aktuellen Import keine Daten vor` : selectedCashflow.activeMonths ? `${selectedCashflow.activeMonths} aktive Monate ab ${selectedCashflow.startLabel}` : `${standort.name} ist in diesem Zeitraum noch nicht aktiv`}. Klärfälle ohne echtes Falldatum bleiben als aktueller Datenstand ausgewiesen.</span>
-        </div>
       </section>
       <KpiGrid cards={locationKpis} />
         <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={locationImportRows} periodMetrics={selectedMetrics} periodLabel={periodLabel} hasImportDataset={importRows.length > 0} />
@@ -1379,10 +1367,6 @@ function AnswerCockpit({
               ))}
             </select>
           </label>
-          <div>
-            <strong>{selectedStandortLabel} · {selectedPeriod.label}</strong>
-            <span>{scopedImportRows.length ? `${scopedImportRows.length} Importdatei(en) im Filter` : "Für diese Auswahl liegen keine importierten Werte vor."}</span>
-          </div>
         </section>
       )}
       <div className="answer-grid">
@@ -1572,10 +1556,6 @@ function ClaimsFlowView({
               ))}
             </select>
           </label>
-          <div>
-            <strong>{selectedPeriod.label}</strong>
-            <span>{selectedPeriod.detail}. Vor dem jeweiligen Go-live des Standorts wird automatisch nichts gezählt.</span>
-          </div>
         </div>
         <div className="cashflow-grid">
           {rowsStandorte.map((entry) => {
@@ -1639,10 +1619,6 @@ function ClaimsFlowView({
               ))}
             </select>
           </label>
-          <div>
-            <strong>{recoveryPeriod.label}</strong>
-            <span>{recoveryPeriod.detail}. Die Tabelle zeigt erledigte Rückgaben/Stornos im gewählten Zeitraum.</span>
-          </div>
         </div>
         <div className="priority-grid compact-priority">
           <PriorityCard label="Abzug Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
@@ -4132,10 +4108,6 @@ function CasesView({
               ))}
             </select>
           </label>
-          <div>
-            <strong>{caseStandortFilter === "alle" ? "Alle Standorte" : standorte.find((entry) => entry.id === caseStandortFilter)?.name}</strong>
-            <span>{casePeriod.label}. Gefiltert nach Bewegungsdatum der offenen Position.</span>
-          </div>
         </div>
       )}
       <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">

@@ -1031,7 +1031,7 @@ function YearComparisonBars({
         {active && (
           <div className="year-active-value">
             <span>{active.context ?? title}</span>
-            <em>{active.year} · {active.label.length <= 2 ? `Monat ${active.label}` : active.label}</em>
+            <em>{monthLabelForYear(active.label, active.year)}</em>
             <strong>{format(active.value)}</strong>
           </div>
         )}
@@ -1047,7 +1047,7 @@ function YearComparisonBars({
                 onClick={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
                 onFocus={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
                 onPointerEnter={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}${value.previousYear ?? defaultPreviousYear} ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.previous)}`}
+                aria-label={`${value.context ? `${value.context}, ` : ""}${monthLabelForYear(value.label, value.previousYear ?? defaultPreviousYear)}: ${format(value.previous)}`}
               >
                 <span>{value.context && <b>{value.context}</b>}{format(value.previous)}</span>
               </button>
@@ -1058,12 +1058,12 @@ function YearComparisonBars({
                 onClick={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
                 onFocus={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
                 onPointerEnter={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}${value.currentYear ?? defaultCurrentYear} ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.current)}`}
+                aria-label={`${value.context ? `${value.context}, ` : ""}${monthLabelForYear(value.label, value.currentYear ?? defaultCurrentYear)}: ${format(value.current)}`}
               >
                 <span>{value.context && <b>{value.context}</b>}{format(value.current)}</span>
               </button>
             </div>
-            <small>{value.label.length <= 2 ? `Monat ${value.label}` : value.label}</small>
+            <small>{monthAxisLabel(value.label, value.currentYear ?? defaultCurrentYear)}</small>
           </div>
         ))}
       </div>
@@ -1117,7 +1117,7 @@ function YearComparisonLines({
         </div>
         <div className="year-active-value">
           <span>{active.context ?? title}</span>
-          <em>{active.year} · {active.label.length <= 2 ? `Monat ${active.label}` : active.label}</em>
+          <em>{monthLabelForYear(active.label, active.year)}</em>
           <strong>{format(active.value)}</strong>
         </div>
       </div>
@@ -1139,7 +1139,7 @@ function YearComparisonLines({
                 r="12"
                 tabIndex={0}
                 role="button"
-                aria-label={`${entry.context ?? title}, Vorjahr ${entry.previousYear ?? defaultPreviousYear}, Monat ${entry.label}: ${format(entry.previous)}`}
+                aria-label={`${entry.context ?? title}, Vorjahr ${monthLabelForYear(entry.label, entry.previousYear ?? defaultPreviousYear)}: ${format(entry.previous)}`}
                 onFocus={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
                 onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
                 onClick={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
@@ -1151,7 +1151,7 @@ function YearComparisonLines({
                 r="12"
                 tabIndex={0}
                 role="button"
-                aria-label={`${entry.context ?? title}, aktuell ${entry.currentYear ?? defaultCurrentYear}, Monat ${entry.label}: ${format(entry.current)}`}
+                aria-label={`${entry.context ?? title}, aktuell ${monthLabelForYear(entry.label, entry.currentYear ?? defaultCurrentYear)}: ${format(entry.current)}`}
                 onFocus={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
                 onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
                 onClick={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
@@ -1161,11 +1161,27 @@ function YearComparisonLines({
         })}
         {chartValues.map((entry, index) => {
           const point = pointFor(entry, index, "current");
-          return <text className="line-axis-label" key={`label-${entry.label}`} x={point.x} y={height - 8}>{entry.label}</text>;
+          return <text className="line-axis-label" key={`label-${entry.label}`} x={point.x} y={height - 8}>{monthAxisLabel(entry.label, entry.currentYear ?? defaultCurrentYear)}</text>;
         })}
       </svg>
     </div>
   );
+}
+
+const shortMonthLabels = ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+function shortMonthYearLabel(year: number, monthIndex: number) {
+  return `${shortMonthLabels[monthIndex] ?? String(monthIndex + 1).padStart(2, "0")} ${String(year).slice(-2)}`;
+}
+
+function monthLabelForYear(label: string, year: number) {
+  const monthNumber = Number(label);
+  if (Number.isInteger(monthNumber) && monthNumber >= 1 && monthNumber <= 12) return shortMonthYearLabel(year, monthNumber - 1);
+  return label;
+}
+
+function monthAxisLabel(label: string, year: number) {
+  return monthLabelForYear(label, year);
 }
 
 function chartLegendLabel(title: string) {
@@ -3573,7 +3589,7 @@ function importDateKey(value: string | undefined) {
 
 function monthLabelFromDate(value: string) {
   const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  return match ? `${match[2]}.${match[3]}` : "ohne Datum";
+  return match ? shortMonthYearLabel(Number(match[3]), Number(match[2]) - 1) : "ohne Datum";
 }
 
 function reasonLabel(reasonCategory?: string) {
@@ -3714,7 +3730,10 @@ function groupImportRowsByQuarter(rows: ImportPreviewRow[]) {
 
 function formatMetricMonth(month: string) {
   const [year, monthNo] = month.split("-");
-  return `${monthNo}.${year}`;
+  const parsedYear = Number(year);
+  const parsedMonth = Number(monthNo);
+  if (!parsedYear || !parsedMonth) return month;
+  return shortMonthYearLabel(parsedYear, parsedMonth - 1);
 }
 
 function formatDelta(value: number) {
@@ -3738,7 +3757,7 @@ function minDate(a: Date, b: Date) {
 }
 
 function formatMonth(date: Date) {
-  return new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(date);
+  return shortMonthYearLabel(date.getFullYear(), date.getMonth());
 }
 
 type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend];

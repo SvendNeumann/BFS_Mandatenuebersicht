@@ -4938,6 +4938,31 @@ tbody tr:hover td {
   }
 }
 
+@media (min-width: 721px) and (max-width: 1080px) {
+  .priority-grid > *,
+  .kpi-grid > * {
+    flex-basis: min(74vw, 460px);
+  }
+
+  .priority-card,
+  .kpi-card {
+    min-height: 178px;
+  }
+
+  .priority-card strong,
+  .kpi-card strong {
+    white-space: nowrap;
+    font-size: clamp(30px, 4.2vw, 38px);
+  }
+}
+
+@media (max-width: 720px) {
+  .priority-card strong,
+  .kpi-card strong {
+    white-space: nowrap;
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,

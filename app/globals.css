@@ -3980,6 +3980,497 @@ tbody tr:hover td {
   color: #c8fffb !important;
 }
 
+/* CFO boardroom UI layer */
+:root {
+  --bg: #061725;
+  --panel: rgba(9, 31, 47, 0.82);
+  --panel-strong: rgba(10, 38, 56, 0.94);
+  --panel-soft: rgba(18, 62, 81, 0.58);
+  --glass: rgba(255, 255, 255, 0.055);
+  --text: #f2fbfc;
+  --muted: #a6bfca;
+  --line: rgba(157, 226, 230, 0.2);
+  --soft-line: rgba(157, 226, 230, 0.12);
+  --primary: #39d6cf;
+  --primary-dark: #119ca5;
+  --blue: #76c7d2;
+  --cyan: #8af3ec;
+  --amber: #e7bf72;
+  --red: #f17f7f;
+  --green: #69d99f;
+  --ink-soft: #cde2e8;
+  --shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.24);
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% -12%, rgba(57, 214, 207, 0.12), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(118, 199, 210, 0.08), transparent 26%),
+    linear-gradient(180deg, #061725 0%, #092337 46%, #0d3444 100%);
+}
+
+.app-shell {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.024) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 18% 0%, rgba(57, 214, 207, 0.12), transparent 30%),
+    linear-gradient(135deg, #061725 0%, #092b41 55%, #0e3a47 100%);
+  background-size: 72px 72px, 72px 72px, auto, auto;
+}
+
+.workspace {
+  padding: 26px clamp(22px, 2.6vw, 42px) 58px;
+}
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(13, 42, 60, 0.98), rgba(5, 21, 34, 0.98));
+  border-right: 1px solid rgba(138, 243, 236, 0.14);
+  box-shadow: 22px 0 90px rgba(0, 0, 0, 0.26);
+}
+
+.topbar {
+  min-height: 94px;
+  padding: 8px 0 18px;
+  background: linear-gradient(180deg, rgba(6, 23, 37, 0.9), rgba(6, 23, 37, 0.26));
+  border-bottom: 1px solid rgba(157, 226, 230, 0.1);
+}
+
+.topbar h1,
+.mobile-page-heading h1 {
+  font-size: clamp(30px, 2.45vw, 42px);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.content-stack {
+  gap: 20px;
+}
+
+.panel,
+.kpi-card,
+.priority-card,
+.mini-chart,
+.cashflow-card,
+.location-benchmark-card,
+.insight-card,
+.data-card,
+.upload-zone,
+.table-wrap,
+.period-filter,
+.answer-cockpit,
+.command-panel,
+.process-panel,
+.case-board-column,
+.risk-profile-card,
+.location-editor-card,
+.settings-panel {
+  border: 1px solid rgba(157, 226, 230, 0.16) !important;
+  border-radius: 8px !important;
+  background:
+    linear-gradient(145deg, rgba(18, 60, 78, 0.76), rgba(6, 25, 39, 0.86)),
+    rgba(8, 30, 46, 0.82) !important;
+  box-shadow:
+    0 20px 70px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+  backdrop-filter: blur(18px);
+}
+
+.panel::before,
+.priority-card::before,
+.kpi-card::before {
+  width: 2px;
+  background: linear-gradient(180deg, rgba(138, 243, 236, 0.95), rgba(57, 214, 207, 0.08));
+}
+
+.panel-heading,
+.answer-header {
+  gap: 14px;
+  padding-bottom: 2px;
+}
+
+.panel-heading h2,
+.panel h2,
+.mini-chart h2 {
+  font-size: clamp(20px, 1.25vw, 25px);
+  line-height: 1.16;
+  color: #f7ffff;
+}
+
+.panel-heading p,
+.panel p {
+  color: rgba(205, 226, 232, 0.78);
+  line-height: 1.45;
+}
+
+.priority-grid,
+.kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.priority-grid.compact-priority {
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+}
+
+.priority-card,
+.kpi-card {
+  min-height: 150px;
+  padding: 16px 16px 14px;
+  gap: 9px;
+  align-content: start;
+}
+
+.priority-card {
+  padding-top: 42px;
+}
+
+.kpi-card {
+  padding-top: 42px;
+}
+
+.priority-card span,
+.kpi-card span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(205, 226, 232, 0.74);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.18;
+  text-transform: uppercase;
+}
+
+.priority-card span::before,
+.kpi-card span::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(138, 243, 236, 0.28);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(138, 243, 236, 0.78) 0 3px, transparent 4px),
+    rgba(57, 214, 207, 0.1);
+  box-shadow: 0 0 18px rgba(57, 214, 207, 0.12);
+}
+
+.priority-card strong,
+.kpi-card strong {
+  color: #f9ffff !important;
+  font-size: clamp(28px, 2.6vw, 40px);
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.priority-card small,
+.kpi-card small {
+  color: rgba(205, 226, 232, 0.78);
+  font-size: 14px;
+  line-height: 1.32;
+}
+
+.period-note {
+  justify-self: start;
+  width: auto;
+  margin-top: 4px;
+  padding: 5px 10px;
+  border: 1px solid rgba(138, 243, 236, 0.22);
+  border-radius: 999px;
+  background: rgba(57, 214, 207, 0.1);
+  color: #bdf9f4 !important;
+  font-size: 11px !important;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.priority-card::after,
+.kpi-card::after {
+  width: 52%;
+  height: 4px;
+  margin-top: 4px;
+  background: linear-gradient(90deg, rgba(138, 243, 236, 0.78), rgba(138, 243, 236, 0.06));
+}
+
+.priority-card.red {
+  background: linear-gradient(145deg, rgba(70, 30, 42, 0.74), rgba(6, 25, 39, 0.9)) !important;
+}
+
+.priority-card.amber {
+  background: linear-gradient(145deg, rgba(74, 58, 29, 0.7), rgba(6, 25, 39, 0.9)) !important;
+}
+
+.priority-card.green {
+  background: linear-gradient(145deg, rgba(21, 74, 59, 0.68), rgba(6, 25, 39, 0.9)) !important;
+}
+
+.metric-info {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 8;
+}
+
+.metric-info-button {
+  width: 32px;
+  height: 32px;
+  border-color: rgba(157, 226, 230, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(205, 226, 232, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.metric-info-button:hover,
+.metric-info-button:focus-visible {
+  border-color: rgba(138, 243, 236, 0.58);
+  background: rgba(57, 214, 207, 0.16);
+  color: #8af3ec;
+  outline: none;
+}
+
+.metric-info-popover {
+  max-width: min(360px, calc(100vw - 32px));
+  border: 1px solid rgba(138, 243, 236, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(13, 43, 61, 0.98), rgba(5, 20, 32, 0.98)) !important;
+  color: #e8f8fa;
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.46);
+}
+
+.metric-info-popover strong {
+  color: #f8ffff;
+}
+
+.metric-info-popover p {
+  color: rgba(205, 226, 232, 0.9);
+  line-height: 1.45;
+}
+
+.metric-info-popover button {
+  color: #d6edf1;
+}
+
+.chart-grid,
+.dashboard-grid {
+  gap: 16px;
+}
+
+.mini-chart {
+  position: relative;
+  min-height: 304px;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.mini-chart h2 {
+  min-height: 32px;
+  padding-right: 44px;
+}
+
+.mini-chart h2::after {
+  padding: 4px 9px;
+  border: 1px solid rgba(138, 243, 236, 0.2);
+  border-radius: 999px;
+  background: rgba(57, 214, 207, 0.08);
+  color: #bdf9f4;
+}
+
+.interactive-chart {
+  position: relative;
+  min-height: 218px;
+  padding: 52px 4px 0;
+}
+
+.interactive-chart .metric-info {
+  top: 2px;
+  left: 0;
+  right: auto;
+}
+
+.chart-legend {
+  top: 7px;
+  right: 2px;
+  max-width: calc(100% - 48px);
+  color: rgba(232, 248, 250, 0.9);
+}
+
+.bars {
+  height: 154px;
+  gap: 11px;
+  padding: 0 6px;
+  border-bottom-color: rgba(157, 226, 230, 0.18);
+  background:
+    linear-gradient(180deg, transparent 24%, rgba(157, 226, 230, 0.055) 25%, transparent 26%),
+    linear-gradient(180deg, transparent 49%, rgba(157, 226, 230, 0.055) 50%, transparent 51%),
+    linear-gradient(180deg, transparent 74%, rgba(157, 226, 230, 0.055) 75%, transparent 76%);
+}
+
+.bars button {
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(180deg, #34ddd4, #13a99f);
+  box-shadow: 0 8px 22px rgba(19, 169, 159, 0.2);
+}
+
+.axis {
+  gap: 8px;
+  color: rgba(205, 226, 232, 0.78);
+}
+
+.axis span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-tooltip {
+  top: 42px;
+  border-color: rgba(138, 243, 236, 0.26);
+  background: rgba(3, 16, 27, 0.96);
+}
+
+.table-wrap {
+  background: rgba(5, 22, 35, 0.58) !important;
+}
+
+th {
+  background: rgba(4, 18, 30, 0.96) !important;
+  color: rgba(205, 226, 232, 0.76) !important;
+}
+
+td {
+  background: rgba(7, 27, 41, 0.5) !important;
+  color: rgba(238, 251, 251, 0.88);
+}
+
+tbody tr:hover td {
+  background: rgba(21, 68, 86, 0.72) !important;
+}
+
+.location-card-grid,
+.cashflow-grid,
+.risk-profile-grid,
+.case-board {
+  gap: 16px;
+}
+
+.location-benchmark-card,
+.cashflow-card,
+.risk-profile-card {
+  padding: 18px;
+}
+
+.location-card-head span {
+  color: rgba(205, 226, 232, 0.7);
+}
+
+.location-metric-grid span,
+.cashflow-card dl div {
+  border-color: rgba(157, 226, 230, 0.13);
+  background: rgba(5, 22, 35, 0.34);
+}
+
+@media (max-width: 1080px) {
+  .workspace {
+    padding: 126px 18px 44px;
+  }
+
+  .priority-grid,
+  .kpi-grid,
+  .chart-grid,
+  .dashboard-grid,
+  .location-card-grid,
+  .location-card-grid.compact {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 2px 12px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(138, 243, 236, 0.5) transparent;
+    inline-size: min(100%, calc(100vw - 36px));
+    max-inline-size: calc(100vw - 36px);
+  }
+
+  .priority-grid > *,
+  .kpi-grid > *,
+  .chart-grid > *,
+  .dashboard-grid > *,
+  .location-card-grid > * {
+    flex: 0 0 min(82vw, 390px);
+    scroll-snap-align: start;
+  }
+
+  .chart-grid > *,
+  .dashboard-grid > * {
+    min-height: 270px;
+  }
+
+  .standort-tabs {
+    background: rgba(7, 27, 41, 0.94);
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    padding: 102px 10px 36px;
+  }
+
+  .mobile-page-heading {
+    margin-bottom: 14px;
+  }
+
+  .priority-grid,
+  .kpi-grid,
+  .chart-grid,
+  .dashboard-grid,
+  .location-card-grid,
+  .location-card-grid.compact {
+    inline-size: min(100%, calc(100vw - 20px));
+    max-inline-size: calc(100vw - 20px);
+    padding-bottom: 14px;
+  }
+
+  .priority-grid > *,
+  .kpi-grid > *,
+  .chart-grid > *,
+  .dashboard-grid > *,
+  .location-card-grid > * {
+    flex-basis: min(86vw, 350px);
+  }
+
+  .priority-card,
+  .kpi-card {
+    min-height: 146px;
+    padding: 40px 14px 14px;
+  }
+
+  .priority-card strong,
+  .kpi-card strong {
+    font-size: clamp(25px, 8vw, 34px);
+  }
+
+  .mini-chart {
+    min-height: 292px;
+  }
+
+  .bars {
+    height: 142px;
+  }
+
+  .metric-info-popover {
+    left: 12px !important;
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  .table-wrap {
+    max-width: calc(100vw - 20px);
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,

@@ -684,6 +684,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
 
   return (
     <div className="interactive-chart" onMouseLeave={() => setActiveIndex(0)}>
+      <MetricInfo title={title} text={chartExplanation(title, values)} />
       <div className="chart-legend">
         <span />
         <strong>{chartLegendLabel(title)}</strong>
@@ -721,6 +722,26 @@ function chartLegendLabel(title: string) {
   if (title.toLowerCase().includes("umsatz")) return "Umsatz eingereicht";
   if (title.toLowerCase().includes("rück")) return "Rückbelastungen";
   return "Performanceindex";
+}
+
+function chartExplanation(title: string, values: { label: string; value: number }[]) {
+  const normalizedTitle = title.toLowerCase();
+  const total = values.reduce((sum, entry) => sum + entry.value, 0);
+  const filters = "Es wirken die aktuell ausgewählten Standort-, Zeitraum- und Rollenfilter der jeweiligen Seite.";
+  const scope = values.length ? `Dargestellt werden ${values.length} Datenpunkte.` : "Es liegen für diese Auswahl keine Datenpunkte vor.";
+  if (normalizedTitle.includes("umsatz")) {
+    return `Datenquelle: importierte BFS-Abrechnungen aus dem aktuellen Datenstand. Berechnung: Summe der erkannten Forderungsbeträge je angezeigtem Standort oder Zeitraum. Zeitraum: der auf der Seite ausgewählte Zeitraum. Filter: ${filters} Besonderheit: Standorte werden erst ab Vertragsstart berücksichtigt. ${scope} Gesamtsumme der dargestellten Werte: ${money.format(total)}.`;
+  }
+  if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten")) {
+    return `Datenquelle: erkannte Gebühren-, MwSt- und Kostenpositionen aus den BFS-Abrechnungen. Berechnung: Summe der Kostenpositionen je angezeigtem Standort oder Zeitraum, passend zur bestehenden Auswertung. Zeitraum: der auf der Seite ausgewählte Zeitraum. Filter: ${filters} Besonderheit: fehlende Importdaten werden als 0 angezeigt und nicht mit Demo-Werten ergänzt. ${scope} Gesamtsumme der dargestellten Werte: ${money.format(total)}.`;
+  }
+  if (normalizedTitle.includes("rück") || normalizedTitle.includes("storno")) {
+    return `Datenquelle: Kontoauszug-Bewegungen aus den importierten BFS-PDFs. Berechnung: gezählt oder summiert werden erkannte Rückgaben, Rückbelastungen und Storno-Bewegungen gemäß bestehender Falllogik. Zeitraum: der auf der Seite ausgewählte Zeitraum. Filter: ${filters} Besonderheit: manuell erledigte Fälle verändern die Fallarbeit, die Ursprungsbewegung bleibt als Bewegungsereignis auswertbar. ${scope}`;
+  }
+  if (normalizedTitle.includes("risiko") || normalizedTitle.includes("qualität") || normalizedTitle.includes("patient")) {
+    return `Datenquelle: erkannte Forderungen, Bewegungen und Ausfallschutz-Marker aus dem aktuellen Importdatenstand. Berechnung: Die App verdichtet die bestehenden Risiko- und Qualitätsklassen in die angezeigten Gruppen. Zeitraum: aktuelle Auswahl der Seite. Filter: ${filters} Besonderheit: Ohne-Ausfallschutz ist Risiko, nicht automatisch Klärfall. ${scope}`;
+  }
+  return `Datenquelle: aktueller Importdatenstand der App. Berechnung: Die bereits vorhandenen Kennzahlen werden ohne fachliche Änderung als Diagrammwerte dargestellt. Zeitraum: aktuelle Auswahl der Seite. Filter: ${filters} ${scope}`;
 }
 
 function formatChartValue(title: string, value: number) {

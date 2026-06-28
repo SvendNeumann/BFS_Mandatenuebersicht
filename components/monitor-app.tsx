@@ -1716,6 +1716,51 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   );
 }
 
+function LocationRevenueBars({ title, values }: { title: string; values: { label: string; value: number; detailLabel?: string }[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const chartValues = values.length ? values : [{ label: "Keine Daten", value: 0 }];
+  const activeValue = chartValues[Math.min(activeIndex, chartValues.length - 1)];
+  const maxValue = Math.max(...chartValues.map((value) => value.value), 1);
+  const total = chartValues.reduce((sum, value) => sum + value.value, 0);
+
+  return (
+    <div className="location-revenue-chart">
+      <MetricInfo title={title} text={chartExplanation(title, chartValues)} />
+      <div className="location-revenue-summary">
+        <span>Kumuliert</span>
+        <strong>{money.format(total)}</strong>
+      </div>
+      <div className="location-revenue-tooltip">
+        <strong>{activeValue.label}</strong>
+        <span>Umsatz kumuliert: {money.format(activeValue.value)}</span>
+        {activeValue.detailLabel && <em>{activeValue.detailLabel}</em>}
+      </div>
+      <div className="location-revenue-scroll" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(0)}>
+        {chartValues.map((value, index) => {
+          const height = value.value ? Math.max(8, (value.value / maxValue) * 100) : 2;
+          return (
+            <button
+              type="button"
+              className={index === activeIndex ? "location-revenue-bar active" : "location-revenue-bar"}
+              key={value.label}
+              aria-label={`${value.label}: Umsatz kumuliert ${money.format(value.value)}${value.detailLabel ? `, ${value.detailLabel}` : ""}`}
+              onPointerEnter={() => setActiveIndex(index)}
+              onFocus={() => setActiveIndex(index)}
+              onClick={() => setActiveIndex(index)}
+            >
+              <span className="location-revenue-bar-track">
+                <i style={{ height: `${height}%` }} />
+              </span>
+              <b>{value.label}</b>
+              <small>{money.format(value.value)}</small>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type ManagementComparison = ReturnType<typeof buildManagementComparison>;
 
 function ManagementDeltaPanel({ comparison }: { comparison: ManagementComparison }) {
@@ -2498,10 +2543,12 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
       </section>
       <section className="chart-grid benchmark-chart-grid">
         {benchmarkCharts.map((chart) => (
-          <div className="panel mini-chart" key={chart.title}>
+          <div className={chart.title === "Umsatz eingereicht je Standort" ? "panel mini-chart benchmark-revenue-card" : "panel mini-chart"} key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
-            <InteractiveBars title={chart.title} values={chart.values} />
+            {chart.title === "Umsatz eingereicht je Standort"
+              ? <LocationRevenueBars title={chart.title} values={chart.values} />
+              : <InteractiveBars title={chart.title} values={chart.values} />}
           </div>
         ))}
       </section>

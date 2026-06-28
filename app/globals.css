@@ -2101,6 +2101,146 @@ td small {
   min-height: 250px;
 }
 
+.benchmark-revenue-card {
+  grid-column: 1 / -1;
+  min-height: 430px;
+}
+
+.location-revenue-chart {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.location-revenue-summary {
+  display: inline-grid;
+  justify-self: start;
+  gap: 2px;
+  border: 1px solid rgba(121, 238, 231, 0.18);
+  border-radius: 8px;
+  background: rgba(48, 213, 200, 0.08);
+  padding: 8px 10px;
+}
+
+.location-revenue-summary span,
+.location-revenue-tooltip em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.location-revenue-summary strong {
+  color: #f8ffff;
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+.location-revenue-tooltip {
+  display: grid;
+  gap: 3px;
+  width: fit-content;
+  max-width: min(100%, 360px);
+  border: 1px solid rgba(121, 238, 231, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 14, 24, 0.72);
+  color: #eefbfb;
+  padding: 9px 11px;
+}
+
+.location-revenue-tooltip strong {
+  font-size: 12px;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.location-revenue-tooltip span {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.location-revenue-scroll {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(116px, 1fr);
+  align-items: end;
+  gap: 12px;
+  min-height: 250px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 14px 2px 10px;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(178, 226, 229, 0.07) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(4, 21, 33, 0.34), transparent);
+  background-size: 100% 42px, 100% 100%;
+  scrollbar-gutter: stable;
+}
+
+.location-revenue-bar {
+  display: grid;
+  grid-template-rows: minmax(190px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: center;
+}
+
+.location-revenue-bar-track {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  min-height: 190px;
+}
+
+.location-revenue-bar-track i {
+  display: block;
+  width: min(74px, 76%);
+  min-height: 5px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #7cf7ee 0%, #30d5c8 52%, #0f8b96 100%);
+  box-shadow: 0 14px 30px rgba(48, 213, 200, 0.16);
+  transition: filter 140ms ease, transform 140ms ease;
+}
+
+.location-revenue-bar.active .location-revenue-bar-track i,
+.location-revenue-bar:hover .location-revenue-bar-track i,
+.location-revenue-bar:focus-visible .location-revenue-bar-track i {
+  filter: brightness(1.16);
+  transform: translateY(-3px);
+}
+
+.location-revenue-bar:focus-visible {
+  outline: 2px solid rgba(121, 238, 231, 0.52);
+  outline-offset: 4px;
+}
+
+.location-revenue-bar b {
+  overflow: hidden;
+  color: #e8f8fa;
+  font-size: 12px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-revenue-bar small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bars {
   display: flex;
   align-items: end;
@@ -3777,6 +3917,10 @@ td small {
   .benchmark-chart-grid > * {
     flex: 0 0 min(94vw, 430px);
     scroll-snap-align: start;
+  }
+
+  .benchmark-chart-grid > .benchmark-revenue-card {
+    flex-basis: min(150vw, 760px);
   }
 
   .panel-heading,

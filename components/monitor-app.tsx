@@ -1654,7 +1654,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
             <p>Klärfälle, Rückbelastungen, Neueinreichungen und Reports bleiben Arbeitswerkzeuge. Die Lagebewertung oben erklärt zuerst Entwicklung, Abweichung und Ursache.</p>
           </div>
         </div>
-        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} />
+        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} manualCaseResolutions={manualCaseResolutions} hasImportDataset={importRows.length > 0} />
       </section>
     </div>
   );
@@ -2879,6 +2879,7 @@ function AnswerCockpit({
   compact = false,
   showReportAction = false,
   importRows = [],
+  manualCaseResolutions = [],
   periodMetrics,
   periodLabel,
   hasImportDataset: hasImportDatasetProp
@@ -2890,6 +2891,7 @@ function AnswerCockpit({
   compact?: boolean;
   showReportAction?: boolean;
   importRows?: ImportPreviewRow[];
+  manualCaseResolutions?: ManualCaseResolution[];
   periodMetrics?: BfsMetrics;
   periodLabel?: string;
   hasImportDataset?: boolean;
@@ -2926,12 +2928,18 @@ function AnswerCockpit({
   ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)), [relevantStandorte, scopedImportRows, hasImportDataset]);
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   const submitted = selectedMetrics.submitted;
+  const payout = selectedMetrics.payout;
   const fees = selectedMetrics.fees;
   const feeNet = selectedMetrics.feeNet || fees;
   const feeVat = selectedMetrics.feeVat;
   const ewmaTotal = selectedMetrics.ewmaTotal;
   const noProtectionAmount = selectedMetrics.noProtectionAmount;
   const oldest = openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  const stornoReview = useMemo(() => stornoReviewFromImportRows(
+    scopedImportRows,
+    relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
+    manualCaseResolutions
+  ), [manualCaseResolutions, relevantStandorte, scopedImportRows]);
   const selectedStandortLabel = scope === "group"
     ? selectedAnswerStandortId === "alle"
       ? "Alle Standorte"
@@ -2946,12 +2954,13 @@ function AnswerCockpit({
     period: effectivePeriod
   }), [effectivePeriod, importRows, relevantStandorte]);
   const submittedTrend = useMemo(() => buildAnswerSparkline("submitted", answerSparklineContext), [answerSparklineContext]);
-  const openTrend = useMemo(() => buildAnswerSparkline("openAmount", answerSparklineContext), [answerSparklineContext]);
-  const chargebackTrend = useMemo(() => buildAnswerSparkline("chargebacks", answerSparklineContext), [answerSparklineContext]);
+  const payoutTrend = useMemo(() => buildAnswerSparkline("payout", answerSparklineContext), [answerSparklineContext]);
   const noProtectionTrend = useMemo(() => buildAnswerSparkline("noProtection", answerSparklineContext), [answerSparklineContext]);
   const recurringTrend = useMemo(() => buildAnswerSparkline("recurring", answerSparklineContext), [answerSparklineContext]);
   const feesTrend = useMemo(() => buildAnswerSparkline("fees", answerSparklineContext), [answerSparklineContext]);
-  const oldestTrend = useMemo(() => buildAnswerSparkline("oldest", answerSparklineContext), [answerSparklineContext]);
+  const stornoTotalTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "total"), [stornoReview.rows]);
+  const stornoDoneTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "done"), [stornoReview.rows]);
+  const stornoOpenTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "open"), [stornoReview.rows]);
   const answerInfo = useMemo(() => buildAnswerCardInfo({
     periodLabel: resolvedPeriodLabel,
     scopeLabel: selectedStandortLabel,
@@ -2959,8 +2968,9 @@ function AnswerCockpit({
     openCases,
     chargebacks,
     recurringRisks,
-    oldest
-  }), [chargebacks, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel]);
+    oldest,
+    stornoReview
+  }), [chargebacks, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel, stornoReview]);
 
   useEffect(() => {
     if (scope === "location" && standort) setSelectedAnswerStandortId(standort.id);
@@ -2984,26 +2994,25 @@ function AnswerCockpit({
             ))}
           </select>
         </label>
-        {!compact && (
-          <label className="select-label">
-            Standort
-            <select value={selectedAnswerStandortId} onChange={(event) => setSelectedAnswerStandortId(event.target.value)} disabled={scope !== "group"}>
-              {scope === "group" && <option value="alle">Alle Standorte</option>}
-              {orderedStandorte().map((entry) => (
-                <option key={entry.id} value={entry.id}>{entry.name}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        <label className="select-label">
+          Standort Schnellantworten
+          <select value={selectedAnswerStandortId} onChange={(event) => setSelectedAnswerStandortId(event.target.value)} disabled={scope !== "group"}>
+            {scope === "group" && <option value="alle">Alle Standorte</option>}
+            {orderedStandorte().map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
       </section>
       <div className="answer-grid">
-        <AnswerMetricCard title="Umsatz eingereicht?" value={money.format(submitted)} hint={resolvedPeriodLabel} trend={submittedTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="Was ist noch offen?" value={money.format(openAmount)} hint={`${openCases.length} offene Klärfälle`} trend={openTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.open} onClick={() => onNavigate("cases")} />
-        <AnswerMetricCard title="Wie viele Rückläufer?" value={String(chargebacks.length)} hint={chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"} trend={chargebackTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.chargebacks} onClick={() => onNavigate("cases")} />
-        <AnswerMetricCard title="Ohne Ausfallschutz?" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
-        <AnswerMetricCard title="Wiederholer?" value={String(recurringRisks.length)} hint="mehrfach ohne Ausfallschutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
-        <AnswerMetricCard title="BFS-Kosten?" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="Ältester offener Fall?" value={`${oldest} Tage`} hint="Priorität zuerst klären" trend={oldestTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.oldest} onClick={() => onNavigate("worklist")} />
+        <AnswerMetricCard title="Umsatz eingereicht" value={money.format(submitted)} hint={resolvedPeriodLabel} trend={submittedTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="BFS-Kosten" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Umsatz ausgezahlt" value={money.format(payout)} hint="nach BFS-Abzug" trend={payoutTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.payout} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
+        <AnswerMetricCard title="Stornierte Fälle" value={integerNumber.format(stornoReview.total)} hint={money.format(stornoReview.amount)} trend={stornoTotalTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("matches")} />
+        <AnswerMetricCard title="Davon zurückgeholt" value={integerNumber.format(stornoReview.done)} hint={`${formatPercent(stornoReview.doneRate)} gewandelt`} trend={stornoDoneTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("matches")} />
+        <AnswerMetricCard title="Stornos offen" value={integerNumber.format(stornoReview.open)} hint="noch nicht gewandelt" trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("cases")} />
+        <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
       </div>
     </section>
   );
@@ -3024,7 +3033,7 @@ function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClic
   );
 }
 
-function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest }: {
+function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, stornoReview }: {
   periodLabel: string;
   scopeLabel: string;
   metrics: BfsMetrics;
@@ -3032,6 +3041,7 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   chargebacks: BfsCase[];
   recurringRisks: ReturnType<typeof getRecurringRiskProfiles>;
   oldest: number;
+  stornoReview: ReturnType<typeof stornoReviewFromImportRows>;
 }) {
   const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
@@ -3040,11 +3050,15 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   const taxTotal = metrics.feeVat + metrics.ewmaVat;
   return {
     submitted: `Herleitung: Summe aller erkannten Forderungen im Zeitraum ${periodLabel} für ${scopeLabel}. Verwendet werden die importierten BFS-Forderungsbeträge je Abrechnung. Aktueller Wert: ${money.format(metrics.submitted)}. Die Sparkline zeigt die Monatsentwicklung im gewählten Zeitraum und der VJ-Wert vergleicht denselben Zeitraum mit dem Vorjahr.`,
+    payout: `Herleitung: Summe der erkannten Auszahlungsbeträge im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.payout)}. Die Differenz zum eingereichten Umsatz entsteht aus BFS-Kosten, Steuern, EWMA/Meldeamtabfragen sowie Rückgaben oder Stornos, sofern diese im Import erkannt wurden.`,
     open: `Herleitung: Summe aller offenen, nicht erledigten Klärfälle im aktuellen Standortfilter ${scopeLabel}. Zeitraum: ${periodLabel}. Gezählt werden ${openCases.length} offene Fälle mit zusammen ${money.format(openAmount)}. Manuell als bezahlt markierte Fälle werden nicht mehr als offen geführt.`,
     chargebacks: `Herleitung: Gezählt werden offene Fälle mit Rückgabe oder Rückbelastung im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${chargebacks.length} Rückläufer mit ${money.format(chargebackAmount)} offenem Betrag. Stornos werden in den separaten Qualitäts- und Geldflussansichten ausgewertet.`,
     noProtection: `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
     recurring: `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${recurringRisks.length} Wiederholer. Diese Kachel zeigt Patientenselektion und Standortprozess, nicht einzelne Buchungssummen.`,
     fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
+    stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
+    stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder gewandelt. Dazu zählen Zahlung nach Storno, erkannte spätere Neueinreichung oder manuelle Markierung als bezahlt. Quote: ${formatPercent(stornoReview.doneRate)}.`,
+    stornoOpen: `Herleitung: Noch offene Storno-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen nicht gewandelt und bleiben operativ prüfbar.`,
     oldest: `Herleitung: Höchstes Alter unter allen offenen, nicht erledigten Klärfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
@@ -3148,6 +3162,26 @@ function caseSparklineForPeriod(cases: BfsCase[], period: PeriodOption, metric: 
     points: points.length ? points : [0, total, total],
     tone: total ? "red" : "green",
     label: metric === "count" ? "offener Verlauf" : "Fallalter"
+  };
+}
+
+function stornoAnswerSparkline(stornoRows: ReturnType<typeof stornoReviewFromImportRows>["rows"], metric: "total" | "done" | "open"): AnswerSparklineTrend {
+  const monthKeys = [...new Set(stornoRows.map((row) => monthKeyFromGermanDate(row.date)).filter(Boolean))].sort();
+  const points = monthKeys.map((month) => {
+    const monthRows = stornoRows.filter((row) => monthKeyFromGermanDate(row.date) === month);
+    if (metric === "done") return monthRows.filter((row) => row.done).length;
+    if (metric === "open") return monthRows.filter((row) => !row.done).length;
+    return monthRows.length;
+  });
+  const total = metric === "done"
+    ? stornoRows.filter((row) => row.done).length
+    : metric === "open"
+      ? stornoRows.filter((row) => !row.done).length
+      : stornoRows.length;
+  return {
+    points: points.length ? points : [0, total, total],
+    tone: metric === "done" ? "green" : total ? metric === "open" ? "red" : "amber" : "green",
+    label: metric === "done" ? "gewandelt" : metric === "open" ? "offen" : "Storno Verlauf"
   };
 }
 

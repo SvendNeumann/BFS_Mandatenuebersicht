@@ -709,9 +709,9 @@ input {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(178, 226, 229, 0.28);
+  border: 0;
   border-radius: 999px;
-  background: #173d50;
+  background: rgba(23, 61, 80, 0.7);
   color: #d9e9ee;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
 }
@@ -2861,7 +2861,11 @@ td small {
   gap: 10px;
 }
 
-.answer-grid button {
+.answer-cockpit.compact .answer-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.answer-card-action {
   display: grid;
   gap: 8px;
   min-height: 178px;
@@ -2885,7 +2889,7 @@ td small {
   height: 100%;
 }
 
-.answer-grid button:hover {
+.answer-card-action:hover {
   transform: translateY(-2px);
   border-color: rgba(139, 184, 255, 0.52);
   box-shadow: var(--shadow);
@@ -2966,6 +2970,10 @@ td small {
 .answer-filter-panel {
   grid-template-columns: minmax(180px, 0.24fr) minmax(180px, 0.24fr) minmax(0, 1fr);
   margin-bottom: 0;
+}
+
+.compact-answer-filter {
+  grid-template-columns: minmax(180px, 0.24fr) minmax(180px, 0.24fr);
 }
 
 .period-filter select {
@@ -3921,7 +3929,7 @@ input {
 
   .kpi-card,
   .priority-card,
-  .answer-grid button {
+  .answer-card-action {
     gap: 10px;
   }
 

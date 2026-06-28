@@ -1513,13 +1513,20 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [cockpitPeriodId, setCockpitPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [chartStandortFilter, setChartStandortFilter] = useState("alle");
   const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const cockpitPeriod = useMemo(() => periodOptions.find((period) => period.id === cockpitPeriodId) ?? periodOptions[0], [periodOptions, cockpitPeriodId]);
+  const chartPeriod = useMemo(() => periodOptions.find((period) => period.id === chartPeriodId) ?? cockpitPeriod, [periodOptions, chartPeriodId, cockpitPeriod]);
   const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? cockpitPeriod, [periodOptions, benchmarkPeriodId, cockpitPeriod]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
   const cockpitScopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
+  const chartStandorte = useMemo(() => chartStandortFilter === "alle"
+    ? orderedStandorte()
+    : standorte.filter((standort) => standort.id === chartStandortFilter), [chartStandortFilter]);
+  const chartScopeLabel = chartStandorte.length === 1 ? chartStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
   const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [importRows, paidCaseKeys]);
@@ -1543,7 +1550,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, managementComparison.currentPeriod, rowStandort) : false;
   }), [importRows, filteredStandorte, managementComparison.currentPeriod]);
-  const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows, managementComparison.currentPeriod), [filteredStandorte, importRows, managementComparison.currentPeriod]);
+  const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
   const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases), [filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
@@ -1575,14 +1582,23 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
         detail={cockpitPeriod.detail}
       />
       <KpiGrid cards={groupKpis} className="cockpit-kpi-grid" />
+      <CockpitChartFilterBar
+        periodOptions={periodOptions}
+        selectedPeriodId={chartPeriodId}
+        onPeriodChange={setChartPeriodId}
+        selectedStandort={chartStandortFilter}
+        onStandortChange={setChartStandortFilter}
+        scopeLabel={chartScopeLabel}
+        detail={chartPeriod.detail}
+      />
       <section className="chart-grid management-chart-grid">
         {groupChartSeries.map((chart) => (
-          <div className="panel mini-chart year-chart-panel" key={chart.title}>
+          <div className="panel mini-chart year-chart-panel cockpit-combo-panel" key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">
-              {chart.title.includes("Standortvergleich") ? `Je Standort · ${managementComparison.currentPeriod.label} vs. Vorjahr` : `${cockpitScopeLabel} · ${managementComparison.currentPeriod.label} vs. Vorjahr`}
+              {chart.title.includes("Standortvergleich") ? `Je Standort · ${chartPeriod.label} vs. Vorjahr` : `${chartScopeLabel} · ${chartPeriod.label} vs. Vorjahr`}
             </small>
-            <YearComparisonBars title={chart.title} values={chart.values} format={chart.format} />
+            <ManagementComboChart title={chart.title} values={chart.values} format={chart.format} />
           </div>
         ))}
       </section>
@@ -1751,6 +1767,102 @@ function ManagementSignalPanel({ snapshots, comparison, onNavigate }: { snapshot
         <button className="secondary-button" onClick={() => onNavigate("quality")}><ShieldCheck size={16} /> Patientenqualität</button>
       </div>
     </article>
+  );
+}
+
+type ComparisonChartValue = { label: string; current: number; previous: number; context?: string; currentYear?: number; previousYear?: number };
+
+function ManagementComboChart({
+  title,
+  values,
+  format
+}: {
+  title: string;
+  values: ComparisonChartValue[];
+  format: (value: number) => string;
+}) {
+  const fallbackYear = todayReference.getFullYear();
+  const chartValues = values.length ? values : [{ label: "-", current: 0, previous: 0, currentYear: fallbackYear, previousYear: fallbackYear - 1 }];
+  const defaultCurrentYear = chartValues[0]?.currentYear ?? fallbackYear;
+  const defaultPreviousYear = chartValues[0]?.previousYear ?? defaultCurrentYear - 1;
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, chartValues.length - 1));
+  const activeValue = chartValues[Math.min(activeIndex, chartValues.length - 1)] ?? chartValues[0];
+  const maxValue = Math.max(...chartValues.flatMap((value) => [value.current, value.previous]), 1);
+  const width = 420;
+  const height = 230;
+  const padding = { top: 18, right: 20, bottom: 38, left: 24 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const xFor = (index: number) => padding.left + (chartValues.length === 1 ? plotWidth / 2 : (index / (chartValues.length - 1)) * plotWidth);
+  const yFor = (value: number) => padding.top + plotHeight - (value / maxValue) * plotHeight;
+  const barWidth = Math.max(12, Math.min(42, plotWidth / Math.max(chartValues.length, 1) * 0.48));
+  const previousLine = chartValues.map((value, index) => `${index === 0 ? "M" : "L"} ${xFor(index).toFixed(1)} ${yFor(value.previous).toFixed(1)}`).join(" ");
+  const activeX = chartValues.length === 1 ? 50 : (activeIndex / (chartValues.length - 1)) * 100;
+  const currentTotal = chartValues.reduce((sum, value) => sum + value.current, 0);
+  const previousTotal = chartValues.reduce((sum, value) => sum + value.previous, 0);
+  const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
+  const activeCurrentYear = activeValue.currentYear ?? defaultCurrentYear;
+  const activeLabel = Number.isInteger(Number(activeValue.label))
+    ? monthAxisLabel(activeValue.label, activeCurrentYear)
+    : activeValue.label;
+  const normalizedTitle = title.toLowerCase();
+  const tone = normalizedTitle.includes("rück") || normalizedTitle.includes("storno")
+    ? "risk"
+    : normalizedTitle.includes("standort")
+      ? "benchmark"
+      : "revenue";
+
+  return (
+    <div className={`management-combo-chart ${tone}`} aria-label={title} onPointerLeave={() => setActiveIndex(Math.max(0, chartValues.length - 1))}>
+      <div className="combo-chart-summary">
+        <div className="combo-legend">
+          <span><i className="current" /> {defaultCurrentYear}</span>
+          <span><i className="previous" /> Linie {defaultPreviousYear}</span>
+        </div>
+        <strong className={delta >= 0 ? "positive" : "negative"}>{formatDelta(delta)}</strong>
+      </div>
+      <div className="combo-chart-canvas">
+        <div className="combo-chart-tooltip" style={{ left: `${Math.max(16, Math.min(84, activeX))}%` }}>
+          <span>{activeValue.context ?? activeLabel}</span>
+          <strong>{format(activeValue.current)}</strong>
+          <small>{activeLabel} · Vorjahr {format(activeValue.previous)}</small>
+        </div>
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: Balken ${defaultCurrentYear}, Linie ${defaultPreviousYear}`}>
+          {[0.25, 0.5, 0.75].map((ratio) => (
+            <line key={ratio} className="combo-grid-line" x1={padding.left} x2={width - padding.right} y1={padding.top + plotHeight * ratio} y2={padding.top + plotHeight * ratio} />
+          ))}
+          {chartValues.map((value, index) => {
+            const x = xFor(index);
+            const y = yFor(value.current);
+            const barHeight = Math.max(value.current ? 4 : 2, padding.top + plotHeight - y);
+            const label = Number.isInteger(Number(value.label)) ? monthAxisLabel(value.label, value.currentYear ?? defaultCurrentYear) : value.label;
+            return (
+              <g key={`${value.label}-${index}`}>
+                <rect className={index === activeIndex ? "combo-current-bar active" : "combo-current-bar"} x={x - barWidth / 2} y={padding.top + plotHeight - barHeight} width={barWidth} height={barHeight} rx="7" />
+                <rect
+                  className="combo-hit-area"
+                  x={x - Math.max(24, barWidth)}
+                  y={padding.top}
+                  width={Math.max(48, barWidth * 2)}
+                  height={plotHeight}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${value.context ?? label}: ${format(value.current)}, Vorjahr ${format(value.previous)}`}
+                  onFocus={() => setActiveIndex(index)}
+                  onPointerEnter={() => setActiveIndex(index)}
+                  onClick={() => setActiveIndex(index)}
+                />
+                <text className="combo-axis-label" x={x} y={height - 10}>{label}</text>
+              </g>
+            );
+          })}
+          <path className="combo-previous-line" d={previousLine} />
+          {chartValues.map((value, index) => (
+            <circle key={`${value.label}-previous`} className={index === activeIndex ? "combo-line-point active" : "combo-line-point"} cx={xFor(index)} cy={yFor(value.previous)} r="4" />
+          ))}
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -2048,17 +2160,12 @@ function buildManagementChartSeries(rowsStandorte: Standort[], importRows: Impor
       values: buildYearMonthComparison(rowsStandorte, importRows, "submitted", period)
     },
     {
-      title: "Gebührenquote je Monat",
-      format: (value: number) => formatFeeRate(value),
-      values: buildYearMonthComparison(rowsStandorte, importRows, "feeRate", period)
-    },
-    {
       title: "Rückbelastungen/Stornos je Monat",
       format: (value: number) => money.format(value),
       values: buildYearMonthComparison(rowsStandorte, importRows, "deductionAmount", period)
     },
     {
-      title: "Standortvergleich mit Delta",
+      title: "Standortvergleich eingereicht",
       format: (value: number) => money.format(value),
       values: buildLocationYtdDeltaComparison(rowsStandorte, importRows, period)
     }
@@ -2596,6 +2703,53 @@ function CockpitFilterBar({
         </label>
         <label className="select-label">
           Standort
+          <select value={selectedStandort} onChange={(event) => onStandortChange(event.target.value)}>
+            <option value="alle">Alle Standorte</option>
+            {orderedStandorte().map((standort) => (
+              <option key={standort.id} value={standort.id}>{standort.name} · {liveStatusLabel(standort)}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function CockpitChartFilterBar({
+  periodOptions,
+  selectedPeriodId,
+  onPeriodChange,
+  selectedStandort,
+  onStandortChange,
+  scopeLabel,
+  detail
+}: {
+  periodOptions: PeriodOption[];
+  selectedPeriodId: string;
+  onPeriodChange: (value: string) => void;
+  selectedStandort: string;
+  onStandortChange: (value: string) => void;
+  scopeLabel: string;
+  detail: string;
+}) {
+  return (
+    <section className="panel cockpit-filter-bar cockpit-chart-filter-bar">
+      <div>
+        <span className="eyebrow">Diagramm-Filter</span>
+        <h2>Charts separat steuern</h2>
+        <p>{scopeLabel} · {detail}</p>
+      </div>
+      <div className="cockpit-filter-controls">
+        <label className="select-label">
+          Zeitraum Charts
+          <select value={selectedPeriodId} onChange={(event) => onPeriodChange(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort Charts
           <select value={selectedStandort} onChange={(event) => onStandortChange(event.target.value)}>
             <option value="alle">Alle Standorte</option>
             {orderedStandorte().map((standort) => (

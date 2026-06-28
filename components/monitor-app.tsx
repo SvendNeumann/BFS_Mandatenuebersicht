@@ -3136,7 +3136,7 @@ function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
   const totalRetained = months.reduce((sum, month) => sum + month.chargebackAmount, 0);
 
   return (
-    <section className="panel">
+    <section className="panel import-history-panel">
       <div className="panel-heading">
         <div>
           <h2>Import-Status & Historie</h2>
@@ -3165,7 +3165,7 @@ function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
           <strong>{money.format(totalRetained)}</strong>
         </article>
       </div>
-      <div className="table-wrap compact-table">
+      <div className="table-wrap compact-table import-history-scroll">
         <table>
           <thead>
             <tr>
@@ -3332,7 +3332,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
           </div>
         </section>
       )}
-      <section className="panel">
+      <section className="panel import-detail-panel">
         <div className="panel-heading">
           <div>
             <h2>Prüfung & Detailvorschau</h2>
@@ -3353,7 +3353,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
             <span>{reviewRows.length} von {rows.length} Importzeilen brauchen Prüfung. Der PDF-Bericht enthält alle Hinweise und vollständige Dateipfade.</span>
           </div>
         )}
-        <div className="table-wrap">
+        <div className="table-wrap import-detail-scroll">
           <table>
             <thead>
               <tr>

@@ -1955,11 +1955,22 @@ td small {
 .report-summary {
   justify-content: flex-start;
   flex-wrap: wrap;
-  background: #f8fafc;
-  border: 1px solid var(--line);
+  background:
+    linear-gradient(145deg, rgba(15, 52, 70, 0.82), rgba(5, 20, 32, 0.9));
+  border: 1px solid rgba(157, 226, 230, 0.18);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 18px;
+}
+
+.report-summary strong {
+  color: #f7ffff;
+  font-size: 20px;
+}
+
+.report-summary span {
+  color: #a9c3cc;
+  font-weight: 800;
 }
 
 .answer-cockpit {

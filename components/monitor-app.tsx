@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   Building2,
   CalendarClock,
@@ -181,6 +182,11 @@ type ManualCaseResolution = {
   resolvedBy: string;
 };
 
+type ViewHistoryEntry = {
+  activeView: string;
+  selectedStandortId: string;
+};
+
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -197,6 +203,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
@@ -316,8 +323,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function selectStandortTab(nextStandortId: string) {
+    if (nextStandortId === selectedStandortId) return;
+    pushCurrentViewToHistory();
     setSelectedStandortId(nextStandortId);
-    if (activeView === "groupReports" && nextStandortId !== "gruppe") navigateTo("dashboard");
+    if (activeView === "groupReports" && nextStandortId !== "gruppe") {
+      setActiveView("dashboard");
+      openNavSectionForView("dashboard");
+    }
   }
 
   function toggleNavSection(title: string) {
@@ -325,14 +337,40 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   function navigateTo(key: string) {
+    if (key !== activeView) pushCurrentViewToHistory();
     setActiveView(key);
     setMobileNavOpen(false);
     openNavSectionForView(key);
   }
 
   function goToCockpit() {
+    if (!(activeView === "dashboard" && (role !== "super_admin" || selectedStandortId === "gruppe"))) pushCurrentViewToHistory();
     if (role === "super_admin") setSelectedStandortId("gruppe");
-    navigateTo("dashboard");
+    setActiveView("dashboard");
+    setMobileNavOpen(false);
+    openNavSectionForView("dashboard");
+  }
+
+  function pushCurrentViewToHistory() {
+    setViewHistory((current) => {
+      const entry = { activeView, selectedStandortId };
+      const last = current[current.length - 1];
+      if (last?.activeView === entry.activeView && last.selectedStandortId === entry.selectedStandortId) return current;
+      return [...current, entry].slice(-20);
+    });
+  }
+
+  function goBackInApp() {
+    const previous = viewHistory[viewHistory.length - 1];
+    if (!previous) return;
+    setViewHistory((current) => current.slice(0, -1));
+    const nextStandortId = role !== "super_admin" && previous.selectedStandortId === "gruppe"
+      ? standorte[0].id
+      : previous.selectedStandortId;
+    setSelectedStandortId(isKnownStandortScopeForRole(nextStandortId, role) ? nextStandortId : role === "super_admin" ? "gruppe" : standorte[0].id);
+    setActiveView(isKnownViewForRole(previous.activeView, role) ? previous.activeView : "dashboard");
+    setMobileNavOpen(false);
+    openNavSectionForView(previous.activeView);
   }
 
   function openNavSectionForView(key: string) {
@@ -509,6 +547,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </>
         )}
       </section>
+      {viewHistory.length > 0 && (
+        <button type="button" className="app-back-button" onClick={goBackInApp}>
+          <ArrowLeft size={18} />
+          Zurück
+        </button>
+      )}
       {caseToResolve && (
         <div className="case-resolution-overlay" role="dialog" aria-modal="true" aria-label="Klärfall als bezahlt markieren">
           <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={closeResolveCaseDialog} />

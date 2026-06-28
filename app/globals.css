@@ -1528,6 +1528,37 @@ input {
   color: #344054;
 }
 
+.app-back-button {
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid rgba(121, 238, 231, 0.34);
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, rgba(7, 31, 47, 0.96), rgba(13, 51, 68, 0.94));
+  color: #f8ffff;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-back-button:hover,
+.app-back-button:focus-visible {
+  border-color: rgba(121, 238, 231, 0.62);
+  background:
+    linear-gradient(145deg, rgba(15, 67, 80, 0.98), rgba(10, 43, 61, 0.96));
+  outline: none;
+}
+
 .benchmark-panel-actions {
   display: flex;
   align-items: end;
@@ -6175,6 +6206,17 @@ label,
 
   .axis span {
     font-size: 10px !important;
+  }
+
+  .workspace {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .app-back-button {
+    left: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    min-height: 42px;
+    padding: 9px 14px;
   }
 
   .benchmark-panel-actions {

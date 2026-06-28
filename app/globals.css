@@ -6223,6 +6223,103 @@ label,
   z-index: 1 !important;
 }
 
+@media (min-width: 1281px) {
+  .priority-grid,
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: 18px !important;
+  }
+
+  .priority-grid.compact-priority {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+  }
+
+  .kpi-card,
+  .priority-card {
+    min-height: 166px !important;
+    padding: 42px 20px 16px !important;
+  }
+
+  .kpi-card strong,
+  .priority-card strong {
+    font-size: clamp(28px, 1.9vw, 36px) !important;
+    line-height: 1.06 !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+  }
+
+  .kpi-card span,
+  .priority-card span {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  .chart-grid {
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) !important;
+    gap: 18px !important;
+  }
+
+  .management-chart-grid {
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)) !important;
+  }
+
+  .mini-chart h2 {
+    max-width: 100% !important;
+    padding-right: 46px !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+  }
+
+  .answer-cockpit {
+    gap: 20px !important;
+    padding: 22px !important;
+  }
+
+  .answer-cockpit.compact {
+    padding: 20px !important;
+  }
+
+  .answer-grid {
+    grid-template-columns: repeat(3, minmax(300px, 1fr)) !important;
+    gap: 18px !important;
+  }
+
+  .answer-grid button,
+  .answer-card {
+    min-height: 238px !important;
+  }
+
+  .answer-grid button {
+    padding: 20px !important;
+    gap: 12px !important;
+  }
+
+  .answer-grid span {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+
+  .answer-grid strong {
+    font-size: clamp(30px, 2vw, 38px) !important;
+    line-height: 1.04 !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+  }
+
+  .answer-grid small {
+    font-size: 15px !important;
+    line-height: 1.3 !important;
+  }
+
+  .answer-sparkline {
+    margin-top: 8px !important;
+  }
+
+  .answer-sparkline svg {
+    height: 58px !important;
+  }
+}
+
 @media (max-width: 1080px) {
   .standort-tabs {
     position: sticky !important;

@@ -798,11 +798,17 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
 function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { standort?: Standort; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [standortFilterId, setStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(
     () => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0],
     [periodOptions, periodId]
   );
-  const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const relevantStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (standortFilterId === "alle") return selectableStandorte;
+    return selectableStandorte.filter((entry) => entry.id === standortFilterId);
+  }, [selectableStandorte, standort, standortFilterId]);
   const relevantStandortNames = useMemo(() => new Set(relevantStandorte.map((entry) => entry.name)), [relevantStandorte]);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     if (!relevantStandortNames.has(row.location)) return false;
@@ -816,7 +822,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
     const parsedCount = row.parsedClaims?.length ?? 0;
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
-  const scopeHint = standort ? standort.name : "alle Standorte";
+  const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
 
   return (
     <div className="content-stack custom-kpi-view">
@@ -826,6 +832,15 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
           <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
             {periodOptions.map((period) => (
               <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort
+          <select value={standort ? standort.id : standortFilterId} onChange={(event) => setStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {selectableStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
             ))}
           </select>
         </label>

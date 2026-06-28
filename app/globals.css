@@ -2724,6 +2724,7 @@ td small {
 }
 
 .custom-kpi-period {
+  grid-template-columns: minmax(210px, 0.24fr) minmax(210px, 0.24fr) minmax(0, 1fr);
   margin-bottom: 0;
 }
 

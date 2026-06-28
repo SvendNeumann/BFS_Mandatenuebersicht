@@ -555,7 +555,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
-            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
+            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
@@ -795,7 +795,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   return titles[view] ?? "Orisus BFS Monitor";
 }
 
-function CustomKpiView({ standort, importRows }: { standort?: Standort; importRows: ImportPreviewRow[] }) {
+function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { standort?: Standort; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(
@@ -811,6 +811,11 @@ function CustomKpiView({ standort, importRows }: { standort?: Standort; importRo
   }), [importRows, relevantStandortNames, relevantStandorte, selectedPeriod]);
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
+  const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
+    const parsedCount = row.parsedClaims?.length ?? 0;
+    return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
+  }, 0), [scopedRows]);
   const scopeHint = standort ? standort.name : "alle Standorte";
 
   return (
@@ -854,6 +859,33 @@ function CustomKpiView({ standort, importRows }: { standort?: Standort; importRo
           period={selectedPeriod.label}
           tone="green"
           info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
+        />
+      </section>
+
+      <section className="custom-kpi-slider" aria-label="Individuelle Storno- und Rechnungs-KPI">
+        <PriorityCard
+          label="Anzahl Stornierungen"
+          value={integerNumber.format(metrics.cancellationCount)}
+          hint={money.format(metrics.cancellationAmount)}
+          period={selectedPeriod.label}
+          tone={metrics.cancellationCount ? "amber" : "green"}
+          info={`Gezählt werden erkannte Storno-Bewegungen im gewählten Zeitraum für ${scopeHint}. Betrag: ${money.format(metrics.cancellationAmount)}.`}
+        />
+        <PriorityCard
+          label="Erfolgreich gewandelt"
+          value={integerNumber.format(stornoReview.done)}
+          hint={`${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
+          period={selectedPeriod.label}
+          tone={stornoReview.done ? "green" : stornoReview.total ? "amber" : "blue"}
+          info="Als erfolgreich gewandelt gelten Stornos mit Zahlung nach Storno, erkannter späterer Neueinreichung oder manueller Markierung als bezahlt."
+        />
+        <PriorityCard
+          label="Eingereichte Rechnungen"
+          value={integerNumber.format(invoiceCount)}
+          hint="Patienten-/Rechnungspositionen"
+          period={selectedPeriod.label}
+          tone="blue"
+          info={`Gezählt werden die erkannten Forderungspositionen aus den importierten Abrechnungen für ${scopeHint}. Wenn keine Positionsliste erkannt wurde, nutzt die App die erkannte Kopfanzahl als Fallback.`}
         />
       </section>
     </div>

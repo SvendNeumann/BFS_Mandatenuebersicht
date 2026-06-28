@@ -785,7 +785,7 @@ input {
 }
 
 .year-chart-panel {
-  min-height: 310px;
+  min-height: 380px;
 }
 
 .year-comparison-chart {
@@ -835,7 +835,7 @@ input {
 .year-bars {
   display: flex;
   gap: 10px;
-  min-height: 190px;
+  min-height: 220px;
   align-items: end;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -845,9 +845,9 @@ input {
 
 .year-month {
   display: grid;
-  grid-template-rows: 150px auto;
+  grid-template-rows: 180px auto;
   gap: 8px;
-  flex: 0 0 min(44%, 170px);
+  flex: 0 0 clamp(104px, 16%, 145px);
   min-width: 0;
   scroll-snap-align: start;
 }
@@ -1811,8 +1811,12 @@ td small {
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.chart-grid.management-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mini-chart {

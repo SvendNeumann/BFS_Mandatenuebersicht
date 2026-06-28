@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   BarChart3,
   Building2,
-  CalendarClock,
   CheckCircle2,
   CircleDollarSign,
   ClipboardCheck,
@@ -98,9 +97,7 @@ const superAdminNav: NavSection[] = [
     title: "Operative Fallarbeit",
     items: [
       ["cases", "Klärfälle", AlertCircle],
-      ["matches", "Matching & Neueinreichungen", RefreshCw],
-      ["chargebacks", "Rückbelastungen", CircleDollarSign],
-      ["followups", "Wiedervorlagen", CalendarClock]
+      ["matches", "Matching & Neueinreichungen", RefreshCw]
     ]
   },
   {
@@ -147,9 +144,7 @@ const leadNav: NavSection[] = [
     title: "Operative Fallarbeit",
     items: [
       ["cases", "Klärfälle", AlertCircle],
-      ["matches", "Matching & Neueinreichungen", RefreshCw],
-      ["chargebacks", "Rückbelastungen", CircleDollarSign],
-      ["followups", "Wiedervorlagen", CalendarClock]
+      ["matches", "Matching & Neueinreichungen", RefreshCw]
     ]
   },
   {
@@ -226,8 +221,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "quality",
     "claims",
     "cases",
-    "chargebacks",
-    "followups",
     "risks",
     "repeatRisks",
     "patientClasses",
@@ -567,8 +560,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
-            {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." onResolvePaid={resolveCaseAsPaid} />}
-            {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
@@ -786,8 +777,6 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     preview: "Import-Center",
     history: "Import-Center",
     cases: "Klärfälle",
-    chargebacks: "Rückbelastungen",
-    followups: "Wiedervorlagen",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     patientClasses: "Patientenklassifizierung",
@@ -804,7 +793,6 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
 
 function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
-  const [groupFocus, setGroupFocus] = useState("gesamt");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -817,11 +805,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const paidCaseKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => paidCaseKeys.has(key))), [importRows, paidCaseKeys]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => !fall.status.includes("erledigt") && filteredStandortIds.has(fall.standortId)), [dashboardCases, filteredStandortIds]);
-  const focusedCases = useMemo(() => openCases.filter((fall) => {
-    if (groupFocus === "rueckbelastungen") return fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung");
-    if (groupFocus === "wiedervorlagen") return fall.status === "wiedervorlage" || fall.dueDate !== "-";
-    return true;
-  }), [openCases, groupFocus]);
+  const focusedCases = openCases;
   const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
@@ -859,9 +843,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     <div className="content-stack">
       <GroupFilterBar
         selectedStandort={groupStandortFilter}
-        selectedFocus={groupFocus}
         onStandortChange={setGroupStandortFilter}
-        onFocusChange={setGroupFocus}
       />
       <KpiGrid cards={groupKpis} />
       <section className="panel period-filter chart-period-filter">
@@ -1863,14 +1845,10 @@ function StornoReviewSection({ review }: { review: ReturnType<typeof stornoRevie
 
 function GroupFilterBar({
   selectedStandort,
-  selectedFocus,
-  onStandortChange,
-  onFocusChange
+  onStandortChange
 }: {
   selectedStandort: string;
-  selectedFocus: string;
   onStandortChange: (value: string) => void;
-  onFocusChange: (value: string) => void;
 }) {
   return (
     <section className="panel group-filter-bar">
@@ -1886,11 +1864,6 @@ function GroupFilterBar({
             <span>{liveStatusLabel(standort)}</span>
           </button>
         ))}
-      </div>
-      <div className="filter-pill-row compact" aria-label="Fokusfilter">
-        <button className={selectedFocus === "gesamt" ? "active" : ""} onClick={() => onFocusChange("gesamt")}>Gesamt</button>
-        <button className={selectedFocus === "rueckbelastungen" ? "active" : ""} onClick={() => onFocusChange("rueckbelastungen")}>Rückbelastungen</button>
-        <button className={selectedFocus === "wiedervorlagen" ? "active" : ""} onClick={() => onFocusChange("wiedervorlagen")}>Wiedervorlagen</button>
       </div>
     </section>
   );
@@ -2133,7 +2106,7 @@ function AnswerCockpit({
       <div className="answer-grid">
         <AnswerMetricCard title="Umsatz eingereicht?" value={money.format(submitted)} hint={resolvedPeriodLabel} trend={submittedTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
         <AnswerMetricCard title="Was ist noch offen?" value={money.format(openAmount)} hint={`${openCases.length} offene Klärfälle`} trend={openTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.open} onClick={() => onNavigate("cases")} />
-        <AnswerMetricCard title="Wie viele Rückläufer?" value={String(chargebacks.length)} hint={chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"} trend={chargebackTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.chargebacks} onClick={() => onNavigate("chargebacks")} />
+        <AnswerMetricCard title="Wie viele Rückläufer?" value={String(chargebacks.length)} hint={chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"} trend={chargebackTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.chargebacks} onClick={() => onNavigate("cases")} />
         <AnswerMetricCard title="Ohne Ausfallschutz?" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
         <AnswerMetricCard title="Wiederholer?" value={String(recurringRisks.length)} hint="mehrfach ohne Ausfallschutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
         <AnswerMetricCard title="BFS-Kosten?" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
@@ -2743,7 +2716,7 @@ function WorklistView({ cases: rows, onNavigate }: { cases: BfsCase[]; onNavigat
       </section>
       <section className="insight-grid">
         <InsightCard title="Klärfälle nach Dringlichkeit" items={["Rot: älter als 30 Tage", "Orange: 15-30 Tage", "Gelb: 8-14 Tage"]} />
-        <InsightCard title="Bearbeitung" items={["Rückbelastungen zuerst", "Wiedervorlagen fristgerecht klären", "Erledigte Neueinreichungen ausblenden"]} />
+        <InsightCard title="Bearbeitung" items={["Klärfälle nach Alter und Betrag priorisieren", "Rückbelastungen in Klärfällen prüfen", "Erledigte Neueinreichungen ausblenden"]} />
         <InsightCard title="Standort-Rückfragen" items={["Patient, Re.-Nr. und BFS-Nr. nennen", "Grund aus BFS-Bemerkung übernehmen", "Maßnahme und Frist dokumentieren"]} />
       </section>
       <CaseWorkflowBoard cases={sorted} />
@@ -6201,7 +6174,7 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
         </div>
         <div className="report-type-grid">
           <button onClick={() => onNavigate("cases")}><AlertCircle size={18} /> Offene Klärfälle gruppiert</button>
-          <button onClick={() => onNavigate("chargebacks")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
+          <button onClick={() => onNavigate("claims")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
           <button onClick={() => onNavigate("risks")}><ShieldCheck size={18} /> Ohne Ausfallschutz laufend</button>
           <button onClick={() => onNavigate("upload")}><FolderUp size={18} /> Import-Center</button>
         </div>

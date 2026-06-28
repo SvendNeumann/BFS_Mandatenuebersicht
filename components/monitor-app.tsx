@@ -753,11 +753,12 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   const activeValue = values[activeIndex] ?? values[0];
   const valueLabel = formatChartValue(title, activeValue.value);
   const maxValue = Math.max(...values.map((value) => value.value), 100);
+  const isSingleValue = values.length === 1;
   const rawActiveLeft = values.length ? ((activeIndex + 0.5) / values.length) * 100 : 50;
   const activeLeft = Math.min(78, Math.max(22, rawActiveLeft));
 
   return (
-    <div className="interactive-chart">
+    <div className={isSingleValue ? "interactive-chart single-value" : "interactive-chart"}>
       <MetricInfo title={title} text={chartExplanation(title, values)} />
       <div className="chart-legend">
         <span />
@@ -776,7 +777,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
             <button
               type="button"
               className={index === activeIndex ? "active" : ""}
-              style={{ height: `${Math.max(14, (value.value / maxValue) * 100)}%` }}
+              style={{ height: `${isSingleValue && value.value > 0 ? 72 : Math.max(14, (value.value / maxValue) * 100)}%` }}
               aria-label={`${value.label}: ${formatChartValue(title, value.value)}`}
               onPointerEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}

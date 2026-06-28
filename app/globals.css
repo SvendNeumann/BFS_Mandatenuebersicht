@@ -4586,6 +4586,7 @@ body {
   align-items: end;
   justify-content: center;
   border-radius: 10px 10px 2px 2px;
+  background: transparent;
 }
 
 .bar-slot.active::before {
@@ -4608,6 +4609,28 @@ body {
   background: linear-gradient(180deg, #34ddd4, #13a99f);
   box-shadow: 0 8px 22px rgba(19, 169, 159, 0.2);
   transition: transform 140ms ease, filter 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+}
+
+.interactive-chart.single-value .bars {
+  justify-content: center;
+  padding-inline: 28px;
+}
+
+.interactive-chart.single-value .bar-slot {
+  flex: 0 0 min(52%, 170px);
+  max-width: 170px;
+}
+
+.interactive-chart.single-value .bar-slot.active::before {
+  inset: 0 18px 0;
+}
+
+.interactive-chart.single-value .bars button {
+  width: min(44px, 46%);
+}
+
+.interactive-chart.single-value .axis {
+  justify-content: center;
 }
 
 .bar-slot:nth-child(2) button {

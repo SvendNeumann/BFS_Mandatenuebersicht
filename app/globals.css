@@ -5463,9 +5463,19 @@ tbody tr:hover td {
 
 @media (min-width: 1081px) {
   .sidebar {
-    position: sticky;
+    position: fixed !important;
     top: 0;
-    align-self: start;
+    left: 0;
+    bottom: 0;
+    z-index: 30;
+    width: 292px;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .sidebar-inner {
+    min-height: calc(100dvh - 44px);
   }
 
   .standort-tabs {

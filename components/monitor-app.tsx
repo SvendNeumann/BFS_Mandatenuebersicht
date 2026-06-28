@@ -231,6 +231,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
+  const groupLevelViews = ["benchmark", "locations", "users", "upload", "preview", "history"];
+  const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
+    ? "Alle Standorte"
+    : selectedStandort.name;
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
     const resolvedKeys = new Set(manualCaseResolutions.filter((resolution) => resolution.status === "paid_manual").map((resolution) => resolution.caseKey));
@@ -490,7 +494,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <Menu size={18} />
           </button>
           <div className="topbar-title desktop-page-title">
-            <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
+            <span className="eyebrow">{pageScopeLabel}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions desktop-page-actions">
@@ -499,7 +503,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </header>
         <div className="mobile-page-heading">
           <div>
-            <span className="eyebrow">{isGroupScope ? "Alle Standorte" : selectedStandort.name}</span>
+            <span className="eyebrow">{pageScopeLabel}</span>
             <h1>{titleFor(activeView, role, isGroupScope)}</h1>
           </div>
           <div className="topbar-actions">

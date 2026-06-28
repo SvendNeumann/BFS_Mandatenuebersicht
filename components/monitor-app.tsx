@@ -902,19 +902,19 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [] }: { s
       <section className="custom-kpi-slider" aria-label="Individuelle Storno- und Rechnungs-KPI">
         <PriorityCard
           label="Anzahl Stornierungen"
-          value={integerNumber.format(metrics.cancellationCount)}
-          hint={money.format(metrics.cancellationAmount)}
+          value={integerNumber.format(stornoReview.total)}
+          hint={`${integerNumber.format(stornoReview.open)} noch nicht gewandelt`}
           period={selectedPeriod.label}
-          tone={metrics.cancellationCount ? "amber" : "green"}
-          info={`Gezählt werden erkannte Storno-Bewegungen im gewählten Zeitraum für ${scopeHint}. Betrag: ${money.format(metrics.cancellationAmount)}.`}
+          tone={stornoReview.open ? "amber" : stornoReview.total ? "green" : "blue"}
+          info={`Grundmenge: alle erkannten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Davon sind ${integerNumber.format(stornoReview.done)} gewandelt und ${integerNumber.format(stornoReview.open)} noch offen. Storno-Betrag gesamt: ${money.format(stornoReview.amount)}.`}
         />
         <PriorityCard
-          label="Erfolgreich gewandelt"
+          label="Davon gewandelt"
           value={integerNumber.format(stornoReview.done)}
           hint={`${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
           period={selectedPeriod.label}
           tone={stornoReview.done ? "green" : stornoReview.total ? "amber" : "blue"}
-          info="Als erfolgreich gewandelt gelten Stornos mit Zahlung nach Storno, erkannter späterer Neueinreichung oder manueller Markierung als bezahlt."
+          info="Lesart: Von der Storno-Grundmenge links wurden diese Fälle erfolgreich gewandelt. Als gewandelt gelten Zahlung nach Storno, erkannte spätere Neueinreichung oder manuelle Markierung als bezahlt."
         />
         <PriorityCard
           label="Eingereichte Rechnungen"

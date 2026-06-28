@@ -1332,6 +1332,7 @@ function AnswerCockpit({
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics(), [importSummary, periodMetrics]);
   const openCases = useMemo(() => scopedRows.filter((fall) => !fall.status.includes("erledigt")), [scopedRows]);
   const chargebacks = useMemo(() => openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung")), [openCases]);
+  const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
   const recurringRisks = useMemo(() => getRecurringRiskProfiles(
     relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
     scopedImportRows,
@@ -1418,7 +1419,7 @@ function AnswerCockpit({
         <button onClick={() => onNavigate("chargebacks")}>
           <span>Wie viele Rückläufer?</span>
           <strong>{chargebacks.length}</strong>
-          <small>{money.format(chargebacks.reduce((sum, fall) => sum + fall.amount, 0))}</small>
+          <small>{chargebacks.length ? `${money.format(chargebackAmount)} offener Betrag` : "keine Rückläufer"}</small>
           <AnswerSparkline trend={chargebackTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>

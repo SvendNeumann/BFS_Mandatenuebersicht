@@ -184,7 +184,7 @@ type ManualCaseResolution = {
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [appDataLoaded, setAppDataLoaded] = useState(false);
+  const [appDataLoaded, setAppDataLoaded] = useState(() => loadStoredImportRows().length > 0);
   const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(() => {
     const storedView = readStoredViewState()?.activeView;
@@ -237,6 +237,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
   useEffect(() => {
     let active = true;
+    let initialDataVisible = false;
+    const showAppWithAvailableData = () => {
+      if (!active || initialDataVisible) return;
+      initialDataVisible = true;
+      setAppDataLoaded(true);
+    };
+    const fallbackTimer = window.setTimeout(showAppWithAvailableData, 1600);
     getCurrentSession()
       .then((currentSession) => {
         if (active) setSession(currentSession);
@@ -247,18 +254,36 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       });
     applyStoredStandorteConfig();
     setLocationConfigVersion((version) => version + 1);
-    Promise.allSettled([
-      loadStoredImportRowsFromDb().then((rows) => {
-        if (active) setLiveImportRows(rows);
-      }),
-      loadManualCaseResolutions().then((resolutions) => {
+    loadStoredImportRowsFromBrowser()
+      .then((rows) => {
+        if (!active) return;
+        if (rows.length) setLiveImportRows(rows);
+        if (rows.length) {
+          window.clearTimeout(fallbackTimer);
+          showAppWithAvailableData();
+        }
+      })
+      .catch(() => undefined);
+    loadStoredImportRowsFromServer()
+      .then((rows) => {
+        if (!active) return;
+        setLiveImportRows(rows);
+        window.clearTimeout(fallbackTimer);
+        showAppWithAvailableData();
+        if (rows.length) void storeImportRows(rows).catch(() => undefined);
+      })
+      .catch(() => {
+        window.clearTimeout(fallbackTimer);
+        showAppWithAvailableData();
+      });
+    loadManualCaseResolutions()
+      .then((resolutions) => {
         if (active) setManualCaseResolutions(resolutions);
       })
-    ]).finally(() => {
-      if (active) setAppDataLoaded(true);
-    });
+      .catch(() => undefined);
     return () => {
       active = false;
+      window.clearTimeout(fallbackTimer);
     };
   }, []);
 
@@ -4603,9 +4628,7 @@ function loadStoredImportRows() {
   }
 }
 
-async function loadStoredImportRowsFromDb() {
-  const serverRows = await loadStoredImportRowsFromServer().catch(() => undefined);
-  if (serverRows) return serverRows;
+async function loadStoredImportRowsFromBrowser() {
   if (typeof window === "undefined" || !("indexedDB" in window)) return [];
   const db = await openImportDb();
   return new Promise<ImportPreviewRow[]>((resolve, reject) => {

@@ -81,7 +81,7 @@ const superAdminNav: NavSection[] = [
     title: "Management",
     items: [
       ["custom", "Zusammenfassung", BarChart3],
-      ["dashboard", "Cockpit", LayoutDashboard],
+      ["dashboard", "Management Cockpit", LayoutDashboard],
       ["answers", "Schnellantworten", ClipboardList]
     ]
   },
@@ -130,7 +130,7 @@ const leadNav: NavSection[] = [
     title: "Mein Standort",
     items: [
       ["custom", "Zusammenfassung", BarChart3],
-      ["dashboard", "Cockpit", LayoutDashboard],
+      ["dashboard", "Management Cockpit", LayoutDashboard],
       ["answers", "Schnellantworten", ClipboardList]
     ]
   },
@@ -217,7 +217,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const hasUploadData = privacyScopedImportRows.length > 0;
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
-    "dashboard",
     "worklist",
     "quality",
     "claims",
@@ -455,7 +454,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-top">
-            <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zum Cockpit">
+            <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zum Management Cockpit">
               <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
             </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
@@ -516,7 +515,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
       <section className="workspace" ref={workspaceRef}>
         <header className="topbar">
-          <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Cockpit">
+          <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Management Cockpit">
             <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
           </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
@@ -767,7 +766,7 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
 
 function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
   const titles: Record<string, string> = {
-    dashboard: role === "super_admin" && isGroupScope ? "Cockpit" : "Standort-Cockpit",
+    dashboard: "Management Cockpit",
     custom: "Zusammenfassung",
     answers: "Schnellantworten",
     benchmark: "Standorte",

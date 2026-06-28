@@ -455,7 +455,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} />}
+            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} standort={isGroupScope ? undefined : selectedStandort} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
@@ -4779,8 +4779,10 @@ function OutcomeControlView({ standort, cases: rows, importRows = [], manualCase
   );
 }
 
-function MatchesView({ cases: rows, importRows = [] }: { cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
-  const candidates = resubmissionCandidatesFromImportRows(importRows);
+function MatchesView({ cases: rows, importRows = [], standort }: { cases: BfsCase[]; importRows?: ImportPreviewRow[]; standort?: Standort }) {
+  const scopedImportRows = standort ? importRows.filter((row) => row.location === standort.name) : importRows;
+  const candidates = resubmissionCandidatesFromImportRows(scopedImportRows);
+  const scopeLabel = standort?.name ?? "Gruppe";
   if (candidates.length) {
     return (
       <div className="content-stack">
@@ -4793,8 +4795,8 @@ function MatchesView({ cases: rows, importRows = [] }: { cases: BfsCase[]; impor
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h2>Neueinreichungen nach Storno/Rückgabe</h2>
-              <p>Automatisch erkannte Fälle, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
+              <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
+              <p>Automatisch erkannte Fälle im gewählten Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
             </div>
           </div>
           <div className="table-wrap">

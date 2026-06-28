@@ -1341,6 +1341,19 @@ function AnswerCockpit({
     : standort?.name ?? "Standort";
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${selectedStandortLabel}`;
   const resolvedPeriodLabel = periodLabel ?? selectedPeriod.label;
+  const effectivePeriod = useMemo(() => periodOptions.find((period) => period.label === resolvedPeriodLabel) ?? selectedPeriod, [periodOptions, resolvedPeriodLabel, selectedPeriod]);
+  const answerSparklineContext = useMemo(() => ({
+    importRows,
+    relevantStandorte,
+    period: effectivePeriod
+  }), [effectivePeriod, importRows, relevantStandorte]);
+  const submittedTrend = useMemo(() => buildAnswerSparkline("submitted", answerSparklineContext), [answerSparklineContext]);
+  const openTrend = useMemo(() => buildAnswerSparkline("openAmount", answerSparklineContext), [answerSparklineContext]);
+  const chargebackTrend = useMemo(() => buildAnswerSparkline("chargebacks", answerSparklineContext), [answerSparklineContext]);
+  const noProtectionTrend = useMemo(() => buildAnswerSparkline("noProtection", answerSparklineContext), [answerSparklineContext]);
+  const recurringTrend = useMemo(() => buildAnswerSparkline("recurring", answerSparklineContext), [answerSparklineContext]);
+  const feesTrend = useMemo(() => buildAnswerSparkline("fees", answerSparklineContext), [answerSparklineContext]);
+  const oldestTrend = useMemo(() => buildAnswerSparkline("oldest", answerSparklineContext), [answerSparklineContext]);
 
   useEffect(() => {
     if (scope === "location" && standort) setSelectedAnswerStandortId(standort.id);
@@ -1381,47 +1394,176 @@ function AnswerCockpit({
           <span>Umsatz eingereicht?</span>
           <strong>{money.format(submitted)}</strong>
           <small>{resolvedPeriodLabel}</small>
+          <AnswerSparkline trend={submittedTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("cases")}>
           <span>Was ist noch offen?</span>
           <strong>{money.format(openAmount)}</strong>
           <small>{openCases.length} offene Klärfälle</small>
+          <AnswerSparkline trend={openTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("chargebacks")}>
           <span>Wie viele Rückläufer?</span>
           <strong>{chargebacks.length}</strong>
           <small>{money.format(chargebacks.reduce((sum, fall) => sum + fall.amount, 0))}</small>
+          <AnswerSparkline trend={chargebackTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("risks")}>
           <span>Ohne Ausfallschutz?</span>
           <strong>{money.format(noProtectionAmount)}</strong>
           <small>{resolvedPeriodLabel}</small>
+          <AnswerSparkline trend={noProtectionTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("repeatRisks")}>
           <span>Wiederholer?</span>
           <strong>{recurringRisks.length}</strong>
           <small>mehrfach ohne Ausfallschutz</small>
+          <AnswerSparkline trend={recurringTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("claims")}>
           <span>BFS-Kosten?</span>
           <strong>{money.format(fees)}</strong>
           <small>Gebühr {money.format(feeNet)} · MwSt {money.format(feeVat)}{ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}</small>
+          <AnswerSparkline trend={feesTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
         <button onClick={() => onNavigate("worklist")}>
           <span>Ältester offener Fall?</span>
           <strong>{oldest} Tage</strong>
           <small>Priorität zuerst klären</small>
+          <AnswerSparkline trend={oldestTrend} />
           <small className="period-note">{periodLabelFromHint(resolvedPeriodLabel)}</small>
         </button>
       </div>
     </section>
   );
+}
+
+type AnswerSparklineMetric = "submitted" | "openAmount" | "chargebacks" | "noProtection" | "recurring" | "fees" | "oldest";
+type AnswerSparklineTrend = {
+  points: number[];
+  tone: "green" | "amber" | "red";
+  label: string;
+};
+type AnswerSparklineContext = {
+  importRows: ImportPreviewRow[];
+  relevantStandorte: Standort[];
+  period: PeriodOption;
+};
+
+function AnswerSparkline({ trend }: { trend: AnswerSparklineTrend }) {
+  const width = 136;
+  const height = 34;
+  const points = trend.points.length ? trend.points : [0, 0, 0];
+  const maxValue = Math.max(...points, 1);
+  const minValue = Math.min(...points, 0);
+  const range = Math.max(maxValue - minValue, 1);
+  const path = points.map((point, index) => {
+    const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+    const y = height - ((point - minValue) / range) * (height - 8) - 4;
+    return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+
+  return (
+    <span className={`answer-sparkline ${trend.tone}`} aria-label={trend.label}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img">
+        <path className="sparkline-area" d={`${path} L ${width} ${height} L 0 ${height} Z`} />
+        <path className="sparkline-line" d={path} />
+      </svg>
+      <small>{trend.label}</small>
+    </span>
+  );
+}
+
+function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSparklineContext): AnswerSparklineTrend {
+  const currentRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, context.period);
+  const comparisonPeriod = comparableCurrentPeriod(context.period);
+  const currentComparisonRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, comparisonPeriod);
+  const previousRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, previousYearPeriod(comparisonPeriod));
+  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte);
+  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte);
+  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte);
+  const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
+  const lowerIsBetter: AnswerSparklineMetric[] = ["openAmount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
+  const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
+  const tone = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
+  const label = previousTotal
+    ? `VJ ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
+    : currentTotal
+      ? "VJ ohne Wert"
+      : "kein Trend";
+
+  return {
+    points: points.length ? points : [0, currentTotal, currentTotal],
+    tone,
+    label
+  };
+}
+
+function comparableCurrentPeriod(period: PeriodOption): PeriodOption {
+  if (period.start || period.end) return period;
+  return {
+    ...period,
+    id: `${period.id}-current-year-comparison`,
+    label: `${todayReference.getFullYear()} bis heute`,
+    start: new Date(todayReference.getFullYear(), 0, 1),
+    end: todayReference
+  };
+}
+
+function rowsForSparklinePeriod(importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption) {
+  return importRows.filter((row) => {
+    const standort = relevantStandorte.find((entry) => entry.name === row.location);
+    return standort ? importRowInPeriod(row, period, standort) : false;
+  });
+}
+
+function previousYearPeriod(period: PeriodOption): PeriodOption {
+  return {
+    ...period,
+    id: `${period.id}-previous-year`,
+    label: `${period.label} Vorjahr`,
+    start: period.start ? new Date(period.start.getFullYear() - 1, period.start.getMonth(), 1) : undefined,
+    end: period.end ? new Date(period.end.getFullYear() - 1, period.end.getMonth(), period.end.getDate()) : undefined
+  };
+}
+
+function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[]) {
+  const monthKeys = [...new Set(rows.map((row) => importRowMonth(row)).filter(Boolean))].sort();
+  return monthKeys.map((month) => {
+    const monthRows = rows.filter((row) => importRowMonth(row) === month);
+    return valueForAnswerMetric(metric, monthRows, relevantStandorte);
+  }).slice(-12);
+}
+
+function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[]) {
+  const summary = summarizeImportRows(rows);
+  const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+  if (metric === "submitted") return metrics.submitted;
+  if (metric === "fees") return metrics.fees;
+  if (metric === "noProtection") return metrics.noProtectionAmount;
+
+  const cases = casesFromImportRows(rows).filter((fall) => relevantStandorte.some((entry) => entry.id === fall.standortId) && !fall.status.includes("erledigt"));
+  if (metric === "openAmount") return cases.reduce((sum, fall) => sum + fall.amount, 0);
+  if (metric === "chargebacks") {
+    return cases
+      .filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))
+      .reduce((sum, fall) => sum + fall.amount, 0);
+  }
+  if (metric === "oldest") return cases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
+  if (metric === "recurring") {
+    return getRecurringRiskProfiles(
+      relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
+      rows,
+      rows.length > 0
+    ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)).length;
+  }
+  return 0;
 }
 
 function ClaimsFlowView({

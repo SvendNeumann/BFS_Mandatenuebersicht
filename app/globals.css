@@ -2095,7 +2095,7 @@ td small {
 .answer-grid button {
   display: grid;
   gap: 8px;
-  min-height: 132px;
+  min-height: 178px;
   border: 1px solid var(--soft-line);
   border-radius: 8px;
   background: #ffffff;
@@ -2125,6 +2125,50 @@ td small {
 
 .answer-grid small {
   color: var(--muted);
+}
+
+.answer-sparkline {
+  display: grid;
+  gap: 3px;
+  margin: 2px 0 0;
+  color: rgba(205, 226, 232, 0.78);
+}
+
+.answer-sparkline svg {
+  width: 100%;
+  height: 34px;
+  overflow: visible;
+}
+
+.answer-sparkline .sparkline-area {
+  fill: currentColor;
+  opacity: 0.09;
+}
+
+.answer-sparkline .sparkline-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.answer-sparkline small {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.answer-sparkline.green {
+  color: #73f1bd;
+}
+
+.answer-sparkline.amber {
+  color: #f1c66d;
+}
+
+.answer-sparkline.red {
+  color: #ff8a8a;
 }
 
 .period-filter {
@@ -3971,7 +4015,7 @@ tbody tr:hover td {
   }
 
   .answer-grid button {
-    min-height: 132px;
+    min-height: 178px;
   }
 
   .answer-grid strong {

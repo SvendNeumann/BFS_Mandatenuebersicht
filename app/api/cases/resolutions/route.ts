@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { standorte as appStandorte } from "@/lib/demo-data";
 import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +138,7 @@ function parseResolution(value: unknown): ManualCaseResolution | null {
 }
 
 async function markMatchingDatabaseCasesResolved(supabase: any, resolution: ManualCaseResolution, userId: string) {
+  const databaseStandortId = await databaseStandortIdForAppId(supabase, resolution.standortId);
   let query = supabase
     .from("bfs_cases")
     .update({
@@ -146,7 +148,7 @@ async function markMatchingDatabaseCasesResolved(supabase: any, resolution: Manu
       resolution_reason: "direktzahlung_patient",
       resolution_comment: resolution.comment
     })
-    .eq("standort_id", resolution.standortId)
+    .eq("standort_id", databaseStandortId)
     .eq("patient_name", resolution.patientName)
     .eq("amount", resolution.amount)
     .neq("status", "erledigt_manuell");
@@ -168,13 +170,46 @@ async function writableStandortIds(supabase: any, userId: string, role: string) 
 }
 
 async function allStandortIds(supabase: any) {
-  const { data } = await supabase.from("standorte").select("id").eq("active", true);
-  return new Set((data ?? []).map((entry: { id: string }) => entry.id));
+  const { data, error } = await supabase.from("standorte").select("id, name").eq("active", true);
+  if (error) throw error;
+  return allowedStandortIdsFromRows(data ?? []);
 }
 
 async function assignedStandortIds(supabase: any, userId: string) {
-  const { data } = await supabase.from("user_standorte").select("standort_id").eq("user_id", userId);
-  return new Set((data ?? []).map((entry: { standort_id: string }) => entry.standort_id));
+  const { data, error } = await supabase.from("user_standorte").select("standort_id").eq("user_id", userId);
+  if (error) throw error;
+  const dbStandortIds = (data ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
+  if (!dbStandortIds.length) return new Set<string>();
+  const { data: standortRows, error: standortError } = await supabase.from("standorte").select("id, name").in("id", dbStandortIds);
+  if (standortError) throw standortError;
+  return allowedStandortIdsFromRows(standortRows ?? []);
+}
+
+function allowedStandortIdsFromRows(rows: Array<{ id: string; name: string }>) {
+  const ids = new Set<string>();
+  rows.forEach((row) => {
+    ids.add(row.id);
+    const appStandort = appStandorte.find((standort) => standort.name === row.name);
+    if (appStandort) ids.add(appStandort.id);
+  });
+  return ids;
+}
+
+async function databaseStandortIdForAppId(supabase: any, standortId: string) {
+  if (isUuid(standortId)) return standortId;
+  const appStandort = appStandorte.find((standort) => standort.id === standortId);
+  if (!appStandort) return standortId;
+  const { data, error } = await supabase
+    .from("standorte")
+    .select("id")
+    .eq("name", appStandort.name)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? standortId;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function stringValue(value: unknown) {

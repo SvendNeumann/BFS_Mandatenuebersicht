@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 19:01 Uhr
+Stand: 28.06.2026, ca. 22:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Fokus: CFO-/Management-Cockpit, individuelles KPI-/Benchmark-Tab, stabile Live-Daten, saubere Rollenrechte, mobile/Desktop-Qualitaet und exportfaehige Steuerungsansichten.
+Aktueller Fokus: CFO-/Management-Cockpit, Zusammenfassung/KPI-/Benchmark-Tab, stabile Live-Daten, saubere Rollenrechte, mobile/Desktop-Qualitaet und exportfaehige Steuerungsansichten.
 
 ## Prompt fuer den naechsten Chat
 
@@ -57,7 +57,7 @@ Die App soll fachlich in drei Ebenen denken:
 
 2. Analyse & Benchmarking
    - Erklaert, warum etwas auffaellig ist.
-   - Standortvergleich, Forderungen & Geldfluss, Forderungsqualitaet, Patientenqualitaet.
+   - Standortvergleich, Standortdetails, Forderungsqualitaet, Patientenqualitaet.
    - Mehr Charts, Rankings, Entwicklungslinien, Benchmark-Karten und Quoten.
 
 3. Operative Fallarbeit
@@ -73,14 +73,25 @@ Navigationslogik aktuell:
 - Import & Pruefung
 - Admin Bereich
 
-Wichtige neue Sicht:
-- `Individuell`
+Wichtige aktuelle Sichten:
+- `Zusammenfassung`
   - Frei gestalteter KPI-/Chart-/Benchmark-Bereich fuer zentrale Steuerungskennzahlen.
   - Eigene KPI-Zeitraum- und Standortauswahl.
   - Eigene Diagramm-Zeitraum- und Standortauswahl.
+  - Diagramm-Zeitraum enthaelt `ab Standortstart`; bei `Alle Standorte` wird je Standort ab eigenem Start gerechnet.
   - Eigene Benchmark-Zeitauswahl fuer die Tabelle "Standorte nach Kennzahlen vergleichen".
-  - PDF-Export des gesamten Tabs im Querformat, auf eine Seite skaliert.
+  - PDF-Export des gesamten Tabs im Querformat, seitenbreit und mehrseitig paginiert. Nicht mehr auf eine einzige Seite zusammenquetschen.
   - Zusaetzlicher `Standort-Export`: Zielstandort mit Klarnamen/Klarzahlen, andere Standorte anonymisiert als Vergleichsstandorte und in der Benchmark-Tabelle nur relativ als Index zum Zielstandort.
+- `Management Cockpit`
+  - Managementsicht mit Zeitraum- und Standortfilter, KPI-Kacheln, Kombi-Charts, Standortbenchmark und Signalkarten.
+  - Obere Standort-Tabreihen wurden entfernt; dafuer sind Filter zustaendig.
+- `Schnellantworten`
+  - CFO-Schnellantwort-Kacheln stehen nur noch hier, nicht doppelt im Cockpit.
+- `Standorte`
+  - Standort-Benchmark mit KPI-Dreierreihe, vier Erklaerkacheln, zwei Umsatzdiagrammen und Standortvergleich.
+  - `Standorte im Vergleich` hat einen eigenen Zeitraumfilter.
+- `Standortdetails`
+  - Ehemals `Forderungen & Geldfluss`.
 
 ## Wichtigste fachliche Weiterentwicklung
 
@@ -229,11 +240,14 @@ Wichtig bei Beschriftungen:
 - Quoten muessen klar sagen, ob sie sich auf Anzahl Faelle, Abzugssumme oder eingereichten Umsatz beziehen.
 - `110/226 erledigt` und `operativ offen 161` duerfen nicht missverstaendlich addiert werden, wenn sie unterschiedliche Grundgesamtheiten/Definitionen haben. Entweder logisch entdoppeln oder sehr klar beschriften.
 
-Aktuelle Korrektur im individuellen Tab:
+Aktuelle Korrektur im Zusammenfassung-Tab:
+- Der fruehere Tab `Individuell` heisst jetzt `Zusammenfassung`.
 - KPI `Anzahl Stornierungen` zeigt die Storno-Grundmenge im gewaehlten Zeitraum.
 - KPI `Davon gewandelt` zeigt, wie viele dieser Storno-Zeilen inzwischen erledigt/gewandelt sind.
 - Als gewandelt gelten Zahlung nach Storno, erkannte spaetere Neueinreichung oder manuelle Markierung als bezahlt.
 - Das Diagramm `Stornierungen vs. zurueckgeholt` ordnet `zurueckgeholt` dem urspruenglichen Storno-Monat zu. Dadurch passt die Linie zur Storno-Grundmenge und faellt nicht faelschlich auf 0, nur weil die erfolgreiche Wandlung spaeter datiert ist.
+- Fachliche Regel: `zurueckgeholt` und `gewandelt` sind dieselbe Managementlogik.
+- Endgueltig stornierte Faelle koennen manuell als `endgueltig storniert` geklaert werden. Sie verschwinden aus der offenen Klaerliste und aus Neueinreichungsvorschlaegen, bleiben aber als dauerhaft storniert in Storno-Auswertungen enthalten.
 
 ## Patientenqualitaet
 
@@ -258,8 +272,8 @@ Gewuenscht/teilweise umgesetzt:
 - Report-Center ohne ueberfluessige Kacheln wie Exportformate/Empfaengerlogik.
 - Kommentare/Quellen in Tabellen kurz halten: wenn moeglich nur Abrechnungsnummer statt langer Pfade.
 - Offene-Faelle-Reports sollen nach Standort und Zeitraum filterbar sein.
-- Im Tab `Individuell` existiert ein PDF-Export fuer den gesamten Tab. Ziel: A4 Querformat, komplette Ansicht auf eine Seite skaliert, kein mehrseitiger zerhackter Druck. Technisch oeffnet die App ein Druckfenster; bei blockiertem Popup gibt es einen HTML-Fallback.
-- Im Tab `Individuell` existiert zusaetzlich `Standort-Export`. Dieser ist nur aktiv, wenn genau ein Standort in der KPI-Auswahl gewaehlt ist. Der Zielstandort bleibt klar sichtbar; andere Standortnamen werden im Export anonymisiert und Benchmark-Klarzahlen anderer Standorte werden als relative Indexwerte zum Zielstandort dargestellt.
+- Im Tab `Zusammenfassung` existiert ein PDF-Export fuer den gesamten Tab. Ziel: A4 Querformat, volle Seitenbreite, mehrseitig sauber paginiert. Nicht auf eine Einzelseite skalieren, weil das unlesbar wird. Technisch oeffnet die App ein Druckfenster; bei blockiertem Popup gibt es einen HTML-Fallback.
+- Im Tab `Zusammenfassung` existiert zusaetzlich `Standort-Export`. Dieser ist nur aktiv, wenn genau ein Standort in der KPI-Auswahl gewaehlt ist. Der Zielstandort bleibt klar sichtbar; andere Standortnamen werden im Export anonymisiert und Benchmark-Klarzahlen anderer Standorte werden als relative Indexwerte zum Zielstandort dargestellt.
 
 Naechster sinnvoller Report-Ausbau:
 - Standortleiter-Monatsreport mit:
@@ -283,8 +297,9 @@ Aktuell wichtige UI-Entscheidungen:
 - Mobile Header mit Logo und Menuebutton wurde neu proportioniert.
 - Klick auf Logo soll immer ins Cockpit fuehren.
 - Standortleiste und relevante Content-Steuerung sollen sticky bleiben, solange darunter Inhalte darauf reagieren.
-- Desktop/Tablet: linke Navigation sticky.
+- Desktop: linke Navigation laeuft beim Scrollen mit/fixed, damit nie links leerer Raum ohne Menue entsteht.
 - Mobile: Drawer/Off-canvas Navigation.
+- Prioritaeten-Buttons oben in den Tabs sind entfernt. `Prioritaeten heute` liegt im Reiter `Operative Fallarbeit`.
 - KPI-Karten auf Tablet muessen in sinnvoll grossen Grids laufen, nicht zu schmal werden.
 - Tabellen appweit kompakter und intern scrollbar.
 - Lange Detailtabellen duerfen Seiten nicht endlos verlaengern.
@@ -303,14 +318,17 @@ Diagramme:
 - Mobile Diagramme muessen bei Einzelstandort nicht als riesiger einzelner Balken erscheinen.
 - Tooltips muessen innerhalb der Karte bleiben und nicht abgeschnitten oder halb ausserhalb liegen.
 - Balken duerfen nicht verwirrend doppelt oder optisch ueberlagert wirken.
-- Im individuellen Tab haben `Umsatz eingereicht vs. ausgezahlt` und `Forderungen vs. Stornierungen` echte Tooltips im Diagramm. Linienpunkte sind auf die Balkenmitte ausgerichtet.
+- In `Zusammenfassung` haben `Umsatz eingereicht vs. ausgezahlt`, `Forderungen vs. Stornierungen` und `Stornierungen vs. zurueckgeholt` echte Tooltips im Diagramm.
+- Grosse helle Linienpunkte/Marker in diesen Kombi-Charts wurden entfernt; Linien sollen ruhig und ohne weisse Ovale wirken.
+- X-Achsenbeschriftungen gehoeren direkt unter die Balken. Dezente Max-/Serienhinweise duerfen rechts unten stehen.
+- Jahresvergleich-Legenden nennen nur die Jahre, z. B. `2026` und `2025`, nicht `Linie 2025`.
 
-Individuell-Tab aktueller Aufbau:
+Zusammenfassung-Tab aktueller Aufbau:
 1. Oben Zeitraum + Standort fuer KPI-Kacheln, PDF-Export und Standort-Export.
 2. KPI-Reihe 1: Eingereichter Umsatz, BFS-Gebuehren, Ausgezahlter Umsatz, Offene Storno-Summe.
 3. KPI-Reihe 2: Anzahl Stornierungen, Davon gewandelt, Eingereichte Rechnungen, Durchschnittlicher Wert je Forderung.
 4. KPI-Kacheln haben Sparklines und Info-Herleitungen.
-5. Darunter eigene Zeitraum-/Standortauswahl fuer Diagramme.
+5. Darunter eigene Zeitraum-/Standortauswahl fuer Diagramme, inklusive `ab Standortstart`.
 6. Diagramme:
    - Umsatz eingereicht vs. ausgezahlt als Kombi-Chart.
    - Forderungen vs. Stornierungen mit zweiter Skala fuer Stornos.
@@ -319,45 +337,69 @@ Individuell-Tab aktueller Aufbau:
 7. Darunter Benchmark-Tabelle mit eigener Zeitauswahl und Gesamtzeile.
 8. Desktop: grosse, zweispaltige Charts; mobile: untereinander/scrollbar passend.
 
+Standorte-Tab aktueller Aufbau:
+1. Zeitraumfilter `Zeitraum Standort-Benchmark`.
+2. Drei gleich grosse KPI-Kacheln: Hoechstes Volumen, Hoechste Gebuehrenquote, Auffaelligster Standort. Die Kachel `Standorte ohne Werte` wurde entfernt.
+3. Vier Erklaerkacheln: `Wer waechst?`, `Wer wird teurer?`, `Forderungsqualitaet`, `Wiedereinholung`.
+   - Desktop: vier nebeneinander, gleich hoch.
+   - Mobil/Tablet: 2 Spalten, sehr schmal 1 Spalte.
+   - Text als Blocksatz mit automatischer deutscher Silbentrennung.
+4. Zwei grosse Diagramme nebeneinander auf Desktop:
+   - `Umsatz eingereicht je Standort`
+   - `Umsatz ausgezahlt je Standort`
+   Beide als horizontale Balken mit Wertbeschriftung rechts am Balken und Tooltip.
+5. `Standorte im Vergleich` darunter mit eigenem Zeitraumfilter. Keine `Details ansehen`-Buttons/Querverlinkungen in den Standortkarten.
+
 ## Zuletzt umgesetzte wichtige Aenderungen
 
-Aktuelle letzte Commits:
-- `963dfdc7 Add anonymized location PDF export`
-- `ce0bcd6b Add open storno amount KPI`
-- `c13914f6 Add custom benchmark total row`
-- `4f836b95 Remove duplicate custom chart value subtitles`
-- `3b7e998b Unify app typography scale`
-- `80aac379 Add separate custom benchmark period filter`
-- `38e5b78f Improve custom chart tooltips and storno recovery`
-- `7dd08f91 Add one-page custom PDF export`
-- `beac01ec Add custom benchmark table`
-- `8fd2777b Add custom KPI sparklines`
-- `bddec3c7 Add average claim KPI`
-- `cd6be5a4 Align storno counts across app`
-- `29075bfe Keep content controls sticky while scrolling`
-- `76c473fc Default period filters to 2026 YTD`
-- `4f71bf83 Improve tablet answer cards`
-- `ac27a80f Improve tablet KPI cards`
-- `c65d9704 Fix manual case resolution permissions`
-- `3a0586ec Clean up mobile chart bars`
-- `15792694 Format fee rate with two decimals`
-- `df5e7a26 Refine mobile header proportions`
-- `ad9b32b3 Fix single-location chart bars`
-- `a2f04fa4 Make logo open cockpit`
-- `9c9a5444 Add sparklines to KPI cards`
-- `ca1c1086 Add KPI sparklines to answer cards`
+Aktuelle letzte Commits/Aenderungen:
+- `4d29cc1e Add since-start chart period option`
+- `5a38729b Rename claims tab to location details`
+- `a5a66723 Improve custom PDF export layout`
+- `43b97d0e Remove location comparison detail buttons`
+- `30de68e9 Simplify comparison year legend`
+- `efc320d6 Justify benchmark insight text`
+- `acf06c90 Remove empty locations benchmark card`
+- `db34d712 Add benchmark comparison period filter`
+- `b4fc5f27 Fix benchmark signal card desktop grid`
+- `5dbd4327 Reorder benchmark insight cards`
+- `f6ec43c1 Remove summary chart line markers`
+- `5f048249 Refine summary chart axis labels`
+- `3839e928 Adjust benchmark chart labels`
+- `1624eeca Modernize summary combo charts`
+- `5cf6899e Rescale benchmark revenue bars`
+- `bb1afe74 Refine benchmark payout charts`
+- `92b286c9 Improve benchmark revenue chart`
+- `12459ba7 Refine cockpit KPI period styling`
+- `bd3f286f Rename cockpit and hide location tabs`
+- `5e9a1dd1 Align recovered stornos chart logic`
+- `61276ace Hide location tabs on quick answers`
+- `76b5619e Remove priorities topbar shortcut`
+- `f039d432 Move priorities into operations nav`
+- `368e7a45 Remove answer cockpit from dashboard`
+- `90a63487 Add final cancellation case resolution`
 
 Damit ist zuletzt erledigt:
-- Individuell-Tab mit 8 KPI-Kacheln, Sparklines und Info-Herleitungen.
+- `Individuell` wurde zu `Zusammenfassung` und steht oben im Management-Bereich.
+- `Cockpit` wurde zu `Management Cockpit`.
+- `Forderungen & Geldfluss` wurde zu `Standortdetails`.
+- Zusammenfassung-Tab mit 8 KPI-Kacheln, Sparklines und Info-Herleitungen.
 - Neue KPI `Offene Storno-Summe`: Summe der noch nicht gewandelten Storno-Zeilen im gewaehlten Zeitraum/Standortfilter.
-- Individuell-Tab hat vier Charts mit separater Zeitraum-/Standortsteuerung.
-- Individuell-Tab hat Benchmark-Tabelle mit eigener Zeitauswahl fuer Jahre, Quartale und Monate.
+- Zusammenfassung-Tab hat vier Charts mit separater Zeitraum-/Standortsteuerung inklusive `ab Standortstart`.
+- Zusammenfassung-Tab hat Benchmark-Tabelle mit eigener Zeitauswahl fuer Jahre, Quartale und Monate.
 - Benchmark-Tabelle hat eine Gesamtzeile mit aggregierten Summen und gewichteten Quoten.
-- PDF-Export fuer gesamten Individuell-Tab im Querformat, auf eine Seite skaliert.
+- PDF-Export fuer gesamten Zusammenfassung-Tab im Querformat, seitenbreit und mehrseitig paginiert.
 - Standort-Export fuer einzelne Standorte mit anonymisiertem Benchmarking gegen andere Standorte.
+- Standort-Tab: KPI-Dreierreihe, vier gleich hohe Erklaerkacheln, zwei grosse Umsatzdiagramme, eigener Zeitraumfilter fuer `Standorte im Vergleich`.
+- Standortvergleich-Karten haben keine `Details ansehen`-Buttons mehr.
+- Schnellantworten stehen nur noch im Tab `Schnellantworten`, nicht doppelt im Cockpit.
+- Top-Prioritaetenbuttons in den Tabs sind entfernt.
+- `Prioritaeten heute` liegt im Reiter `Operative Fallarbeit`.
+- Linke Desktop-Navigation bleibt beim Scrollen sichtbar.
+- Endgueltig stornierte Klaerfaelle koennen manuell geklaert werden und verschwinden aus offenen Arbeitslisten/Neueinreichungsvorschlaegen.
 - Appweite Typografie-Skala vereinheitlicht.
-- Doppelte Wertzeile unter individuellen Diagrammtiteln entfernt; Werte stehen nur noch im Diagramm-Tooltip.
-- Chart-Tooltips fuer individuelle Kombi-/Dual-Axis-Charts.
+- Doppelte Wertzeile unter Zusammenfassung-Diagrammtiteln entfernt; Werte stehen nur noch im Diagramm-Tooltip.
+- Chart-Tooltips fuer Zusammenfassung-Kombi-/Dual-Axis-Charts.
 - Storno-/Recovery-Chartlogik an KPI-Logik angepasst.
 - Durchschnittlicher Wert je Forderung als KPI.
 - Benchmark-Tabelle mit Kennzahlen je Standort: Umsatz, Monatsdurchschnitt, Forderungen, Durchschnittsforderung, Stornos, Stornoquote, gewandelt, ohne Schutz, Gebuehr, Signal.
@@ -383,10 +425,10 @@ git diff --check
 Wichtige offene technische Punkte:
 - Automatisierte Tests fehlen weiterhin.
 - Besonders testwuerdig:
-  - Individuell-Tab PDF-Export in echten Browsern auf Desktop/Mobile
-  - Individuell-Tab Standort-Export: Zielstandort klar, andere Standorte anonymisiert, Benchmark-Klarzahlen anderer Standorte nur als Indexwerte
-  - Individuell-Tab Benchmark-Zeitraumfilter
-  - Individuell-Tab Gesamtzeile und offene Storno-Summe gegen echte Importdaten
+  - Zusammenfassung-Tab PDF-Export in echten Browsern auf Desktop/Mobile
+  - Zusammenfassung-Tab Standort-Export: Zielstandort klar, andere Standorte anonymisiert, Benchmark-Klarzahlen anderer Standorte nur als Indexwerte
+  - Zusammenfassung-Tab Benchmark-Zeitraumfilter
+  - Zusammenfassung-Tab Gesamtzeile und offene Storno-Summe gegen echte Importdaten
   - Storno-/Recovery-Zuordnung im Chart gegen echte Importdaten
   - Import
   - Rollenrechte

@@ -18,6 +18,14 @@
   --ink-soft: #c6dbe2;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
   --shadow-soft: 0 16px 42px rgba(0, 0, 0, 0.22);
+  --type-page-title: clamp(30px, 2.2vw, 38px);
+  --type-section-title: 20px;
+  --type-card-title: 15px;
+  --type-kpi-value: clamp(30px, 1.9vw, 38px);
+  --type-kpi-value-compact: clamp(28px, 1.6vw, 34px);
+  --type-body: 15px;
+  --type-small: 13px;
+  --type-micro: 11px;
 }
 
 * {
@@ -3475,6 +3483,144 @@ td small {
 
   table {
     min-width: 920px;
+  }
+}
+
+/* Unified app typography layer */
+body {
+  font-size: var(--type-body);
+  line-height: 1.45;
+}
+
+.topbar h1,
+.mobile-page-heading h1 {
+  font-size: var(--type-page-title);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.panel-heading h2,
+.panel h2,
+.mini-chart h2,
+.settings-panel h2,
+.answer-header h2,
+.custom-chart-head h2,
+.group-filter-bar h2,
+.command-panel h2,
+.preview-heading h2,
+.visual-panel h2 {
+  font-size: var(--type-section-title);
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.kpi-card > span,
+.priority-card > span,
+.answer-grid span,
+.cashflow-card > div:first-child small,
+.preview-metric small,
+.location-card-head span,
+.case-board-column > div span,
+.eyebrow {
+  font-size: var(--type-card-title);
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.kpi-card strong,
+.priority-card strong,
+.custom-kpi-slider .priority-card strong,
+.custom-kpi-secondary .priority-card strong {
+  font-size: var(--type-kpi-value);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.answer-grid strong,
+.preview-metric strong,
+.case-board-column > div strong,
+.cashflow-card > div:first-child strong,
+.year-active-value strong,
+.custom-donut strong {
+  font-size: var(--type-kpi-value-compact);
+  line-height: 1.06;
+  letter-spacing: 0;
+}
+
+.kpi-card small,
+.priority-card small,
+.answer-grid small,
+.panel-heading p,
+.panel p,
+.custom-chart-head span,
+.custom-axis-scale,
+.custom-chart-axis,
+.custom-donut-stats,
+.table-wrap,
+table,
+select,
+input,
+.select-label,
+.filter-pill-row button,
+.standort-tabs button,
+.secondary-button,
+.primary-button {
+  font-size: var(--type-body);
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.period-note,
+.standort-tabs span,
+.filter-pill-row button span,
+.custom-chart-tooltip strong,
+.custom-chart-tooltip span,
+.custom-chart-legend,
+.custom-donut-stats,
+th,
+td small,
+.custom-benchmark-table td span,
+.answer-sparkline small,
+.status-badge {
+  font-size: var(--type-small);
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.period-note,
+.eyebrow,
+.custom-chart-legend,
+th {
+  text-transform: uppercase;
+}
+
+select,
+input {
+  color: var(--text);
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --type-page-title: 30px;
+    --type-section-title: 21px;
+    --type-card-title: 18px;
+    --type-kpi-value: clamp(38px, 10vw, 46px);
+    --type-kpi-value-compact: clamp(32px, 8vw, 40px);
+    --type-body: 16px;
+    --type-small: 13px;
+    --type-micro: 11px;
+  }
+
+  .kpi-card,
+  .priority-card,
+  .answer-grid button {
+    gap: 10px;
+  }
+
+  .period-note {
+    font-size: var(--type-small);
   }
 }
 

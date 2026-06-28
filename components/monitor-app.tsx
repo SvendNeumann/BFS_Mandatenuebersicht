@@ -1393,11 +1393,11 @@ function CustomDualAxisChart({
           <polyline className="custom-line warning" points={linePoints} />
         </svg>
       </div>
+      <div className="custom-chart-axis">{chartValues.map((point) => <span key={point.month}>{point.label}</span>)}</div>
       <div className="custom-axis-scale">
         <span>{barLabel}: max. {formatBar(maxBar)}</span>
         <span>{lineLabel}: max. {formatLine(maxLine)}</span>
       </div>
-      <div className="custom-chart-axis">{chartValues.map((point) => <span key={point.month}>{point.label}</span>)}</div>
     </article>
   );
 }

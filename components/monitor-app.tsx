@@ -558,7 +558,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
-            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
+            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
@@ -1535,7 +1535,6 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, cockpitPeriod, fallStandort) : false;
   }), [cockpitPeriod, dashboardCases, filteredStandortIds, filteredStandorte]);
-  const focusedCases = openCases;
   const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
@@ -1645,16 +1644,6 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
           </div>
         </div>
         <LocationBenchmarkCards snapshots={benchmarkSnapshots} onNavigate={onNavigate} compact />
-      </section>
-      <section className="panel operative-entry-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="eyebrow">Prüfung & Fallarbeit</span>
-            <h2>Operative Ebene bewusst getrennt</h2>
-            <p>Klärfälle, Rückbelastungen, Neueinreichungen und Reports bleiben Arbeitswerkzeuge. Die Lagebewertung oben erklärt zuerst Entwicklung, Abweichung und Ursache.</p>
-          </div>
-        </div>
-        <AnswerCockpit scope="group" cases={focusedCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} manualCaseResolutions={manualCaseResolutions} hasImportDataset={importRows.length > 0} />
       </section>
     </div>
   );

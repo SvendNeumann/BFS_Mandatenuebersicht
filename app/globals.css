@@ -3328,40 +3328,32 @@ td small {
 }
 
 .custom-bar {
-  fill: #27cabe;
-  opacity: 0.82;
-  filter: drop-shadow(0 8px 16px rgba(39, 202, 190, 0.15));
+  fill: rgba(48, 213, 200, 0.72);
+  filter: drop-shadow(0 10px 18px rgba(39, 202, 190, 0.12));
   cursor: pointer;
   outline: none;
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: opacity 0.16s ease, filter 0.16s ease;
 }
 
 .custom-bar.active,
 .custom-bar:focus {
-  opacity: 1;
+  fill: rgba(48, 213, 200, 0.95);
+  filter: drop-shadow(0 12px 22px rgba(39, 202, 190, 0.2));
 }
 
 .custom-line {
   fill: none;
-  stroke: #8bb8ff;
-  stroke-width: 2.5;
+  stroke: rgba(139, 184, 255, 0.88);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 6px 12px rgba(139, 184, 255, 0.28));
+  filter: drop-shadow(0 5px 10px rgba(139, 184, 255, 0.18));
+  pointer-events: none;
 }
 
 .custom-line.warning {
-  stroke: #f2bd5b;
-}
-
-.custom-line-point {
-  fill: #dffcff;
-  stroke: #8bb8ff;
-  stroke-width: 1.2;
-  vector-effect: non-scaling-stroke;
-}
-
-.custom-line-point.warning {
-  stroke: #f2bd5b;
+  stroke: rgba(242, 189, 91, 0.9);
 }
 
 .custom-chart-axis,

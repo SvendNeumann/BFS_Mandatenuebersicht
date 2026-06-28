@@ -761,6 +761,11 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   const isSingleValue = values.length === 1;
   const rawActiveLeft = values.length ? ((activeIndex + 0.5) / values.length) * 100 : 50;
   const activeLeft = Math.min(78, Math.max(22, rawActiveLeft));
+  const tooltipStyle = activeIndex === 0
+    ? { left: 12, transform: "none" }
+    : activeIndex === values.length - 1
+      ? { right: 12, transform: "none" }
+      : { left: `${activeLeft}%` };
 
   return (
     <div className={isSingleValue ? "interactive-chart single-value" : "interactive-chart"}>
@@ -771,7 +776,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
       </div>
       <div
         className="chart-tooltip"
-        style={{ left: `${activeLeft}%` }}
+        style={tooltipStyle}
       >
         <strong>{activeValue.label}</strong>
         <span>{chartLegendLabel(title)}: {valueLabel}</span>

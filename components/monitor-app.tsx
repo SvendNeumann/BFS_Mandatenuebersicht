@@ -753,30 +753,36 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
   const activeValue = values[activeIndex] ?? values[0];
   const valueLabel = formatChartValue(title, activeValue.value);
   const maxValue = Math.max(...values.map((value) => value.value), 100);
+  const rawActiveLeft = values.length ? ((activeIndex + 0.5) / values.length) * 100 : 50;
+  const activeLeft = Math.min(78, Math.max(22, rawActiveLeft));
 
   return (
-    <div className="interactive-chart" onMouseLeave={() => setActiveIndex(0)}>
+    <div className="interactive-chart">
       <MetricInfo title={title} text={chartExplanation(title, values)} />
       <div className="chart-legend">
         <span />
         <strong>{chartLegendLabel(title)}</strong>
       </div>
-      <div className="chart-tooltip">
+      <div
+        className="chart-tooltip"
+        style={{ left: `${activeLeft}%` }}
+      >
         <strong>{activeValue.label}</strong>
         <span>{chartLegendLabel(title)}: {valueLabel}</span>
       </div>
       <div className="bars" role="list" aria-label={title}>
         {values.map((value, index) => (
-          <button
-            type="button"
-            key={value.label}
-            className={index === activeIndex ? "active" : ""}
-            style={{ height: `${Math.max(14, (value.value / maxValue) * 100)}%` }}
-            aria-label={`${value.label}: ${formatChartValue(title, value.value)}`}
-            onPointerEnter={() => setActiveIndex(index)}
-            onFocus={() => setActiveIndex(index)}
-            onClick={() => setActiveIndex(index)}
-          />
+          <span className={`bar-slot${index === activeIndex ? " active" : ""}`} key={value.label}>
+            <button
+              type="button"
+              className={index === activeIndex ? "active" : ""}
+              style={{ height: `${Math.max(14, (value.value / maxValue) * 100)}%` }}
+              aria-label={`${value.label}: ${formatChartValue(title, value.value)}`}
+              onPointerEnter={() => setActiveIndex(index)}
+              onFocus={() => setActiveIndex(index)}
+              onClick={() => setActiveIndex(index)}
+            />
+          </span>
         ))}
       </div>
       <div className="axis">{values.map((value) => <span key={value.label}>{value.label}</span>)}</div>

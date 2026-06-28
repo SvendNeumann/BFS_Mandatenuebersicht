@@ -909,12 +909,12 @@ function YearComparisonBars({
   format
 }: {
   title: string;
-  values: { label: string; current: number; previous: number }[];
+  values: { label: string; current: number; previous: number; context?: string }[];
   format: (value: number) => string;
 }) {
-  const [activePoint, setActivePoint] = useState<{ label: string; year: "2025" | "2026"; value: number } | null>(null);
+  const [activePoint, setActivePoint] = useState<{ label: string; year: "2025" | "2026"; value: number; context?: string } | null>(null);
   const maxValue = Math.max(...values.flatMap((value) => [value.current, value.previous]), 1);
-  const active = activePoint ?? (values[0] ? { label: values[0].label, year: "2026" as const, value: values[0].current } : null);
+  const active = activePoint ?? (values[0] ? { label: values[0].label, year: "2026" as const, value: values[0].current, context: values[0].context } : null);
   return (
     <div className="year-comparison-chart" aria-label={title}>
       <div className="year-chart-head">
@@ -924,7 +924,8 @@ function YearComparisonBars({
         </div>
         {active && (
           <div className="year-active-value">
-            <span>{active.year} · Monat {active.label}</span>
+            <span>{active.context ?? title}</span>
+            <em>{active.year} · {active.label.length <= 2 ? `Monat ${active.label}` : active.label}</em>
             <strong>{format(active.value)}</strong>
           </div>
         )}
@@ -937,30 +938,29 @@ function YearComparisonBars({
                 type="button"
                 className={active?.label === value.label && active.year === "2025" ? "previous active" : "previous"}
                 style={{ height: `${Math.max(4, (value.previous / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
-                onFocus={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: "2025", value: value.previous })}
-                aria-label={`2025 Monat ${value.label}: ${format(value.previous)}`}
+                onClick={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
+                onFocus={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: "2025", value: value.previous, context: value.context })}
+                aria-label={`${value.context ? `${value.context}, ` : ""}2025 ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.previous)}`}
               >
-                <span>{format(value.previous)}</span>
+                <span>{value.context && <b>{value.context}</b>}{format(value.previous)}</span>
               </button>
               <button
                 type="button"
                 className={active?.label === value.label && active.year === "2026" ? "current active" : "current"}
                 style={{ height: `${Math.max(4, (value.current / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
-                onFocus={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: "2026", value: value.current })}
-                aria-label={`2026 Monat ${value.label}: ${format(value.current)}`}
+                onClick={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
+                onFocus={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
+                onPointerEnter={() => setActivePoint({ label: value.label, year: "2026", value: value.current, context: value.context })}
+                aria-label={`${value.context ? `${value.context}, ` : ""}2026 ${value.label.length <= 2 ? `Monat ${value.label}` : value.label}: ${format(value.current)}`}
               >
-                <span>{format(value.current)}</span>
+                <span>{value.context && <b>{value.context}</b>}{format(value.current)}</span>
               </button>
             </div>
-            <small>Monat {value.label}</small>
+            <small>{value.label.length <= 2 ? `Monat ${value.label}` : value.label}</small>
           </div>
         ))}
       </div>
-      <small className="year-scroll-hint">Seitlich wischen, Balken antippen oder fokussieren für Werte.</small>
     </div>
   );
 }
@@ -1120,11 +1120,13 @@ function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportP
   const currentYear = todayReference.getFullYear();
   const previousYear = currentYear - 1;
   const monthCount = todayReference.getMonth() + 1;
+  const context = rowsStandorte.length === 1 ? rowsStandorte[0].name : "Gruppe";
   return Array.from({ length: monthCount }, (_, index) => {
     const currentRows = rowsForMonth(importRows, rowsStandorte, currentYear, index);
     const previousRows = rowsForMonth(importRows, rowsStandorte, previousYear, index);
     return {
       label: String(index + 1).padStart(2, "0"),
+      context,
       current: metricValueForRows(currentRows, metric),
       previous: metricValueForRows(previousRows, metric)
     };
@@ -1139,6 +1141,7 @@ function buildLocationYtdDeltaComparison(rowsStandorte: Standort[], importRows: 
     .filter((standort) => standortActiveInPeriod(standort, currentPeriod))
     .map((standort) => ({
       label: standort.name,
+      context: standort.name,
       current: metricsFromImportRowsForStandort(importRows, standort, currentPeriod).submitted,
       previous: metricsFromImportRowsForStandort(importRows, standort, previousPeriod).submitted
     }));

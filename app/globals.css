@@ -840,8 +840,12 @@ input {
   position: absolute;
   left: 50%;
   bottom: calc(100% + 6px);
+  display: grid;
+  gap: 1px;
+  justify-items: center;
   transform: translateX(-50%);
   min-width: max-content;
+  max-width: 160px;
   border-radius: 999px;
   background: rgba(2, 14, 24, 0.88);
   color: #eefbfb;
@@ -851,6 +855,17 @@ input {
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.year-pair button > span b {
+  max-width: 140px;
+  overflow: hidden;
+  color: #bdf9f4;
+  font-size: 9px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .year-pair button.active > span,
@@ -880,9 +895,10 @@ input {
 
 .year-active-value {
   display: grid;
-  justify-items: end;
-  gap: 2px;
-  min-width: 112px;
+  justify-items: start;
+  gap: 3px;
+  min-width: 138px;
+  max-width: 190px;
   border: 1px solid rgba(121, 238, 231, 0.18);
   border-radius: 8px;
   background: rgba(48, 213, 200, 0.08);
@@ -890,22 +906,30 @@ input {
 }
 
 .year-active-value span {
-  color: rgba(205, 226, 232, 0.8);
+  max-width: 100%;
+  overflow: hidden;
+  color: #f8ffff;
   font-size: 10px;
   font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.year-active-value em {
+  color: rgba(205, 226, 232, 0.74);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
 .year-active-value strong {
   color: #f8ffff;
-  font-size: 15px;
-  line-height: 1.1;
-}
-
-.year-scroll-hint {
-  color: rgba(205, 226, 232, 0.68);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 18px;
+  line-height: 1.05;
 }
 
 .operative-entry-panel {

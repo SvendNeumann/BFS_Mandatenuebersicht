@@ -1432,6 +1432,10 @@ input {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.recovery-priority-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .priority-card {
   display: grid;
   gap: 8px;
@@ -3667,6 +3671,10 @@ td small {
 
   .deduction-priority-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .recovery-priority-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .benchmark-priority-grid {

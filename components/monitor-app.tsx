@@ -91,6 +91,7 @@ const superAdminNav: NavSection[] = [
     items: [
       ["benchmark", "Standorte", Building2],
       ["claims", "Standortdetails", ReceiptText],
+      ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
       ["quality", "Forderungsqualität", ShieldCheck]
     ]
   },
@@ -139,6 +140,7 @@ const leadNav: NavSection[] = [
     title: "Analyse",
     items: [
       ["claims", "Standortdetails", ReceiptText],
+      ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
       ["quality", "Forderungsqualität", ShieldCheck]
     ]
   },
@@ -221,6 +223,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "worklist",
     "quality",
     "claims",
+    "cashflow",
     "cases",
     "risks",
     "repeatRisks",
@@ -559,7 +562,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
@@ -773,6 +777,7 @@ function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
     benchmark: "Standorte",
     quality: "Forderungsqualität",
     claims: "Standortdetails",
+    cashflow: "Forderungen und Geldfluss",
     worklist: role === "super_admin" ? "Prioritäten heute" : "Meine Prioritäten",
     upload: "Import-Center",
     preview: "Import-Center",
@@ -3336,6 +3341,7 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
 }
 
 function ClaimsFlowView({
+  mode = "details",
   standort,
   cases: rows,
   importRows = [],
@@ -3343,6 +3349,7 @@ function ClaimsFlowView({
   onResolvePaid,
   onKeepOpen
 }: {
+  mode?: "details" | "cashflow";
   standort?: Standort;
   cases: BfsCase[];
   importRows?: ImportPreviewRow[];
@@ -3358,6 +3365,7 @@ function ClaimsFlowView({
   const [deductionPeriodId, setDeductionPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [deductionStandortFilterId, setDeductionStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [recoveryPeriodId, setRecoveryPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [recoveryStandortFilterId, setRecoveryStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const deductionPeriod = useMemo(() => periodOptions.find((period) => period.id === deductionPeriodId) ?? selectedPeriod, [periodOptions, deductionPeriodId, selectedPeriod]);
   const recoveryPeriod = useMemo(() => periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod, [periodOptions, recoveryPeriodId, selectedPeriod]);
@@ -3366,6 +3374,11 @@ function ClaimsFlowView({
     if (deductionStandortFilterId === "alle") return rowsStandorte;
     return rowsStandorte.filter((entry) => entry.id === deductionStandortFilterId);
   }, [deductionStandortFilterId, rowsStandorte, standort]);
+  const recoveryStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (recoveryStandortFilterId === "alle") return rowsStandorte;
+    return rowsStandorte.filter((entry) => entry.id === recoveryStandortFilterId);
+  }, [recoveryStandortFilterId, rowsStandorte, standort]);
   const scopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
@@ -3376,10 +3389,10 @@ function ClaimsFlowView({
   }), [deductionPeriod, deductionStandorte, importRows]);
   const allDeductionLocationRows = useMemo(() => importRows.filter((row) => deductionStandorte.some((entry) => entry.name === row.location)), [deductionStandorte, importRows]);
   const recoveryScopedImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
+    const rowStandort = recoveryStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, recoveryPeriod, rowStandort) : false;
-  }), [importRows, rowsStandorte, recoveryPeriod]);
-  const allScopedLocationRows = useMemo(() => importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location)), [importRows, rowsStandorte]);
+  }), [importRows, recoveryPeriod, recoveryStandorte]);
+  const allScopedLocationRows = useMemo(() => importRows.filter((row) => recoveryStandorte.some((entry) => entry.name === row.location)), [importRows, recoveryStandorte]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const deductionSummary = useMemo(() => summarizeImportRows(deductionScopedImportRows), [deductionScopedImportRows]);
@@ -3390,9 +3403,9 @@ function ClaimsFlowView({
   const quarterRows = useMemo(() => buildQuarterComparison(rowsStandortIds, importRows), [rowsStandortIds, importRows]);
   const recoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allScopedLocationRows)
     .filter((candidate) => {
-      const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
+      const candidateStandort = recoveryStandorte.find((entry) => entry.name === candidate.locationName);
       return candidateStandort ? shortDateInPeriod(candidate.originalDate, recoveryPeriod, candidateStandort) : false;
-    }), [allScopedLocationRows, rowsStandorte, recoveryPeriod]);
+    }), [allScopedLocationRows, recoveryPeriod, recoveryStandorte]);
   const deductionRecoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allDeductionLocationRows)
     .filter((candidate) => {
       const candidateStandort = deductionStandorte.find((entry) => entry.name === candidate.locationName);
@@ -3436,6 +3449,8 @@ function ClaimsFlowView({
 
   return (
     <div className="content-stack">
+      {mode === "details" && (
+        <>
       <section className="priority-grid">
         <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint="Summe aus Abrechnungen" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />
@@ -3509,10 +3524,14 @@ function ClaimsFlowView({
           </table>
         </div>
       </section>
+        </>
+      )}
+      {mode === "cashflow" && (
+        <>
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>{standort ? `Standortdetails ${standort.name}` : "Standortdetails Gruppe"}</h2>
+            <h2>{standort ? `Forderungen und Geldfluss ${standort.name}` : "Forderungen und Geldfluss Gruppe"}</h2>
             <p>Vom Monatsimport bis zur Rückfrage: eingereicht, Gebühren, offene Klärfälle, Rückläufer und Risiko je Standort.</p>
           </div>
         </div>
@@ -3579,7 +3598,7 @@ function ClaimsFlowView({
             <p>Abgezogene Fälle werden gegen spätere Einreichungen oder manuell als bezahlt markierte Fälle geprüft.</p>
           </div>
         </div>
-        <div className="period-filter">
+        <div className="period-filter deduction-analysis-filter">
           <label className="select-label">
             Zeitraum Wiedereinholung
             <select value={recoveryPeriodId} onChange={(event) => setRecoveryPeriodId(event.target.value)}>
@@ -3588,84 +3607,27 @@ function ClaimsFlowView({
               ))}
             </select>
           </label>
+          <label className="select-label">
+            Standort Wiedereinholung
+            <select value={standort ? standort.id : recoveryStandortFilterId} onChange={(event) => setRecoveryStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+              {!standort && <option value="alle">Alle Standorte</option>}
+              {rowsStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{recoveryStandorte.length === 1 ? recoveryStandorte[0].name : "Alle Standorte"}</strong>
+            <span>{recoveryPeriod.detail}</span>
+          </div>
         </div>
-        <div className="priority-grid compact-priority">
+        <div className="priority-grid compact-priority recovery-priority-grid">
           <PriorityCard label="Abzug Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
           <PriorityCard label="Abzug erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Matches · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
           <PriorityCard label="Offener Abzug" value={money.format(stillOpenAmount)} hint="ursprünglicher Abzug minus angerechnete Erledigung" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
           <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
-        </div>
-        <section className="chart-grid visual-first-grid">
-          <div className="visual-panel mini-chart">
-            <h2>Abzug bis Erledigung</h2>
-            <InteractiveBars title="Abzug bis Erledigung" values={[
-              { label: "Abzug", value: recoveryDeductionAmount },
-              { label: "erledigt", value: recoveredAmount },
-              { label: "offen", value: stillOpenAmount },
-              { label: "neu brutto", value: matchedNewSubmissionAmount }
-            ]} />
-          </div>
-          <div className="visual-panel mini-chart">
-            <h2>Erledigungsquote</h2>
-            <InteractiveBars title="Erledigungsquote" values={[
-              { label: "erledigt", value: recoveryRate },
-              { label: "offen", value: Math.max(0, 100 - recoveryRate) },
-              { label: "Abzugsquote", value: recoveryDeductionRate },
-              { label: "offene Quote", value: notRecoveredRate }
-            ]} />
-          </div>
-        </section>
-        <div className="table-wrap compact-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Standort</th>
-                <th>Ursprung</th>
-                <th>Grund</th>
-                <th>Abzug</th>
-                <th>Erledigt durch</th>
-                <th>Neue Einreichung brutto</th>
-                <th>Auf Abzug angerechnet</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recoveredByResubmission.slice(0, 50).map((candidate) => (
-                <tr key={`${candidate.patientName}-${candidate.originalDate}-${candidate.newDate}-${candidate.newBfsNo}`}>
-                  <td><strong>{candidate.patientName}</strong></td>
-                  <td>{candidate.locationName}</td>
-                  <td>{candidate.originalDate}</td>
-                  <td>{candidate.reason}</td>
-                  <td>{money.format(candidate.originalAmount)}</td>
-                  <td>Neueinreichung {candidate.newDate}</td>
-                  <td>{money.format(candidate.newAmount)}</td>
-                  <td>{money.format(Math.min(candidate.originalAmount, candidate.newAmount))}</td>
-                </tr>
-              ))}
-              {manuallyPaidCases.slice(0, Math.max(0, 50 - recoveredByResubmission.length)).map((fall) => {
-                const StandortName = standorte.find((entry) => entry.id === fall.standortId)?.name ?? fall.standortId;
-                return (
-                  <tr key={`manual-${fall.resolutionKey ?? caseResolutionKey(fall)}`}>
-                    <td><strong>{fall.patientName}</strong></td>
-                    <td>{StandortName}</td>
-                    <td>{fall.lastComment}</td>
-                    <td>{fall.reason}</td>
-                    <td>{money.format(fall.amount)}</td>
-                    <td>manuell bezahlt markiert</td>
-                    <td>{money.format(fall.amount)}</td>
-                    <td>{money.format(fall.amount)}</td>
-                  </tr>
-                );
-              })}
-              {!recoveredByResubmission.length && !manuallyPaidCases.length && (
-                <tr>
-                  <td colSpan={8}>Noch keine späteren Neueinreichungen oder manuell bezahlten Fälle im Zeitraum gefunden.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </section>
       <section className="dashboard-grid">
@@ -3753,6 +3715,8 @@ function ClaimsFlowView({
         enableFilters
         tableScrollable
       />
+        </>
+      )}
     </div>
   );
 }

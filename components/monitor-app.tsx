@@ -34,8 +34,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   standorte,
+  compareStandorteByContractStart,
   isStandortLive,
-  liveStatusLabel
+  liveStatusLabel,
+  orderedStandorte
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
@@ -427,7 +429,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 }
 
 function StandortTabs({ role, selectedStandortId, onSelect, importRows }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void; importRows: ImportPreviewRow[] }) {
-  const visibleStandorte = role === "super_admin" ? standorte : standorte.slice(0, 1);
+  const visibleStandorte = role === "super_admin" ? orderedStandorte() : orderedStandorte(standorte.slice(0, 1));
   const openCasesByStandort = countOpenCasesByStandort(importRows);
   return (
     <section className="standort-tabs" aria-label="Standorte">
@@ -571,7 +573,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
   const filteredStandorte = groupStandortFilter === "alle"
-    ? standorte
+    ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter);
   const filteredStandortIds = new Set(filteredStandorte.map((standort) => standort.id));
   const dashboardCases = casesFromImportRows(importRows);
@@ -779,7 +781,7 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
       chargebackRate,
       riskScore
     };
-  }).sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted);
+  }).sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
 }
 
 function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, focusedCases: BfsCase[]) {
@@ -854,10 +856,10 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   });
   const openCases = casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt"));
-  const snapshots = buildLocationSnapshots(standorte, selectedPeriod, scopedRows, openCases);
+  const snapshots = buildLocationSnapshots(orderedStandorte(), selectedPeriod, scopedRows, openCases);
   const highestVolume = [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0];
   const highestFees = [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0];
-  const highestRisk = snapshots[0];
+  const highestRisk = [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0];
 
   return (
     <div className="content-stack">
@@ -889,7 +891,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
         <LocationBenchmarkCards snapshots={snapshots} onNavigate={onNavigate} />
       </section>
       <section className="chart-grid">
-        {buildGroupDashboardSeries(standorte, selectedPeriod, scopedRows).map((chart) => (
+        {buildGroupDashboardSeries(orderedStandorte(), selectedPeriod, scopedRows).map((chart) => (
           <div className="panel mini-chart" key={chart.title}>
             <h2>{chart.title}</h2>
             <small className="period-note">Zeitraum: {selectedPeriod.label}</small>
@@ -1061,7 +1063,7 @@ function GroupFilterBar({
       </div>
       <div className="filter-pill-row" aria-label="Standortfilter">
         <button className={selectedStandort === "alle" ? "active" : ""} onClick={() => onStandortChange("alle")}>Alle Standorte</button>
-        {standorte.map((standort) => (
+        {orderedStandorte().map((standort) => (
           <button key={standort.id} className={selectedStandort === standort.id ? "active" : ""} onClick={() => onStandortChange(standort.id)}>
             {standort.name}
             <span>{liveStatusLabel(standort)}</span>
@@ -1237,7 +1239,7 @@ function AnswerCockpit({
             Standort
             <select value={selectedAnswerStandortId} onChange={(event) => setSelectedAnswerStandortId(event.target.value)} disabled={scope !== "group"}>
               {scope === "group" && <option value="alle">Alle Standorte</option>}
-              {standorte.map((entry) => (
+              {orderedStandorte().map((entry) => (
                 <option key={entry.id} value={entry.id}>{entry.name}</option>
               ))}
             </select>
@@ -2329,7 +2331,7 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         };
       });
   });
-  const byLocation = standorte
+  const byLocation = orderedStandorte()
     .filter((standort) => !standortId || standort.id === standortId)
     .map((standort) => {
       const locationRows = stornoRows.filter((row) => row.standortId === standort.id);
@@ -2381,7 +2383,16 @@ function groupOutcomeRows(rows: Array<{ month: string; locationName: string; pat
     open: entries.filter((entry) => entry.open).length,
     amount: entries.filter((entry) => entry.open).reduce((sum, entry) => sum + entry.amount, 0),
     examples: entries.slice(0, 3).map((entry) => entry.patientName)
-  })).sort((a, b) => b.month.localeCompare(a.month) || a.locationName.localeCompare(b.locationName));
+  })).sort((a, b) => b.month.localeCompare(a.month) || compareLocationNamesByContractStart(a.locationName, b.locationName));
+}
+
+function compareLocationNamesByContractStart(a: string, b: string) {
+  const StandortA = standorte.find((standort) => standort.name === a);
+  const StandortB = standorte.find((standort) => standort.name === b);
+  if (StandortA && StandortB) return compareStandorteByContractStart(StandortA, StandortB);
+  if (StandortA) return -1;
+  if (StandortB) return 1;
+  return a.localeCompare(b, "de");
 }
 
 function ageFromShortDate(value: string) {
@@ -3220,7 +3231,7 @@ function buildImportHistoryMonths(rows: ImportPreviewRow[]) {
   return [...months.values()]
     .map((month) => ({
       ...month,
-      locations: [...month.locations].sort()
+      locations: [...month.locations].sort(compareLocationNamesByContractStart)
     }))
     .sort((a, b) => {
       if (a.month === "unbekannt") return 1;
@@ -4354,7 +4365,7 @@ function ImportHistory({ rows }: { rows: ImportPreviewRow[] }) {
 }
 
 function cloneStandorteForEditing() {
-  return standorte.map((standort) => ({ ...standort, mandantNos: [...(standort.mandantNos ?? [standort.mandantNo])], locationHints: [...(standort.locationHints ?? [])] }));
+  return orderedStandorte().map((standort) => ({ ...standort, mandantNos: [...(standort.mandantNos ?? [standort.mandantNo])], locationHints: [...(standort.locationHints ?? [])] }));
 }
 
 function standorteDefaults() {
@@ -4363,7 +4374,7 @@ function standorteDefaults() {
     ...snapshot,
     mandantNos: [...snapshot.mandantNos],
     locationHints: [...snapshot.locationHints]
-  }));
+  })).sort(compareStandorteByContractStart);
 }
 
 function applyStoredStandorteConfig() {
@@ -4392,6 +4403,7 @@ function applyStandorteConfig(config: ReturnType<typeof locationConfigSnapshot>[
       goLiveLabel: formatGermanDate(snapshot.goLiveDate)
     });
   });
+  standorte.sort(compareStandorteByContractStart);
 }
 
 function locationConfigSnapshot(standort: Standort) {
@@ -4644,7 +4656,7 @@ function UsersView() {
         <label>
           Standort
           <select value={standortId} onChange={(event) => setStandortId(event.target.value)} disabled={role === "super_admin"}>
-            {standorte.map((standort) => <option key={standort.id} value={standort.id}>{standort.name}</option>)}
+            {orderedStandorte().map((standort) => <option key={standort.id} value={standort.id}>{standort.name}</option>)}
           </select>
         </label>
         <label>

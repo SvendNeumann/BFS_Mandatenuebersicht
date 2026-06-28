@@ -115,6 +115,14 @@ export function liveStatusLabel(standort: Standort, referenceDate = new Date()) 
   return isStandortLive(standort, referenceDate) ? "aktiv" : `ab ${standort.goLiveLabel}`;
 }
 
+export function compareStandorteByContractStart(a: Standort, b: Standort) {
+  return a.goLiveDate.localeCompare(b.goLiveDate) || a.name.localeCompare(b.name, "de");
+}
+
+export function orderedStandorte(source: Standort[] = standorte) {
+  return [...source].sort(compareStandorteByContractStart);
+}
+
 export const monthlyKpis: string[][] = [];
 export const bfsPeriodMetrics: BfsPeriodMetric[] = [];
 export const cases: BfsCase[] = [];

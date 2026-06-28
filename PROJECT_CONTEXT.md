@@ -47,6 +47,10 @@ Die App ist fachlich als Steuerungsprodukt aufgebaut, nicht als reine Tabellenau
 
 Grundsatz: Hauptseiten sollen zuerst Lage, Auffaelligkeit und Handlung zeigen. Detailtabellen stehen unten oder auf operativen Drilldown-Seiten.
 
+Standort-Reihenfolge:
+- Standorte werden fachlich immer nach Vertragsstart/Go-live angezeigt: Kirchberg, Essen, Kehl, Ulmet, Huettenberg, Kassel.
+- Auch Tabs, Standortfilter, Benchmark-Karten, Storno-Quercheck, Import-Historie und Admin-Dropdowns folgen dieser Reihenfolge. Rankings duerfen Kennzahlen ausweisen, aber die sichtbare Standortliste bleibt chronologisch.
+
 Aktuelle Zusatzlogik:
 - `Forderungsqualitaet` und `Massnahmenkontrolle` zeigen einen Storno-Quercheck.
 - Ausgewertet wird: Stornos gesamt, davon erledigt, noch offen, Erledigungsquote gesamt und je Standort.

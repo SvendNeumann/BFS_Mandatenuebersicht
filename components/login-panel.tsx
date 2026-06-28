@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Eye, Fingerprint, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
-import { canUsePasskeys, hasSavedPasskey, loginWithEmail, loginWithPasskey, requestPasswordReset } from "@/lib/auth";
+import { canUsePasskeys, getCurrentSession, hasSavedPasskey, loginWithEmail, loginWithPasskey, requestPasswordReset, type DemoSession } from "@/lib/auth";
 
 type LoginPanelProps = {
   variant?: "card" | "landing";
@@ -14,10 +14,30 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
   const [remember, setRemember] = useState(true);
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionCheckDone, setSessionCheckDone] = useState(false);
   const [message, setMessage] = useState("Geschützter interner Bereich für berechtigte Nutzer der Orisus-Gruppe.");
 
   useEffect(() => {
     setPasskeyAvailable(canUsePasskeys() && hasSavedPasskey());
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getCurrentSession()
+      .then((session) => {
+        if (!active) return;
+        if (session?.active) {
+          window.location.replace(nextPathFromLocation() ?? dashboardPathForSession(session));
+          return;
+        }
+        setSessionCheckDone(true);
+      })
+      .catch(() => {
+        if (active) setSessionCheckDone(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
@@ -28,7 +48,7 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       const session = await loginWithEmail(email, password, remember);
       window.location.href = session.mustChangePassword
         ? "/passwort-aendern"
-        : nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
+        : nextPathFromLocation() ?? dashboardPathForSession(session);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login fehlgeschlagen.");
       setIsSubmitting(false);
@@ -38,7 +58,7 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
   async function submitPasskeyLogin() {
     try {
       const session = await loginWithPasskey();
-      window.location.href = nextPathFromLocation() ?? (session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard");
+      window.location.href = nextPathFromLocation() ?? dashboardPathForSession(session);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Biometrischer Login nicht verfügbar.");
     }
@@ -64,6 +84,7 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       </div>
       <p>{message}</p>
 
+      {!sessionCheckDone && <p className="form-hint">Bestehende Anmeldung wird geprüft...</p>}
       <form className="login-form" onSubmit={submitLogin}>
         <label>
           Login-Name
@@ -87,6 +108,10 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       <div className="internal-use-note"><ShieldCheck size={15} /> Internal Use Only</div>
     </section>
   );
+}
+
+function dashboardPathForSession(session: Pick<DemoSession, "role">) {
+  return session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
 }
 
 function nextPathFromLocation() {

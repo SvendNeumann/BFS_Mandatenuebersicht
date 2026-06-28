@@ -74,12 +74,17 @@ export function getStoredSession(): DemoSession | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(sessionKey);
   if (!raw) return null;
-  const session = JSON.parse(raw) as DemoSession;
-  if (!session.active || session.expiresAt < Date.now()) {
-    logout();
+  try {
+    const session = JSON.parse(raw) as DemoSession;
+    if (!session.active || session.expiresAt < Date.now()) {
+      logout();
+      return null;
+    }
+    return session;
+  } catch {
+    window.localStorage.removeItem(sessionKey);
     return null;
   }
-  return session;
 }
 
 export const getDemoSession = getStoredSession;

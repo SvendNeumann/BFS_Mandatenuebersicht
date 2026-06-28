@@ -1,3 +1,5 @@
+import Image from "next/image";
+import Link from "next/link";
 import { AlertTriangle, BarChart3, FileText, FolderUp, Landmark, ReceiptText, ShieldCheck, Stethoscope, WalletCards } from "lucide-react";
 import { LoginPanel } from "@/components/login-panel";
 
@@ -50,13 +52,13 @@ export default function LandingPage() {
     <main className="landing-page">
       <div className="landing-grid-shell">
         <section className="landing-board" aria-label="Orisus BFS Monitor Übersicht">
-          <a className="brand compact-brand landing-brand" href="/">
-            <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
+          <Link className="brand compact-brand landing-brand" href="/">
+            <Image className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" width={48} height={48} priority />
             <div>
               <strong>Orisus BFS Monitor</strong>
               <span>Interne Abrechnungs- und Fallsteuerung</span>
             </div>
-          </a>
+          </Link>
 
           <div className="landing-headline">
             <span className="eyebrow">BFS-Abrechnungen fuer Orisus</span>

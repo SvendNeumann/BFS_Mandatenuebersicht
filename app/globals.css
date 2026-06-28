@@ -57,6 +57,18 @@ select {
   font: inherit;
 }
 
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+img,
+svg,
+canvas {
+  max-width: 100%;
+}
+
 button {
   cursor: pointer;
 }
@@ -2055,6 +2067,7 @@ td {
   text-align: left;
   vertical-align: middle;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 th {
@@ -3423,6 +3436,7 @@ td small {
   box-shadow: var(--shadow-soft);
   padding: 16px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .custom-chart-head {

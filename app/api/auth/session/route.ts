@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { getRequestProfile, createServiceClient, createUserClient } from "@/lib/server-auth";
 
@@ -65,7 +66,7 @@ function sessionCookieOptions(maxAge: number) {
   };
 }
 
-async function loadAssignedAppStandortIds(userClient: { from: (table: string) => any } | null, userId: string) {
+async function loadAssignedAppStandortIds(userClient: SupabaseClient | null, userId: string) {
   if (!userClient) return [];
   const { data: assignments } = await userClient
     .from("user_standorte")

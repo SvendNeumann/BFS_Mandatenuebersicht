@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { createServiceClient } from "@/lib/server-auth";
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   return response;
 }
 
-async function loadAssignedAppStandortIds(userClient: { from: (table: string) => any }, userId: string) {
+async function loadAssignedAppStandortIds(userClient: SupabaseClient, userId: string) {
   const { data: assignments } = await userClient
     .from("user_standorte")
     .select("standort_id")

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Eye, Fingerprint, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { canUsePasskeys, getCurrentSession, hasSavedPasskey, loginWithEmail, loginWithPasskey, requestPasswordReset, type DemoSession } from "@/lib/auth";
@@ -76,7 +77,7 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       </div>
       <span className="login-eyebrow">Geschützter Zugang</span>
       <div className="brand mini-brand login-brand">
-        <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
+        <Image className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" width={48} height={48} />
         <div>
           <strong>Orisus BFS Monitor</strong>
           <span>Abrechnungen, Risiken und Fälle</span>

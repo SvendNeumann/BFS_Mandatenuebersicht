@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 
@@ -18,6 +19,8 @@ type ManualCaseResolution = {
   resolvedAt: string;
   resolvedBy: string;
 };
+
+type SupabaseDbClient = SupabaseClient;
 
 export async function GET() {
   try {
@@ -98,7 +101,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function findLatestResolutionForCase(supabase: any, caseKey: string) {
+async function findLatestResolutionForCase(supabase: SupabaseDbClient, caseKey: string) {
   const { data, error } = await supabase
     .from("audit_log")
     .select("new_value, created_at")
@@ -111,20 +114,21 @@ async function findLatestResolutionForCase(supabase: any, caseKey: string) {
   return parseResolution(data?.[0]?.new_value);
 }
 
-function normalizeResolution(value: any, userId: string): ManualCaseResolution {
-  const caseKey = stringValue(value.caseKey);
-  const standortId = stringValue(value.standortId);
+function normalizeResolution(value: unknown, userId: string): ManualCaseResolution {
+  const entry = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const caseKey = stringValue(entry.caseKey);
+  const standortId = stringValue(entry.standortId);
   if (!caseKey || !standortId) throw new Error("Klärfall-Schlüssel oder Standort fehlt.");
   return {
     caseKey,
     standortId,
-    patientName: stringValue(value.patientName) || "Patient noch nicht gematcht",
-    invoiceNo: stringValue(value.invoiceNo) || "-",
-    bfsNo: stringValue(value.bfsNo) || "-",
-    amount: Number(value.amount) || 0,
-    reason: stringValue(value.reason) || "Manuell erledigt",
-    status: normalizeResolutionStatus(value.status),
-    comment: stringValue(value.comment) || defaultResolutionComment(value.status),
+    patientName: stringValue(entry.patientName) || "Patient noch nicht gematcht",
+    invoiceNo: stringValue(entry.invoiceNo) || "-",
+    bfsNo: stringValue(entry.bfsNo) || "-",
+    amount: Number(entry.amount) || 0,
+    reason: stringValue(entry.reason) || "Manuell erledigt",
+    status: normalizeResolutionStatus(entry.status),
+    comment: stringValue(entry.comment) || defaultResolutionComment(entry.status),
     resolvedAt: new Date().toISOString(),
     resolvedBy: userId
   };
@@ -137,7 +141,7 @@ function parseResolution(value: unknown): ManualCaseResolution | null {
   return entry as ManualCaseResolution;
 }
 
-async function markMatchingDatabaseCasesResolved(supabase: any, resolution: ManualCaseResolution, userId: string) {
+async function markMatchingDatabaseCasesResolved(supabase: SupabaseDbClient, resolution: ManualCaseResolution, userId: string) {
   const databaseStandortId = await databaseStandortIdForAppId(supabase, resolution.standortId);
   let query = supabase
     .from("bfs_cases")
@@ -171,23 +175,23 @@ function defaultResolutionComment(status: unknown) {
   return "Manuell geprüft: bezahlt.";
 }
 
-async function readableStandortIds(supabase: any, userId: string, role: string) {
+async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string) {
   if (role === "super_admin") return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
 }
 
-async function writableStandortIds(supabase: any, userId: string, role: string) {
+async function writableStandortIds(supabase: SupabaseDbClient, userId: string, role: string) {
   if (role === "super_admin") return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
 }
 
-async function allStandortIds(supabase: any) {
+async function allStandortIds(supabase: SupabaseDbClient) {
   const { data, error } = await supabase.from("standorte").select("id, name").eq("active", true);
   if (error) throw error;
   return allowedStandortIdsFromRows(data ?? []);
 }
 
-async function assignedStandortIds(supabase: any, userId: string) {
+async function assignedStandortIds(supabase: SupabaseDbClient, userId: string) {
   const { data, error } = await supabase.from("user_standorte").select("standort_id").eq("user_id", userId);
   if (error) throw error;
   const dbStandortIds = (data ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
@@ -207,7 +211,7 @@ function allowedStandortIdsFromRows(rows: Array<{ id: string; name: string }>) {
   return ids;
 }
 
-async function databaseStandortIdForAppId(supabase: any, standortId: string) {
+async function databaseStandortIdForAppId(supabase: SupabaseDbClient, standortId: string) {
   if (isUuid(standortId)) return standortId;
   const appStandort = appStandorte.find((standort) => standort.id === standortId);
   if (!appStandort) return standortId;

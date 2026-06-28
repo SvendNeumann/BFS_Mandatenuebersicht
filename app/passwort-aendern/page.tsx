@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
 import { updateOwnPassword } from "@/lib/auth";
@@ -30,7 +31,7 @@ export default function ChangePasswordPage() {
     <main className="auth-shell">
       <section className="auth-card login-card">
         <div className="brand mini-brand">
-          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
+          <Image className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" width={48} height={48} />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Erster Login</span>

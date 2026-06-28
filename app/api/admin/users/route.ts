@@ -10,6 +10,16 @@ type CreateUserBody = {
   standortIds?: string[];
 };
 
+type AdminUserProfile = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: string;
+  active: boolean;
+  must_change_password: boolean | null;
+  user_standorte?: Array<{ standort_id: string }>;
+};
+
 export async function GET() {
   const auth = await requireSuperAdmin();
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -24,7 +34,7 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
-    users: (profiles ?? []).map((profile: any) => ({
+    users: ((profiles ?? []) as AdminUserProfile[]).map((profile) => ({
       id: profile.id,
       email: profile.email,
       fullName: profile.full_name,

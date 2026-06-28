@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { CSSProperties } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -45,7 +46,7 @@ import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
-import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildManualResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
+import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -407,12 +408,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     setCaseToResolve(fall);
   }
 
-  function markCaseStillOpen(fall: BfsCase) {
-    setCaseResolutionMode("open_manual");
-    setCaseResolveError("");
-    setCaseToResolve(fall);
-  }
-
   function cancelCaseFinally(fall: BfsCase) {
     setCaseResolutionMode("cancelled_manual");
     setCaseResolveError("");
@@ -457,7 +452,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         <div className="sidebar-inner">
           <div className="sidebar-top">
             <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zum Management Cockpit">
-              <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
+              <Image className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" width={1859} height={557} priority />
             </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
               <X size={18} />
@@ -493,7 +488,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <div className="user-box">
               <UserRoundCheck size={18} />
               <div>
-                <strong>{role === "super_admin" ? "Zentrale / CFO" : selectedStandort.name}</strong>
+                <strong>{role === "super_admin" ? "Orisus BFS Monitor" : selectedStandort.name}</strong>
                 <span>{session?.email ?? "Nicht angemeldet"}</span>
                 <small>{role === "super_admin" ? "Super Admin" : "Standortleitung"} · {isGroupScope ? "Alle Standorte" : selectedStandort.name}</small>
               </div>
@@ -518,20 +513,20 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <section className="workspace" ref={workspaceRef}>
         <header className="topbar">
           <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Management Cockpit">
-            <img className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
+            <Image className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" width={1859} height={557} priority />
           </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
             <Menu size={18} />
           </button>
           <div className="topbar-title desktop-page-title">
             <span className="eyebrow">{pageScopeLabel}</span>
-            <h1>{titleFor(activeView, role, isGroupScope)}</h1>
+            <h1>{titleFor(activeView)}</h1>
           </div>
         </header>
         <div className="mobile-page-heading">
           <div>
             <span className="eyebrow">{pageScopeLabel}</span>
-            <h1>{titleFor(activeView, role, isGroupScope)}</h1>
+            <h1>{titleFor(activeView)}</h1>
           </div>
         </div>
 
@@ -557,18 +552,18 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
-            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
-            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
+            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />}
-            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
@@ -686,7 +681,7 @@ function AppLoadingScreen({ title, message }: { title: string; message: string }
   return (
     <main className="app-loading-shell" aria-live="polite" aria-busy="true">
       <section className="app-loading-card">
-        <img className="app-loading-logo" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" />
+        <Image className="app-loading-logo" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" width={1859} height={557} priority />
         <div>
           <span className="eyebrow">Orisus BFS Monitor</span>
           <h1>{title}</h1>
@@ -705,7 +700,7 @@ function AccessGate({ title, message }: { title: string; message: string }) {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand mini-brand">
-          <img className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" />
+          <Image className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" width={48} height={48} />
           <div>
             <strong>Orisus BFS Monitor</strong>
             <span>Geschützter Bereich</span>
@@ -766,7 +761,7 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
   return isKnownStandortScope(standortId);
 }
 
-function titleFor(view: string, role: AppRole, isGroupScope: boolean) {
+function titleFor(view: string) {
   const titles: Record<string, string> = {
     dashboard: "Management Cockpit",
     custom: "Zusammenfassung",
@@ -1560,12 +1555,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
   const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod), [importRows, filteredStandorte, openCases, cockpitPeriod]);
-  const managementRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
-    return rowStandort ? importRowInPeriod(row, managementComparison.currentPeriod, rowStandort) : false;
-  }), [importRows, filteredStandorte, managementComparison.currentPeriod]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
-  const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases), [filteredStandorte, managementComparison.currentPeriod, managementRows, managementComparison.openCases]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
@@ -1886,70 +1876,6 @@ function ManagementComboChart({
   );
 }
 
-function YearComparisonBars({
-  title,
-  values,
-  format
-}: {
-  title: string;
-  values: { label: string; current: number; previous: number; context?: string; currentYear?: number; previousYear?: number }[];
-  format: (value: number) => string;
-}) {
-  const defaultCurrentYear = values[0]?.currentYear ?? todayReference.getFullYear();
-  const defaultPreviousYear = values[0]?.previousYear ?? defaultCurrentYear - 1;
-  const [activePoint, setActivePoint] = useState<{ label: string; year: number; value: number; context?: string } | null>(null);
-  const maxValue = Math.max(...values.flatMap((value) => [value.current, value.previous]), 1);
-  const active = activePoint ?? (values[0] ? { label: values[0].label, year: values[0].currentYear ?? defaultCurrentYear, value: values[0].current, context: values[0].context } : null);
-  return (
-    <div className="year-comparison-chart" aria-label={title}>
-      <div className="year-chart-head">
-        <div className="year-legend">
-          <span><i className="previous" /> {defaultPreviousYear}</span>
-          <span><i className="current" /> {defaultCurrentYear}</span>
-        </div>
-        {active && (
-          <div className="year-active-value">
-            <span>{active.context ?? title}</span>
-            <em>{monthLabelForYear(active.label, active.year)}</em>
-            <strong>{format(active.value)}</strong>
-          </div>
-        )}
-      </div>
-      <div className="year-bars">
-        {values.map((value) => (
-          <div className="year-month" key={value.label}>
-            <div className="year-pair">
-              <button
-                type="button"
-                className={active?.label === value.label && active.year === (value.previousYear ?? defaultPreviousYear) ? "previous active" : "previous"}
-                style={{ height: `${Math.max(4, (value.previous / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
-                onFocus={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: value.previousYear ?? defaultPreviousYear, value: value.previous, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}${monthLabelForYear(value.label, value.previousYear ?? defaultPreviousYear)}: ${format(value.previous)}`}
-              >
-                <span>{value.context && <b>{value.context}</b>}{format(value.previous)}</span>
-              </button>
-              <button
-                type="button"
-                className={active?.label === value.label && active.year === (value.currentYear ?? defaultCurrentYear) ? "current active" : "current"}
-                style={{ height: `${Math.max(4, (value.current / maxValue) * 100)}%` }}
-                onClick={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
-                onFocus={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
-                onPointerEnter={() => setActivePoint({ label: value.label, year: value.currentYear ?? defaultCurrentYear, value: value.current, context: value.context })}
-                aria-label={`${value.context ? `${value.context}, ` : ""}${monthLabelForYear(value.label, value.currentYear ?? defaultCurrentYear)}: ${format(value.current)}`}
-              >
-                <span>{value.context && <b>{value.context}</b>}{format(value.current)}</span>
-              </button>
-            </div>
-            <small>{monthAxisLabel(value.label, value.currentYear ?? defaultCurrentYear)}</small>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function YearComparisonLines({
   title,
   values,
@@ -2225,17 +2151,6 @@ function ytdPeriod(year: number): PeriodOption {
   };
 }
 
-function comparablePreviousYtdPeriod(currentYear: number): PeriodOption {
-  const previousYear = currentYear - 1;
-  return {
-    id: `year-${previousYear}-ytd-comparable`,
-    label: `${previousYear} YTD`,
-    detail: "vergleichbarer Vorjahreszeitraum",
-    start: new Date(previousYear, 0, 1),
-    end: new Date(previousYear, todayReference.getMonth(), todayReference.getDate())
-  };
-}
-
 function metricsFromRows(rows: ImportPreviewRow[]) {
   const summary = summarizeImportRows(rows);
   return summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
@@ -2447,7 +2362,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
   ];
 }
 
-function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function BenchmarkView({ importRows, manualCaseResolutions = [] }: { importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [comparisonPeriodId, setComparisonPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -2533,7 +2448,7 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
   );
 }
 
-function QualityView({ standort, cases: rows, importRows = [], onNavigate, manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; onNavigate: (view: string) => void; manualCaseResolutions?: ManualCaseResolution[] }) {
+function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [noProtectionPeriodId, setNoProtectionPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -2994,7 +2909,6 @@ function AnswerCockpit({
   importRows = [],
   manualCaseResolutions = [],
   periodMetrics,
-  periodLabel,
   hasImportDataset: hasImportDatasetProp
 }: {
   scope: "group" | "location";
@@ -3006,7 +2920,6 @@ function AnswerCockpit({
   importRows?: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
   periodMetrics?: BfsMetrics;
-  periodLabel?: string;
   hasImportDataset?: boolean;
 }) {
   const hasImportDataset = hasImportDatasetProp ?? importRows.length > 0;
@@ -3033,13 +2946,11 @@ function AnswerCockpit({
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics(), [importSummary, periodMetrics]);
   const openCases = useMemo(() => scopedRows.filter((fall) => !fall.status.includes("erledigt")), [scopedRows]);
   const chargebacks = useMemo(() => openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung")), [openCases]);
-  const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
   const recurringRisks = useMemo(() => getRecurringRiskProfiles(
     relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
     scopedImportRows,
     hasImportDataset
   ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)), [relevantStandorte, scopedImportRows, hasImportDataset]);
-  const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
   const submitted = selectedMetrics.submitted;
   const payout = selectedMetrics.payout;
   const fees = selectedMetrics.fees;
@@ -3087,13 +2998,13 @@ function AnswerCockpit({
 
   useEffect(() => {
     if (scope === "location" && standort) setSelectedAnswerStandortId(standort.id);
-  }, [scope, standort?.id]);
+  }, [scope, standort]);
 
   return (
     <section className={compact ? "answer-cockpit compact" : "answer-cockpit"}>
       <div className="answer-header">
         <div>
-          <span className="eyebrow">CFO-Schnellantworten</span>
+          <span className="eyebrow">Cockpit-Schnellantworten</span>
           <h2>{title}</h2>
         </div>
         {showReportAction && <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>}
@@ -3397,17 +3308,13 @@ function ClaimsFlowView({
   standort,
   cases: rows,
   importRows = [],
-  manualCaseResolutions = [],
-  onResolvePaid,
-  onKeepOpen
+  manualCaseResolutions = []
 }: {
   mode?: "details" | "cashflow";
   standort?: Standort;
   cases: BfsCase[];
   importRows?: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
-  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
-  onKeepOpen?: (fall: BfsCase) => void | Promise<void>;
 }) {
   const rowsStandorte = useMemo(() => standort ? [standort] : standorte, [standort]);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
@@ -5019,12 +4926,6 @@ function formatDelta(value: number) {
   return `${sign}${formatPercent(value)}`;
 }
 
-function countStartedMonths(start: Date, end: Date) {
-  const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
-  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
-  return (endMonth.getFullYear() - startMonth.getFullYear()) * 12 + endMonth.getMonth() - startMonth.getMonth() + 1;
-}
-
 function maxDate(a: Date, b: Date) {
   return a > b ? a : b;
 }
@@ -6420,12 +6321,6 @@ function openImportDb() {
   });
 }
 
-function formatBytes(bytes: number) {
-  if (!bytes) return "0 KB";
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${integerNumber.format(bytes / 1024 / 1024)} MB`;
-}
-
 function CasesView({
   cases: rows,
   compact = false,
@@ -7008,7 +6903,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
   );
 }
 
-function PatientClassificationView({ standort, cases: rows, importRows = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[] }) {
+function PatientClassificationView({ standort, importRows = [] }: { standort?: Standort; importRows?: ImportPreviewRow[] }) {
   const profiles = useMemo(() => patientProfilesFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
   const riskClaims = useMemo(() => riskClaimsFromImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows), [importRows, standort]);
   const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, importRows), [importRows, standort?.id]);
@@ -7124,7 +7019,7 @@ function PatientClassificationView({ standort, cases: rows, importRows = [] }: {
   );
 }
 
-function OutcomeControlView({ standort, cases: rows, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function OutcomeControlView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const outcomeRows = useMemo(() => outcomeRowsFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
   const openItems = useMemo(() => openUnresolvedMovementsFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(importRows, standort?.id, manualCaseResolutions), [importRows, standort?.id, manualCaseResolutions]);
@@ -7563,15 +7458,6 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
           <label>Sortierung<select><option>Alter absteigend</option><option>Betrag absteigend</option><option>Standort</option></select></label>
         </div>
       </section>
-    </div>
-  );
-}
-
-function ImportHistory({ rows }: { rows: ImportPreviewRow[] }) {
-  return (
-    <div className="content-stack">
-      <ImportHistorySummary rows={rows} />
-      <ImportPreview rows={rows} />
     </div>
   );
 }

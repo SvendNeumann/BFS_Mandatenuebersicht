@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
 import { importRowBusinessIdentity } from "@/lib/import-identity";
 import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
@@ -7,7 +8,7 @@ import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type SupabaseDbClient = any;
+type SupabaseDbClient = SupabaseClient;
 
 type ImportPersistenceResult = {
   batchId: string;

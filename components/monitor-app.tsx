@@ -703,7 +703,9 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
   const [groupFocus, setGroupFocus] = useState("gesamt");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? selectedPeriod, [periodOptions, benchmarkPeriodId, selectedPeriod]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
@@ -720,12 +722,22 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, filteredStandorte, selectedPeriod]);
+  const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
+    return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
+  }), [importRows, filteredStandorte, benchmarkPeriod]);
+  const benchmarkOpenCases = useMemo(() => dashboardCases.filter((fall) => {
+    if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
+    const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
+    return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
+  }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases), [importRows, filteredStandorte, openCases]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(filteredStandorte, importRows), [filteredStandorte, importRows]);
   const locationSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, selectedPeriod, scopedImportRows, openCases), [filteredStandorte, selectedPeriod, scopedImportRows, openCases]);
+  const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: selectedPeriod };
@@ -800,11 +812,21 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
         <div className="panel-heading">
           <div>
             <h2>Standort-Benchmark</h2>
-            <p>Chronologisch nach Vertragsstart: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
+            <p>Zeitraum: {benchmarkPeriod.label}. Chronologisch nach Vertragsstart: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
           </div>
-          <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
+          <div className="benchmark-panel-actions">
+            <label className="select-label benchmark-period-select">
+              Zeitraum Benchmark
+              <select value={benchmarkPeriodId} onChange={(event) => setBenchmarkPeriodId(event.target.value)}>
+                {periodOptions.map((period) => (
+                  <option key={period.id} value={period.id}>{period.label}</option>
+                ))}
+              </select>
+            </label>
+            <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
+          </div>
         </div>
-        <LocationBenchmarkCards snapshots={locationSnapshots} onNavigate={onNavigate} compact />
+        <LocationBenchmarkCards snapshots={benchmarkSnapshots} onNavigate={onNavigate} compact />
       </section>
       <section className="panel operative-entry-panel">
         <div className="panel-heading">

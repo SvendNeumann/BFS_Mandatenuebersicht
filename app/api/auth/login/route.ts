@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { standorte as appStandorte } from "@/lib/demo-data";
+import { createServiceClient } from "@/lib/server-auth";
 
 const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
@@ -47,12 +49,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dieser Nutzer ist für den BFS Monitor nicht freigegeben." }, { status: 403 });
   }
 
+  const assignmentClient = createServiceClient() ?? userClient;
+  const standortIds = profile.role === "standortleitung" ? await loadAssignedAppStandortIds(assignmentClient, data.user.id) : [];
   const response = NextResponse.json({
     session: {
       email: profile.email,
       role: profile.role,
       active: true,
-      mustChangePassword: Boolean(profile.must_change_password)
+      mustChangePassword: Boolean(profile.must_change_password),
+      standortIds
     }
   });
   const maxAge = body.remember
@@ -63,6 +68,22 @@ export async function POST(request: Request) {
   response.cookies.set(refreshCookie, data.session.refresh_token, sessionCookieOptions(body.remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7));
   response.cookies.set(legacyAppSessionCookie, "", sessionCookieOptions(0));
   return response;
+}
+
+async function loadAssignedAppStandortIds(userClient: { from: (table: string) => any }, userId: string) {
+  const { data: assignments } = await userClient
+    .from("user_standorte")
+    .select("standort_id")
+    .eq("user_id", userId);
+  const dbIds = (assignments ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
+  if (!dbIds.length) return [];
+  const { data: rows } = await userClient
+    .from("standorte")
+    .select("id, name")
+    .in("id", dbIds);
+  return (rows ?? [])
+    .map((row: { name: string | null }) => appStandorte.find((standort) => standort.name === row.name)?.id)
+    .filter((id: string | undefined): id is string => Boolean(id));
 }
 
 function sessionCookieOptions(maxAge: number) {

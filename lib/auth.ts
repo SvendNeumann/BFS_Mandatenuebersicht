@@ -8,6 +8,7 @@ export type DemoSession = {
   role: AppRole;
   active: boolean;
   mustChangePassword?: boolean;
+  standortIds?: string[];
   expiresAt: number;
 };
 
@@ -22,7 +23,7 @@ export async function loginWithEmail(email: string, password: string, remember: 
     if (!profile?.active) throw new Error("Dieser Nutzer ist für den BFS Monitor nicht freigegeben.");
     if (!data.session?.access_token || !data.session.refresh_token) throw new Error("Supabase-Session konnte nicht erstellt werden.");
     await persistServerSession(data.session.access_token, data.session.refresh_token, data.session.expires_at, remember);
-    return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, expiresAt: expiresAt(remember) });
+    return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, standortIds: profile.standortIds, expiresAt: expiresAt(remember) });
   }
 
   throw new Error("Supabase Auth ist nicht konfiguriert.");
@@ -85,6 +86,9 @@ export const getDemoSession = getStoredSession;
 
 export async function getCurrentSession(): Promise<DemoSession | null> {
   const stored = getStoredSession();
+  if (stored?.role === "super_admin" || (stored && Array.isArray(stored.standortIds))) return stored;
+  const serverSession = await loadServerSession().catch(() => null);
+  if (serverSession) return persistSession({ ...serverSession, expiresAt: stored?.expiresAt ?? expiresAt(true) });
   if (stored) return stored;
   if (!supabase) return null;
 
@@ -93,7 +97,7 @@ export async function getCurrentSession(): Promise<DemoSession | null> {
   if (!userId) return null;
   const profile = await loadProfile(userId);
   if (!profile?.active) return null;
-  return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, expiresAt: expiresAt(true) });
+  return persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: profile.mustChangePassword, standortIds: profile.standortIds, expiresAt: expiresAt(true) });
 }
 
 export async function logout() {
@@ -140,12 +144,50 @@ async function loadProfile(userId: string | undefined) {
     .maybeSingle();
   if (error) throw error;
   if (!data || (data.role !== "super_admin" && data.role !== "standortleitung")) return null;
+  const standortIds = data.role === "standortleitung" ? await loadProfileStandortIds(userId) : [];
   return {
     email: data.email,
     role: data.role,
     active: data.active,
-    mustChangePassword: Boolean(data.must_change_password)
-  } as { email: string; role: AppRole; active: boolean; mustChangePassword: boolean };
+    mustChangePassword: Boolean(data.must_change_password),
+    standortIds
+  } as { email: string; role: AppRole; active: boolean; mustChangePassword: boolean; standortIds: string[] };
+}
+
+async function loadProfileStandortIds(userId: string) {
+  if (!supabase) return [];
+  const { data: assignments } = await supabase
+    .from("user_standorte")
+    .select("standort_id")
+    .eq("user_id", userId);
+  const dbIds = (assignments ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
+  if (!dbIds.length) return [];
+  const { data: rows } = await supabase
+    .from("standorte")
+    .select("id, name")
+    .in("id", dbIds);
+  return mapDatabaseStandorteToAppIds(rows ?? []);
+}
+
+async function loadServerSession() {
+  const response = await fetch("/api/auth/session", { method: "GET" }).catch(() => null);
+  if (!response?.ok) return null;
+  const payload = await response.json().catch(() => null) as { session?: Omit<DemoSession, "expiresAt"> } | null;
+  return payload?.session ?? null;
+}
+
+function mapDatabaseStandorteToAppIds(rows: Array<{ name?: string | null }>) {
+  const appStandorte = [
+    { id: "kirchberg", name: "Kirchberg" },
+    { id: "essen", name: "Essen" },
+    { id: "kehl", name: "Kehl" },
+    { id: "ulmet", name: "Ulmet" },
+    { id: "huettenberg", name: "Hüttenberg" },
+    { id: "kassel", name: "Kassel" }
+  ];
+  return rows
+    .map((row) => appStandorte.find((standort) => standort.name === row.name)?.id)
+    .filter((id): id is string => Boolean(id));
 }
 
 async function persistServerSession(accessToken: string, refreshToken: string, expiresAtSeconds: number | undefined, remember: boolean) {

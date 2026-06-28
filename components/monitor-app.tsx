@@ -211,9 +211,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [caseResolveError, setCaseResolveError] = useState("");
   const [caseResolveSaving, setCaseResolveSaving] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
-  const selectedStandort = standorte.find((standort) => standort.id === selectedStandortId) ?? standorte[0];
+  const permittedStandorte = useMemo(() => permittedStandorteForRole(role, session), [role, session]);
+  const selectedStandort = permittedStandorte.find((standort) => standort.id === selectedStandortId) ?? permittedStandorte[0] ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
-  const hasUploadData = liveImportRows.length > 0;
+  const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
+  const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
+  const hasUploadData = privacyScopedImportRows.length > 0;
   const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "dashboard",
@@ -239,8 +242,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
     const resolvedKeys = new Set(manualCaseResolutions.filter((resolution) => resolution.status === "paid_manual").map((resolution) => resolution.caseKey));
-    return casesFromImportRows(liveImportRows).filter((fall) => !resolvedKeys.has(caseResolutionKey(fall)));
-  }, [liveImportRows, manualCaseResolutions]);
+    return casesFromImportRows(privacyScopedImportRows).filter((fall) => !resolvedKeys.has(caseResolutionKey(fall)));
+  }, [privacyScopedImportRows, manualCaseResolutions]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [appCases, isGroupScope, selectedStandort.id]
@@ -304,12 +307,18 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }, [activeView]);
 
   useEffect(() => {
-    if (role !== "super_admin" && selectedStandortId === "gruppe") {
-      setSelectedStandortId(standorte[0].id);
+    if (!isKnownViewForRole(activeView, role)) {
+      setActiveView("dashboard");
+    }
+  }, [activeView, role]);
+
+  useEffect(() => {
+    if (role !== "super_admin" && permittedStandorte.length && !permittedStandorte.some((standort) => standort.id === selectedStandortId)) {
+      setSelectedStandortId(permittedStandorte[0].id);
       return;
     }
     writeStoredViewState(activeView, selectedStandortId, role);
-  }, [activeView, selectedStandortId, role]);
+  }, [activeView, selectedStandortId, role, permittedStandorte]);
 
   if (requireAuth && !session && !sessionChecked) {
     return <AppLoadingScreen title="Anmeldung wird geprüft" message="Die Session wird validiert und der Datenstand vorbereitet." />;
@@ -323,12 +332,17 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return <AccessGate title="Kein Zugriff auf diesen Bereich." message="Dieser Bereich ist für deine Rolle nicht freigegeben." />;
   }
 
+  if (requireAuth && role === "standortleitung" && sessionChecked && !hasAssignedStandort) {
+    return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
+  }
+
   if (!appDataLoaded) {
     return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände und Standortfilter werden synchronisiert." />;
   }
 
   function selectStandortTab(nextStandortId: string) {
     if (nextStandortId === selectedStandortId) return;
+    if (role !== "super_admin" && !permittedStandorte.some((standort) => standort.id === nextStandortId)) return;
     pushCurrentViewToHistory();
     setSelectedStandortId(nextStandortId);
     if (activeView === "groupReports" && nextStandortId !== "gruppe") {
@@ -372,9 +386,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     if (!previous) return;
     setViewHistory((current) => current.slice(0, -1));
     const nextStandortId = role !== "super_admin" && previous.selectedStandortId === "gruppe"
-      ? standorte[0].id
+      ? permittedStandorte[0]?.id ?? selectedStandort.id
       : previous.selectedStandortId;
-    setSelectedStandortId(isKnownStandortScopeForRole(nextStandortId, role) ? nextStandortId : role === "super_admin" ? "gruppe" : standorte[0].id);
+    setSelectedStandortId(isKnownStandortScopeForRole(nextStandortId, role) ? nextStandortId : role === "super_admin" ? "gruppe" : permittedStandorte[0]?.id ?? selectedStandort.id);
     setActiveView(isKnownViewForRole(previous.activeView, role) ? previous.activeView : "dashboard");
     setMobileNavOpen(false);
     openNavSectionForView(previous.activeView);
@@ -525,9 +539,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         {showStandortTabs && (
           <StandortTabs
             role={role}
+            standorte={permittedStandorte}
             selectedStandortId={selectedStandortId}
             onSelect={selectStandortTab}
-            importRows={liveImportRows}
+            importRows={privacyScopedImportRows}
           />
         )}
 
@@ -537,25 +552,25 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard onNavigate={navigateTo} importRows={liveImportRows} />
-                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />
+                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} />
+                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
             {activeView === "worklist" && <WorklistView cases={visibleCases} onNavigate={navigateTo} />}
-            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={liveImportRows} />}
-            {activeView === "benchmark" && <BenchmarkView onNavigate={navigateTo} importRows={liveImportRows} />}
-            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
+            {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
+            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView onNavigate={navigateTo} importRows={privacyScopedImportRows} />}
+            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} onNavigate={navigateTo} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "claims" && <ClaimsFlowView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} onResolvePaid={resolveCaseAsPaid} onKeepOpen={markCaseStillOpen} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "chargebacks" && <CasesView cases={visibleCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))} title="Rückbelastungen" description="Alle echten Rückbelastungen, die aktiv geklärt oder an den Standort gegeben werden müssen." onResolvePaid={resolveCaseAsPaid} />}
             {activeView === "followups" && <CasesView cases={visibleCases.filter((fall) => fall.status === "wiedervorlage" || fall.dueDate !== "-")} title="Wiedervorlagen" description="Fälle mit Frist, Rückfrage oder nächstem Bearbeitungstermin." onResolvePaid={resolveCaseAsPaid} />}
-            {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
-            {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={liveImportRows} />}
-            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={liveImportRows} standort={isGroupScope ? undefined : selectedStandort} />}
-            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />}
-            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={liveImportRows} />)}
+            {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
+            {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
+            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
+            {activeView === "matches" && <MatchesView cases={visibleCases} importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} />}
+            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />}
+            {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={visibleCases} importRows={privacyScopedImportRows} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -601,8 +616,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   );
 }
 
-function StandortTabs({ role, selectedStandortId, onSelect, importRows }: { role: AppRole; selectedStandortId: string; onSelect: (standortId: string) => void; importRows: ImportPreviewRow[] }) {
-  const visibleStandorte = role === "super_admin" ? orderedStandorte() : orderedStandorte(standorte.slice(0, 1));
+function StandortTabs({ role, standorte: visibleStandorte, selectedStandortId, onSelect, importRows }: { role: AppRole; standorte: Standort[]; selectedStandortId: string; onSelect: (standortId: string) => void; importRows: ImportPreviewRow[] }) {
   const openCasesByStandort = countOpenCasesByStandort(importRows);
   return (
     <section className="standort-tabs" aria-label="Standorte">
@@ -621,6 +635,18 @@ function StandortTabs({ role, selectedStandortId, onSelect, importRows }: { role
       ))}
     </section>
   );
+}
+
+function permittedStandorteForRole(role: AppRole, session: DemoSession | null) {
+  if (role === "super_admin") return orderedStandorte();
+  const assigned = new Set(session?.standortIds ?? []);
+  return orderedStandorte(standorte.filter((standort) => assigned.has(standort.id)));
+}
+
+function scopeImportRowsForRole(rows: ImportPreviewRow[], role: AppRole, permittedStandorte: Standort[]) {
+  if (role === "super_admin") return rows;
+  const permittedNames = new Set(permittedStandorte.map((standort) => standort.name));
+  return rows.filter((row) => permittedNames.has(row.location));
 }
 
 function NoUploadDataView({ onUpload }: { onUpload: () => void }) {
@@ -1818,7 +1844,7 @@ function GroupFilterBar({
   );
 }
 
-function LocationDashboard({ standort, cases, onNavigate, importRows }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void; importRows: ImportPreviewRow[] }) {
+function LocationDashboard({ standort, cases, onNavigate, importRows, peerImportRows }: { standort: Standort; cases: BfsCase[]; onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; peerImportRows: ImportPreviewRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
@@ -1828,18 +1854,18 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt")), [cases]);
   const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases), [importRows, openCases, standort]);
-  const groupComparison = useMemo(() => buildManagementComparison(importRows, orderedStandorte(), casesFromImportRows(importRows)), [importRows]);
+  const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
-  const groupChargebackRate = groupComparison.chargebackRate;
-  const groupNoProtectionShare = groupComparison.noProtectionShare;
+  const groupChargebackRate = peerAverage.chargebackRate;
+  const groupNoProtectionShare = peerAverage.noProtectionShare;
   const locationKpis: KpiCardTuple[] = [
     ["Eingereicht YTD", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
     ["Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...locationSparklineContext, period: managementComparison.previousPeriod })],
     ["Delta Vorjahr", `${money.format(managementComparison.submittedDelta)} · ${formatDelta(managementComparison.submittedDeltaRate)}`, managementComparison.currentPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
-    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Gruppe ${formatFeeRate(groupComparison.currentMetrics.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
-    ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
-    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
+    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Ø Gruppe ${formatFeeRate(peerAverage.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
+    ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Ø Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Ø Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
     ["Offene Fälle", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, undefined, kpiSparklineForLabel("Offene Klärfälle", locationSparklineContext)],
     ["Patientenqualität", patientQualityMixLabel(importRows, standort.id), "A/B/C/D-Mix", undefined, kpiSparklineForLabel("Ohne Ausfallschutz", locationSparklineContext)]
   ];
@@ -1879,14 +1905,14 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Einordnung</span>
-              <h2>{standort.name} gegen Gruppe</h2>
-              <p>Gebührenquote, Rückbelastung und Ohne-Ausfallschutz werden nach der Verlaufsgrafik fachlich eingeordnet.</p>
+              <h2>{standort.name} gegen anonymen Gruppenschnitt</h2>
+              <p>Gebührenquote, Rückbelastung und Ohne-Ausfallschutz werden gegen den Durchschnitt aller Standorte seit jeweiligem Vertragsstart eingeordnet. Andere Standortnamen und Klarwerte werden nicht angezeigt.</p>
             </div>
           </div>
           <div className="stacked-checks">
-            <span>Gebührenquote Standort: {formatFeeRate(managementComparison.currentMetrics.feeRate)} · Gruppe: {formatFeeRate(groupComparison.currentMetrics.feeRate)}</span>
-            <span>Rückbelastungsquote Standort: {formatPercent(managementComparison.chargebackRate)} · Gruppe: {formatPercent(groupChargebackRate)}</span>
-            <span>Ohne-Ausfallschutz-Anteil Standort: {formatPercent(managementComparison.noProtectionShare)} · Gruppe: {formatPercent(groupNoProtectionShare)}</span>
+            <span>Gebührenquote Standort: {formatFeeRate(managementComparison.currentMetrics.feeRate)} · Ø Gruppe: {formatFeeRate(peerAverage.feeRate)}</span>
+            <span>Rückbelastungsquote Standort: {formatPercent(managementComparison.chargebackRate)} · Ø Gruppe: {formatPercent(groupChargebackRate)}</span>
+            <span>Ohne-Ausfallschutz-Anteil Standort: {formatPercent(managementComparison.noProtectionShare)} · Ø Gruppe: {formatPercent(groupNoProtectionShare)}</span>
           </div>
         </article>
       </section>
@@ -1895,7 +1921,7 @@ function LocationDashboard({ standort, cases, onNavigate, importRows }: { stando
           <div>
             <span className="eyebrow">Standortfokus</span>
             <h2>{standort.name}: Entwicklung zuerst, Fallarbeit danach</h2>
-            <p>Gebührenquote {formatFeeRate(managementComparison.currentMetrics.feeRate)} gegen Gruppe {formatFeeRate(groupComparison.currentMetrics.feeRate)}. Rückbelastungsquote {formatPercent(managementComparison.chargebackRate)} gegen Gruppe {formatPercent(groupChargebackRate)}.</p>
+            <p>Gebührenquote {formatFeeRate(managementComparison.currentMetrics.feeRate)} gegen Ø Gruppe {formatFeeRate(peerAverage.feeRate)}. Rückbelastungsquote {formatPercent(managementComparison.chargebackRate)} gegen Ø Gruppe {formatPercent(groupChargebackRate)}.</p>
           </div>
           <div className="quick-actions">
             <button className="primary-button" onClick={() => onNavigate("cases")}><AlertCircle size={16} /> Offene Fälle</button>
@@ -2834,6 +2860,41 @@ function zeroCashflow() {
 function metricsFromImportRowsForStandort(importRows: ImportPreviewRow[], standort: Standort, period: PeriodOption) {
   const summary = summarizeImportRows(importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort)));
   return summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
+}
+
+function buildAnonymousPeerAverage(importRows: ImportPreviewRow[]) {
+  const sinceStart = buildCashflowPeriods().find((period) => period.id === "since-start") ?? buildCashflowPeriods()[0];
+  const locationMetrics = orderedStandorte()
+    .map((standort) => {
+      const metrics = metricsFromImportRowsForStandort(importRows, standort, sinceStart);
+      const chargebackRate = metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
+      const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
+      return {
+        submitted: metrics.submitted,
+        feeRate: metrics.feeRate,
+        chargebackRate,
+        noProtectionShare
+      };
+    })
+    .filter((metrics) => metrics.submitted > 0);
+
+  if (!locationMetrics.length) {
+    return {
+      feeRate: 0,
+      chargebackRate: 0,
+      noProtectionShare: 0
+    };
+  }
+
+  return {
+    feeRate: average(locationMetrics.map((metrics) => metrics.feeRate)),
+    chargebackRate: average(locationMetrics.map((metrics) => metrics.chargebackRate)),
+    noProtectionShare: average(locationMetrics.map((metrics) => metrics.noProtectionShare))
+  };
+}
+
+function average(values: number[]) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
 type ImportSummary = ReturnType<typeof summarizeImportRows>;

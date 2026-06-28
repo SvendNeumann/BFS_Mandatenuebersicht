@@ -1,8 +1,28 @@
 import { NextResponse } from "next/server";
+import { standorte as appStandorte } from "@/lib/demo-data";
+import { getRequestProfile, createServiceClient, createUserClient } from "@/lib/server-auth";
 
 const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
 const legacyAppSessionCookie = "orisus_bfs_app_session";
+
+export async function GET() {
+  const auth = await getRequestProfile();
+  if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const userClient = createUserClient(auth.accessToken);
+  if (!userClient) return NextResponse.json({ error: "Supabase ist nicht konfiguriert." }, { status: 500 });
+  const assignmentClient = createServiceClient() ?? userClient;
+  const standortIds = auth.profile.role === "standortleitung" ? await loadAssignedAppStandortIds(assignmentClient, auth.profile.id) : [];
+  return NextResponse.json({
+    session: {
+      email: auth.profile.email,
+      role: auth.profile.role,
+      active: true,
+      mustChangePassword: Boolean(auth.profile.must_change_password),
+      standortIds
+    }
+  });
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
@@ -43,4 +63,21 @@ function sessionCookieOptions(maxAge: number) {
     path: "/",
     maxAge
   };
+}
+
+async function loadAssignedAppStandortIds(userClient: { from: (table: string) => any } | null, userId: string) {
+  if (!userClient) return [];
+  const { data: assignments } = await userClient
+    .from("user_standorte")
+    .select("standort_id")
+    .eq("user_id", userId);
+  const dbIds = (assignments ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
+  if (!dbIds.length) return [];
+  const { data: rows } = await userClient
+    .from("standorte")
+    .select("id, name")
+    .in("id", dbIds);
+  return (rows ?? [])
+    .map((row: { name: string | null }) => appStandorte.find((standort) => standort.name === row.name)?.id)
+    .filter((id: string | undefined): id is string => Boolean(id));
 }

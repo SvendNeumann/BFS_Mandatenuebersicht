@@ -1367,31 +1367,40 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
   const periodOptions = buildCashflowPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState(periodOptions[0].id);
   const [standortPeriodIds, setStandortPeriodIds] = useState<Record<string, string>>({});
+  const [recoveryPeriodId, setRecoveryPeriodId] = useState(periodOptions[0].id);
   const selectedPeriod = periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0];
+  const recoveryPeriod = periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod;
   const scopedImportRows = importRows.filter((row) => {
     const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   });
+  const recoveryScopedImportRows = importRows.filter((row) => {
+    const rowStandort = rowsStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, recoveryPeriod, rowStandort) : false;
+  });
   const allScopedLocationRows = importRows.filter((row) => rowsStandorte.some((entry) => entry.name === row.location));
   const importSummary = summarizeImportRows(scopedImportRows);
   const selectedMetrics = importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics();
+  const recoverySummary = summarizeImportRows(recoveryScopedImportRows);
+  const recoveryMetrics = recoverySummary.rows ? metricsFromImportSummary(recoverySummary) : zeroMetrics();
   const recentMonths = buildRecentMonthlyTrend(rowsStandorte.map((entry) => entry.id), selectedPeriod, importRows);
   const quarterRows = buildQuarterComparison(rowsStandorte.map((entry) => entry.id), importRows);
   const recoveryMatches = resubmissionCandidatesFromImportRows(allScopedLocationRows)
     .filter((candidate) => {
       const candidateStandort = rowsStandorte.find((entry) => entry.name === candidate.locationName);
-      return candidateStandort ? shortDateInPeriod(candidate.originalDate, selectedPeriod, candidateStandort) : false;
+      return candidateStandort ? shortDateInPeriod(candidate.originalDate, recoveryPeriod, candidateStandort) : false;
     });
   const recoveredByResubmission = uniqueRecoveryCandidates(recoveryMatches);
   const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
   const manualResolutionKeys = new Set(manualCaseResolutions.map((resolution) => resolution.caseKey));
-  const manuallyPaidCases = casesFromImportRows(scopedImportRows)
+  const manuallyPaidCases = casesFromImportRows(recoveryScopedImportRows)
     .filter((fall) => manualResolutionKeys.has(caseResolutionKey(fall)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
+  const recoveryDeductionAmount = recoveryMetrics.returnAmount + recoveryMetrics.cancellationAmount;
   const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.originalAmount, 0);
   const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const recoveredAmount = Math.min(deductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
-  const stillOpenAmount = Math.max(deductionAmount - recoveredAmount, 0);
+  const recoveredAmount = Math.min(recoveryDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
+  const stillOpenAmount = Math.max(recoveryDeductionAmount - recoveredAmount, 0);
   const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
   const deductionBreakdown = [
     { label: "Stornierungen", amount: selectedMetrics.cancellationAmount, detail: `${selectedMetrics.cancellationCount} Fälle`, kind: "Kontoauszug-Abzug" },
@@ -1402,10 +1411,10 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
     { label: "MwSt auf EWMA", amount: selectedMetrics.ewmaVat, detail: "Steuer auf EWMA", kind: "Steuer" }
   ].sort((a, b) => b.amount - a.amount);
   const biggestDeduction = deductionBreakdown.find((entry) => entry.amount > 0);
-  const deductionRate = selectedMetrics.submitted ? (deductionAmount / selectedMetrics.submitted) * 100 : 0;
+  const recoveryDeductionRate = recoveryMetrics.submitted ? (recoveryDeductionAmount / recoveryMetrics.submitted) * 100 : 0;
   const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
-  const notRecoveredRate = selectedMetrics.submitted ? (stillOpenAmount / selectedMetrics.submitted) * 100 : 0;
-  const recoveryRate = deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
+  const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
+  const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
 
   return (
     <div className="content-stack">
@@ -1529,16 +1538,30 @@ function ClaimsFlowView({ standort, cases: rows, importRows = [], manualCaseReso
         <div className="panel-heading">
           <div>
             <h2>Storno/Rückgabe & Wiedereinholung</h2>
-            <p>Zeitraum: {selectedPeriod.label}. Abgezogene Fälle werden gegen spätere Einreichungen oder manuell als bezahlt markierte Fälle geprüft.</p>
+            <p>Abgezogene Fälle werden gegen spätere Einreichungen oder manuell als bezahlt markierte Fälle geprüft.</p>
+          </div>
+        </div>
+        <div className="period-filter">
+          <label className="select-label">
+            Zeitraum Wiedereinholung
+            <select value={recoveryPeriodId} onChange={(event) => setRecoveryPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{recoveryPeriod.label}</strong>
+            <span>{recoveryPeriod.detail}. Die Tabelle zeigt erledigte Rückgaben/Stornos im gewählten Zeitraum.</span>
           </div>
         </div>
         <div className="priority-grid compact-priority">
-          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(deductionAmount)} hint="Rückläufer plus Stornierungen" period={selectedPeriod.label} tone={deductionAmount ? "red" : "green"} />
-          <PriorityCard label="Abzugsquote" value={`${deductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={selectedPeriod.label} tone={deductionRate ? "red" : "green"} />
-          <PriorityCard label="Wieder erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Neueinreichungen · ${manuallyPaidCases.length} manuell bezahlt`} period={selectedPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
-          <PriorityCard label="Noch nicht erledigt" value={money.format(stillOpenAmount)} hint="Abzug minus Neueinreichung/manuelle Zahlung" period={selectedPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
-          <PriorityCard label="Nicht reingeholt Quote" value={`${notRecoveredRate.toFixed(2)} %`} hint="noch offen vom eingereichten Umsatz" period={selectedPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
-          <PriorityCard label="Erledigungsquote" value={`${recoveryRate.toFixed(0)} %`} hint="Neueinreichung plus manuelle Zahlung" period={selectedPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Storno-/Rückgabe-Abzug" value={money.format(recoveryDeductionAmount)} hint="Rückläufer plus Stornierungen" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} />
+          <PriorityCard label="Abzugsquote" value={`${recoveryDeductionRate.toFixed(2)} %`} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
+          <PriorityCard label="Wieder erledigt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Neueinreichungen · ${manuallyPaidCases.length} manuell bezahlt`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} />
+          <PriorityCard label="Noch nicht erledigt" value={money.format(stillOpenAmount)} hint="Abzug minus Neueinreichung/manuelle Zahlung" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} />
+          <PriorityCard label="Nicht reingeholt Quote" value={`${notRecoveredRate.toFixed(2)} %`} hint="noch offen vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
+          <PriorityCard label="Erledigungsquote" value={`${recoveryRate.toFixed(0)} %`} hint="Neueinreichung plus manuelle Zahlung" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
         </div>
         <div className="table-wrap compact-table">
           <table>

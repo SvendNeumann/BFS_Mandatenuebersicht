@@ -1717,27 +1717,29 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
 }
 
 function LocationRevenueBars({ title, values }: { title: string; values: { label: string; value: number; detailLabel?: string }[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chartValues = values.length ? values : [{ label: "Keine Daten", value: 0 }];
-  const activeValue = chartValues[Math.min(activeIndex, chartValues.length - 1)];
+  const activeValue = activeIndex === null ? undefined : chartValues[Math.min(activeIndex, chartValues.length - 1)];
   const maxValue = Math.max(...chartValues.map((value) => value.value), 1);
   const total = chartValues.reduce((sum, value) => sum + value.value, 0);
 
   return (
     <div className="location-revenue-chart">
       <MetricInfo title={title} text={chartExplanation(title, chartValues)} />
-      <div className="location-revenue-summary">
-        <span>Kumuliert</span>
+      {activeValue && (
+        <div className="location-revenue-tooltip">
+          <strong>{activeValue.label}</strong>
+          <span>{title.includes("ausgezahlt") ? "Umsatz ausgezahlt" : "Umsatz kumuliert"}: {money.format(activeValue.value)}</span>
+          {activeValue.detailLabel && <em>{activeValue.detailLabel}</em>}
+        </div>
+      )}
+      <div className="location-revenue-total">
+        <span>Gesamt</span>
         <strong>{money.format(total)}</strong>
       </div>
-      <div className="location-revenue-tooltip">
-        <strong>{activeValue.label}</strong>
-        <span>{title.includes("ausgezahlt") ? "Umsatz ausgezahlt" : "Umsatz kumuliert"}: {money.format(activeValue.value)}</span>
-        {activeValue.detailLabel && <em>{activeValue.detailLabel}</em>}
-      </div>
-      <div className="location-revenue-scroll" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(0)}>
+      <div className="location-revenue-scroll" role="list" aria-label={title} onPointerLeave={() => setActiveIndex(null)}>
         {chartValues.map((value, index) => {
-          const width = value.value ? Math.max(3, (value.value / maxValue) * 100) : 1;
+          const width = value.value ? 18 + (value.value / maxValue) * 82 : 0;
           return (
             <button
               type="button"
@@ -1752,7 +1754,6 @@ function LocationRevenueBars({ title, values }: { title: string; values: { label
               <span className="location-revenue-bar-track">
                 <i style={{ width: `${width}%` }} />
               </span>
-              <small>{money.format(value.value)}</small>
             </button>
           );
         })}

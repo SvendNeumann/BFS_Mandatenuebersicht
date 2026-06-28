@@ -2108,22 +2108,11 @@ td small {
 .location-revenue-chart {
   position: relative;
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
-  padding-top: 6px;
+  padding-top: 38px;
 }
 
-.location-revenue-summary {
-  display: inline-grid;
-  justify-self: start;
-  gap: 2px;
-  border: 1px solid rgba(121, 238, 231, 0.18);
-  border-radius: 8px;
-  background: rgba(48, 213, 200, 0.08);
-  padding: 8px 10px;
-}
-
-.location-revenue-summary span,
 .location-revenue-tooltip em {
   color: var(--muted);
   font-size: 11px;
@@ -2131,22 +2120,20 @@ td small {
   font-weight: 800;
 }
 
-.location-revenue-summary strong {
-  color: #f8ffff;
-  font-size: 20px;
-  line-height: 1.05;
-}
-
 .location-revenue-tooltip {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 4;
   display: grid;
   gap: 3px;
-  width: fit-content;
-  max-width: min(100%, 360px);
+  width: max-content;
+  max-width: min(100%, 420px);
   border: 1px solid rgba(121, 238, 231, 0.22);
   border-radius: 8px;
-  background: rgba(2, 14, 24, 0.72);
+  background: rgba(2, 14, 24, 0.92);
   color: #eefbfb;
   padding: 9px 11px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
 }
 
 .location-revenue-tooltip strong {
@@ -2161,9 +2148,24 @@ td small {
   line-height: 1.1;
 }
 
+.location-revenue-total {
+  display: inline-flex;
+  justify-self: end;
+  align-items: baseline;
+  gap: 8px;
+  color: rgba(198, 219, 226, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.location-revenue-total strong {
+  color: #e8f8fa;
+  font-size: 14px;
+}
+
 .location-revenue-scroll {
   display: grid;
-  gap: 10px;
+  gap: 13px;
   min-height: 300px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -2177,10 +2179,10 @@ td small {
 
 .location-revenue-bar {
   display: grid;
-  grid-template-columns: minmax(84px, 0.34fr) minmax(190px, 1fr) minmax(92px, 0.38fr);
-  gap: 10px;
+  grid-template-columns: minmax(104px, 0.3fr) minmax(260px, 1fr);
+  gap: 12px;
   align-items: center;
-  min-width: 420px;
+  min-width: 390px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -2193,14 +2195,14 @@ td small {
   align-items: center;
   justify-content: start;
   min-width: 0;
-  height: 26px;
+  height: 32px;
   border-bottom: 1px solid rgba(178, 226, 229, 0.16);
 }
 
 .location-revenue-bar-track i {
   display: block;
-  height: 22px;
-  min-width: 5px;
+  height: 28px;
+  min-width: 0;
   border-radius: 0 8px 8px 0;
   background: linear-gradient(90deg, #7cf7ee 0%, #30d5c8 52%, #0f8b96 100%);
   box-shadow: 0 14px 30px rgba(48, 213, 200, 0.16);

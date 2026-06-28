@@ -3810,7 +3810,7 @@ function PriorityCard({ label, value, hint, tone, info, period, trend }: { label
 
 function InsightCard({ title, items }: { title: string; items: string[] }) {
   return (
-    <article className="panel insight-card">
+    <article className="panel insight-card" lang="de">
       <h2>{title}</h2>
       {items.map((item) => <span key={item}>{item}</span>)}
     </article>

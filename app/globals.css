@@ -1413,6 +1413,13 @@ input {
   background: linear-gradient(180deg, rgba(12, 49, 67, 0.9), rgba(7, 31, 45, 0.94));
 }
 
+.benchmark-signal-grid .insight-card span {
+  hyphens: auto;
+  overflow-wrap: anywhere;
+  text-align: justify;
+  text-align-last: left;
+}
+
 .priority-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }

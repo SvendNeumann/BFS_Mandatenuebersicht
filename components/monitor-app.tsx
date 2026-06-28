@@ -2425,35 +2425,53 @@ function buildCockpitAlerts(snapshots: LocationSnapshot[], metrics: BfsMetrics, 
   };
 }
 
-function LocationBenchmarkCards({ snapshots, compact = false }: { snapshots: LocationSnapshot[]; compact?: boolean }) {
+function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = false }: { snapshots: LocationSnapshot[]; previousSnapshots?: LocationSnapshot[]; compact?: boolean }) {
   const visible = [...snapshots].sort((a, b) => compareStandorteByContractStart(a.standort, b.standort));
+  const previousByStandort = new Map(previousSnapshots.map((entry) => [entry.standort.id, entry]));
   return (
     <div className={compact ? "location-card-grid compact" : "location-card-grid"}>
-      {visible.map((entry) => (
-        <article className={`location-benchmark-card ${entry.riskScore >= 35 ? "red" : entry.riskScore > 0 ? "amber" : "green"}`} key={entry.standort.id}>
-          <div className="location-card-head">
-            <div>
-              <span>Seit {entry.standort.goLiveLabel} · {entry.status}</span>
-              <strong>{entry.standort.name}</strong>
+      {visible.map((entry) => {
+        const previous = previousByStandort.get(entry.standort.id);
+        return (
+          <article className={`location-benchmark-card ${entry.riskScore >= 35 ? "red" : entry.riskScore > 0 ? "amber" : "green"}`} key={entry.standort.id}>
+            <div className="location-card-head">
+              <div>
+                <span>Seit {entry.standort.goLiveLabel} · {entry.status}</span>
+                <strong>{entry.standort.name}</strong>
+              </div>
+              <StatusBadge status={entry.riskScore >= 35 ? "prüfen" : entry.riskScore > 0 ? "beobachten" : "OK"} />
             </div>
-            <StatusBadge status={entry.riskScore >= 35 ? "prüfen" : entry.riskScore > 0 ? "beobachten" : "OK"} />
-          </div>
-          <div className="location-metric-grid">
-            <span><b>{money.format(entry.metrics.submitted)}</b> Umsatz</span>
-            <span><b>{formatFeeRate(entry.metrics.feeRate)}</b> Gebühr</span>
-            <span className="location-metric-with-info">
-              <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
-              <b>{formatPercent(entry.chargebackRate)}</b> Rückbelastung
-            </span>
-            <span><b>{money.format(entry.metrics.noProtectionAmount)}</b> ohne Schutz</span>
-            <span><b>{formatPercent(entry.noProtectionCaseRate)}</b> ohne Schutz Quote</span>
-            <span><b>{entry.openCases}</b> Klärfälle</span>
-            <span><b>{entry.oldest} Tage</b> ältester Fall</span>
-          </div>
-        </article>
-      ))}
+            <div className="location-metric-grid">
+              <LocationMetricTile label="Umsatz" value={money.format(entry.metrics.submitted)} current={entry.metrics.submitted} previous={previous?.metrics.submitted ?? 0} format={money.format} />
+              <LocationMetricTile label="Auszahlung" value={money.format(entry.metrics.payout)} current={entry.metrics.payout} previous={previous?.metrics.payout ?? 0} format={money.format} />
+              <LocationMetricTile label="Gebühr" value={formatFeeRate(entry.metrics.feeRate)} current={entry.metrics.feeRate} previous={previous?.metrics.feeRate ?? 0} format={formatFeeRate} />
+              <span className="location-metric-with-info">
+                <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
+                <LocationMetricTile label="Rückbelastung" value={formatPercent(entry.chargebackRate)} current={entry.chargebackRate} previous={previous?.chargebackRate ?? 0} format={formatPercent} bare />
+              </span>
+              <LocationMetricTile label="ohne Schutz" value={money.format(entry.metrics.noProtectionAmount)} current={entry.metrics.noProtectionAmount} previous={previous?.metrics.noProtectionAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="ohne Schutz Quote" value={formatPercent(entry.noProtectionCaseRate)} current={entry.noProtectionCaseRate} previous={previous?.noProtectionCaseRate ?? 0} format={formatPercent} />
+              <LocationMetricTile label="Klärfälle" value={String(entry.openCases)} current={entry.openCases} previous={previous?.openCases ?? 0} format={integerNumber.format} />
+              <LocationMetricTile label="ältester Fall" value={`${entry.oldest} Tage`} current={entry.oldest} previous={previous?.oldest ?? 0} format={(value) => `${integerNumber.format(value)} Tage`} />
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
+}
+
+function LocationMetricTile({ label, value, current, previous, format, bare = false }: { label: string; value: string; current: number; previous: number; format: (value: number) => string; bare?: boolean }) {
+  const delta = previous ? ((current - previous) / previous) * 100 : current ? 100 : 0;
+  const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+  const content = (
+    <>
+      <b>{value}</b>
+      {label}
+      <small className={deltaClass}>Vorjahr {format(previous)} · {formatDelta(delta)}</small>
+    </>
+  );
+  return bare ? content : <span>{content}</span>;
 }
 
 function locationChargebackRateInfo(entry: LocationSnapshot) {
@@ -2536,6 +2554,13 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
   }), [comparisonPeriod, importRows]);
   const comparisonOpenCases = useMemo(() => casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [closedCaseKeys, comparisonRows]);
   const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, comparisonRows, comparisonOpenCases), [comparisonOpenCases, comparisonPeriod, comparisonRows, orderedLocations]);
+  const previousComparisonPeriod = useMemo(() => previousYearPeriod(comparisonPeriod), [comparisonPeriod]);
+  const previousComparisonRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = standorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, previousComparisonPeriod, rowStandort) : false;
+  }), [importRows, previousComparisonPeriod]);
+  const previousComparisonOpenCases = useMemo(() => casesFromImportRows(previousComparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [closedCaseKeys, previousComparisonRows]);
+  const previousComparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, previousComparisonPeriod, previousComparisonRows, previousComparisonOpenCases), [orderedLocations, previousComparisonOpenCases, previousComparisonPeriod, previousComparisonRows]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
   const highestRisk = useMemo(() => [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
@@ -2589,7 +2614,7 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
             </label>
           </div>
         </div>
-        <LocationBenchmarkCards snapshots={comparisonSnapshots} />
+        <LocationBenchmarkCards snapshots={comparisonSnapshots} previousSnapshots={previousComparisonSnapshots} />
       </section>
     </div>
   );

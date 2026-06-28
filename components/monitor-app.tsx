@@ -219,7 +219,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const viewsWithStandortScope = [
     "dashboard",
     "worklist",
-    "answers",
     "quality",
     "claims",
     "cases",

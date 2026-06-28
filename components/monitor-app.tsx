@@ -1866,7 +1866,7 @@ function ManagementComboChart({
       <div className="combo-chart-summary">
         <div className="combo-legend">
           <span><i className="current" /> {defaultCurrentYear}</span>
-          <span><i className="previous" /> Linie {defaultPreviousYear}</span>
+          <span><i className="previous" /> {defaultPreviousYear}</span>
         </div>
         <strong className={delta >= 0 ? "positive" : "negative"}>{formatDelta(delta)}</strong>
       </div>

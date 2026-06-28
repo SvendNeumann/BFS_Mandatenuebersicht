@@ -2530,11 +2530,10 @@ function BenchmarkView({ onNavigate, importRows, manualCaseResolutions = [] }: {
           </select>
         </label>
       </section>
-      <section className="priority-grid">
+      <section className="priority-grid benchmark-priority-grid">
         <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatFeeRate(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
-        <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
       <section className="insight-grid benchmark-signal-grid">
         {benchmarkSignals.map((signal) => (

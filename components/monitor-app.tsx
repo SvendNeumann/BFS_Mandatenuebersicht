@@ -60,7 +60,12 @@ const percentNumber = new Intl.NumberFormat("de-DE", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1
 });
+const feeRateNumber = new Intl.NumberFormat("de-DE", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 const formatPercent = (value: number) => `${percentNumber.format(Number.isFinite(value) ? value : 0)} %`;
+const formatFeeRate = (value: number) => `${feeRateNumber.format(Number.isFinite(value) ? value : 0)} %`;
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
 const locationConfigStorageKey = "orisus_bfs_monitor_locations";
 const viewStateStorageKey = "orisus_bfs_monitor_view_state";
@@ -678,7 +683,7 @@ function GroupDashboard({ onNavigate, importRows }: { onNavigate: (view: string)
     ["Umsatz eingereicht", money.format(selectedMetrics.submitted), periodLabel, groupKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", groupSparklineContext)],
     ["Auszahlungsbetrag", money.format(selectedMetrics.payout), periodLabel, groupKpiInfo.payout, kpiSparklineForLabel("Auszahlungsbetrag", groupSparklineContext)],
     ["Gesamtkosten BFS", money.format(selectedMetrics.fees), periodLabel, groupKpiInfo.fees, kpiSparklineForLabel("Gesamtkosten BFS", groupSparklineContext)],
-    ["Gebührenquote", formatPercent(selectedMetrics.feeRate), periodLabel, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
+    ["Gebührenquote", formatFeeRate(selectedMetrics.feeRate), periodLabel, undefined, kpiSparklineForLabel("Gebührenquote", groupSparklineContext)],
     ["Rückbelastungsquote", formatPercent(chargebackRate), "Rückgaben und Stornos am Eingang", undefined, kpiSparklineForLabel("Rückbelastungsquote", groupSparklineContext)],
     ["Ohne Ausfallschutz", money.format(importSummary.rows ? importSummary.noProtectionAmount : selectedMetrics.noProtectionAmount || focusedRisks.reduce((sum, claim) => sum + claim.amount, 0)), importSummary.rows ? "aus aktuellem Import" : selectedPeriod.label, undefined, kpiSparklineForLabel("Ohne Ausfallschutz", groupSparklineContext)],
     ["Offene Klärfälle", String(focusedCases.length), groupFocus === "gesamt" ? "nach Standortfilter" : "nach Fokus gefiltert", undefined, kpiSparklineForLabel("Offene Klärfälle", groupSparklineContext)],
@@ -946,7 +951,7 @@ function LocationBenchmarkCards({ snapshots, onNavigate, compact = false }: { sn
           </div>
           <div className="location-metric-grid">
             <span><b>{money.format(entry.metrics.submitted)}</b> Umsatz</span>
-            <span><b>{formatPercent(entry.metrics.feeRate)}</b> Gebühr</span>
+            <span><b>{formatFeeRate(entry.metrics.feeRate)}</b> Gebühr</span>
             <span className="location-metric-with-info">
               <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
               <b>{formatPercent(entry.chargebackRate)}</b> Rückbelastung
@@ -1001,7 +1006,7 @@ function BenchmarkView({ onNavigate, importRows }: { onNavigate: (view: string) 
       </section>
       <section className="priority-grid">
         <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
-        <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatPercent(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
+        <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatFeeRate(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
         <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} offene Klärfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} />
         <PriorityCard label="Standorte ohne Werte" value={String(snapshots.filter((entry) => !entry.rows).length)} hint="im gewählten Zeitraum" period={selectedPeriod.label} tone="blue" />
       </section>
@@ -1681,7 +1686,7 @@ function ClaimsFlowView({
         <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="EWMA / Adressprüfung" value={money.format(selectedMetrics.ewmaTotal)} hint={`netto ${money.format(selectedMetrics.ewmaNet)} · MwSt ${money.format(selectedMetrics.ewmaVat)}`} period={selectedPeriod.label} tone={selectedMetrics.ewmaTotal ? "amber" : "green"} />
         <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint="nach BFS-Abzug" period={selectedPeriod.label} tone="green" />
-        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${formatPercent(selectedMetrics.feeRate)} vom Eingang`} period={selectedPeriod.label} tone="amber" />
+        <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${formatFeeRate(selectedMetrics.feeRate)} vom Eingang`} period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Gesamtabzug" value={money.format(totalCostAndDeductions)} hint="BFS-Gebühr, MwSt, EWMA und Storno/Rückgabe" period={selectedPeriod.label} tone={totalCostAndDeductions ? "red" : "green"} />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
@@ -1923,7 +1928,7 @@ function ClaimsFlowView({
                     <td>{money.format(metric.submitted)}</td>
                     <td><StatusBadge status={formatDelta(metric.deltaPercent)} /></td>
                     <td>{metric.returnCount} / {money.format(metric.returnAmount)}</td>
-                    <td>{formatPercent(metric.feeRate)}</td>
+                    <td>{formatFeeRate(metric.feeRate)}</td>
                   </tr>
                 ))}
               </tbody>

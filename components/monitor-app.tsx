@@ -1231,12 +1231,11 @@ function monthAxisLabel(label: string, year: number) {
 }
 
 function chartLegendLabel(title: string) {
-  if (title.toLowerCase().includes("quote")) return "Quote";
-  if (title.toLowerCase().includes("fälle") || title.toLowerCase().includes("anzahl")) return "Anzahl";
-  if (title.toLowerCase().includes("gebühr") || title.toLowerCase().includes("kosten")) return "Gesamtkosten BFS";
-  if (title.toLowerCase().includes("umsatz")) return "Umsatz eingereicht";
-  if (title.toLowerCase().includes("rück")) return "Rückbelastungen";
-  return "Performanceindex";
+  const valueKind = chartValueKind(title);
+  if (valueKind === "percent") return "Quote";
+  if (valueKind === "money") return title.toLowerCase().includes("umsatz") ? "Umsatz eingereicht" : "Betrag";
+  if (valueKind === "cases") return title.toLowerCase().includes("rück") ? "Rückläufer" : "Fälle";
+  return "Anzahl";
 }
 
 function chartExplanation(title: string, values: { label: string; value: number; detailLabel?: string }[]) {
@@ -1260,12 +1259,44 @@ function chartExplanation(title: string, values: { label: string; value: number;
 }
 
 function formatChartValue(title: string, value: number) {
+  const valueKind = chartValueKind(title);
+  if (valueKind === "money") return money.format(value);
+  if (valueKind === "percent") return formatPercent(value);
+  if (valueKind === "cases") {
+    const normalizedTitle = title.toLowerCase();
+    if (normalizedTitle.includes("rück") && normalizedTitle.includes("standort")) return `${integerNumber.format(value)} Rückläufer`;
+    return `${integerNumber.format(value)} Fälle`;
+  }
+  return integerNumber.format(value);
+}
+
+function chartValueKind(title: string): "money" | "percent" | "cases" | "count" {
   const normalizedTitle = title.toLowerCase();
-  if (normalizedTitle.includes("gebühr") || normalizedTitle.includes("kosten") || normalizedTitle.includes("umsatz") || normalizedTitle.includes("risikoart")) return money.format(value);
-  if (normalizedTitle.includes("quote")) return formatPercent(value);
-  if (normalizedTitle.includes("rück") && normalizedTitle.includes("standort")) return `${integerNumber.format(value)} Rückläufer`;
-  if (normalizedTitle.includes("rück") || normalizedTitle.includes("patientenqualität") || normalizedTitle.includes("fälle") || normalizedTitle.includes("anzahl")) return `${integerNumber.format(value)} Fälle`;
-  return formatPercent(value);
+  if (normalizedTitle.includes("quote")) return "percent";
+  if (normalizedTitle.includes("neueinreichungen je standort") || normalizedTitle.includes("ohne-schutz-selektion")) return "count";
+  if (
+    normalizedTitle.includes("umsatz") ||
+    normalizedTitle.includes("betrag") ||
+    normalizedTitle.includes("kosten") ||
+    normalizedTitle.includes("gebühr") ||
+    normalizedTitle.includes("abzug") ||
+    normalizedTitle.includes("einreichung") ||
+    normalizedTitle.includes("risikoart") ||
+    normalizedTitle.includes("gründe ohne schutz")
+  ) {
+    return "money";
+  }
+  if (
+    normalizedTitle.includes("fälle") ||
+    normalizedTitle.includes("fall") ||
+    normalizedTitle.includes("patientenqualität") ||
+    normalizedTitle.includes("rückbelastungen") ||
+    normalizedTitle.includes("zahlungsstatus") ||
+    normalizedTitle.includes("maßnahmenstatus")
+  ) {
+    return "cases";
+  }
+  return "count";
 }
 
 function buildGroupDashboardSeries(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[] = []) {

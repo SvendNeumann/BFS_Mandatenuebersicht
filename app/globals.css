@@ -3359,16 +3359,20 @@ td small {
 .custom-line {
   fill: none;
   stroke: rgba(139, 184, 255, 0.88);
-  stroke-width: 3;
+  stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 5px 10px rgba(139, 184, 255, 0.18));
+  filter: none;
   pointer-events: none;
 }
 
 .custom-line.warning {
-  stroke: rgba(242, 189, 91, 0.9);
+  stroke: rgba(242, 189, 91, 0.86);
+}
+
+.custom-combo-chart circle {
+  display: none;
 }
 
 .custom-chart-axis,

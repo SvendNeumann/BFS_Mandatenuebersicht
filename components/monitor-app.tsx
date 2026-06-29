@@ -2710,6 +2710,7 @@ function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRo
 function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [qualityStandortFilterId, setQualityStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [noProtectionPeriodId, setNoProtectionPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [noProtectionStandortFilterId, setNoProtectionStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [reviewPeriodId, setReviewPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -2718,6 +2719,11 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
   const noProtectionPeriod = useMemo(() => periodOptions.find((period) => period.id === noProtectionPeriodId) ?? selectedPeriod, [periodOptions, noProtectionPeriodId, selectedPeriod]);
   const reviewPeriod = useMemo(() => periodOptions.find((period) => period.id === reviewPeriodId) ?? selectedPeriod, [periodOptions, reviewPeriodId, selectedPeriod]);
   const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const qualityStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (qualityStandortFilterId === "alle") return relevantStandorte;
+    return relevantStandorte.filter((entry) => entry.id === qualityStandortFilterId);
+  }, [qualityStandortFilterId, relevantStandorte, standort]);
   const noProtectionStandorte = useMemo(() => {
     if (standort) return [standort];
     if (noProtectionStandortFilterId === "alle") return relevantStandorte;
@@ -2729,9 +2735,9 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
     return relevantStandorte.filter((entry) => entry.id === reviewStandortFilterId);
   }, [relevantStandorte, reviewStandortFilterId, standort]);
   const scopedRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
+    const rowStandort = qualityStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, relevantStandorte, selectedPeriod]);
+  }), [importRows, qualityStandorte, selectedPeriod]);
   const reviewRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = reviewStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, reviewPeriod, rowStandort) : false;
@@ -2746,7 +2752,11 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
   const noProtectionClaims = useMemo(() => riskClaimsFromImportRows(noProtectionRows)
     .filter((claim) => noProtectionStandorte.some((entry) => entry.id === claim.standortId)), [noProtectionRows, noProtectionStandorte]);
   const noProtectionPaymentRisk = useMemo(() => summarizeNoProtectionPaymentRisk(noProtectionClaims), [noProtectionClaims]);
-  const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const stornoReview = useMemo(() => stornoReviewFromImportRows(
+    scopedRows,
+    qualityStandorte.length === 1 ? qualityStandorte[0].id : undefined,
+    manualCaseResolutions
+  ), [manualCaseResolutions, qualityStandorte, scopedRows]);
   const filteredStornoReview = useMemo(() => stornoReviewFromImportRows(
     reviewRows,
     reviewStandorte.length === 1 ? reviewStandorte[0].id : undefined,
@@ -2755,6 +2765,8 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
   const noProtectionShare = metrics.submitted ? (metrics.noProtectionAmount / metrics.submitted) * 100 : 0;
   const chargebackShare = metrics.submitted ? (metrics.returnAmount / metrics.submitted) * 100 : 0;
   const stornoShare = metrics.submitted ? (metrics.cancellationAmount / metrics.submitted) * 100 : 0;
+  const qualityScopeLabel = qualityStandorte.length === 1 ? qualityStandorte[0].name : "Alle Standorte";
+  const grossQualityDeduction = metrics.returnAmount + metrics.cancellationAmount;
   const openStornoInfo = [
     `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als zurückgeholt/gewandelt.`,
     `${stornoReview.finalCancelled} Storno-Zeilen sind endgültig storniert und deshalb nicht mehr operativ offen.`,
@@ -2773,17 +2785,27 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
             ))}
           </select>
         </label>
+        <label className="select-label">
+          Standort Forderungsqualität
+          <select value={standort ? standort.id : qualityStandortFilterId} onChange={(event) => setQualityStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {relevantStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
         <div>
-          <strong>{standort?.name ?? "Alle Standorte"}</strong>
+          <strong>{qualityScopeLabel}</strong>
           <span>{selectedPeriod.detail}</span>
         </div>
       </section>
       <section className="priority-grid quality-priority-grid">
-        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} period={selectedPeriod.label} tone={metrics.noProtectionAmount ? "amber" : "green"} />
-        <PriorityCard label="Rückbelastung" value={money.format(metrics.returnAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} period={selectedPeriod.label} tone={chargebackShare ? "red" : "green"} />
-        <PriorityCard label="Stornoquote" value={formatPercent(stornoShare)} hint={money.format(metrics.cancellationAmount)} period={selectedPeriod.label} tone={stornoShare ? "amber" : "green"} />
+        <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} period={selectedPeriod.label} tone={metrics.noProtectionAmount ? "amber" : "green"} info={`Qualitätsrisiko im Filter ${qualityScopeLabel}: Summe der eingereichten Forderungen ohne Ausfallschutz. Diese Kachel zeigt Risikoexposition, nicht offenen Abzug.`} />
+        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossQualityDeduction)} hint={`${formatPercent(metrics.submitted ? (grossQualityDeduction / metrics.submitted) * 100 : 0)} vom Eingang`} period={selectedPeriod.label} tone={grossQualityDeduction ? "red" : "green"} info="Qualitäts-Grundmenge aus Rückgaben/Rückbelastungen plus Stornos im gewählten Filter. Die wirtschaftliche Restlogik Offener Abzug = Brutto Storno/Rückgabe minus zurückgeholt/bezahlt liegt im Tab Forderungen und Geldfluss bzw. Zusammenfassung." />
+        <PriorityCard label="Rückgabe/Rückbelastung" value={money.format(metrics.returnAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} period={selectedPeriod.label} tone={chargebackShare ? "red" : "green"} info="Nur Rückgaben/Rückbelastungen aus den BFS-Kontoauszügen. Rückgabe ohne Ausfallschutz wird operativ als Praxis nachfassen geführt; saldogeschlossene Belegfälle liegen unter Zahlung/Grund prüfen." />
+        <PriorityCard label="Stornoquote" value={formatPercent(stornoShare)} hint={money.format(metrics.cancellationAmount)} period={selectedPeriod.label} tone={stornoShare ? "amber" : "green"} info="Nur Storno-Bewegungen bezogen auf eingereichten Umsatz. Das ist bewusst eine Storno-Untermenge und nicht identisch mit dem appweiten offenen Abzug." />
         <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} offene Klärbewegungen`} period={selectedPeriod.label} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
-        <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} />
+        <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} info="Patienten mit wiederholten Ohne-Ausfallschutz-Markierungen im gewählten Qualitätsfilter. Diese Kachel dient der Patientenselektion, nicht der Abzugsbuchung." />
       </section>
       <section className="panel">
         <div className="panel-heading">

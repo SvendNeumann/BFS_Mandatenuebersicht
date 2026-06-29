@@ -8584,6 +8584,7 @@ function CasesView({
   const [caseStandortFilter, setCaseStandortFilter] = useState("alle");
   const [casePeriodId, setCasePeriodId] = useState("since-start");
   const [caseSearchTerm, setCaseSearchTerm] = useState("");
+  const [caseSort, setCaseSort] = useState<{ key: CaseSortKey; direction: SortDirection }>({ key: "priority", direction: "asc" });
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
   const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);
   const filteredRows = useMemo(() => {
@@ -8597,7 +8598,40 @@ function CasesView({
     if (!query) return baseRows;
     return baseRows.filter((fall) => matchesCaseSearch(fall, query));
   }, [compact, enableFilters, rows, caseStandortFilter, casePeriod, caseSearchTerm]);
+  const sortedRows = useMemo(() => sortCaseRows(filteredRows, caseSort.key, caseSort.direction), [filteredRows, caseSort]);
   const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
+  const hasCaseActions = Boolean(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal);
+  const toggleSort = (key: CaseSortKey) => {
+    setCaseSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc"
+    }));
+  };
+  const sortLabel = caseSortOptions.find((option) => option.value === `${caseSort.key}:${caseSort.direction}`)?.label ?? "Standard";
+  const renderCaseActions = (fall: BfsCase) => hasCaseActions ? (
+    <div className="case-action-stack">
+      {onResolvePaid && (
+        <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
+          <CheckCircle2 size={15} /> Bezahlt / geklärt
+        </button>
+      )}
+      {onResolveResubmitted && (
+        <button className="secondary-button resolve-case-button" onClick={() => void onResolveResubmitted(fall)}>
+          <RefreshCw size={15} /> Neu eingereicht
+        </button>
+      )}
+      {onCancelFinal && (
+        <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
+          <X size={15} /> Endgültig storniert
+        </button>
+      )}
+      {onKeepOpen && (
+        <button className="secondary-button resolve-case-button" onClick={() => void onKeepOpen(fall)}>
+          <AlertCircle size={15} /> Weiterhin offen
+        </button>
+      )}
+    </div>
+  ) : null;
 
   return (
     <section className="panel">
@@ -8635,31 +8669,48 @@ function CasesView({
         <div>
           <span className="eyebrow">Arbeitsliste</span>
           <h2>Offene Nachfassfälle</h2>
+          <small>{sortedRows.length} Fälle · sortiert nach {sortLabel}</small>
         </div>
-        <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
+        <button className="secondary-button" disabled={!sortedRows.length} onClick={() => printCasesReport(sortedRows, reportTitle)}>
           <Printer size={16} /> PDF Export
         </button>
+      </div>
+      <div className="case-sort-toolbar" aria-label="Sortierung der Prüfliste">
+        <label className="select-label">
+          Sortieren
+          <select
+            value={`${caseSort.key}:${caseSort.direction}`}
+            onChange={(event) => {
+              const [key, direction] = event.target.value.split(":") as [CaseSortKey, SortDirection];
+              setCaseSort({ key, direction });
+            }}
+          >
+            {caseSortOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className={`table-wrap${compact && !tableScrollable ? "" : " case-table-scroll"}`}>
         <table className="case-followup-table">
           <thead>
             <tr>
-              <th>Ampel</th>
-              <th>Datum</th>
-              <th>Patient</th>
-              <th>Re.-Nr.</th>
-              <th>BFS-Nr.</th>
-              <th>Betrag</th>
+              <th><CaseSortButton label="Ampel" sortKey="priority" activeSort={caseSort} onSort={toggleSort} /></th>
+              <th><CaseSortButton label="Datum" sortKey="date" activeSort={caseSort} onSort={toggleSort} /></th>
+              <th><CaseSortButton label="Patient" sortKey="patient" activeSort={caseSort} onSort={toggleSort} /></th>
+              <th><CaseSortButton label="Re.-Nr." sortKey="invoice" activeSort={caseSort} onSort={toggleSort} /></th>
+              <th><CaseSortButton label="BFS-Nr." sortKey="bfs" activeSort={caseSort} onSort={toggleSort} /></th>
+              <th><CaseSortButton label="Betrag" sortKey="amount" activeSort={caseSort} onSort={toggleSort} /></th>
               <th>Grund</th>
-              <th>Alter</th>
+              <th><CaseSortButton label="Alter" sortKey="age" activeSort={caseSort} onSort={toggleSort} /></th>
               <th>Status</th>
-              <th>Wiedervorlage</th>
+              <th><CaseSortButton label="Wiedervorlage" sortKey="dueDate" activeSort={caseSort} onSort={toggleSort} /></th>
               <th>AbrechnungsNr</th>
-              {(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal) && <th>Aktion</th>}
+              {hasCaseActions && <th>Aktion</th>}
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((fall) => (
+            {sortedRows.map((fall) => (
               <tr key={fall.id}>
                 <td><span className={`traffic traffic-${fall.traffic}`} /></td>
                 <td>{fall.sourceDate ?? "-"}</td>
@@ -8672,44 +8723,109 @@ function CasesView({
                 <td><StatusBadge status={fall.status} /></td>
                 <td>{fall.dueDate}</td>
                 <td>{formatCaseAbrechnungReference(fall.lastComment)}</td>
-                {(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal) && (
+                {hasCaseActions && (
                   <td>
-                    <div className="case-action-stack">
-                      {onResolvePaid && (
-                        <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
-                          <CheckCircle2 size={15} /> Bezahlt / geklärt
-                        </button>
-                      )}
-                      {onResolveResubmitted && (
-                        <button className="secondary-button resolve-case-button" onClick={() => void onResolveResubmitted(fall)}>
-                          <RefreshCw size={15} /> Neu eingereicht
-                        </button>
-                      )}
-                      {onCancelFinal && (
-                        <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
-                          <X size={15} /> Endgültig storniert
-                        </button>
-                      )}
-                      {onKeepOpen && (
-                        <button className="secondary-button resolve-case-button" onClick={() => void onKeepOpen(fall)}>
-                          <AlertCircle size={15} /> Weiterhin offen
-                        </button>
-                      )}
-                    </div>
+                    {renderCaseActions(fall)}
                   </td>
                 )}
               </tr>
             ))}
-            {!filteredRows.length && (
+            {!sortedRows.length && (
               <tr>
-                <td colSpan={onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal ? 12 : 11}>Keine Prüflistenfälle für den aktuellen Datenstand.</td>
+                <td colSpan={hasCaseActions ? 12 : 11}>Keine Prüflistenfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <div className="case-mobile-list" aria-label="Mobile Prüfliste">
+        {sortedRows.map((fall) => (
+          <article className="case-mobile-card" key={fall.id}>
+            <div className="case-mobile-card-head">
+              <span className={`traffic traffic-${fall.traffic}`} />
+              <div>
+                <strong>{fall.patientName}</strong>
+                <span>{fall.locationName}</span>
+              </div>
+              <b>{fall.sourceDate ?? "-"}</b>
+            </div>
+            <dl className="case-mobile-meta">
+              <div><dt>Betrag</dt><dd>{exactMoney.format(fall.amount)}</dd></div>
+              <div><dt>Alter</dt><dd>{fall.ageDays} Tage</dd></div>
+              <div><dt>Re.-Nr.</dt><dd>{fall.invoiceNo}</dd></div>
+              <div><dt>BFS-Nr.</dt><dd>{fall.bfsNo}</dd></div>
+              <div><dt>Grund</dt><dd>{fall.reason}</dd></div>
+              <div><dt>Status</dt><dd><StatusBadge status={fall.status} /></dd></div>
+            </dl>
+            {hasCaseActions && <div className="case-mobile-actions">{renderCaseActions(fall)}</div>}
+          </article>
+        ))}
+        {!sortedRows.length && <p className="muted-table-note">Keine Prüflistenfälle für den aktuellen Datenstand.</p>}
+      </div>
     </section>
   );
+}
+
+type CaseSortKey = "priority" | "date" | "patient" | "location" | "invoice" | "bfs" | "amount" | "age" | "dueDate";
+type SortDirection = "asc" | "desc";
+
+const caseSortOptions: { value: `${CaseSortKey}:${SortDirection}`; label: string }[] = [
+  { value: "priority:asc", label: "Ampel kritisch zuerst" },
+  { value: "patient:asc", label: "Name A-Z" },
+  { value: "patient:desc", label: "Name Z-A" },
+  { value: "location:asc", label: "Standort A-Z" },
+  { value: "location:desc", label: "Standort Z-A" },
+  { value: "date:desc", label: "Datum neueste zuerst" },
+  { value: "date:asc", label: "Datum älteste zuerst" },
+  { value: "amount:desc", label: "Betrag höchster zuerst" },
+  { value: "amount:asc", label: "Betrag niedrigster zuerst" },
+  { value: "age:desc", label: "Alter höchste zuerst" },
+  { value: "age:asc", label: "Alter niedrigste zuerst" }
+];
+
+function CaseSortButton({ label, sortKey, activeSort, onSort }: { label: string; sortKey: CaseSortKey; activeSort: { key: CaseSortKey; direction: SortDirection }; onSort: (key: CaseSortKey) => void }) {
+  const active = activeSort.key === sortKey;
+  return (
+    <button type="button" className={active ? "case-sort-header active" : "case-sort-header"} onClick={() => onSort(sortKey)} aria-label={`${label} sortieren`}>
+      <span>{label}</span>
+      <span aria-hidden="true">{active ? activeSort.direction === "asc" ? "↑" : "↓" : "↕"}</span>
+    </button>
+  );
+}
+
+function sortCaseRows(rows: BfsCase[], key: CaseSortKey, direction: SortDirection) {
+  const multiplier = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const result = compareCaseByKey(a, b, key);
+    return result ? result * multiplier : compareOperationalCases(a, b);
+  });
+}
+
+function compareCaseByKey(a: BfsCase, b: BfsCase, key: CaseSortKey) {
+  if (key === "priority") return operationalCasePriority(a) - operationalCasePriority(b) || trafficSortValue(a.traffic) - trafficSortValue(b.traffic);
+  if (key === "date") return caseDateSortValue(a.sourceDate) - caseDateSortValue(b.sourceDate);
+  if (key === "patient") return a.patientName.localeCompare(b.patientName, "de");
+  if (key === "location") return a.locationName.localeCompare(b.locationName, "de");
+  if (key === "invoice") return a.invoiceNo.localeCompare(b.invoiceNo, "de", { numeric: true });
+  if (key === "bfs") return a.bfsNo.localeCompare(b.bfsNo, "de", { numeric: true });
+  if (key === "amount") return a.amount - b.amount;
+  if (key === "age") return a.ageDays - b.ageDays;
+  if (key === "dueDate") return a.dueDate.localeCompare(b.dueDate, "de", { numeric: true });
+  return 0;
+}
+
+function trafficSortValue(value: BfsCase["traffic"]) {
+  if (value === "red") return 1;
+  if (value === "orange") return 2;
+  if (value === "yellow") return 3;
+  return 4;
+}
+
+function caseDateSortValue(value: string | undefined) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/);
+  if (!match) return 0;
+  const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+  return Number(`${year}${match[2]}${match[1]}`);
 }
 
 function printCasesReport(rows: BfsCase[], title: string) {

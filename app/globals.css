@@ -1721,6 +1721,119 @@ input {
   margin: 2px 0 0;
 }
 
+.table-section-heading small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.case-sort-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px);
+  margin: 14px 0 10px;
+}
+
+.case-sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.case-sort-header span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.case-sort-header span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.case-sort-header.active span:last-child {
+  color: var(--green);
+}
+
+.case-mobile-list {
+  display: none;
+}
+
+.case-mobile-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(9, 34, 48, 0.78);
+}
+
+.case-mobile-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.case-mobile-card-head strong,
+.case-mobile-card-head span {
+  display: block;
+}
+
+.case-mobile-card-head strong {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.18;
+}
+
+.case-mobile-card-head span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.case-mobile-card-head b {
+  color: var(--ink);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.case-mobile-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+}
+
+.case-mobile-meta div {
+  min-width: 0;
+}
+
+.case-mobile-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.case-mobile-meta dd {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.case-mobile-actions .case-action-stack {
+  min-width: 0;
+}
+
 .risk-profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
@@ -4769,6 +4882,29 @@ td small {
 
   table {
     min-width: 920px;
+  }
+
+  .case-sort-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .case-table-scroll,
+  .case-followup-table {
+    display: none;
+  }
+
+  .case-mobile-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .case-action-stack {
+    min-width: 0;
+  }
+
+  .case-action-stack .resolve-case-button {
+    width: 100%;
+    justify-content: center;
   }
 }
 

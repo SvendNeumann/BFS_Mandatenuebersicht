@@ -1042,3 +1042,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - In der Umsatz-/Cashflow-Herleitung zaehlt `Neu eingereicht` aber nicht als zusaetzlicher Geldzufluss. Eine Ersatzrechnung ersetzt die alte Forderung; sie darf keinen Doppelumsatz erzeugen.
 - Die zentrale Abzugslogik trennt deshalb `replacementAmount`/Neueinreichung von `cashRecoveredAmount`/echter Zahlung bzw. Ratenplan.
 - Der Cashflow-Wasserfall addiert nur noch echte Zahlung/Ratenplan als positiven Ausgleich; Neueinreichungen reduzieren offen, erscheinen aber nicht als Cash-Plus.
+
+## Update 2026-06-30: Pruefliste mobil und sortierbar
+
+- Die `Pruefliste offene Faelle` hat jetzt sortierbare Tabellenkoepfe fuer Ampel, Datum, Patient, Rechnung, BFS-Nr., Betrag, Alter und Wiedervorlage.
+- Zusaetzlich gibt es eine kompakte Sortierauswahl fuer Name, Standort, Datum, Betrag und Alter auf-/absteigend.
+- Auf Mobilgeraeten wird die breite Tabelle durch lesbare Fallkarten mit denselben operativen Aktionen ersetzt.

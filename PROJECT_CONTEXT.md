@@ -998,3 +998,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Berechnung: `Stornoquote = erkannte Storno-Zeilen / eingereichte Gesamtfaelle`.
 - Die Standortkarten im Quercheck zeigen ebenfalls diese Stornoquote je Standort.
 - Alte Formulierung `zurueckgeholt/bezahlt` wurde im Quercheck zu `bereits geklaert` vereinheitlicht.
+
+## Update 2026-06-29: Pruefliste rein operativ
+
+- Die Ansicht `Pruefliste offene Faelle` zeigt keine Auswertungs-KPI-Kacheln und keine Diagramme mehr.
+- Entfernt wurden `Tab-Auswertung`, `Offener Betrag gesamt`, `Offene Faelle`, `Aeltester Fall`, `Hoechste Einzelposition`, `Offener Betrag je Standort` und `Fallgruende`.
+- Die Ansicht startet nach Standort-/Zeitraum-/Suchfilter direkt mit der Arbeitsliste und dem PDF-Export.
+- Ziel: Die Pruefliste bleibt eine reine operative Abarbeitungsliste; Auswertungen bleiben in den Analyse-/Cockpit-Bereichen.

@@ -8492,9 +8492,6 @@ function CasesView({
     if (!query) return baseRows;
     return baseRows.filter((fall) => matchesCaseSearch(fall, query));
   }, [compact, enableFilters, rows, caseStandortFilter, casePeriod, caseSearchTerm]);
-  const totalAmount = useMemo(() => filteredRows.reduce((sum, fall) => sum + fall.amount, 0), [filteredRows]);
-  const oldestAge = useMemo(() => filteredRows.reduce((max, fall) => Math.max(max, fall.ageDays), 0), [filteredRows]);
-  const highestCase = useMemo(() => filteredRows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined), [filteredRows]);
   const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
 
   return (
@@ -8527,40 +8524,8 @@ function CasesView({
               ))}
             </select>
           </label>
-          <div>
-            <span>Tab-Auswertung</span>
-            <strong>{integerNumber.format(filteredRows.length)} Fälle / {exactMoney.format(totalAmount)}</strong>
-          </div>
         </div>
       )}
-      <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
-        <article>
-          <span>Offener Betrag gesamt</span>
-          <strong>{exactMoney.format(totalAmount)}</strong>
-        </article>
-        <article>
-          <span>Offene Fälle</span>
-          <strong>{filteredRows.length}</strong>
-        </article>
-        <article>
-          <span>Ältester Fall</span>
-          <strong>{oldestAge} Tage</strong>
-        </article>
-        <article>
-          <span>Höchste Einzelposition</span>
-          <strong>{exactMoney.format(highestCase?.amount ?? 0)}</strong>
-        </article>
-      </div>
-      <section className="chart-grid visual-first-grid case-chart-grid">
-        <div className="visual-panel mini-chart">
-          <h2>Offener Betrag je Standort</h2>
-          <CaseColumnChart title="Offener Betrag je Standort" values={caseAmountByLocation(filteredRows)} valueKind="money" />
-        </div>
-        <div className="visual-panel mini-chart">
-          <h2>Fallgründe</h2>
-          <CaseColumnChart title="Fallgründe" values={caseReasonDistribution(filteredRows)} valueKind="money" />
-        </div>
-      </section>
       <div className="table-section-heading">
         <div>
           <span className="eyebrow">Arbeitsliste</span>
@@ -8725,47 +8690,6 @@ function printCasesReport(rows: BfsCase[], title: string) {
   reportWindow.document.open();
   reportWindow.document.write(html);
   reportWindow.document.close();
-}
-
-function caseAmountByLocation(rows: BfsCase[]) {
-  const grouped = new Map<string, number>();
-  rows.forEach((fall) => grouped.set(fall.locationName, (grouped.get(fall.locationName) ?? 0) + fall.amount));
-  return [...grouped.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([label, value]) => ({ label, value }));
-}
-
-function caseReasonDistribution(rows: BfsCase[]) {
-  const grouped = new Map<string, { amount: number; count: number }>();
-  rows.forEach((fall) => {
-    const label = caseReasonLabel(fall.reason);
-    const current = grouped.get(label) ?? { amount: 0, count: 0 };
-    grouped.set(label, { amount: current.amount + fall.amount, count: current.count + 1 });
-  });
-  return [...grouped.entries()]
-    .sort((a, b) => b[1].amount - a[1].amount || b[1].count - a[1].count)
-    .slice(0, 6)
-    .map(([label, value]) => ({ label, value: value.amount, detailLabel: `${integerNumber.format(value.count)} Fälle` }));
-}
-
-function caseReasonLabel(reason: string) {
-  const normalized = reason.toLowerCase();
-  if (normalized.includes("iportal") || normalized.includes("rechnungsliste")) return "iPortal-Rechnungsliste";
-  if (normalized.includes("neue rechnung")) return "Neue Rechnung";
-  if (normalized.includes("ohne ausfallschutz")) return "Rückgabe ohne Ausfallschutz";
-  if (normalized.includes("rückgabe") || normalized.includes("rückbelastung")) return "Rückgabe/Rückbelastung";
-  if (normalized.includes("storno")) return "Storno";
-  if (normalized.includes("factoring")) return "Factoringvereinbarung";
-  if (normalized.includes("praxis") || normalized.includes("nachricht")) return "Praxisanweisung";
-  if (normalized.includes("vertrag")) return "Gemäß Vertrag";
-  if (normalized.includes("unstzustell") || normalized.includes("unzustell")) return "Unzustellbar";
-  const cleaned = reason
-    .replace(/^lt\.?\s*/i, "")
-    .replace(/[-_/]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned && cleaned.length > 3 ? cleaned.slice(0, 28) : "Sonstiger Klärgrund";
 }
 
 function caseReportRowHtml(fall: BfsCase) {

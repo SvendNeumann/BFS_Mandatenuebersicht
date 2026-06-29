@@ -1,61 +1,23 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 19:05 Uhr
+Stand: 29.06.2026, ca. 21:45 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
 Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit und BFS-Rechnungsanalyse. BFS-Abrechnungen wurden auf eine klare Geldfluss-Herleitung plus eine gemeinsame operative Pruefliste umgestellt; BFS-Rechnungsanalyse bleibt davon fachlich getrennt.
 
-Letzte Aenderung/Pruefung:
-- Hauptreiter `BFS-Abrechnungen` fachlich vereinfacht und alte Mehrkorb-Herleitung aus den sichtbaren Haupttabs entfernt. Neue Leitlogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS` als Geldflussblock; separat `Brutto Storno/Rueckgabe - Bereits geklaert = Offene Pruefsumme`. `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, manuell bezahlt/geklärt und Ratenplan laut BFS. Wichtig: `Saldo 0` ohne Ratenplan zaehlt nicht als bezahlt/geklart, sondern bleibt bei Storno/Rueckgabe pruefpflichtig. `Endgueltig verloren` ist eine eigene Kachel fuer manuell endgueltig stornierte Faelle.
-- Operative Fallarbeit wurde auf eine gemeinsame `Pruefliste` reduziert. Die alten sichtbaren Reiter/Kachellogiken `Praxis nachfassen`, `Zahlung/Grund pruefen`, `Noch nicht zugeordnet` und `Kontrollsumme Operativ` sind aus Navigation, Management-/Zusammenfassungs-Kacheln, Standortkarten, Geldfluss und Reports entfernt bzw. in technische Herkunftshinweise umbenannt. In der Pruefliste entscheidet die Praxis je Fall nur noch `Erledigt / bezahlt` oder `Endgueltig storniert`; dadurch reduziert sich die offene Pruefsumme bzw. waechst `Endgueltig verloren`.
-- `Forderungen und Geldfluss` zeigt jetzt Geldfluss und Storno/Rueckgabe-Herleitung, aber keine zweite Abarbeitungsliste mehr. Standortkarten zeigen `Umsatz eingereicht`, `Auszahlungsbetrag`, `BFS-Gebuehr netto`, `MwSt`, `EWMA/Adresspruefung`, `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`. Der fruehere Restkorb unter `Storno/Rueckgabe & Wiedereinholung` wurde entfernt.
-- `Zusammenfassung`, `Management Cockpit`, Standortdetails, Schnellantworten und Reports verwenden dieselbe Sprache: `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`, `Pruefliste`. Reports bauen die Fallliste jetzt aus der neuen `buildUnifiedOperationalReviewCases`-Logik statt aus alten Nachfass-/Belegkoerben.
-- Technisch neu in `components/monitor-app.tsx`: `buildUnifiedOperationalReviewCases` erzeugt die gemeinsame Pruefliste aus Abrechnungsimport, Saldo-/Statuslisten und manuellen Entscheidungen. Nur Ratenplan per BFS-Saldoliste fliegt automatisch aus der aktiven Pruefliste; `Saldo 0` und Storno laut BFS bleiben pruefpflichtig, bis manuell geklaert/endgueltig storniert oder durch echte Neueinreichung/Ersatzrechnung erklaert.
-- Pruefung nach Vereinfachung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` erfolgreich.
-- Fachliche Klarstellung Hauptreiter `BFS-Abrechnungen`: Ein bei BFS hinterlegter Ratenplan gilt fuer die offene Abzugslogik als bezahlt/gesichert. Die Recovery-Logik `buildDeductionRecovery` rechnet neben Neueinreichungen und manuell bezahlten Faellen nur Ratenplan aus der Saldoliste automatisch in `Bereits geklaert` an. `Saldo 0` allein bleibt kein automatischer Geldfluss, sondern muss fachlich geprueft/ggf. manuell als bezahlt oder endgueltig storniert entschieden werden.
-- Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten. Neue Logik ergibt ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert (14.766,72 EUR Neueinreichung/Ersatzrechnung + 312,59 EUR Ratenplan) und rechnerisch 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen. Die alte Anzeige von ca. 72.390 EUR `Bereits geklaert` war falsch, weil `Saldo 0` als bezahlt mitgerechnet wurde.
-- BFS-Rechnungsanalyse / `Import-Center Rechnungen`: Button heisst jetzt `Upload zuruecksetzen` statt `Vorschau zuruecksetzen` und ruft den dauerhaften DELETE fuer gespeicherte Patientenrechnungen auf. Damit werden Rechnungen, Positionen und Import-Batches serverseitig entfernt und tauchen nach Tabwechsel/Reload nicht wieder auf.
-- Operative Pruefliste nachgezogen: Cockpit/Schnellantworten und Haupttab `Pruefliste` nutzen jetzt durchgehend `buildUnifiedOperationalReviewCases`. Die Pruefliste startet mit Zeitraum `Seit Standortstart`, damit die Listensumme zur Gesamt-`Offenen Pruefsumme` passt. Teilweise erklaerte Neueinreichungen reduzieren nur den erklaerten Betrag; Restbetraege bleiben in der Liste. Manuell `Endgueltig storniert` reduziert die offene Pruefsumme und wird separat als `Endgueltig verloren` ausgewiesen.
-- Finaler Logik-Audit: Management-Cockpit, Standortkarten, Benchmark/Risikoscore, Schnellantworten, Custom-KPI-Trends, Cashflow-Wasserfall und Reports nutzen nun dieselbe zentrale Herleitung: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`. `Bereits geklaert` kommt aus echter Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder manueller Zahlungsklaerung; `Saldo 0` allein bleibt kein Zahlungsnachweis. Alte getrennte Praxis-/Zahlung-Grund-Listen sind aus sichtbaren Hauptauswertungen entfernt.
-- Hauptreiter `BFS-Abrechnungen` / `Forderungen und Geldfluss`: Zur operativen Kontrollsumme wurde eine echte Arbeitsliste `Noch nicht zugeordnete offene Abzuege` ergaenzt. Sie sitzt direkt unter `Storno/Rueckgabe & Wiedereinholung` und listet den Restkorb der offenen Abzugsbewegungen, die noch nicht in `Zahlung/Grund pruefen`, `Praxis nachfassen`, `Endgueltig storniert` oder manuell erledigt liegen. In dieser Liste koennen Faelle direkt als `Erledigt / bezahlt` oder `Endgueltig storniert` markiert werden. Damit ist der Weg fuer den Nutzer klar: Offener Abzug wird ueber die operativen Koerbe abgearbeitet; Neueinreichungen erklaeren nur `Zurueckgeholt / bezahlt` und werden nicht zusaetzlich zum offenen Abzug addiert. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Hauptreiter `BFS-Abrechnungen` / `Forderungen und Geldfluss` fachlich nachgezogen: Im Block `Storno/Rueckgabe & Wiedereinholung` gibt es jetzt eine klare operative Kontrollsumme. `Noch ungeklaert` bleibt `Brutto Storno/Rueckgabe minus Zurueckgeholt/bezahlt`. Die operative Ueberleitung lautet jetzt: aktive `Zahlung/Grund pruefen` + `Praxis nachfassen` + `Endgueltig storniert` + `Noch nicht zugeordnet` = `Noch ungeklaert`. Dadurch ist sofort sichtbar, ob der offene Abzug komplett in Arbeitskoerbe/Restkategorie uebergeleitet ist. `Zahlung/Grund pruefen` in dieser Kontrollsicht zaehlt nur noch aktive, nicht manuell erledigte Prueffaelle. `Matching/Neueinreichungen` wurde textlich geklaert: Diese Treffer erklaeren die Kachel `Zurueckgeholt / bezahlt` und duerfen nicht zusaetzlich zum offenen Abzug addiert werden. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Standortvergleich-Karten auf neue Logik umgestellt: Die Kacheln zeigen jetzt `Umsatz`, `Auszahlung`, `Gebuehr`, `Brutto Storno/Rueckgabe`, `Zurueckgeholt / bezahlt`, `Offener Abzug`, `Zahlung/Grund pruefen` und `Praxis nachfassen`. Die Risiko-Faerbung nutzt Brutto-Abzug, offenen Abzug, Zahlung/Grund-Pruefvolumen, Ohne-Schutz-Anteil und echte Praxis-Nachfassfaelle statt der alten Rueckbelastungs-/Ohne-Schutz-Kachellogik.
-- Desktop-Zurueck-Button sichtbar gemacht: Neben dem Seitentitel in der Desktop-Topbar erscheint jetzt ein `Zurueck`-Button, sobald App-interne View-Historie vorhanden ist. Der bestehende schwebende Zurueck-Button bleibt als zusaetzliche Hilfe erhalten.
-- Praxis-nachfassen-Filter geschaerft: Tab-Auswertung, KPI-Kacheln, Diagramme und Tabelle haengen weiterhin am selben `filteredRows`-Stand. Konkrete Jahre/Quartale/Monate lassen jetzt nur noch Nachfassfaelle mit passendem Quelldatum durch; undatierte Faelle bleiben nur in `ab Standortstart` sichtbar. Die Arbeitsliste zeigt das steuernde Datum als eigene Spalte.
-- Zahlung/Grund-pruefen-Filter geschaerft: Die Tabelle nutzt jetzt eine eigene Zeitraumpruefung je Prueffall. Konkrete Jahre/Quartale/Monate zaehlen nur noch Zeilen mit verwertbarem Quelldatum; undatierte Faelle bleiben nur in `ab Standortstart` sichtbar. Die Tabelle zeigt das steuernde Datum als eigene Spalte, damit Filterergebnisse nachvollziehbar sind.
-- Praxis-nachfassen-Tabelle nachgezogen: Der PDF-Export sitzt jetzt direkt am Tabellenkopf der Arbeitsliste. Die Nachfass-Tabelle hat eine eigene Spaltenlogik mit fixer Mindestbreite, Sticky Header, no-wrap fuer Betraege/Alter/Abrechnungsnummern und groesseren Spalten fuer Patient/Grund, damit Zelltexte nicht mehr unsauber in einzelne Silben oder harte Zeilen zerfallen.
-- BFS-Rechnungsanalyse fachlich neu sortiert: Tabs laufen jetzt als `Leistungsuebersicht`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`. Die Leistungsuebersicht bleibt nach Haeufigkeit sortiert und vergleicht eigener Faktor vs. Gruppe ohne eigenen Standort. Die Potenzialanalyse rechnet Euro-Potenzial aus echten Positionsbetraegen gegen den Gruppenschnitt ohne eigene Praxis inkl. Monats-/Jahreshochrechnung. Der Standortvergleich verdichtet Rechnungen, Positionen, Umsatz, Fallwert, Durchschnittsfaktor, Laborquote und Potenzial je Praxis. Fachlicher Fokus ist private BFS-Patientenrechnung: GOZ/GOA/Analogpositionen, Labor, Material/Auslagen; BEMA wird fuer diese Analyse nicht als regulaere Quelle angenommen.
-- Saldo-/Rechnungsstatus-Upload nachgebessert: Der normale Button `Saldo-Listen` ergaenzt jetzt einen bestehenden Vorschau-/Importstand automatisch, statt jede nachtraeglich gewaehlte Datei wieder als Ersetzen-Upload zu behandeln. Der Button zeigt bei vorhandenem Stand `Saldo-Listen ergaenzen`; File-Inputs werden nach Auswahl geleert, damit dieselben Dateien erneut ausgewaehlt werden koennen. Gewolltes Ersetzen laeuft ueber `Saldo-Import zuruecksetzen` und anschliessenden Neu-Upload.
-- Pruefung Hauptreiter `BFS-Rechnungsanalyse` am 29.06.2026: Der Bereich ist fachlich sauber von der neuen BFS-Abrechnungs-/Saldo-Logik getrennt. Rechnungs-PDFs laufen aktuell als MVP: Server-Parse ueber `/api/invoices/parse`, Frontend-State `invoiceRows`, Auswertungen fuer Rechnungsuebersicht, Leistungsanalyse und Laboranalyse. Es gibt noch keine dauerhafte Supabase-Persistenz fuer Patientenrechnungen/Leistungszeilen und keine Lade-API fuer bestaetigte Rechnungsdaten. Standortleitungen sehen den Reiter, der Server-Endpoint verlangt aber Super-Admin; das muss vor produktiver Nutzung entschieden bzw. angeglichen werden. Auswertungen haben noch keine Standort-/Zeitraumfilter, keine Standortvergleiche je Leistungsnummer/Faktor und keine Tests fuer `lib/invoice-parser.ts`. Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run lint`, `pnpm run build`, `git diff --check` erfolgreich.
-- Beispielrechnungen fuer `BFS-Rechnungsanalyse` aus `/Users/svendneumann/Downloads/Rechnungen_BFS` geprueft: 28 PDFs, Standorte Kirchberg 11, Essen 7, Ulmet 4, Huettenberg 6. Kernfelder BFS-Nr., Mandant, Rechnungsnummer, Rechnungsdatum, Patient und Rechnungsbetrag wurden in allen 28 Dateien erkannt; jede Datei hat mindestens eine erkannte Leistungs-/Faktorzeile. Laborerkennung: 15 Eigenlabor-Dokumente, 14 Fremdlabor-Dokumente. Enthaltene Rechnungsnummern-Formate: klassische Standortnummern wie `24-0045`, Essen-Formate wie `2/20555/40`, Ulmet/Huettenberg-Formate wie `675-023996`/`554-091070` und achtstellige Nummern wie `20260852`. Diese Dateien sind gute Parser-Testmuster fuer die naechste Ausbaustufe.
-- Rechnungsanalyse-Persistenz umgesetzt: Neue Migration `supabase/migrations/009_patient_invoice_analysis.sql` legt `bfs_invoice_import_batches`, `bfs_patient_invoices` und `bfs_patient_invoice_lines` inkl. Indizes, RLS und Standortleserechten an. `/api/invoices/parse` kann jetzt gespeicherte Rechnungen laden (`GET`), PDFs parsen (`POST`), den Rechnungsimport dauerhaft bestaetigen (`PUT`) und den Rechnungsdatenstand fuer Super-Admins zuruecksetzen (`DELETE`). Der Frontend-Reiter `Import-Center Rechnungen` laedt bestaetigte Rechnungen beim App-Start und hat jetzt `Rechnungsimport bestaetigen`; nach Bestaetigung speisen gespeicherte Kopf-/Leistungs-/Laborzeilen die Tabs Rechnungsuebersicht, Leistungsanalyse und Laboranalyse auch nach Reload. Hinweis: Supabase-CLI ist lokal nicht installiert; Migration wurde nach bestehendem Nummernschema angelegt und muss in Supabase angewendet sein, bevor Live-Speicherung funktioniert. Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run lint`, `pnpm run build`, `git diff --check` erfolgreich.
-- Nachpruefung Rechnungsupload mit 28 Beispielrechnungen: UI zeigte zunaechst 9 `Zu pruefen`, weil bei einigen BFS-Rechnungen ein einleitender `Rechnungsbetrag` vor der eigentlichen Leistungstabelle steht. Der Parser stoppte dadurch zu frueh. `parseServiceLines` startet jetzt bei erkannter Tabellenueberschrift `Datum Region Nr. Leistungsbeschreibung...` und beendet erst bei Zwischensumme/Laborabschnitt. Ergebnis auf denselben 28 PDFs: 0 Faelle ohne Leistungsposition, 217 erkannte Leistungspositionen statt 130. Nutzer soll diese Rechnungen nach Deployment/Hard-Reload noch einmal neu hochladen und dann erst `Rechnungsimport bestaetigen`.
-- Live-Fix direkt danach: `Rechnungsimport bestaetigen` scheiterte, weil die neuen Tabellen zwar im Code/Migration lagen, aber in Supabase live noch nicht angewendet waren. Migration `patient_invoice_analysis` wurde per Supabase MCP auf Projekt `dozcaktodvogbkiomcqo` erfolgreich angewendet. Verifikation per Service-Client: `bfs_invoice_import_batches`, `bfs_patient_invoices`, `bfs_patient_invoice_lines` sind erreichbar und leer (`count=0`). Rechnungsimport kann nach Hard-Reload erneut bestaetigt werden.
-- Weitere Live-Nachkorrektur Rechnungsimport: Nach Bestaetigung wurden nur 1 Rechnung/1 Position geladen und 28 Dateien als Dubletten gemeldet. Ursache: `parseInvoicePdfBytes` berechnete den Datei-Hash nach dem PDF.js-Textauslesen; der ArrayBuffer war dann leer/uebernommen, dadurch bekamen alle PDFs den leeren SHA-256 `e3b0...b855`. Fix: Hash wird jetzt vor PDF.js berechnet; Dublettenpruefung ignoriert den leeren SHA-256 als Hash-Basis. Der kaputte Teilimport wurde aus den drei neuen Rechnungsanalyse-Tabellen geloescht; Tabellen sind wieder leer. Lokale Hash-Pruefung der 28 Beispiel-PDFs: 28 eindeutige Hashes, 0 leere Hashes.
-- Tab `BFS-Rechnungsanalyse > Leistungsanalyse` erweitert: Zeitraumfilter und Standortfilter ergaenzt. Bei `Alle Standorte` zeigt die Tabelle die konsolidierte Leistungsuebersicht. Bei Einzelstandort zeigt sie je Leistungsnummer die realen Standortfaelle, den realen Standort-Ø-Faktor, den Gruppendurchschnitt ohne diesen Standort und das Faktor-Delta. Dadurch verfaelscht der Zielstandort den Vergleich nicht mehr.
-- Leistungsanalyse-Tabelle nachgezogen: Tabelle ist jetzt intern scrollbar mit Sticky Header und bleibt nach Haeufigkeit der abgerechneten Positionen absteigend sortiert, sodass die meistabgerechneten Positionen oben stehen.
-- Standort-Verlaufsgrafiken (`YearComparisonLines`) schneiden bei der Monatsachse jetzt am letzten tatsaechlich importierten Monat der jeweiligen Standort-/Zeitraumauswahl ab. Dadurch wird z.B. bei Datenstand bis Mai 2026 kein kuenstlicher Juni-2026-Wert mit `0 EUR` mehr angezeigt.
-- Die aktive Wertbox in der Verlaufsgrafik bleibt innerhalb des Chartkopfs und laeuft an linker/rechter Kante nicht mehr aus dem Container.
-- Die SVG-Hoehe der Verlaufsgrafik ist responsiv gedeckelt (`clamp(230px, 28vw, 360px)`), damit breite Bildschirme die Grafik nicht mehr riesig leer aufziehen.
-- Aufgeraeumt: zwei ungenutzte Variablen/Props in `components/monitor-app.tsx` entfernt.
-- Pruefung am 29.06.2026: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `git diff --check` alle erfolgreich. Browser-Sichtpruefung geschuetzter Dashboard-Grafiken war ohne eingeloggte Sitzung nicht moeglich; lokale Route leitete korrekt auf `/login?next=/dashboard` weiter.
-- Nachkorrektur Standortsteuerung: Die feste Standort-Tab-Leiste wurde vollstaendig aus dem Renderpfad entfernt. Standortwechsel laufen im Admin-Modus wieder ueber eigene Filter je Tab. Das Standort-Management-Cockpit hat jetzt einen eigenen Filter `Standort Management Cockpit` mit `Alle Standorte` und Einzelstandorten. Schnellantworten, Forderungsqualitaet, Geldfluss/Fallarbeit, Zahlung/Grund pruefen, Ohne-Schutz/Risiko, Patientenklassifizierung, Matching/Neueinreichung, Outcomes und Reports behalten bzw. nutzen ihre tab-eigenen Standortfilter. Standortleitungen bleiben auf zugewiesene Standorte begrenzt.
-- Im Tab `Forderungen und Geldfluss` wurde oberhalb der bisherigen Standortkarten/Monats- und Quartalscharts eine `CashFlow-Herleitung` als Wasserfall-Diagramm ergaenzt. Eigene Filter: `Zeitraum CashFlow` und `Standort CashFlow` inkl. `Alle Standorte`. Kette: Umsatz eingereicht minus BFS-Gebuehr netto, MwSt, EWMA/Adresspruefung und Brutto Storno/Rueckgabe plus zurueckgeholt/bezahlt ergibt den wirtschaftlich verbleibenden Betrag. Zusaetzlich werden BFS-Auszahlung laut Import, offener Abzug, Anzahl zurueckgeholt/bezahlt und Differenz zur BFS-Auszahlung gezeigt. Responsive: Summary stapelt mobil, Wasserfall bleibt horizontal scrollbar mit stabiler Hoehe.
-- Im Tab `Zusammenfassung` wurden die KPI-Kacheln auf die komplette CashFlow-/Storno-Logik erweitert: eingereichter Umsatz, BFS-Gebuehren, BFS-Gebuehr netto, MwSt, EWMA/Adresspruefung, ausgezahlter Umsatz, Brutto Storno/Rueckgabe, Storno-Grundmenge, davon zurueckgeholt inkl. Betrag, offener Abzug, Zahlung/Grund pruefen, Praxis nachfassen, wirtschaftlich verbleibend, eingereichte Rechnungen und Durchschnittswert je Forderung. Info-Texte erklaeren die Herleitung; Trends nutzen Monatswerte fuer die neuen Logikfelder.
-- Im Bereich `Forderungen und Geldfluss` -> `Storno/Rueckgabe & Wiedereinholung` wurde die Restlogik komplett sichtbar gemacht: zusaetzlich zu Brutto-Abzug, Zurueckgeholt/bezahlt und Noch ungeklaert werden jetzt `Zahlung/Grund pruefen`, `Praxis nachfassen` und `Endgueltig storniert` als operative Restkategorien ausgewiesen. Damit ist im gleichen Ablauf sichtbar, wohin der offene Restbetrag fachlich geht.
-- Nachpruefung der App-weiten Logik: `Offener Abzug`, `Noch ungeklaert`, Wasserfall-Rest und Management-Vergleich nutzen jetzt einheitlich die zentrale Herleitung `Brutto Storno/Rueckgabe minus zurueckgeholt/bezahlt`. `Zurueckgeholt/bezahlt` zaehlt echte Neueinreichungen/Ersatzrechnungen plus manuell als bezahlt markierte Faelle, jeweils bis maximal zur Hoehe des urspruenglichen Abzugs. Diese Logik ist in `Zusammenfassung`, `Forderungen und Geldfluss`, CashFlow-Wasserfall, Management Cockpit, Benchmark, Standort-Dashboard und Reports angebunden.
-- Wichtig zur Lesart: `Storno-Grundmenge` und stornobezogene Kacheln bleiben bewusst eine Untermenge nur aus Storno-Bewegungen. Sie duerfen deshalb von `Brutto Storno/Rueckgabe` bzw. `Offener Abzug` abweichen, weil Rueckgaben/Rueckbelastungen dort zusaetzlich enthalten sind. Der Begriff `Offener Abzug` meint appweit nicht mehr "offene Stornos", sondern den wirtschaftlich noch nicht belegten Rest aus allen Abzugsbewegungen.
-- Monats-Trends/Sparklines fuer `Offener Abzug` wurden auf dieselbe Logik umgestellt: monatlich wird erst der Brutto-Abzug aus Rueckgabe/Rueckbelastung/Storno aufgebaut und danach werden erkannte Neueinreichungen oder manuelle Zahlungen gegengerechnet. Dadurch laufen Kachelwert, Wasserfall und Trenddarstellung nicht mehr auseinander.
-- Pruefung am 29.06.2026 nach der Vereinheitlichung: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build` und `git diff --check` erfolgreich.
-- Nachpruefung direkt danach: Auch die Management-/Antwort-Sparklines fuer `Davon zurueckgeholt` verwenden jetzt manuelle Zahlungen plus erkannte Neueinreichungen bis maximal zum Brutto-Abzug. Es bleibt kein alter Recovery-Trendpfad uebrig, der nur reine Matching-Kandidaten zaehlt. Erneut erfolgreich geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check`.
-- Bedienhinweis: Nach Deployment/Codewechsel Browser hart neu laden. Fuer einen fachlich sauberen Datenstand die BFS-Abrechnungen und danach die BFS-Rechnungsstatus-/Saldo-Listen neu hochladen bzw. im Upload ersetzen, damit alle Kacheln mit der neuen Logik aus dem aktuellen Importzustand berechnet werden. Alte Browser-Vorschauen koennen noch alte Zahlen anzeigen, bis neu geladen/importiert wurde.
-- Tab `Forderungsqualitaet` nachgezogen: Der obere Qualitaets-KPI-Block hat jetzt ebenfalls Zeitraum- und Standortfilter inkl. `Alle Standorte`. Die Kacheln wurden fachlich klar getrennt: `Brutto Storno/Rueckgabe` als Qualitaets-Grundmenge aus Rueckgaben/Rueckbelastungen plus Stornos, `Rueckgabe/Rueckbelastung` als Rueckgabe-Untermenge, `Stornoquote` als reine Storno-Untermenge und `Storno-Zeilen erledigt` als Storno-Quercheck. Info-Texte erklaeren explizit, dass der wirtschaftliche `Offener Abzug` weiter appweit in Zusammenfassung/Geldfluss als Brutto-Abzug minus zurueckgeholt/bezahlt hergeleitet wird. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Layout-Nachzug `Forderungsqualitaet`: Die obere KPI-Gruppe nutzt nun ein gleichmaessiges 3-Spalten-Raster statt der alten 2-3-1-Sonderaufteilung. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, `git diff --check` erfolgreich.
-- Saldo-/Rechnungsstatus-Upload erneut geprueft mit den fuenf echten Saldolisten aus `/Users/svendneumann/Desktop/BFS Uploads/2. Saldolisten`: Direktparser erkennt alle Dateien korrekt (Essen 1.820 Zeilen, Kehl 3.603, Kirchberg 3.864, Krauhausen/Huettenberg 1.442, Ulmet 3.699; insgesamt 14.428 Zeilen und 5/6 aktive Standorte ohne Kassel). Fix: Wenn der Server-Upload nur einen Teil der Dokumente zurueckliefert, liest das Frontend fehlende Dateien lokal nach und merged die Dokumente. Dadurch wird der Fall `5 Dateien ausgewaehlt, 1 Liste gelesen` abgefangen. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Nachkorrektur, weil Live weiterhin nur eine Saldoliste zeigte: Der Saldo-/Rechnungsstatus-Upload liest im Browser jetzt zuerst lokal ueber `parseInvoiceStatusUploadFiles`; der Serverpfad ist nur noch Fallback. Damit haengt die Vorschau nicht mehr an partiellen Server-Antworten. Erwartung fuer die fuenf Saldolisten: 14.428 Statuszeilen und 5/6 Standorte erkannt. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Ordnerupload-Fix fuer Saldolisten nachgezogen: Der Rechnungsstatus-Upload verarbeitet die ausgewaehlten Dateien jetzt immer dateiweise. Jede Datei wird zuerst im Browser gelesen; nur die einzelne Datei faellt bei Fehler auf den Server-Fallback zurueck. Nicht lesbare Dateien erscheinen als `Zu pruefen` statt den Mehrfach-/Ordnerupload auf eine einzige Liste zu reduzieren. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
-- Saldolisten-Upload nochmal hart abgesichert: Nach dem Parserlauf wird die Ergebnisliste jetzt gegen jede ausgewaehlte Datei abgeglichen. Fehlende Dateien werden einzeln nachgelesen bzw. als `Zu pruefen` in der Dateikontrolle sichtbar gemacht. Die Statusmeldung zaehlt nun die tatsaechlich lesbaren Dokumente nach diesem Vollstaendigkeitsabgleich. Damit kann eine 5-Dateien-Auswahl nicht mehr still auf 1 Dokument zusammenschrumpfen. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
+## Aktuelle Wahrheit kurz
+
+- `BFS-Abrechnungen` nutzt die zentrale Geldflusslogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS`.
+- Separat gilt die operative Abzugslogik: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
+- `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, manuell bezahlt/geklaert und Ratenplan laut BFS.
+- `Saldo 0` ohne Ratenplan ist kein Zahlungsnachweis. Bei Storno/Rueckgabe bleibt der Fall pruefpflichtig, bis er manuell geklaert, endgueltig storniert oder durch echte Neueinreichung/Ersatzrechnung erklaert ist.
+- Die sichtbare operative Fallarbeit ist eine gemeinsame `Pruefliste`. Alte sichtbare Mehrkorb-Listen wie `Praxis nachfassen`, `Zahlung/Grund pruefen` und `Noch nicht zugeordnet` sind keine fuehrenden Haupttabs mehr.
+- Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten, ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert und 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen.
+- `BFS-Rechnungsanalyse` ist fachlich getrennt von der Storno-/Saldo-Logik. Tabs: `Leistungsuebersicht`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`.
+- Einzelrechnungen: BEMA/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-Potenzialanalyse eingerechnet.
+- Leistungsnummern: Zahn-/Regionangaben wie `36` werden nicht als Leistungsnummer gruppiert, wenn danach eine echte Leistungsnummer wie `2180` folgt. Die Tabelle zeigt `Leistungsnr.`.
+- Prueflisten-Export: PDF/Druck und CSV enden mit den manuellen Spalten `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.
 
 ## Prompt fuer den naechsten Chat
 
@@ -136,16 +98,14 @@ Navigationslogik aktuell:
 - Oberreiter `BFS-Abrechnungen`
   - Management
   - Analyse & Benchmarking
-  - Operative Fallarbeit
+  - Operative Fallarbeit mit gemeinsamer `Pruefliste`
   - Reports
   - Import-Center Abrechnung
 - Oberreiter `BFS-Rechnungsanalyse`
-  - Auswertungen
-    - Rechnungsuebersicht
-    - Leistungsanalyse
-    - Laboranalyse
-  - Import & Pruefung
-    - Import-Center Rechnungen
+  - `Leistungsuebersicht`
+  - `Potenzialanalyse`
+  - `Standortvergleich`
+  - `Import-Center Rechnungen`
 - Admin Bereich
 
 Wichtig: Der fruehere Reiter `Import & Pruefung` wurde fachlich geteilt:
@@ -182,12 +142,11 @@ Wichtige aktuelle Sichten:
   - Standortleiste entfernt; klassische Zeitraum- und Standortfilter.
   - Charts `Patientenklassen` und `Ohne Ausfallschutz` als Saeulendiagramme im App-Layout.
   - Charts `Risikoentwicklung` und `Patientenqualitaet` wurden entfernt.
-- `Matching & Neueinreichungen`
-  - Wurde vor `Klaerfaelle` geschoben, weil fachlich zuerst Neueinreichungen/Matching geprueft werden sollen.
-  - Fruehere Diagramme entfernt, Tabelle als Scrolltabelle.
-  - Neueinreichungen koennen analog zu Klaerfaellen bestaetigt/abgelehnt werden.
-  - Wenn `Stimmt`: Position laeuft in erfolgreiche Wiederholung/Zurueckholung.
-  - Wenn `Abgelehnt`: Position laeuft in Stornierung/offen.
+- `Operative Fallarbeit`
+  - Fuehrende Sicht ist eine gemeinsame `Pruefliste offene Faelle`.
+  - Die Praxis entscheidet je Zeile `Erledigt / bezahlt` oder `Endgueltig storniert`.
+  - Die offene Pruefsumme reduziert sich durch erledigt/bezahlt; endgueltig stornierte Faelle laufen separat in `Endgueltig verloren`.
+  - PDF-/Druckexport und CSV sind als Praxisausdruck gedacht und enthalten am Ende `Kommentar` sowie `Wenn storniert: in der Praxissoftware ausgebucht?`.
 - `Prioritaeten heute`
   - Wurde komplett entfernt, inklusive Querverlinkungen.
 
@@ -293,21 +252,29 @@ Wenn grosse Uploads wieder haken:
 
 ## BFS-Rechnungsanalyse / Rechnungs-PDFs
 
-Neu aufgebauter zweiter Fachbereich: `BFS-Rechnungsanalyse`.
+Zweiter Fachbereich: `BFS-Rechnungsanalyse`. Er bleibt fachlich getrennt von BFS-Abrechnungen, Storno-/Rueckgabe-Logik und Saldo-Statuslisten.
 
 Ziel:
 - BFS-Patientenrechnungen aus dem BFS-Portal einlesen.
-- Je Standort auswerten, welche Abrechnungsnummern/Leistungsnummern wie oft abgerechnet werden.
-- Faktoren, Betraege und Leistungsbeschreibungen je Standort vergleichen.
+- Je Standort auswerten, welche Leistungsnummern wie oft abgerechnet werden.
+- Faktoren, Betraege, Laboranteile und Leistungsbeschreibungen je Standort vergleichen.
 - Standorte challengen: z. B. "Ulmet rechnet Position X auffaellig niedrig/selten ab im Vergleich zu Standort Y".
 - Eigenlabor und Fremdlabor erkennen und getrennt auswerten.
 - Spaeter Matching/Neueinreichungen fachlich verbessern, weil Rechnungen Behandlungszeitraum, Positionen, Faktoren und Rechnungsnummern enthalten.
 
+Aktuelle Tabs:
+- `Leistungsuebersicht`: pro Leistung eigener Faktor bzw. Standortfaktor vs. Gruppenschnitt ohne eigenen Standort, nach Haeufigkeit absteigend sortiert, Tabelle intern scrollbar.
+- `Potenzialanalyse`: Euro-Potenzial, Top-Hebel, Monats-/Jahreshochrechnung aus echten Positionsbetraegen gegen Gruppenschnitt ohne eigene Praxis.
+- `Standortvergleich`: Rechnungen, Positionen, Umsatz, Fallwert, Durchschnittsfaktor, Laborquote und Potenzial je Praxis.
+- `Import-Center Rechnungen`: Daten rein, speichern, pruefen und bei Bedarf `Upload zuruecksetzen`.
+
 Technik:
 - `lib/invoice-parser.ts`
 - `app/api/invoices/parse/route.ts`
-- Import unter `BFS-Rechnungsanalyse > Import & Pruefung > Import-Center Rechnungen`
+- Import unter `BFS-Rechnungsanalyse > Import-Center Rechnungen`
 - Upload unterstuetzt mehrere PDFs sowie Ordner inkl. Unterordner.
+- Bestaetigte Rechnungen werden ueber `/api/invoices/parse` in `bfs_invoice_import_batches`, `bfs_patient_invoices` und `bfs_patient_invoice_lines` gespeichert und per `GET` wieder geladen.
+- `Upload zuruecksetzen` ruft den serverseitigen DELETE auf und entfernt gespeicherte Rechnungen, Positionen und Import-Batches dauerhaft.
 - Parser liest u. a.:
   - BFS-Nr.
   - Mandant-Nr.
@@ -321,7 +288,15 @@ Technik:
   - Eigenlabor
   - Fremdlabor netto/brutto
   - Material/Auslagen
-  - Leistungszeilen mit Nr./Code, zusammengefasster Leistungsbeschreibung, Faktor, Menge, Betrag, Kategorie
+  - Leistungszeilen mit Leistungsnummer/Code, Zahn-/Regionangabe, zusammengefasster Leistungsbeschreibung, Faktor, Menge, Betrag, Kategorie
+
+Fachliche Regeln fuer Leistungszeilen:
+- Zahn-/Regionangaben wie `36`, `25`, `37`, `OK`, `UK` duerfen nicht als Leistungsnummer gruppiert werden, wenn danach eine echte GOZ-/GOAe-/Analog-Leistungsnummer folgt.
+- Beispiel: `36 modv 2180 ...` wird als Region `36 modv` und Leistungsnr. `2180` gelesen.
+- Die Tabelle zeigt deshalb `Leistungsnr.` statt nur `Nr.`.
+- BEMA-/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-Potenzialanalyse eingerechnet.
+- Beispiel `Rechnung_5-18504-73794150.pdf`: BEMA/Festzuschuss + Eigenlabor, keine GOZ-Faktorposition; Importstatus OK, Vorschau `BEMA + Labor`.
+- Gegencheck mit 66 PDFs aus `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS`: 0 Parser-Statusfehler und 0 auffaellige Faelle, in denen eine zweistellige Zahn-/Regionnummer vor einer echten Leistungsnummer als Leistungscode gruppiert wurde.
 
 Fachliche Zuordnung:
 - Standorte werden ueber Mandant-Nr. zugeordnet.
@@ -467,21 +442,24 @@ Admin:
 - Nutzer koennen ein temporaeres Passwort erhalten und beim ersten Login wechseln.
 - Admin-Benutzer-API sollte vorsichtig bleiben: Standortzuordnungen duerfen nicht versehentlich geleert werden, wenn kein Standortpayload kommt.
 
-## Klaerfaelle / Manuelle Bearbeitung
+## Pruefliste / Manuelle Bearbeitung
 
-Klaerfaelle koennen operativ bearbeitet werden.
+Die operative Fallarbeit fuehrt offene Abzugsfaelle in einer gemeinsamen `Pruefliste`.
 
 Aktuelle Logik:
-- Fall als bezahlt/erledigt markieren.
+- Fall als `Erledigt / bezahlt` markieren, wenn Zahlung, Neueinreichung/Ersatzrechnung oder wirtschaftliche Klaerung belegt ist.
+- Fall als `Endgueltig storniert` markieren, wenn der Betrag bewusst als Verlust/Endstorno entschieden ist.
 - Markierung wird serverseitig im `audit_log` gespeichert.
 - Stabile Fall-Schluessel basieren auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund.
-- Erledigte Faelle werden importuebergreifend ausgeblendet, wenn derselbe Vorgang spaeter wieder auftaucht.
-- Manuell erledigte Faelle zaehlen bei Recovery-/Erledigungsquoten mit.
+- Erledigte/bezahlte Faelle reduzieren die offene Pruefsumme und zaehlen als `Bereits geklaert`.
+- Endgueltig stornierte Faelle reduzieren die offene Pruefsumme und laufen in die Kachel `Endgueltig verloren`.
+- Manuelle Entscheidungen bleiben importuebergreifend stabil, wenn derselbe Vorgang spaeter wieder auftaucht.
 - Doppelte Audit-Eintraege fuer denselben Fall wurden als Risiko erkannt und sollten weiterhin verhindert werden.
 
 Noch wichtig fuer Produktlogik:
 - "Bezahlt/erledigt" bedeutet: fachlich geklaert und nicht mehr operativ offen.
-- "Weiterhin offen" bedeutet: nicht als bezahlt bestaetigt und muss in Klaerfaelle/Fallarbeit sichtbar bleiben.
+- "Endgueltig storniert" bedeutet: bewusst als Verlust/Endstorno entschieden, nicht mehr offene Praxisarbeit.
+- Nicht entschiedene Faelle bleiben in der Pruefliste.
 - Browser-native Confirm-Dialoge sollen nicht verwendet werden; stattdessen App-Popups/Dialoge.
 
 ## Storno / Rueckgabe / Recovery
@@ -490,21 +468,15 @@ Die App unterscheidet:
 - Rueckgabe/Rueckbelastung/Storno: urspruenglicher Abzug bzw. negativer Vorgang.
 - Neueinreichung/Recovery: spaeter erkannte erneute Forderung desselben Patienten/Vorgangs.
 - Manuell bezahlt: fachlich vom Nutzer als erledigt bestaetigt.
-- Operativ offen: echter Fallbestand, der noch bearbeitet werden muss.
+- Ratenplan laut BFS: fuer die offene Pruefsumme als geregelt/gesichert behandelt.
+- Endgueltig verloren: manuell als Endstorno/Verlust entschiedener Abzug.
+- Operativ offen: Fallbestand in der gemeinsamen Pruefliste.
 
 Wichtig bei Beschriftungen:
-- Recovery-Betrag kann hoeher sein als urspruenglicher Abzug, wenn spaetere Neueinreichungen mehr als den alten Abzug enthalten. Das muss eindeutig als "spaeter erneut eingereichte Summe" oder aehnlich beschriftet sein, nicht als 1:1 Rueckholung des alten Betrags.
+- Zentrale Formel: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
+- `Bereits geklaert` ist nicht gleich `Saldo 0`; es braucht echte Neueinreichung/Ersatzrechnung, manuelle Zahlungsklaerung oder Ratenplan.
+- Recovery-Betrag wird maximal bis zur Hoehe des urspruenglichen Abzugs angerechnet; Restbetraege bleiben sichtbar.
 - Quoten muessen klar sagen, ob sie sich auf Anzahl Faelle, Abzugssumme oder eingereichten Umsatz beziehen.
-- `110/226 erledigt` und `operativ offen 161` duerfen nicht missverstaendlich addiert werden, wenn sie unterschiedliche Grundgesamtheiten/Definitionen haben. Entweder logisch entdoppeln oder sehr klar beschriften.
-
-Aktuelle Korrektur im Zusammenfassung-Tab:
-- Der fruehere Tab `Individuell` heisst jetzt `Zusammenfassung`.
-- KPI `Anzahl Stornierungen` zeigt die Storno-Grundmenge im gewaehlten Zeitraum.
-- KPI `Davon gewandelt` zeigt, wie viele dieser Storno-Zeilen inzwischen erledigt/gewandelt sind.
-- Als gewandelt gelten Zahlung nach Storno, erkannte spaetere Neueinreichung oder manuelle Markierung als bezahlt.
-- Das Diagramm `Stornierungen vs. zurueckgeholt` ordnet `zurueckgeholt` dem urspruenglichen Storno-Monat zu. Dadurch passt die Linie zur Storno-Grundmenge und faellt nicht faelschlich auf 0, nur weil die erfolgreiche Wandlung spaeter datiert ist.
-- Fachliche Regel: `zurueckgeholt` und `gewandelt` sind dieselbe Managementlogik.
-- Endgueltig stornierte Faelle koennen manuell als `endgueltig storniert` geklaert werden. Sie verschwinden aus der offenen Klaerliste und aus Neueinreichungsvorschlaegen, bleiben aber als dauerhaft storniert in Storno-Auswertungen enthalten.
 
 ## Patientenqualitaet
 
@@ -646,9 +618,11 @@ Weitere aktuelle Seitenentscheidungen:
 - `Schnellantworten`
   - Kacheln auf Desktop gleichmaessig angeordnet.
 
-## Zuletzt umgesetzte wichtige Aenderungen
+## Historie / alte Zwischenstaende
 
-Aktuelle letzte Commits/Aenderungen:
+Dieser Bereich ist Verlauf und darf nicht als aktuelle fachliche Wahrheit gelesen werden, wenn er dem oberen Abschnitt `Aktuelle Wahrheit kurz` widerspricht. Fuehrend ist immer der Kopf dieser Datei.
+
+Historische Commits/Aenderungen:
 - Offene Korrektur aus aktueller fachlicher Klarstellung: Der Saldo-Pruefkorb weist jetzt explizit aus, wo die Praxis selbst nachfassen muss und wo nur wirtschaftlich belegt werden muss, was passiert ist. `Rueckgabe ohne Ausfallschutz` erscheint als `Praxis nachfassen` und bleibt trotz Saldo 0 aktiver Nachfassfall. Saldobereinigte Storno-/Rueckgabefaelle ohne erkannte Zahlung/Neueinreichung erscheinen als `Zahlung/Grund pruefen`: BFS ist geschlossen, aber Zahlung, Neueinreichung oder Storno-Grund muss wirtschaftlich belegbar sein. Saldo 0 darf nicht mehr als automatischer Zahlungsnachweis missverstanden werden.
 - Pruefergebnis Essen nach enger Recovery-Logik: 173 PDF-Dateien / 168 Abrechnungen, Zeitraum 09.01.2025 bis 28.05.2026, 1.820 Forderungen / 878.524,55 EUR und 1.820 Saldo-Zeilen. Brutto-Storno/Rueckgabe: 65 Faelle / 11.836,26 EUR. Davon echte Neueinreichung nach enger Logik: 3 Faelle / 468,62 EUR Ursprungsabzug, neue Forderung 373,30 EUR, angerechnet 373,30 EUR, Differenz -95,32 EUR. Bezahlt/Zahlung nach Storno: 0. Saldobereinigt ohne Neueinreichung/Zahlung: 61 Faelle / 11.307,64 EUR. Rueckgabe ohne Ausfallschutz offen: Ortega, Gisela 60,00 EUR; bleibt trotz Saldo 0 offener Praxis-Nachfassfall. Alte breite Logik haette Essen falsch mit 37 Neueinreichungen / 6.179,26 EUR Ursprungsabzug gezaehlt.
 - Offene Korrektur aus aktuellem Kehl-Gegencheck: Neueinreichungs-/Recovery-Matching wurde enger gefasst. Eine spaetere Rechnung beim gleichen Patienten zaehlt nicht mehr automatisch als Rueckholung. Es braucht einen konkreten fachlichen Hinweis: `neue Rechnung` oder `Storno-fehlerhafte Rechnung` plus neue BFS/Rechnung mit passendem Betrag, gleicher Rechnung oder direktem Ersatz im selben Kontoauszug. Kehl-Pruefung: 75 Brutto-Storno/Rueckgabe-Zeilen / 21.721,76 EUR; mit alter Logik waeren 29 Faelle / 8.038,16 EUR als neu eingereicht gezaehlt worden, mit engerer Logik nur 6 Faelle / 592,38 EUR. `Rueckgabe ohne Ausfallschutz` bleibt offen.
@@ -911,7 +885,7 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die operativen Reiter `Praxis nachfassen`, `Zahlung / Grund pruefen` und `Neueinreichung / Matching` haben jetzt konsistente Standort-, Zeitraum- und Suchfilter.
 - Die Suchfelder sind nicht mehr nur optisch: Patient, Standort, Rechnungsnummer, BFS-Nr., Betrag, Grund/Status und relevante Abrechnungs-/Datumsfelder filtern die jeweilige Tabelle wirklich.
 - Kacheln, Tab-Auswertung, Summen, Charts und PDF-Export im operativen Bereich basieren auf den gefilterten Zeilen.
-- Operative Beträge werden in Arbeitslisten, Entscheidungsdialogen und Exporten centgenau angezeigt. Management-Kacheln bleiben fuer schnelle Uebersicht weiterhin grob lesbar.
+- Operative Betraege werden in Arbeitslisten, Entscheidungsdialogen und Exporten centgenau angezeigt. Management-Kacheln bleiben fuer schnelle Uebersicht weiterhin grob lesbar.
 - Alle drei operativen Tabs haben einen filtergebundenen PDF-/Druckexport im A4-Querformat mit kompakter Zusammenfassung und druckbarer Arbeitsliste.
 
 ## Update 2026-06-29: BFS-Einzelrechnung BEMA/Festzuschuss
@@ -927,6 +901,6 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 ## Update 2026-06-29: Leistungsnummer vs. Zahnregion
 
-- In der BFS-Rechnungsanalyse wurde die Leistungsnummer-Erkennung verbessert: zweistellige Region-/Zahnangaben wie `36`, `25` oder `37` werden nicht mehr als GOZ-/GOAe-Abrechnungsnummer genutzt, wenn danach eine echte Leistungsnummer wie `2180`, `5070`, `4030` oder `Ä1` folgt.
+- In der BFS-Rechnungsanalyse wurde die Leistungsnummer-Erkennung verbessert: zweistellige Region-/Zahnangaben wie `36`, `25` oder `37` werden nicht mehr als GOZ-/GOAe-Abrechnungsnummer genutzt, wenn danach eine echte Leistungsnummer wie `2180`, `5070`, `4030` oder `Ae1` folgt.
 - Die Tabelle `Leistungsuebersicht` zeigt damit in `Leistungsnr.` die fachlich relevante Leistungsnummer; Zahn/Region bleibt intern als Region an der Position erhalten.
 - Gegencheck mit 66 PDFs aus `3. Einzel-Rechnungen_BFS`: 0 Parser-Statusfehler und 0 verbliebene auffaellige Faelle, in denen zweistellige Zahn-/Regionnummern vor einer echten Leistungsnummer als Leistungscode gruppiert wurden.

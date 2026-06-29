@@ -87,7 +87,8 @@ function parseStatusFlags(raw: string) {
   const protectionToken = tokens.pop();
   const prefinancingToken = tokens.pop();
   const rest = tokens.join(" ");
-  const reminderLevel = Number(rest.match(/\b(\d+)\b/)?.[1] ?? 0);
+  const restWithoutInstallmentMonths = rest.replace(/\(\d+\)/g, " ");
+  const reminderLevel = Number(restWithoutInstallmentMonths.match(/\b(\d+)\b/)?.[1] ?? 0);
   const installmentPlan = /\bja\b/i.test(rest);
   const installmentMonths = Number(rest.match(/\((\d+)\)/)?.[1] ?? 0) || undefined;
 

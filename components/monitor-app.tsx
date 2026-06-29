@@ -115,7 +115,8 @@ const superAdminNav: NavSection[] = [
   {
     title: "Import & Prüfung",
     items: [
-      ["upload", "Import-Center", FolderUp]
+      ["upload", "Import-Center Abrechnung", FolderUp],
+      ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
     ]
   },
   {
@@ -219,7 +220,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
   const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
-  const emptyDataAllowedViews = ["upload", "preview", "history", "locations", "users", "settings"];
+  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
     "cases",
@@ -228,7 +229,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -558,6 +559,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
+            {activeView === "invoiceImport" && <InvoiceImportView />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
@@ -672,7 +674,7 @@ function NoUploadDataView({ onUpload }: { onUpload: () => void }) {
         <article><span>Rückgaben/Stornos</span><strong>0</strong></article>
       </div>
       <button className="primary-button" onClick={onUpload}>
-        <FolderUp size={16} /> Zum Import-Center
+        <FolderUp size={16} /> Zum Import-Center Abrechnung
       </button>
     </section>
   );
@@ -771,9 +773,10 @@ function titleFor(view: string) {
     quality: "Forderungsqualität",
     claims: "Standortdetails",
     cashflow: "Forderungen und Geldfluss",
-    upload: "Import-Center",
-    preview: "Import-Center",
-    history: "Import-Center",
+    upload: "Import-Center Abrechnung",
+    preview: "Import-Center Abrechnung",
+    history: "Import-Center Abrechnung",
+    invoiceImport: "Import-Center Rechnungen",
     cases: "Klärfälle",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
@@ -5393,6 +5396,62 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       )}
       <ImportHistorySummary rows={previewRows} />
       <ImportPreview rows={previewRows} />
+    </div>
+  );
+}
+
+function InvoiceImportView() {
+  return (
+    <div className="content-stack">
+      <section className="upload-zone">
+        <div className="upload-status">
+          <ReceiptText size={24} />
+          <span>Vorbereitet für Patientenrechnungen</span>
+          <strong>Rechnungsimport wird hier aufgebaut</strong>
+        </div>
+        <div>
+          <h2>Patientenrechnungen aus dem BFS-Portal einreichen</h2>
+          <p>Dieser Bereich ist für die Analyse der einzelnen Rechnungspositionen vorgesehen: Leistungsnummer, Kurzbeschreibung, Faktor, Anzahl, Betrag und Behandlungszeitraum je Standort.</p>
+        </div>
+        <div className="upload-actions">
+          <button className="file-upload-button disabled" type="button" disabled>
+            <FolderUp size={18} /> Rechnungs-PDFs auswählen
+          </button>
+        </div>
+      </section>
+      <section className="priority-grid">
+        <PriorityCard label="Rechnungen" value="0" hint="noch kein Rechnungsimport aktiv" tone="blue" />
+        <PriorityCard label="Positionen" value="0" hint="Nr. + Kurzbeschreibung" tone="blue" />
+        <PriorityCard label="Faktoren" value="-" hint="Analyse vorbereitet" tone="amber" />
+        <PriorityCard label="Matching-Hilfe" value="bereit" hint="Behandlungszeitraum + Positionen" tone="green" />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Zielstruktur</span>
+            <h2>Was aus den Rechnungen gelesen werden soll</h2>
+            <p>Die spätere Auswertung trennt Rechnungskopf, Behandlungszeitraum und einzelne Leistungspositionen, damit Standortvergleich und Neueinreichungs-Matching fachlich belastbarer werden.</p>
+          </div>
+        </div>
+        <div className="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Feld</th>
+                <th>Beispiel</th>
+                <th>Nutzung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Rechnungskopf</td><td>BFS-Nr., Rechnungsnummer, Rechnungsdatum, Patient</td><td>Zuordnung und Suche</td></tr>
+              <tr><td>Behandlungszeitraum</td><td>16.06.2026 bis 16.06.2026</td><td>Matching gegen Storno/Neueinreichung</td></tr>
+              <tr><td>Leistungsposition</td><td>2080 · Kompositfüllung zweiflächig</td><td>Positionsanalyse je Standort</td></tr>
+              <tr><td>Faktor / Anzahl / Betrag</td><td>4,800 · 1 · 150,10 €</td><td>Faktoren- und Umsatzvergleich</td></tr>
+              <tr><td>Begründung</td><td>erhöhter Schwierigkeitsgrad</td><td>Detailprüfung und Plausibilität</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

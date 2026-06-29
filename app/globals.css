@@ -1908,14 +1908,24 @@ input {
   max-height: min(520px, 58vh);
 }
 
+.invoice-status-scroll {
+  max-height: min(520px, 58vh);
+  border: 1px solid rgba(157, 226, 230, 0.16);
+  border-radius: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .import-history-scroll thead th,
-.import-detail-scroll thead th {
+.import-detail-scroll thead th,
+.invoice-status-scroll thead th {
   position: sticky;
   top: 0;
   z-index: 2;
 }
 
-.import-detail-scroll table {
+.import-detail-scroll table,
+.invoice-status-scroll table {
   min-width: 1280px;
 }
 

@@ -5377,10 +5377,13 @@ function UploadView({
   const [isStatusProcessing, setIsStatusProcessing] = useState(false);
   const [statusUploadStatus, setStatusUploadStatus] = useState("Bereit für Saldo-Listen");
   const [selectedStatusFileCount, setSelectedStatusFileCount] = useState(0);
+  const [pendingStatusDocuments, setPendingStatusDocuments] = useState<ParsedInvoiceStatusDocument[] | null>(null);
   const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
-  const statusRows = statusDocuments.flatMap((document) => document.rows);
+  const displayedStatusDocuments = pendingStatusDocuments ?? statusDocuments;
+  const hasPendingStatusImport = pendingStatusDocuments !== null;
+  const statusRows = displayedStatusDocuments.flatMap((document) => document.rows);
   const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
@@ -5443,21 +5446,41 @@ function UploadView({
     setIsStatusProcessing(true);
     setStatusUploadStatus(`${importableFiles.length} Saldo-Listen werden gelesen`);
     try {
-      if (mode === "replace") onStatusDocumentsChange([]);
+      if (mode === "replace") setPendingStatusDocuments([]);
       const parsedDocuments = await parseInvoiceStatusFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setStatusUploadStatus(`${processed} von ${total} Listen gelesen (${shortName})`);
       });
-      const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(statusDocuments, parsedDocuments) : parsedDocuments;
-      onStatusDocumentsChange(nextDocuments);
+      const baseDocuments = pendingStatusDocuments ?? statusDocuments;
+      const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, parsedDocuments) : parsedDocuments;
+      setPendingStatusDocuments(nextDocuments);
       const nextRows = nextDocuments.flatMap((document) => document.rows);
-      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt`);
+      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt. Bitte bestätigen.`);
     } catch (error) {
-      if (mode === "replace") onStatusDocumentsChange([]);
+      if (mode === "replace") setPendingStatusDocuments(null);
       setStatusUploadStatus(`Saldo-Listen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsStatusProcessing(false);
     }
+  }
+
+  function confirmStatusImport() {
+    if (!pendingStatusDocuments) return;
+    onStatusDocumentsChange(pendingStatusDocuments);
+    const confirmedRows = pendingStatusDocuments.flatMap((document) => document.rows);
+    setPendingStatusDocuments(null);
+    setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen`);
+  }
+
+  function resetStatusImport() {
+    if (hasPendingStatusImport) {
+      setPendingStatusDocuments(null);
+      setStatusUploadStatus("Saldo-Vorschau verworfen");
+    } else {
+      onStatusDocumentsChange([]);
+      setStatusUploadStatus("Saldo-Import zurückgesetzt");
+    }
+    setSelectedStatusFileCount(0);
   }
 
   return (
@@ -5533,7 +5556,7 @@ function UploadView({
           <p>Diese monatlichen Übersichtslisten ergänzen die Abrechnungsanalyse um Zahlungsstatus, Saldo, Mahnstufe, Ratenplan und Ausfallschutz je BFS-Nr. Saldo 0,00 € gilt als bezahlt.</p>
           <div className={isStatusProcessing ? "upload-status processing" : statusRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
             <RefreshCw size={14} />
-            <span>{isStatusProcessing ? "Wird gelesen" : statusRows.length ? "Fertig" : "Bereit"}</span>
+            <span>{isStatusProcessing ? "Wird gelesen" : hasPendingStatusImport ? "Vorschau" : statusRows.length ? "Bestätigt" : "Bereit"}</span>
             <strong>{statusUploadStatus}</strong>
           </div>
         </div>
@@ -5551,22 +5574,22 @@ function UploadView({
               type="file"
               multiple
               accept=".pdf,application/pdf"
-              onChange={(event) => handleStatusFiles(event.target.files, statusDocuments.length ? "append" : "replace")}
+              onChange={(event) => handleStatusFiles(event.target.files, displayedStatusDocuments.length ? "append" : "replace")}
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
-          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || !statusDocuments.length} onClick={() => {
-            onStatusDocumentsChange([]);
-            setSelectedStatusFileCount(0);
-            setStatusUploadStatus("Saldo-Vorschau zurückgesetzt");
-          }}>
+          <button className="primary-button" disabled={isStatusProcessing || !hasPendingStatusImport} onClick={confirmStatusImport}>
+            <CheckCircle2 size={16} />
+            Saldo-Import bestätigen
+          </button>
+          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || (!displayedStatusDocuments.length && !hasPendingStatusImport)} onClick={resetStatusImport}>
             <X size={16} />
-            Saldo-Vorschau zurücksetzen
+            {hasPendingStatusImport ? "Saldo-Vorschau verwerfen" : "Saldo-Import zurücksetzen"}
           </button>
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : "Rechnungen aus Saldo-Listen"} tone="blue" />
+        <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : hasPendingStatusImport ? "Vorschau aus Saldo-Listen" : "bestätigte Saldo-Listen"} tone="blue" />
         <PriorityCard label="Storno-Basis" value={integerNumber.format(statusSummary.importCaseCount)} hint="offene Fälle aus Abrechnungsimport" tone="amber" />
         <PriorityCard label="Durch Saldo korrigiert" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" />
         <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0 oder RP aktiv" tone="green" />
@@ -5575,23 +5598,23 @@ function UploadView({
         <PriorityCard label="Ohne Schutz offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" />
         <PriorityCard label="Nicht zuordenbar" value={integerNumber.format(statusSummary.unmatchedCaseCount)} hint="Klärfälle ohne Saldo-Treffer" tone="amber" />
       </section>
-      <InvoiceStatusPreview rows={statusRows} />
+      <InvoiceStatusPreview rows={statusRows} isPreview={hasPendingStatusImport} />
     </div>
   );
 }
 
-function InvoiceStatusPreview({ rows }: { rows: ParsedInvoiceStatusRow[] }) {
+function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRow[]; isPreview?: boolean }) {
   const previewRows = [...rows].sort((a, b) => Math.abs(b.saldo) - Math.abs(a.saldo)).slice(0, 80);
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">Saldo-Listen</span>
+          <span className="eyebrow">{isPreview ? "Saldo-Vorschau" : "Saldo-Listen"}</span>
           <h2>Rechnungsstatus nach BFS-Saldo</h2>
           <p>Die Vorschau zeigt die größten offenen Salden zuerst. Bezahlt bedeutet Saldo 0,00 €; Ratenplan bedeutet akzeptierte Forderung mit laufender BFS-Zahlung.</p>
         </div>
       </div>
-      <div className="table-wrap compact-table">
+      <div className="table-wrap compact-table invoice-status-scroll">
         <table>
           <thead>
             <tr>

@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 10:15 Uhr
+Stand: 29.06.2026, ca. 10:40 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -338,7 +338,10 @@ Import-Flow:
   - `Import-Status & Historie`
   - `Grundauswertung aus BFS-Bemerkungen`
   - `Pruefung & Detailvorschau`
+  - `Pruefkorb / Praxis-Aufgaben aus Rechnungsstatus`
+  - `Rechnungsstatus nach BFS-Saldo`
 - Die Tabellen in diesen Bereichen sind bewusst kurz gehalten und intern scrollbar. Grundauswertungen und Detailvorschau sollen nicht mehr die ganze Seite verlaengern; ca. fuenf Zeilen sichtbar reichen, der Rest wird innerhalb der Tabelle gescrollt.
+- Standard im `Import-Center Abrechnung`: Diese Auswertungs-/Detailbereiche starten eingeklappt. Sichtbar bleiben Uploadbereiche und KPI-Zusammenfassung; Details werden bewusst per Ausklappen geoeffnet.
 
 Aktuelle Kacheln im Saldo-Import:
 - `Statuszeilen`: Zeilen aus den hochgeladenen Saldo-Listen.
@@ -595,6 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- `58cc3960 Collapse billing import detail sections`
 - `e1983efb Compact BFS import preview sections`
 - `9d556e86 Scope saldo case reconciliation by location`
 - `f804cc44 Add invoice status review basket`
@@ -661,7 +665,7 @@ Damit ist zuletzt erledigt:
 - `Patientenklassifizierung` wurde als eigener Tab angelegt.
 - Linke Desktop-Navigation bleibt beim Scrollen sichtbar.
 - Endgueltig stornierte Klaerfaelle koennen manuell geklaert werden und verschwinden aus offenen Arbeitslisten/Neueinreichungsvorschlaegen.
-- Abrechnungsimport-Vorschau wurde kompakter gemacht: `Import bestaetigen` sitzt oben im Uploadbereich, Import-Historie/Grundauswertung/Detailvorschau sind einklappbar und die Tabellen scrollen intern nach wenigen Zeilen.
+- Abrechnungsimport-Vorschau wurde kompakter gemacht: `Import bestaetigen` sitzt oben im Uploadbereich, Import-Historie/Grundauswertung/Detailvorschau/Pruefkorb/Saldo-Listen sind einklappbar und starten im Tab standardmaessig eingeklappt. Die Tabellen scrollen intern nach wenigen Zeilen.
 - Appweite Typografie-Skala vereinheitlicht.
 - Doppelte Wertzeile unter Zusammenfassung-Diagrammtiteln entfernt; Werte stehen nur noch im Diagramm-Tooltip.
 - Chart-Tooltips fuer Zusammenfassung-Kombi-/Dual-Axis-Charts.

@@ -5724,6 +5724,7 @@ function UploadView({
 }
 
 function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceStatusRow[]; importRows: ImportPreviewRow[] }) {
+  const [isOpen, setIsOpen] = useState(false);
   const reviewRows = buildInvoiceStatusReviewBasket(rows, importRows);
   const summary = summarizeInvoiceStatusReviewBasket(reviewRows);
   const visibleRows = reviewRows.slice(0, 180);
@@ -5735,48 +5736,57 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
           <h2>Praxis-Aufgaben aus Rechnungsstatus</h2>
           <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Normale offene BFS-Rechnungen werden nur dann priorisiert, wenn sie kritisch, ohne Schutz, in Mahnung oder nicht sauber zuordenbar sind.</p>
         </div>
+        <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+          <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
+          {isOpen ? "Einklappen" : "Ausklappen"}
+        </button>
       </div>
-      <div className="status-review-summary">
-        <article><span>Kritisch offen ohne RP</span><strong>{integerNumber.format(summary.criticalOpen)}</strong></article>
-        <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
-        <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
-        <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
-        <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
-        <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
-      </div>
-      <div className="table-wrap compact-table invoice-status-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Kategorie</th>
-              <th>Standort</th>
-              <th>Patient</th>
-              <th>Rechnung</th>
-              <th>Betrag</th>
-              <th>Grund / Status</th>
-              <th>Nächster Schritt</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.length ? visibleRows.map((row) => (
-              <tr key={row.id}>
-                <td><StatusBadge status={row.categoryLabel} /></td>
-                <td>{row.locationName}</td>
-                <td><strong>{row.patientName}</strong><small>{row.source}</small></td>
-                <td><strong>{row.invoiceNo}</strong><small>{row.bfsNo}</small></td>
-                <td>{money.format(row.amount)}</td>
-                <td>{row.detail}</td>
-                <td>{row.nextStep}</td>
-              </tr>
-            )) : <EmptyTableRow colSpan={7} label="Noch kein Prüfkorb. Bitte Saldo-Liste hochladen oder Abrechnungsimport prüfen." />}
-          </tbody>
-        </table>
-      </div>
+      {isOpen && (
+        <>
+          <div className="status-review-summary">
+            <article><span>Kritisch offen ohne RP</span><strong>{integerNumber.format(summary.criticalOpen)}</strong></article>
+            <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
+            <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
+            <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
+            <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
+            <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
+          </div>
+          <div className="table-wrap compact-table invoice-status-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kategorie</th>
+                  <th>Standort</th>
+                  <th>Patient</th>
+                  <th>Rechnung</th>
+                  <th>Betrag</th>
+                  <th>Grund / Status</th>
+                  <th>Nächster Schritt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.length ? visibleRows.map((row) => (
+                  <tr key={row.id}>
+                    <td><StatusBadge status={row.categoryLabel} /></td>
+                    <td>{row.locationName}</td>
+                    <td><strong>{row.patientName}</strong><small>{row.source}</small></td>
+                    <td><strong>{row.invoiceNo}</strong><small>{row.bfsNo}</small></td>
+                    <td>{money.format(row.amount)}</td>
+                    <td>{row.detail}</td>
+                    <td>{row.nextStep}</td>
+                  </tr>
+                )) : <EmptyTableRow colSpan={7} label="Noch kein Prüfkorb. Bitte Saldo-Liste hochladen oder Abrechnungsimport prüfen." />}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
   );
 }
 
 function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRow[]; isPreview?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
   const previewRows = [...rows].sort((a, b) => Math.abs(b.saldo) - Math.abs(a.saldo)).slice(0, 80);
   return (
     <section className="panel">
@@ -5786,41 +5796,47 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
           <h2>Rechnungsstatus nach BFS-Saldo</h2>
           <p>Die Vorschau zeigt die größten offenen Salden zuerst. Bezahlt bedeutet Saldo 0,00 €; Ratenplan bedeutet akzeptierte Forderung mit laufender BFS-Zahlung.</p>
         </div>
+        <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+          <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
+          {isOpen ? "Einklappen" : "Ausklappen"}
+        </button>
       </div>
-      <div className="table-wrap compact-table invoice-status-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Mandant</th>
-              <th>BFS-Nr.</th>
-              <th>Patient</th>
-              <th>Rechnung</th>
-              <th>Betrag</th>
-              <th>Saldo</th>
-              <th>MS</th>
-              <th>RP</th>
-              <th>Ausfallschutz</th>
-            </tr>
-          </thead>
-          <tbody>
-            {previewRows.length ? previewRows.map((row) => (
-              <tr key={`${row.bfsNo}-${row.file}-${row.page}`}>
-                <td><StatusBadge status={invoiceStatusLabel(row)} /></td>
-                <td>{row.mandantNo}</td>
-                <td><strong>{row.bfsNo}</strong></td>
-                <td><strong>{row.patientName}</strong><small>Pat.-Nr. {row.externalPatientNo}</small></td>
-                <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
-                <td>{money.format(row.amount)}</td>
-                <td>{money.format(row.saldo)}</td>
-                <td>{row.reminderLevel || "-"}</td>
-                <td>{row.installmentPlan ? `ja${row.installmentMonths ? ` (${row.installmentMonths})` : ""}` : "-"}</td>
-                <td>{row.protection ? "ja" : "nein"}</td>
+      {isOpen && (
+        <div className="table-wrap compact-table invoice-status-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Mandant</th>
+                <th>BFS-Nr.</th>
+                <th>Patient</th>
+                <th>Rechnung</th>
+                <th>Betrag</th>
+                <th>Saldo</th>
+                <th>MS</th>
+                <th>RP</th>
+                <th>Ausfallschutz</th>
               </tr>
-            )) : <EmptyTableRow colSpan={10} label="Noch keine Saldo-Listen eingelesen." />}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {previewRows.length ? previewRows.map((row) => (
+                <tr key={`${row.bfsNo}-${row.file}-${row.page}`}>
+                  <td><StatusBadge status={invoiceStatusLabel(row)} /></td>
+                  <td>{row.mandantNo}</td>
+                  <td><strong>{row.bfsNo}</strong></td>
+                  <td><strong>{row.patientName}</strong><small>Pat.-Nr. {row.externalPatientNo}</small></td>
+                  <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
+                  <td>{money.format(row.amount)}</td>
+                  <td>{money.format(row.saldo)}</td>
+                  <td>{row.reminderLevel || "-"}</td>
+                  <td>{row.installmentPlan ? `ja${row.installmentMonths ? ` (${row.installmentMonths})` : ""}` : "-"}</td>
+                  <td>{row.protection ? "ja" : "nein"}</td>
+                </tr>
+              )) : <EmptyTableRow colSpan={10} label="Noch keine Saldo-Listen eingelesen." />}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -6687,7 +6703,7 @@ function countNestedUploadFolders(rows: ImportPreviewRow[]) {
 }
 
 function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const months = buildImportHistoryMonths(rows);
   const totalSubmitted = months.reduce((sum, month) => sum + month.submitted, 0);
   const totalPayout = months.reduce((sum, month) => sum + month.payout, 0);
@@ -6848,8 +6864,8 @@ function buildImportHistoryMonths(rows: ImportPreviewRow[]) {
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
-  const [reasonOpen, setReasonOpen] = useState(true);
-  const [detailOpen, setDetailOpen] = useState(true);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const reviewRows = rows.filter(importRowNeedsReview);
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));

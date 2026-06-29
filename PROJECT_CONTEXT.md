@@ -1,10 +1,17 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 10:40 Uhr
+Stand: 29.06.2026, ca. 13:35 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
 Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit und BFS-Rechnungsanalyse. Neu hinzugekommen sind Rechnungs-PDF-Import, BFS-Rechnungsstatus-/Saldo-Listen, Monats-Pruefkorb fuer Praxis-Aufgaben, Patientenklassifizierung, bereinigte Tab-Struktur, responsive/visuelle Konsistenz und scrollbare Arbeitslisten.
+
+Letzte Aenderung/Pruefung:
+- Standort-Verlaufsgrafiken (`YearComparisonLines`) schneiden bei der Monatsachse jetzt am letzten tatsaechlich importierten Monat der jeweiligen Standort-/Zeitraumauswahl ab. Dadurch wird z.B. bei Datenstand bis Mai 2026 kein kuenstlicher Juni-2026-Wert mit `0 EUR` mehr angezeigt.
+- Die aktive Wertbox in der Verlaufsgrafik bleibt innerhalb des Chartkopfs und laeuft an linker/rechter Kante nicht mehr aus dem Container.
+- Die SVG-Hoehe der Verlaufsgrafik ist responsiv gedeckelt (`clamp(230px, 28vw, 360px)`), damit breite Bildschirme die Grafik nicht mehr riesig leer aufziehen.
+- Aufgeraeumt: zwei ungenutzte Variablen/Props in `components/monitor-app.tsx` entfernt.
+- Pruefung am 29.06.2026: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `git diff --check` alle erfolgreich. Browser-Sichtpruefung geschuetzter Dashboard-Grafiken war ohne eingeloggte Sitzung nicht moeglich; lokale Route leitete korrekt auf `/login?next=/dashboard` weiter.
 
 ## Prompt fuer den naechsten Chat
 

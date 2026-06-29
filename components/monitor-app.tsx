@@ -996,7 +996,6 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
-  const openStornoAmount = stornoReview.rows.filter((row) => row.open).reduce((sum, row) => sum + row.amount, 0);
   const grossDeductionAmount = metrics.returnAmount + metrics.cancellationAmount;
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
   const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
@@ -2025,7 +2024,7 @@ function YearComparisonLines({
 }) {
   const defaultCurrentYear = values[0]?.currentYear ?? todayReference.getFullYear();
   const defaultPreviousYear = values[0]?.previousYear ?? defaultCurrentYear - 1;
-  const [activePoint, setActivePoint] = useState<{ label: string; year: number; value: number; context?: string } | null>(null);
+  const [activePoint, setActivePoint] = useState<{ label: string; year: number; value: number; context?: string; index: number } | null>(null);
   const chartValues = values.length ? values : [{ label: "01", current: 0, previous: 0, currentYear: defaultCurrentYear, previousYear: defaultPreviousYear }];
   const maxValue = Math.max(...chartValues.flatMap((value) => [value.current, value.previous]), 1);
   const minValue = Math.min(...chartValues.flatMap((value) => [value.current, value.previous]), 0);
@@ -2039,8 +2038,14 @@ function YearComparisonLines({
     label: chartValues[chartValues.length - 1].label,
     year: chartValues[chartValues.length - 1].currentYear ?? defaultCurrentYear,
     value: chartValues[chartValues.length - 1].current,
-    context: chartValues[chartValues.length - 1].context
+    context: chartValues[chartValues.length - 1].context,
+    index: chartValues.length - 1
   };
+  const activeValueStyle = active.index === 0
+    ? { left: 0, right: "auto", transform: "none" }
+    : active.index === chartValues.length - 1
+      ? { left: "auto", right: 0, transform: "none" }
+      : { left: `${chartValues.length === 1 ? 50 : (active.index / (chartValues.length - 1)) * 100}%`, right: "auto", transform: "translateX(-50%)" };
   const pointFor = (entry: typeof chartValues[number], index: number, key: "current" | "previous") => {
     const x = padding.left + (chartValues.length === 1 ? plotWidth / 2 : (index / (chartValues.length - 1)) * plotWidth);
     const y = padding.top + plotHeight - (((entry[key] - minValue) / range) * plotHeight);
@@ -2058,7 +2063,7 @@ function YearComparisonLines({
           <span><i className="previous" /> Vorjahr {defaultPreviousYear}</span>
           <span><i className="current" /> Aktuell {defaultCurrentYear}</span>
         </div>
-        <div className="year-active-value">
+        <div className="year-active-value" style={activeValueStyle}>
           <span>{active.context ?? title}</span>
           <em>{monthLabelForYear(active.label, active.year)}</em>
           <strong>{format(active.value)}</strong>
@@ -2083,9 +2088,9 @@ function YearComparisonLines({
                 tabIndex={0}
                 role="button"
                 aria-label={`${entry.context ?? title}, Vorjahr ${monthLabelForYear(entry.label, entry.previousYear ?? defaultPreviousYear)}: ${format(entry.previous)}`}
-                onFocus={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
-                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
-                onClick={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context })}
+                onFocus={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context, index })}
+                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context, index })}
+                onClick={() => setActivePoint({ label: entry.label, year: entry.previousYear ?? defaultPreviousYear, value: entry.previous, context: entry.context, index })}
               />
               <circle
                 className="line-hit current-hit"
@@ -2095,9 +2100,9 @@ function YearComparisonLines({
                 tabIndex={0}
                 role="button"
                 aria-label={`${entry.context ?? title}, aktuell ${monthLabelForYear(entry.label, entry.currentYear ?? defaultCurrentYear)}: ${format(entry.current)}`}
-                onFocus={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
-                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
-                onClick={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context })}
+                onFocus={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context, index })}
+                onPointerEnter={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context, index })}
+                onClick={() => setActivePoint({ label: entry.label, year: entry.currentYear ?? defaultCurrentYear, value: entry.current, context: entry.context, index })}
               />
             </g>
           );
@@ -2299,7 +2304,11 @@ function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportP
   const currentYear = comparisonPeriod.start?.getFullYear() ?? todayReference.getFullYear();
   const previousYear = currentYear - 1;
   const startMonth = comparisonPeriod.start?.getMonth() ?? 0;
-  const endMonth = comparisonPeriod.end?.getMonth() ?? (currentYear === todayReference.getFullYear() ? todayReference.getMonth() : 11);
+  const periodEndMonth = comparisonPeriod.end?.getMonth() ?? (currentYear === todayReference.getFullYear() ? todayReference.getMonth() : 11);
+  const latestImportedMonth = latestImportedMonthForYear(importRows, rowsStandorte, currentYear, comparisonPeriod);
+  const endMonth = latestImportedMonth === null
+    ? periodEndMonth
+    : Math.max(startMonth, Math.min(periodEndMonth, latestImportedMonth));
   const context = rowsStandorte.length === 1 ? rowsStandorte[0].name : "Alle Standorte";
   return Array.from({ length: endMonth - startMonth + 1 }, (_, offset) => {
     const monthIndex = startMonth + offset;
@@ -2314,6 +2323,19 @@ function buildYearMonthComparison(rowsStandorte: Standort[], importRows: ImportP
       previous: metricValueForRows(previousRows, metric)
     };
   });
+}
+
+function latestImportedMonthForYear(importRows: ImportPreviewRow[], rowsStandorte: Standort[], year: number, period: PeriodOption) {
+  return importRows.reduce<number | null>((latestMonth, row) => {
+    const standort = rowsStandorte.find((entry) => entry.name === row.location);
+    if (!standort) return latestMonth;
+    const month = importRowMonth(row);
+    const match = month.match(/^(\d{4})-(\d{2})$/);
+    if (!match || Number(match[1]) !== year) return latestMonth;
+    if (!importRowInPeriod(row, period, standort)) return latestMonth;
+    const monthIndex = Number(match[2]) - 1;
+    return latestMonth === null ? monthIndex : Math.max(latestMonth, monthIndex);
+  }, null);
 }
 
 function buildLocationYtdDeltaComparison(rowsStandorte: Standort[], importRows: ImportPreviewRow[], period: PeriodOption) {
@@ -3453,8 +3475,7 @@ function ClaimsFlowView({
   standort,
   cases: rows,
   importRows = [],
-  manualCaseResolutions = [],
-  invoiceStatusRows = []
+  manualCaseResolutions = []
 }: {
   mode?: "details" | "cashflow";
   standort?: Standort;

@@ -1099,10 +1099,12 @@ input {
 }
 
 .year-chart-head {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-height: 80px;
 }
 
 .year-legend {
@@ -1231,6 +1233,8 @@ input {
 }
 
 .year-active-value {
+  position: absolute;
+  top: 0;
   display: grid;
   justify-items: start;
   gap: 3px;
@@ -1290,8 +1294,8 @@ input {
 
 .year-line-svg {
   width: 100%;
-  height: auto;
-  min-height: 210px;
+  height: clamp(230px, 28vw, 360px);
+  min-height: 0;
   overflow: visible;
 }
 

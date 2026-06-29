@@ -1012,3 +1012,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Problematische Header wie Leistungsnummer, Haeufigkeit und Gruppenschnitt brechen nicht mehr mitten im Wort um.
 - Die Leistungsuebersicht nutzt jetzt eigene Tabellen-Spaltenbreiten und eine groessere Mindestbreite mit horizontalem Scroll bei kleineren Viewports.
 - Die Inhalte und Berechnungen der Leistungsuebersicht bleiben unveraendert.
+
+## Update 2026-06-29: Leistungsuebersicht mit KPI-Kacheln
+
+- Oberhalb der Tabelle `Leistungsuebersicht` gibt es jetzt sechs KPI-Kacheln.
+- Kacheln: haeufigste Position inkl. Durchschnittsfaktor, Standort mit hoechstem Durchschnittsfaktor, Standort mit niedrigstem Durchschnittsfaktor, umsatzstaerkste Position, groesste Faktorstreuung und Leistungsvielfalt.
+- Die KPI-Kacheln folgen dem gewaehlten Zeitraum- und Standortfilter.
+- Layout: 3 Spalten auf Desktop, damit die sechs Kacheln als ruhiger 3x2-Block lesbar bleiben.

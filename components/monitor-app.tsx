@@ -6792,6 +6792,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
   const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
   const scopedRows = useMemo(() => invoiceRows.filter((row) => invoiceInPeriod(row, selectedPeriod) && (!selectedStandort || row.standortId === selectedStandort.id || row.standortName === selectedStandort.name)), [invoiceRows, selectedPeriod, selectedStandort]);
   const rows = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
+  const kpis = useMemo(() => invoiceServicesKpis(invoiceRows, selectedPeriod, selectedStandort, rows), [invoiceRows, rows, selectedPeriod, selectedStandort]);
   const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
   return (
     <div className="content-stack">
@@ -6823,6 +6824,14 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           </label>
           <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
         </div>
+        <section className="priority-grid invoice-service-kpi-grid">
+          <PriorityCard label="Häufigste Position" value={kpis.mostFrequent?.code ?? "-"} hint={kpis.mostFrequent ? `${integerNumber.format(kpis.mostFrequent.count)}x · Ø Faktor ${feeRateNumber.format(kpis.mostFrequent.avgFactor)}` : "keine Leistungsdaten"} tone="blue" info={kpis.mostFrequent ? kpis.mostFrequent.description : undefined} />
+          <PriorityCard label="Höchster Standortfaktor" value={kpis.highestFactorLocation?.standortName ?? "-"} hint={kpis.highestFactorLocation ? `Ø Faktor ${feeRateNumber.format(kpis.highestFactorLocation.avgFactor)} · ${integerNumber.format(kpis.highestFactorLocation.serviceCount)} Positionen` : "keine Faktorwerte"} tone="green" />
+          <PriorityCard label="Niedrigster Standortfaktor" value={kpis.lowestFactorLocation?.standortName ?? "-"} hint={kpis.lowestFactorLocation ? `Ø Faktor ${feeRateNumber.format(kpis.lowestFactorLocation.avgFactor)} · ${integerNumber.format(kpis.lowestFactorLocation.serviceCount)} Positionen` : "keine Faktorwerte"} tone="amber" />
+          <PriorityCard label="Umsatzstärkste Position" value={kpis.topAmount?.code ?? "-"} hint={kpis.topAmount ? `${money.format(kpis.topAmount.amount)} · ${integerNumber.format(kpis.topAmount.count)}x` : "keine Leistungsdaten"} tone="green" info={kpis.topAmount ? kpis.topAmount.description : undefined} />
+          <PriorityCard label="Größte Faktorstreuung" value={kpis.widestFactorRange?.code ?? "-"} hint={kpis.widestFactorRange ? `${feeRateNumber.format(kpis.widestFactorRange.minFactor)} bis ${feeRateNumber.format(kpis.widestFactorRange.maxFactor)}` : "keine Faktorwerte"} tone={kpis.widestFactorRange ? "amber" : "blue"} info={kpis.widestFactorRange ? kpis.widestFactorRange.description : undefined} />
+          <PriorityCard label="Leistungsvielfalt" value={integerNumber.format(kpis.serviceCodeCount)} hint={`${integerNumber.format(kpis.serviceLineCount)} Positionen · ${integerNumber.format(scopedRows.length)} Rechnungen`} tone="blue" />
+        </section>
         <div className="table-wrap compact-table invoice-services-scroll invoice-services-table-wrap">
           <table className="invoice-services-table">
             <thead>
@@ -7159,6 +7168,47 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
       locations: [...entry.locations].sort()
     }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount);
+}
+
+function invoiceServicesKpis(
+  invoiceRows: ParsedInvoiceDocument[],
+  period: PeriodOption,
+  selectedStandort: Standort | undefined,
+  serviceRows: ReturnType<typeof invoiceServiceSummary>
+) {
+  const scopedInvoices = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (!selectedStandort || invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name));
+  const serviceLineCount = scopedInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.length, 0);
+  const serviceCodeCount = serviceRows.length;
+  const topAmount = [...serviceRows].sort((a, b) => b.amount - a.amount || b.count - a.count)[0];
+  const widestFactorRange = [...serviceRows]
+    .filter((row) => row.maxFactor > 0 && row.minFactor > 0)
+    .sort((a, b) => (b.maxFactor - b.minFactor) - (a.maxFactor - a.minFactor) || b.count - a.count)[0];
+  const locationFactors = orderedStandorte()
+    .map((standort) => {
+      const rows = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
+      const factorLines = rows.flatMap((invoice) => invoice.serviceLines).filter((line) => line.factor);
+      if (!factorLines.length) return null;
+      return {
+        standortId: standort.id,
+        standortName: standort.name,
+        serviceCount: factorLines.length,
+        avgFactor: factorLines.reduce((sum, line) => sum + (line.factor ?? 0), 0) / factorLines.length
+      };
+    })
+    .filter((row): row is { standortId: string; standortName: string; serviceCount: number; avgFactor: number } => Boolean(row));
+  const visibleLocationFactors = selectedStandort
+    ? locationFactors.filter((row) => row.standortId === selectedStandort.id)
+    : locationFactors;
+
+  return {
+    mostFrequent: serviceRows[0],
+    topAmount,
+    widestFactorRange,
+    serviceLineCount,
+    serviceCodeCount,
+    highestFactorLocation: [...visibleLocationFactors].sort((a, b) => b.avgFactor - a.avgFactor || b.serviceCount - a.serviceCount)[0],
+    lowestFactorLocation: [...visibleLocationFactors].sort((a, b) => a.avgFactor - b.avgFactor || b.serviceCount - a.serviceCount)[0]
+  };
 }
 
 function invoicePotentialSummary(invoiceRows: ParsedInvoiceDocument[], period: PeriodOption, selectedStandort?: Standort) {

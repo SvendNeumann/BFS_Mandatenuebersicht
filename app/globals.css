@@ -2099,6 +2099,11 @@ input {
   width: 300px;
 }
 
+.invoice-service-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 16px 0;
+}
+
 .import-history-scroll thead th,
 .import-detail-scroll thead th,
 .import-reason-scroll thead th,

@@ -3605,7 +3605,8 @@ function ClaimsFlowView({
   standort,
   cases: rows,
   importRows = [],
-  manualCaseResolutions = []
+  manualCaseResolutions = [],
+  invoiceStatusRows = []
 }: {
   mode?: "details" | "cashflow";
   standort?: Standort;
@@ -3707,6 +3708,21 @@ function ClaimsFlowView({
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
   const waterfallManuallyPaidCases = useMemo(() => casesFromImportRows(waterfallScopedImportRows)
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !waterfallRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [manualResolutionKeys, waterfallRecoveredByResubmissionKeys, waterfallScopedImportRows]);
+  const recoveryClosedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const recoveryReviewRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, recoveryScopedImportRows), [invoiceStatusRows, recoveryScopedImportRows]);
+  const recoveryEconomicCheckRows = useMemo(() => recoveryReviewRows.filter((row) => row.category === "economic_check"), [recoveryReviewRows]);
+  const recoveryEconomicCheckAmount = useMemo(() => recoveryEconomicCheckRows.reduce((sum, row) => sum + row.amount, 0), [recoveryEconomicCheckRows]);
+  const recoveryPracticeFollowupCases = useMemo(() => applyInvoiceStatusToCases(
+    casesFromImportRows(recoveryScopedImportRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => recoveryClosedKeys.has(key))),
+    invoiceStatusRows
+  ).filter(isPracticeFollowupCase), [invoiceStatusRows, recoveryClosedKeys, recoveryScopedImportRows]);
+  const recoveryPracticeFollowupAmount = useMemo(() => recoveryPracticeFollowupCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryPracticeFollowupCases]);
+  const recoveryStornoReview = useMemo(() => stornoReviewFromImportRows(
+    recoveryScopedImportRows,
+    recoveryStandorte.length === 1 ? recoveryStandorte[0].id : undefined,
+    manualCaseResolutions
+  ), [manualCaseResolutions, recoveryScopedImportRows, recoveryStandorte]);
+  const recoveryFinalCancelledAmount = useMemo(() => recoveryStornoReview.rows.filter((row) => row.finalCancelled).reduce((sum, row) => sum + row.amount, 0), [recoveryStornoReview.rows]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
   const analysisRecoveredByResubmissionAmount = deductionRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
@@ -3982,6 +3998,9 @@ function ClaimsFlowView({
           <PriorityCard label="Noch ungeklärt" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus zurückgeholt/bezahlt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Restbetrag nach angerechneter Neueinreichung oder Zahlung. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert." />
           <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+          <PriorityCard label="Zahlung/Grund prüfen" value={integerNumber.format(recoveryEconomicCheckRows.length)} hint={money.format(recoveryEconomicCheckAmount)} period={recoveryPeriod.label} tone={recoveryEconomicCheckRows.length ? "amber" : "green"} info="Saldogeschlossene Fälle: BFS zeigt keinen offenen Saldo mehr, aber Zahlung, Neueinreichung oder Storno-Grund muss wirtschaftlich belegt werden." />
+          <PriorityCard label="Praxis nachfassen" value={integerNumber.format(recoveryPracticeFollowupCases.length)} hint={money.format(recoveryPracticeFollowupAmount)} period={recoveryPeriod.label} tone={recoveryPracticeFollowupCases.length ? "amber" : "green"} info="Echte Praxis-Aufgaben aus dem offenen Rest, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle muss die Praxis aktiv nachhalten." />
+          <PriorityCard label="Endgültig storniert" value={integerNumber.format(recoveryStornoReview.finalCancelled)} hint={money.format(recoveryFinalCancelledAmount)} period={recoveryPeriod.label} tone={recoveryStornoReview.finalCancelled ? "red" : "green"} info="Manuell als endgültig storniert markierte Fälle. Sie bleiben in der Brutto-Storno-Grundmenge enthalten, sind aber nicht mehr offene Fallarbeit." />
         </div>
       </section>
       <section className="dashboard-grid">

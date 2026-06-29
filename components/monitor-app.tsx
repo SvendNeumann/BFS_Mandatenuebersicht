@@ -5381,7 +5381,7 @@ function UploadView({
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
   const statusRows = statusDocuments.flatMap((document) => document.rows);
-  const statusSummary = summarizeInvoiceStatusRows(statusRows);
+  const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
@@ -5524,6 +5524,8 @@ function UploadView({
           </div>
         </section>
       )}
+      <ImportHistorySummary rows={previewRows} />
+      <ImportPreview rows={previewRows} />
       <section className="upload-zone">
         <ClipboardList size={28} />
         <div>
@@ -5565,15 +5567,13 @@ function UploadView({
       </section>
       <section className="priority-grid">
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : "Rechnungen aus Saldo-Listen"} tone="blue" />
-        <PriorityCard label="Bezahlt" value={integerNumber.format(statusSummary.paidCount)} hint={money.format(statusSummary.paidAmount)} tone="green" />
-        <PriorityCard label="Offen" value={integerNumber.format(statusSummary.openCount)} hint={money.format(statusSummary.openSaldo)} tone="red" />
-        <PriorityCard label="Ratenzahlung" value={integerNumber.format(statusSummary.installmentCount)} hint="Patient hat Forderung akzeptiert" tone="amber" />
-        <PriorityCard label="Mahnstufen" value={integerNumber.format(statusSummary.reminderCount)} hint="offen mit MS > 0" tone="amber" />
-        <PriorityCard label="Ohne Schutz" value={integerNumber.format(statusSummary.noProtectionCount)} hint="Ausfallschutz nein" tone="red" />
+        <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0 oder RP aktiv" tone="green" />
+        <PriorityCard label="Kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" />
+        <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
+        <PriorityCard label="Ohne Schutz offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" />
+        <PriorityCard label="Nicht zuordenbar" value={integerNumber.format(statusSummary.unmatchedCaseCount)} hint="Klärfälle ohne Saldo-Treffer" tone="amber" />
       </section>
       <InvoiceStatusPreview rows={statusRows} />
-      <ImportHistorySummary rows={previewRows} />
-      <ImportPreview rows={previewRows} />
     </div>
   );
 }
@@ -5635,29 +5635,56 @@ function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
   return "offen";
 }
 
-function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[]) {
+function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
+  const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
+  const unmatchedCaseCount = casesFromImportRows(importRows).filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key))).length;
+
   return rows.reduce((summary, row) => {
-    if (row.paymentStatus === "bezahlt") {
-      summary.paidCount += 1;
-      summary.paidAmount += row.amount;
+    const autoResolved = row.paymentStatus === "bezahlt" || row.installmentPlan;
+    const criticalOpen = row.saldo < -0.005 && !row.installmentPlan;
+    if (autoResolved) {
+      summary.autoResolvedCount += 1;
+      summary.autoResolvedAmount += row.amount;
     }
-    if (row.saldo < -0.005) {
-      summary.openCount += 1;
-      summary.openSaldo += Math.abs(row.saldo);
+    if (criticalOpen) {
+      summary.criticalOpenCount += 1;
+      summary.criticalOpenSaldo += Math.abs(row.saldo);
     }
-    if (row.installmentPlan) summary.installmentCount += 1;
-    if (row.reminderLevel > 0) summary.reminderCount += 1;
-    if (!row.protection) summary.noProtectionCount += 1;
+    if (criticalOpen && row.reminderLevel > 0) summary.criticalReminderCount += 1;
+    if (criticalOpen && !row.protection) summary.noProtectionOpenCount += 1;
     return summary;
   }, {
-    paidCount: 0,
-    paidAmount: 0,
-    openCount: 0,
-    openSaldo: 0,
-    installmentCount: 0,
-    reminderCount: 0,
-    noProtectionCount: 0
+    autoResolvedCount: 0,
+    autoResolvedAmount: 0,
+    criticalOpenCount: 0,
+    criticalOpenSaldo: 0,
+    criticalReminderCount: 0,
+    noProtectionOpenCount: 0,
+    unmatchedCaseCount
   });
+}
+
+function invoiceStatusMatchKeys(row: ParsedInvoiceStatusRow) {
+  return [
+    row.bfsNo,
+    row.invoiceNo,
+    `${row.patientName}|${row.invoiceNo}`,
+    `${row.patientName}|${row.bfsNo}`
+  ].map(normalizeMatchKey);
+}
+
+function caseInvoiceMatchKeys(fall: BfsCase) {
+  return [
+    fall.bfsNo,
+    fall.invoiceNo,
+    `${fall.patientName}|${fall.invoiceNo}`,
+    `${fall.patientName}|${fall.bfsNo}`,
+    ...caseResolutionKeys(fall)
+  ].map(normalizeMatchKey);
+}
+
+function normalizeMatchKey(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 }
 
 function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {

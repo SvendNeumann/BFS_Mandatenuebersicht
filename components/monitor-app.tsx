@@ -914,7 +914,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
   const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions, invoiceStatusRows), [invoiceStatusRows, manualCaseResolutions, scopedRows]);
   const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions, invoiceStatusRows), [chartRows, invoiceStatusRows, manualCaseResolutions]);
-  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
+  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
   const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
@@ -1107,9 +1107,10 @@ type CustomBenchmarkRow = {
   activeMonths: number;
   claimCount: number;
   averageClaim: number;
-  stornoCount: number;
-  stornoRate: number;
-  recoveredStornos: number;
+  grossDeductionAmount: number;
+  openReviewAmount: number;
+  openReviewRate: number;
+  recoveredAmount: number;
   recoveredRate: number;
   noProtectionCount: number;
   noProtectionRate: number;
@@ -1140,7 +1141,7 @@ function CustomBenchmarkTable({
         <div>
           <span className="eyebrow">Benchmarking</span>
           <h2>Standorte nach Kennzahlen vergleichen</h2>
-          <p>Zeitraum: {periodLabel}. Umsatz, Forderungsvolumen, Stornoqualität, Schutzquote und Gebührenquote je Standort.</p>
+          <p>Zeitraum: {periodLabel}. Umsatz, Forderungsvolumen, Brutto-Abzug, offene Prüfsumme, Schutzquote und Gebührenquote je Standort.</p>
         </div>
       </div>
       <div className="period-filter custom-benchmark-filter">
@@ -1166,9 +1167,9 @@ function CustomBenchmarkTable({
               <th>Ø Monat</th>
               <th>Forderungen</th>
               <th>Ø Forderung</th>
-              <th>Stornos</th>
-              <th>Stornoquote</th>
-              <th>gewandelt</th>
+              <th>Brutto-Abzug</th>
+              <th>Offene Prüfsumme</th>
+              <th>bereits geklärt</th>
               <th>ohne Schutz</th>
               <th>Gebühr</th>
               <th>Signal</th>
@@ -1182,9 +1183,9 @@ function CustomBenchmarkTable({
                 <td data-metric="monthlyAverage" data-value={row.monthlyAverage}>{money.format(row.monthlyAverage)}</td>
                 <td data-metric="claimCount" data-value={row.claimCount}>{integerNumber.format(row.claimCount)}</td>
                 <td data-metric="averageClaim" data-value={row.averageClaim}>{money.format(row.averageClaim)}</td>
-                <td data-metric="stornoCount" data-value={row.stornoCount}>{integerNumber.format(row.stornoCount)}</td>
-                <td data-metric="stornoRate" data-value={row.stornoRate}>{formatPercent(row.stornoRate)}</td>
-                <td data-metric="recoveredStornos" data-value={row.recoveredStornos}>{integerNumber.format(row.recoveredStornos)}<span>{formatPercent(row.recoveredRate)}</span></td>
+                <td data-metric="grossDeductionAmount" data-value={row.grossDeductionAmount}>{money.format(row.grossDeductionAmount)}</td>
+                <td data-metric="openReviewAmount" data-value={row.openReviewAmount}>{money.format(row.openReviewAmount)}<span>{formatPercent(row.openReviewRate)}</span></td>
+                <td data-metric="recoveredAmount" data-value={row.recoveredAmount}>{money.format(row.recoveredAmount)}<span>{formatPercent(row.recoveredRate)}</span></td>
                 <td data-metric="noProtectionCount" data-value={row.noProtectionCount}>{integerNumber.format(row.noProtectionCount)}<span>{formatPercent(row.noProtectionRate)}</span></td>
                 <td data-metric="feeRate" data-value={row.feeRate}>{formatFeeRate(row.feeRate)}</td>
                 <td><StatusBadge status={row.signal} /></td>
@@ -1202,9 +1203,9 @@ function CustomBenchmarkTable({
                 <td data-metric="monthlyAverage" data-value={totalRow.monthlyAverage}>{money.format(totalRow.monthlyAverage)}</td>
                 <td data-metric="claimCount" data-value={totalRow.claimCount}>{integerNumber.format(totalRow.claimCount)}</td>
                 <td data-metric="averageClaim" data-value={totalRow.averageClaim}>{money.format(totalRow.averageClaim)}</td>
-                <td data-metric="stornoCount" data-value={totalRow.stornoCount}>{integerNumber.format(totalRow.stornoCount)}</td>
-                <td data-metric="stornoRate" data-value={totalRow.stornoRate}>{formatPercent(totalRow.stornoRate)}</td>
-                <td data-metric="recoveredStornos" data-value={totalRow.recoveredStornos}>{integerNumber.format(totalRow.recoveredStornos)}<span>{formatPercent(totalRow.recoveredRate)}</span></td>
+                <td data-metric="grossDeductionAmount" data-value={totalRow.grossDeductionAmount}>{money.format(totalRow.grossDeductionAmount)}</td>
+                <td data-metric="openReviewAmount" data-value={totalRow.openReviewAmount}>{money.format(totalRow.openReviewAmount)}<span>{formatPercent(totalRow.openReviewRate)}</span></td>
+                <td data-metric="recoveredAmount" data-value={totalRow.recoveredAmount}>{money.format(totalRow.recoveredAmount)}<span>{formatPercent(totalRow.recoveredRate)}</span></td>
                 <td data-metric="noProtectionCount" data-value={totalRow.noProtectionCount}>{integerNumber.format(totalRow.noProtectionCount)}<span>{formatPercent(totalRow.noProtectionRate)}</span></td>
                 <td data-metric="feeRate" data-value={totalRow.feeRate}>{formatFeeRate(totalRow.feeRate)}</td>
                 <td><StatusBadge status={totalRow.signal} /></td>
@@ -1220,15 +1221,16 @@ function CustomBenchmarkTable({
 function customBenchmarkTotalRow(rows: CustomBenchmarkRow[]) {
   const submitted = rows.reduce((sum, row) => sum + row.submitted, 0);
   const claimCount = rows.reduce((sum, row) => sum + row.claimCount, 0);
-  const stornoCount = rows.reduce((sum, row) => sum + row.stornoCount, 0);
-  const recoveredStornos = rows.reduce((sum, row) => sum + row.recoveredStornos, 0);
+  const grossDeductionAmount = rows.reduce((sum, row) => sum + row.grossDeductionAmount, 0);
+  const openReviewAmount = rows.reduce((sum, row) => sum + row.openReviewAmount, 0);
+  const recoveredAmount = rows.reduce((sum, row) => sum + row.recoveredAmount, 0);
   const noProtectionCount = rows.reduce((sum, row) => sum + row.noProtectionCount, 0);
   const feeAmount = rows.reduce((sum, row) => sum + (row.submitted * row.feeRate) / 100, 0);
   const activeMonths = Math.max(...rows.map((row) => row.activeMonths), 0);
   const averageClaim = claimCount ? submitted / claimCount : 0;
   const monthlyAverage = activeMonths ? submitted / activeMonths : 0;
-  const stornoRate = claimCount ? (stornoCount / claimCount) * 100 : 0;
-  const recoveredRate = stornoCount ? (recoveredStornos / stornoCount) * 100 : 0;
+  const openReviewRate = submitted ? (openReviewAmount / submitted) * 100 : 0;
+  const recoveredRate = grossDeductionAmount ? (recoveredAmount / grossDeductionAmount) * 100 : 0;
   const noProtectionRate = claimCount ? (noProtectionCount / claimCount) * 100 : 0;
   const feeRate = submitted ? (feeAmount / submitted) * 100 : 0;
 
@@ -1237,14 +1239,15 @@ function customBenchmarkTotalRow(rows: CustomBenchmarkRow[]) {
     monthlyAverage,
     claimCount,
     averageClaim,
-    stornoCount,
-    stornoRate,
-    recoveredStornos,
+    grossDeductionAmount,
+    openReviewAmount,
+    openReviewRate,
+    recoveredAmount,
     recoveredRate,
     noProtectionCount,
     noProtectionRate,
     feeRate,
-    signal: customBenchmarkSignal(stornoRate, recoveredRate, noProtectionRate, feeRate)
+    signal: customBenchmarkSignal(openReviewRate, recoveredRate, noProtectionRate, feeRate)
   };
 }
 
@@ -1518,12 +1521,12 @@ function customKpiTrendValue(metric: CustomKpiTrendMetric, point: CustomChartPoi
   return Number(point[metric]);
 }
 
-function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[]): CustomBenchmarkRow[] {
+function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[], invoiceStatusRows: ParsedInvoiceStatusRow[]): CustomBenchmarkRow[] {
   return benchmarkStandorte.map((standort) => {
     const rows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort));
     const summary = summarizeImportRows(rows);
     const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
-    const stornoReview = stornoReviewFromImportRows(rows, standort.id, manualCaseResolutions);
+    const deductionRecovery = buildDeductionRecovery(importRows, [standort], period, manualCaseResolutions, invoiceStatusRows);
     const claimCount = rows.reduce((sum, row) => {
       const parsedCount = row.parsedClaims?.length ?? 0;
       return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
@@ -1536,8 +1539,8 @@ function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte:
     const activeMonths = summary.activeMonths || countImportMonths(rows);
     const monthlyAverage = activeMonths ? metrics.submitted / activeMonths : 0;
     const averageClaim = claimCount ? metrics.submitted / claimCount : 0;
-    const stornoRate = claimCount ? (stornoReview.total / claimCount) * 100 : 0;
-    const recoveredRate = stornoReview.total ? (stornoReview.done / stornoReview.total) * 100 : 0;
+    const openReviewRate = metrics.submitted ? (deductionRecovery.openAmount / metrics.submitted) * 100 : 0;
+    const recoveredRate = deductionRecovery.grossDeductionAmount ? (deductionRecovery.recoveredAmount / deductionRecovery.grossDeductionAmount) * 100 : 0;
     const noProtectionRate = claimCount ? (noProtectionCount / claimCount) * 100 : 0;
 
     return {
@@ -1547,21 +1550,22 @@ function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte:
       activeMonths,
       claimCount,
       averageClaim,
-      stornoCount: stornoReview.total,
-      stornoRate,
-      recoveredStornos: stornoReview.done,
+      grossDeductionAmount: deductionRecovery.grossDeductionAmount,
+      openReviewAmount: deductionRecovery.openAmount,
+      openReviewRate,
+      recoveredAmount: deductionRecovery.recoveredAmount,
       recoveredRate,
       noProtectionCount,
       noProtectionRate,
       feeRate: metrics.feeRate,
-      signal: customBenchmarkSignal(stornoRate, recoveredRate, noProtectionRate, metrics.feeRate)
+      signal: customBenchmarkSignal(openReviewRate, recoveredRate, noProtectionRate, metrics.feeRate)
     };
   }).sort((a, b) => b.submitted - a.submitted);
 }
 
-function customBenchmarkSignal(stornoRate: number, recoveredRate: number, noProtectionRate: number, feeRate: number) {
-  if (stornoRate >= 5 || noProtectionRate >= 10 || feeRate >= 4) return "prüfen";
-  if (stornoRate >= 2 || noProtectionRate >= 5 || (stornoRate > 0 && recoveredRate < 50)) return "beobachten";
+function customBenchmarkSignal(openReviewRate: number, recoveredRate: number, noProtectionRate: number, feeRate: number) {
+  if (openReviewRate >= 2 || noProtectionRate >= 10 || feeRate >= 4) return "prüfen";
+  if (openReviewRate >= 0.75 || noProtectionRate >= 5 || (openReviewRate > 0 && recoveredRate < 50)) return "beobachten";
   return "ok";
 }
 

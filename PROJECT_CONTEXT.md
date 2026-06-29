@@ -920,3 +920,11 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
   - `Brutto-Abzug vs. bereits geklaert`
 - Die Monatsdaten fuehren jetzt zusaetzlich `grossDeductionAmount`, `recoveredAmount` und `finalLostAmount`, damit Diagramme und Sparklines mit Betragslogik statt alter Stueckzahl-Logik arbeiten.
 - Die Kachel-Sparklines fuer `Brutto Storno/Rueckgabe` und `Bereits geklaert` nutzen jetzt die passenden Betragsfelder.
+
+## Update 2026-06-29: Benchmark-Tabelle auf neue Abzugslogik umgestellt
+
+- Die Benchmark-Tabelle im Tab `Zusammenfassung` nutzt nicht mehr die alten Spalten `Stornos`, `Stornoquote` und `gewandelt`.
+- Neue fuehrende Spalten sind `Brutto-Abzug`, `Offene Pruefsumme` und `bereits geklaert`.
+- Die Standortzeilen verwenden dieselbe Formel wie die KPI-Kacheln: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
+- `Bereits geklaert` ist als Betrag relativ zum Brutto-Abzug dargestellt; `Offene Pruefsumme` als Betrag relativ zum eingereichten Umsatz.
+- Das Benchmark-Signal bewertet jetzt offene Pruefsumme, Ohne-Schutz-Anteil und Gebuehrenquote statt alter Storno-Stueckzahlquoten.

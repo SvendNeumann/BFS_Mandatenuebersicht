@@ -144,8 +144,8 @@ Wichtige aktuelle Sichten:
   - Charts `Risikoentwicklung` und `Patientenqualitaet` wurden entfernt.
 - `Operative Fallarbeit`
   - Fuehrende Sicht ist eine gemeinsame `Pruefliste offene Faelle`.
-  - Die Praxis entscheidet je Zeile `Erledigt / bezahlt` oder `Endgueltig storniert`.
-  - Die offene Pruefsumme reduziert sich durch erledigt/bezahlt; endgueltig stornierte Faelle laufen separat in `Endgueltig verloren`.
+  - Die Praxis entscheidet je Zeile `Bezahlt / geklaert`, `Neu eingereicht` oder `Endgueltig storniert`.
+  - Die offene Pruefsumme reduziert sich durch bezahlt/geklaert oder neu eingereicht; endgueltig stornierte Faelle laufen separat in `Endgueltig verloren`.
   - PDF-/Druckexport und CSV sind als Praxisausdruck gedacht und enthalten am Ende `Kommentar` sowie `Wenn storniert: in der Praxissoftware ausgebucht?`.
 - `Prioritaeten heute`
   - Wurde komplett entfernt, inklusive Querverlinkungen.
@@ -447,11 +447,12 @@ Admin:
 Die operative Fallarbeit fuehrt offene Abzugsfaelle in einer gemeinsamen `Pruefliste`.
 
 Aktuelle Logik:
-- Fall als `Erledigt / bezahlt` markieren, wenn Zahlung, Neueinreichung/Ersatzrechnung oder wirtschaftliche Klaerung belegt ist.
+- Fall als `Bezahlt / geklaert` markieren, wenn Zahlung oder wirtschaftliche Klaerung mit echtem Zahlungsausgleich belegt ist.
+- Fall als `Neu eingereicht` markieren, wenn eine Ersatzrechnung gestellt wurde. Der Fall verschwindet aus der Pruefliste und reduziert die offene Pruefsumme, erzeugt aber keinen zusaetzlichen Geldzufluss.
 - Fall als `Endgueltig storniert` markieren, wenn der Betrag bewusst als Verlust/Endstorno entschieden ist.
 - Markierung wird serverseitig im `audit_log` gespeichert.
 - Stabile Fall-Schluessel basieren auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund.
-- Erledigte/bezahlte Faelle reduzieren die offene Pruefsumme und zaehlen als `Bereits geklaert`.
+- Bezahlte/geklaerte und neu eingereichte Faelle reduzieren die offene Pruefsumme und zaehlen als `Bereits geklaert`.
 - Endgueltig stornierte Faelle reduzieren die offene Pruefsumme und laufen in die Kachel `Endgueltig verloren`.
 - Manuelle Entscheidungen bleiben importuebergreifend stabil, wenn derselbe Vorgang spaeter wieder auftaucht.
 - Doppelte Audit-Eintraege fuer denselben Fall wurden als Risiko erkannt und sollten weiterhin verhindert werden.
@@ -875,7 +876,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Der Tab `Zahlung / Grund pruefen` ist nicht mehr nur eine Anzeige.
 - Jede Zeile kann jetzt direkt abgeschlossen werden:
-  - `Erledigt / bezahlt` fuer wirtschaftlich belegte Zahlung oder geklaerten Grund.
+  - `Bezahlt / geklaert` fuer wirtschaftlich belegte Zahlung oder geklaerten Grund mit echtem Zahlungsausgleich.
+  - `Neu eingereicht` fuer Ersatzrechnung ohne zusaetzlichen Geldzufluss.
   - `Endgueltig storniert` fuer bewusst als Verlust/Endstorno entschiedene Faelle.
 - Die Zeilen nutzen dieselbe persistente Fallentscheidungslogik wie `Praxis nachfassen` und `Neueinreichung Matching`.
 - Bereits entschiedene Zahlung/Grund-Zeilen werden aus dem Prueftopf ausgeblendet und fliessen in die bestehenden Rueckhol-/Endstorno-Auswertungen.
@@ -1032,3 +1034,11 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - `Potenzial p. Jahr` rechnet das Zeitraum-Potenzial auf Jahresniveau hoch.
 - `Betroffener Umsatz` zeigt den heutigen Ist-Umsatz der Positionen unter Benchmark.
 - `Groesste Faktor-Luecke` zeigt die Leistungsnummer mit der groessten negativen Faktorabweichung zum Gruppenschnitt, unabhaengig vom Euro-Potenzial.
+
+## Update 2026-06-30: Neueinreichung fachlich von Zahlung getrennt
+
+- In der operativen Pruefliste gibt es neben `Bezahlt / geklaert` und `Endgueltig storniert` jetzt den eigenen Abschluss `Neu eingereicht`.
+- `Neu eingereicht` entfernt den Fall aus der Pruefliste und zaehlt als `Bereits geklaert`, weil die offene Pruefsumme dadurch erledigt ist.
+- In der Umsatz-/Cashflow-Herleitung zaehlt `Neu eingereicht` aber nicht als zusaetzlicher Geldzufluss. Eine Ersatzrechnung ersetzt die alte Forderung; sie darf keinen Doppelumsatz erzeugen.
+- Die zentrale Abzugslogik trennt deshalb `replacementAmount`/Neueinreichung von `cashRecoveredAmount`/echter Zahlung bzw. Ratenplan.
+- Der Cashflow-Wasserfall addiert nur noch echte Zahlung/Ratenplan als positiven Ausgleich; Neueinreichungen reduzieren offen, erscheinen aber nicht als Cash-Plus.

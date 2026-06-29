@@ -1,10 +1,10 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 28.06.2026, ca. 22:15 Uhr
+Stand: 29.06.2026, ca. 10:00 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Fokus: CFO-/Management-Cockpit, Zusammenfassung/KPI-/Benchmark-Tab, stabile Live-Daten, saubere Rollenrechte, mobile/Desktop-Qualitaet und exportfaehige Steuerungsansichten.
+Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit und BFS-Rechnungsanalyse. Neu hinzugekommen sind Rechnungs-PDF-Import, BFS-Rechnungsstatus-/Saldo-Listen, Monats-Pruefkorb fuer Praxis-Aufgaben, Patientenklassifizierung, bereinigte Tab-Struktur, responsive/visuelle Konsistenz und scrollbare Arbeitslisten.
 
 ## Prompt fuer den naechsten Chat
 
@@ -17,17 +17,21 @@ Wichtige Dateien:
 - `components/monitor-app.tsx`
 - `app/globals.css`
 - `app/api/imports/parse/route.ts`
+- `app/api/invoices/parse/route.ts`
+- `app/api/invoice-status/parse/route.ts`
 - `app/api/cases/resolutions/route.ts`
 - `app/api/admin/users/route.ts`
 - `app/api/admin/users/[userId]/route.ts`
 - `lib/bfs-parser.ts`
 - `lib/demo-data.ts`
 - `lib/demo-import.ts`
+- `lib/invoice-parser.ts`
+- `lib/invoice-status-parser.ts`
 - `lib/server-auth.ts`
 - `proxy.ts`
 - `supabase/migrations/*`
 
-App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als CFO-/Management-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark und Reports.
+App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen und BFS-Patientenrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als Management-/Operativ-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark, Rechnungspositionen/Faktoren/Laboranteile, BFS-Zahlungsstatus, Mahnstufen, Ratenplaene, Saldo-Pruefung und Reports.
 ```
 
 ## Sinn der App
@@ -66,12 +70,24 @@ Die App soll fachlich in drei Ebenen denken:
    - Tabellen muessen kompakt und intern scrollbar sein, damit Seiten nicht endlos lang werden.
 
 Navigationslogik aktuell:
-- Management
-- Analyse & Benchmarking
-- Operative Fallarbeit
-- Reports
-- Import & Pruefung
+- Oberreiter `BFS-Abrechnungen`
+  - Management
+  - Analyse & Benchmarking
+  - Operative Fallarbeit
+  - Reports
+  - Import-Center Abrechnung
+- Oberreiter `BFS-Rechnungsanalyse`
+  - Auswertungen
+    - Rechnungsuebersicht
+    - Leistungsanalyse
+    - Laboranalyse
+  - Import & Pruefung
+    - Import-Center Rechnungen
 - Admin Bereich
+
+Wichtig: Der fruehere Reiter `Import & Pruefung` wurde fachlich geteilt:
+- `Import-Center Abrechnung`: bestehender Monats-/Abrechnungsimport plus BFS-Rechnungsstatus-/Saldo-Listen.
+- `Import-Center Rechnungen`: Import einzelner BFS-Patientenrechnungen bzw. Ordner mit Rechnungs-PDFs.
 
 Wichtige aktuelle Sichten:
 - `Zusammenfassung`
@@ -86,16 +102,35 @@ Wichtige aktuelle Sichten:
   - Managementsicht mit Zeitraum- und Standortfilter, KPI-Kacheln, Kombi-Charts, Standortbenchmark und Signalkarten.
   - Obere Standort-Tabreihen wurden entfernt; dafuer sind Filter zustaendig.
 - `Schnellantworten`
-  - CFO-Schnellantwort-Kacheln stehen nur noch hier, nicht doppelt im Cockpit.
+  - Schnellantwort-Kacheln stehen nur noch hier, nicht doppelt im Cockpit.
 - `Standorte`
   - Standort-Benchmark mit KPI-Dreierreihe, vier Erklaerkacheln, zwei Umsatzdiagrammen und Standortvergleich.
   - `Standorte im Vergleich` hat einen eigenen Zeitraumfilter.
 - `Standortdetails`
   - Ehemals `Forderungen & Geldfluss`.
+- `Forderungen und Geldfluss`
+  - Neuer/ausgelagerter Tab fuer den frueheren Geldfluss-Teil aus Standortdetails.
+  - Standortleiste oben wurde entfernt; Steuerung erfolgt ueber Filter.
+- `Forderungsqualitaet`
+  - Entschlackt: mehrere operative Tabellen/Charts entfernt.
+  - KPI-Kacheln mit eigener Zeitraum-/Standortsteuerung.
+- `Patientenklassifizierung`
+  - Neuer Tab fuer A/B/C/D-Logik, Patientenqualitaet je Standort, Wiederholer, Risikoentwicklung je Patient und Historie pro Patient.
+  - Standortleiste entfernt; klassische Zeitraum- und Standortfilter.
+  - Charts `Patientenklassen` und `Ohne Ausfallschutz` als Saeulendiagramme im App-Layout.
+  - Charts `Risikoentwicklung` und `Patientenqualitaet` wurden entfernt.
+- `Matching & Neueinreichungen`
+  - Wurde vor `Klaerfaelle` geschoben, weil fachlich zuerst Neueinreichungen/Matching geprueft werden sollen.
+  - Fruehere Diagramme entfernt, Tabelle als Scrolltabelle.
+  - Neueinreichungen koennen analog zu Klaerfaellen bestaetigt/abgelehnt werden.
+  - Wenn `Stimmt`: Position laeuft in erfolgreiche Wiederholung/Zurueckholung.
+  - Wenn `Abgelehnt`: Position laeuft in Stornierung/offen.
+- `Prioritaeten heute`
+  - Wurde komplett entfernt, inklusive Querverlinkungen.
 
 ## Wichtigste fachliche Weiterentwicklung
 
-Der aktuelle Stand kann bereits importieren, auswerten, Klaerfaelle anzeigen und Standortdaten vergleichen. Der naechste grosse Produktschritt sollte aber klarer in Richtung CFO-Cockpit gehen.
+Der aktuelle Stand kann bereits importieren, auswerten, Klaerfaelle anzeigen und Standortdaten vergleichen. Der naechste grosse Produktschritt sollte aber klarer in Richtung Management-Cockpit gehen.
 
 Was im ersten Blick staerker sichtbar werden soll:
 - Eingereicht YTD 2026 vs. Vorjahr YTD
@@ -193,6 +228,156 @@ Wenn grosse Uploads wieder haken:
 - Klaeren, ob einzelnes PDF, Vercel Timeout oder Datenbank-Limit.
 - Langfristig waere fuer sehr grosse Ordner eine echte Job-/Queue-Architektur sauberer.
 
+## BFS-Rechnungsanalyse / Rechnungs-PDFs
+
+Neu aufgebauter zweiter Fachbereich: `BFS-Rechnungsanalyse`.
+
+Ziel:
+- BFS-Patientenrechnungen aus dem BFS-Portal einlesen.
+- Je Standort auswerten, welche Abrechnungsnummern/Leistungsnummern wie oft abgerechnet werden.
+- Faktoren, Betraege und Leistungsbeschreibungen je Standort vergleichen.
+- Standorte challengen: z. B. "Ulmet rechnet Position X auffaellig niedrig/selten ab im Vergleich zu Standort Y".
+- Eigenlabor und Fremdlabor erkennen und getrennt auswerten.
+- Spaeter Matching/Neueinreichungen fachlich verbessern, weil Rechnungen Behandlungszeitraum, Positionen, Faktoren und Rechnungsnummern enthalten.
+
+Technik:
+- `lib/invoice-parser.ts`
+- `app/api/invoices/parse/route.ts`
+- Import unter `BFS-Rechnungsanalyse > Import & Pruefung > Import-Center Rechnungen`
+- Upload unterstuetzt mehrere PDFs sowie Ordner inkl. Unterordner.
+- Parser liest u. a.:
+  - BFS-Nr.
+  - Mandant-Nr.
+  - Standortzuordnung
+  - Rechnungsnummer
+  - Rechnungsdatum
+  - Patient
+  - Behandlungszeitraum / relevante Datumsfelder, soweit im PDF vorhanden
+  - Gesamtbetrag/offener Betrag/Zuschuss
+  - Honorar BEMA/GOZ
+  - Eigenlabor
+  - Fremdlabor netto/brutto
+  - Material/Auslagen
+  - Leistungszeilen mit Nr./Code, zusammengefasster Leistungsbeschreibung, Faktor, Menge, Betrag, Kategorie
+
+Fachliche Zuordnung:
+- Standorte werden ueber Mandant-Nr. zugeordnet.
+- Bekannte Mandanten:
+  - Kirchberg: `18504`, `21988`
+  - Essen: `18790`, `19220`, `19221`, `22341`
+  - Kehl: `19092`, `20411`
+  - Ulmet: `19260`, `19668`, `19669`
+  - Huettenberg: `19804`, `22674`
+  - Kassel: `20309`, `20902`
+- Die im Chat getesteten Rechnungen:
+  - `5-19260-*` wurden Ulmet zugeordnet.
+  - `5-18790-*` wurde Essen zugeordnet.
+  - `5-18504-*` wurde Kirchberg zugeordnet.
+
+Wichtig fuer Speicherstrategie:
+- Perspektivisch werden tausende Rechnungen pro Monat importiert.
+- PDFs sollten langfristig nicht unbegrenzt im Storage liegen.
+- Fachlich benoetigte Extrakte muessen dauerhaft bleiben, PDFs duerfen spaeter bereinigt werden koennen.
+- Loeschlogik darf niemals Auswertungsergebnisse, Zaehler oder Matching-Historie verlieren; nur PDF-Dateispeicher bereinigen.
+
+## BFS-Rechnungsstatus / Saldo-Listen
+
+Neu aufgebauter Upload im `Import-Center Abrechnung`: `BFS-Rechnungsstatus- und Saldo-Listen hochladen`.
+
+Wichtig: Diese Listen gehoeren fachlich zum Abrechnungsimport, nicht zum Rechnungs-PDF-Import.
+
+Technik:
+- `lib/invoice-status-parser.ts`
+- `app/api/invoice-status/parse/route.ts`
+- Frontend-Logik in `components/monitor-app.tsx`
+- Upload unterstuetzt mehrere PDF-Listen sowie Ordner inkl. Unterordner.
+- Tabelle darunter ist eine Scrolltabelle mit Sticky-Header.
+
+Parser liest pro Zeile:
+- Mandant-Nr.
+- BFS-Nr.
+- Patient
+- externe Patientennummer
+- Rechnungsnummer
+- Rechnungsdatum
+- Mahnstufe (`MS`)
+- Ratenplan (`RP`, inkl. Monate in Klammern)
+- Vorfinanzierung
+- Ausfallschutz
+- Rechnungsbetrag
+- Saldo
+- Zahlungsstatus
+
+Fachliche Regeln:
+- `Saldo 0,00 EUR` = bezahlt / erledigt.
+- `RP` = Ratenplan; fuer Orisus operativ wie erledigt behandeln, weil BFS die Ratenzahlung fuehrt.
+- `MS` = Mahnstufe; zeigt, wie viele Mahnstufen der Patient durchlaufen hat, wertvoll fuer Zahlungsmoral/Risikopriorisierung.
+- `Offen` bedeutet: Rechnung wurde gestellt/versendet, aber bei BFS ist noch kein vollstaendiger Zahlungseingang verbucht.
+- Eine offene Rechnung ist nicht automatisch ein Praxis-Klaerfall. Sie wird erst relevant, wenn sie kritisch ist: negativer Saldo ohne RP, Mahnstufe, ohne Ausfallschutz, nicht in Saldo-Liste gefunden oder nicht zuordenbar.
+- Die Liste sollte monatlich fuer den zurueckliegenden Monat erneut hochgeladen werden. Dann prueft die App, ob sich Status veraendert hat: offen -> bezahlt, offen -> Ratenplan, offen -> kritisch, fehlt in Liste, etc.
+
+Import-Flow:
+- Nach Upload entsteht zuerst eine `Saldo-Vorschau`.
+- Erst nach Klick auf `Saldo-Import bestaetigen` gilt der Datenstand als uebernommen.
+- Vorschau kann verworfen werden.
+- Aktuell ist der bestaetigte Statusdatenstand im Frontend-State, noch nicht dauerhaft als Monatsstatus in Supabase persistiert.
+
+Aktuelle Kacheln im Saldo-Import:
+- `Statuszeilen`: Zeilen aus den hochgeladenen Saldo-Listen.
+- `Storno-Basis`: offene Faelle aus dem bestehenden Abrechnungsimport.
+- `Durch Saldo korrigiert`: Storno-/Klaerfaelle, die per Saldo 0 oder RP als erledigt erkannt werden.
+- `Automatisch erledigt`: alle Statuslisten-Zeilen mit Saldo 0 oder RP.
+- `Kritisch offen`: negativer Saldo ohne RP.
+- `Mahnstufen kritisch`: MS > 0 ohne RP.
+- `Ohne Schutz offen`: negativer Saldo ohne RP und ohne Ausfallschutz.
+- `Nicht zuordenbar`: Klaerfaelle ohne Saldo-Treffer.
+
+Wichtig zur Interpretation:
+- `Storno-Basis` kommt aus dem bisherigen Abrechnungsimport, nicht aus der neuen Saldo-Liste.
+- Vor Upload darf `Nicht zuordenbar` nicht irrefuehrend gefuellt sein.
+- Nach Upload zeigt `Nicht zuordenbar`, welche bestehenden Abrechnungs-/Storno-Faelle keinen Treffer in der aktuellen Saldo-Liste haben.
+
+## Pruefkorb Rechnungsstatus
+
+Neu eingebaut im `Import-Center Abrechnung`, direkt unter den Saldo-Kacheln: `Pruefkorb`.
+
+Ziel:
+- Der Pruefkorb ist die monatliche Eingangskontrolle aus `Abrechnungsimport + BFS-Rechnungsstatus`.
+- Er ist nicht als neues Haupttab angelegt, sondern bewusst beim Upload, weil dort die Monatspruefung entsteht.
+- `Klaerfaelle` bleibt danach der Ort fuer operative Abarbeitung.
+
+Der Pruefkorb unterscheidet:
+- `Kritisch offen ohne RP`
+- `Mahnstufe vorhanden`
+- `Ohne Ausfallschutz offen`
+- `Nicht in Saldo-Liste gefunden`
+- `Endgueltig storniert/ausgebucht mit Grund/Betrag`
+- `Nicht zuordenbare Rechnung/BFS-Nr.`
+
+Tabelle:
+- Scrolltabelle mit Standort, Patient, Rechnung, Betrag, Grund/Status und naechstem Schritt.
+- Kategorie-Badges zeigen die Art der Aufgabe.
+
+Fachliche Bedeutung fuer operative Fallarbeit:
+- `Saldo 0` = Fall kann aus operativer Fallarbeit raus, weil bezahlt/erledigt.
+- `Ratenplan` = fuer Orisus ebenfalls raus aus aktiver Klaerung, weil BFS das fuehrt.
+- `Kritisch offen ohne RP` = beobachten/priorisieren; noch nicht automatisch Praxisfehler.
+- `Mahnstufe vorhanden` = hoeher priorisieren, weil Ruecklauf-/Stornorisiko steigt.
+- `Ohne Ausfallschutz offen` = echte Praxis-Risikoaufgabe.
+- `Nicht in Saldo-Liste gefunden` = Klaerfall, weil unklar ist, ob geloescht, endgueltig storniert, ausgebucht oder falsch zugeordnet.
+- `Endgueltig storniert/ausgebucht` = Verlust/Abschluss dokumentieren, nicht weiter als offen fuehren.
+- `Nicht zuordenbare Rechnung/BFS-Nr.` = Stammdaten-/Matching-Aufgabe.
+
+Aktueller technischer Stand:
+- Pruefkorb zeigt diese Aufgaben bereits.
+- Er schreibt die operative Fallarbeit noch nicht automatisch um.
+- Naechster sauberer Schritt:
+  1. bestaetigten Saldo-Import als Monatsdatenstand speichern
+  2. Klaerfaelle gegen diesen Datenstand neu bewerten
+  3. Saldo-0/RP-Faelle automatisch ausblenden/als erledigt werten
+  4. kritische Faelle priorisieren
+  5. fehlende/nicht zuordenbare Faelle als echte Arbeitsliste in `Klaerfaelle` uebergeben
+
 ## Rollen / Rechte
 
 Login:
@@ -288,7 +473,7 @@ Naechster sinnvoller Report-Ausbau:
 ## UI / Responsive / Bedienung
 
 Gestaltungsrichtung:
-- Dunkles CFO-/Controlling-Dashboard.
+- Dunkles Management-/Controlling-Dashboard.
 - Navy/Petrol, transparente Cards, cyan/tuerkise Akzente.
 - Ruhig, professionell, internes Boardroom-Tool.
 - Keine Marketing-Landingpage, keine Spielerei.
@@ -299,7 +484,8 @@ Aktuell wichtige UI-Entscheidungen:
 - Standortleiste und relevante Content-Steuerung sollen sticky bleiben, solange darunter Inhalte darauf reagieren.
 - Desktop: linke Navigation laeuft beim Scrollen mit/fixed, damit nie links leerer Raum ohne Menue entsteht.
 - Mobile: Drawer/Off-canvas Navigation.
-- Prioritaeten-Buttons oben in den Tabs sind entfernt. `Prioritaeten heute` liegt im Reiter `Operative Fallarbeit`.
+- Prioritaeten-Buttons oben in den Tabs sind entfernt.
+- `Prioritaeten heute` wurde komplett entfernt, inklusive Querverlinkungen, weil dort keine eigenstaendig neuen Inhalte standen.
 - KPI-Karten auf Tablet muessen in sinnvoll grossen Grids laufen, nicht zu schmal werden.
 - Tabellen appweit kompakter und intern scrollbar.
 - Lange Detailtabellen duerfen Seiten nicht endlos verlaengern.
@@ -350,9 +536,55 @@ Standorte-Tab aktueller Aufbau:
    Beide als horizontale Balken mit Wertbeschriftung rechts am Balken und Tooltip.
 5. `Standorte im Vergleich` darunter mit eigenem Zeitraumfilter. Keine `Details ansehen`-Buttons/Querverlinkungen in den Standortkarten.
 
+Weitere aktuelle Seitenentscheidungen:
+- `Standortdetails`
+  - Keine Standort-Taskleiste oben; klassische Zeitraum- und Standortfilter.
+  - Mobilgeraete-Kompatibilitaet war zuletzt wichtiger Fokus, vor allem Kachelbreiten und horizontales Ueberlaufen.
+  - Chart `Abzugsanalyse nach Kostenart` hat eigene Zeitraum-/Standortfilter, eigene KPI-Kacheln und entfernte unnoetige Diagramme.
+- `Forderungen und Geldfluss`
+  - Neuer/ausgelagerter Tab fuer den frueheren Geldfluss-Teil aus Standortdetails.
+  - Standortleiste oben entfernt.
+  - Der komplette Block `Offene Positionen zu diesem Geldfluss` inklusive Charts und Patiententabelle wurde entfernt.
+  - Vergleichstabellen darunter sollten erhalten bleiben.
+- `Forderungsqualitaet`
+  - Entschlackt: Risikoarten-/Patientenqualitaet-Charts, Prueflogik, operative Tabellen und mehrere Detailcharts entfernt.
+  - KPI-Bloecke haben eigene Zeitraum-/Standortfilter.
+  - KPI-Kacheln im Desktop in geordneten Reihen, Zeitraumhinweise klein/dezent.
+- `Klaerfaelle`
+  - `Fallalter nach Ampel` entfernt.
+  - `Offener Betrag je Standort` und `Fallgruende` als Saeulendiagramme mit lesbaren Werten.
+  - Patienten-/Klaerfalltabelle mit eigenem Zeitraum- und Standortfilter.
+  - Tabelle als Scrolltabelle, damit die Seite nicht endlos lang wird.
+- `Matching & Neueinreichungen`
+  - Wurde vor `Klaerfaelle` geschoben, weil fachlich zuerst Neueinreichungen/Matching geprueft werden sollen.
+  - Charts `Neueinreichungen` und `Neueinreichungen Standort` entfernt.
+  - Tabelle als Scrolltabelle.
+  - Neueinreichungen koennen analog zu Klaerfaellen bestaetigt/abgelehnt werden.
+  - Wenn `Stimmt`: Position laeuft in erfolgreiche Wiederholung/Zurueckholung.
+  - Wenn `Abgelehnt`: Position laeuft in Stornierung/offen.
+- `Patientenklassifizierung`
+  - Neuer Tab fuer A/B/C/D-Logik, Patientenqualitaet je Standort, Wiederholer, Risikoentwicklung je Patient und Historie.
+  - Keine Standortleiste, sondern klassische Zeitraum-/Standortfilter.
+  - `Patientenklassen` und `Ohne Ausfallschutz` als Saeulendiagramme.
+  - `Risikoentwicklung` und `Patientenqualitaet` entfernt.
+- `Report-Center`
+  - KPI-Kacheln auf Desktop drei oben / drei unten.
+  - Zeitraumfilter oben fuer Druck/Konvertierung.
+  - Patientendaten im Report duerfen ausformuliert bleiben; sonst Tabellen scrollen.
+- `Schnellantworten`
+  - Kacheln auf Desktop gleichmaessig angeordnet.
+
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- `f804cc44 Add invoice status review basket`
+- `a06a46fe Require confirmation for saldo imports`
+- `cf8a4392 Clarify saldo reconciliation cards`
+- `1e8ef13d Refine saldo import impact metrics`
+- `3931c197 Add invoice saldo list upload`
+- `2ca43f07 Move invoice import navigation to bottom`
+- `2f04feac Align quick answer cards on desktop`
+- `5ee8b0ea Add invoice analysis import parser`
 - `4d29cc1e Add since-start chart period option`
 - `5a38729b Rename claims tab to location details`
 - `a5a66723 Improve custom PDF export layout`
@@ -394,7 +626,19 @@ Damit ist zuletzt erledigt:
 - Standortvergleich-Karten haben keine `Details ansehen`-Buttons mehr.
 - Schnellantworten stehen nur noch im Tab `Schnellantworten`, nicht doppelt im Cockpit.
 - Top-Prioritaetenbuttons in den Tabs sind entfernt.
-- `Prioritaeten heute` liegt im Reiter `Operative Fallarbeit`.
+- `Prioritaeten heute` wurde komplett entfernt.
+- Neuer Oberreiter `BFS-Abrechnungen` fuer bisherige Abrechnungs-/Fallarbeitswelt.
+- Neuer Oberreiter `BFS-Rechnungsanalyse` fuer BFS-Patientenrechnungen.
+- `Import-Center Abrechnung` enthaelt bestehenden Abrechnungsimport plus Saldo-/Statuslisten-Upload.
+- `Import-Center Rechnungen` enthaelt Rechnungs-PDF-Import fuer einzelne Rechnungen oder ganze Ordner inkl. Unterordner.
+- Rechnungsparser liest Leistungspositionen, Faktoren, Betraege, Eigenlabor/Fremdlabor und Standortzuordnung.
+- Saldo-/Statuslistenparser liest BFS-Zahlungsstatus, Saldo, Mahnstufen, Ratenplan und Ausfallschutz.
+- Saldo-Import hat Vorschau + explizite Bestaetigung.
+- Saldo-Import-Kacheln unterscheiden Statuszeilen, Storno-Basis, durch Saldo korrigiert, automatisch erledigt, kritisch offen, Mahnstufen kritisch, ohne Schutz offen und nicht zuordenbar.
+- Neuer `Pruefkorb Rechnungsstatus` unter dem Saldo-Upload mit sechs Kategorien fuer Praxis-Aufgaben.
+- Saldo-Tabelle und Pruefkorb-Tabelle sind Scrolltabellen.
+- `Matching & Neueinreichungen` steht vor `Klaerfaelle`.
+- `Patientenklassifizierung` wurde als eigener Tab angelegt.
 - Linke Desktop-Navigation bleibt beim Scrollen sichtbar.
 - Endgueltig stornierte Klaerfaelle koennen manuell geklaert werden und verschwinden aus offenen Arbeitslisten/Neueinreichungsvorschlaegen.
 - Appweite Typografie-Skala vereinheitlicht.
@@ -425,6 +669,14 @@ git diff --check
 Wichtige offene technische Punkte:
 - Automatisierte Tests fehlen weiterhin.
 - Besonders testwuerdig:
+  - BFS-Rechnungsstatus-/Saldo-Listen gegen weitere echte Monatslisten
+  - Pruefkorb Rechnungsstatus gegen mehrere Standorte und Monatswechsel
+  - Persistenz des bestaetigten Saldo-Statusdatenstands in Supabase
+  - Rueckwirkung bestaetigter Saldo-Statusdaten auf Klaerfaelle, KPI-Kacheln, Matching und operative Fallarbeit
+  - Unterscheidung "offen bei BFS" vs. "echte Praxis-Aufgabe" in allen relevanten Sichten
+  - Erkennung von Rechnungen, die in einer neuen Saldo-Liste fehlen: alt/erledigt, endgueltig storniert, ausgebucht, Nummernproblem oder falscher Standort
+  - Rechnungs-PDF-Parser gegen weitere BFS-Rechnungen mit Eigenlabor/Fremdlabor und Sammelstrukturen
+  - Speicherstrategie: PDF-Dateien spaeter bereinigen, extrahierte Daten behalten
   - Zusammenfassung-Tab PDF-Export in echten Browsern auf Desktop/Mobile
   - Zusammenfassung-Tab Standort-Export: Zielstandort klar, andere Standorte anonymisiert, Benchmark-Klarzahlen anderer Standorte nur als Indexwerte
   - Zusammenfassung-Tab Benchmark-Zeitraumfilter
@@ -441,7 +693,37 @@ Wichtige offene technische Punkte:
 - Importdaten duerfen nicht hart bei 5000 Dokumenten abgeschnitten werden, ohne sichtbar darauf hinzuweisen oder zu paginieren.
 - Reset sollte Fehler-/Duplikat-/Zwischenstaende sauber mitraeumen.
 
-## Wenn ich als CFO/Geschaeftsfuehrer weiterentwickeln wuerde
+## Naechste fachlich sinnvolle Schritte aus dem aktuellen Chat
+
+Prioritaet 1: Saldo-Status persistent machen
+- Bestaetigte Saldo-Uploads als Monatsdatenstand speichern.
+- Pro Statusliste Datei-Metadaten speichern: Dateiname, Hash, Monat/Zeitraum, Uploadzeit, Zeilenanzahl, Standort/Mandant.
+- Statuszeilen dauerhaft speichern, aber PDF-Speicher spaeter bereinigbar halten.
+
+Prioritaet 2: Operative Fallarbeit automatisch beeinflussen
+- Klaerfaelle gegen bestaetigte Saldo-Statusdaten pruefen.
+- Saldo 0 und RP als erledigt/aus operativer Arbeitsliste raus.
+- Kritisch offen, Mahnstufe, ohne Schutz offen und nicht in Saldo-Liste gefunden in `Klaerfaelle` priorisieren.
+- Pruefkorb soll Quelle/Begruendung der operativen Aufgabe bleiben.
+
+Prioritaet 3: Monatsvergleich Statuslisten
+- Wenn die Liste monatlich neu hochgeladen wird, Veraenderungen anzeigen:
+  - neu offen
+  - offen geblieben
+  - bezahlt geworden
+  - in RP gewechselt
+  - Mahnstufe gestiegen
+  - nicht mehr in Liste vorhanden
+  - ausgebucht/storniert erkannt
+
+Prioritaet 4: Rechnungsanalyse ausbauen
+- Leistungsnummern je Standort ranken.
+- Faktoren je Leistungsnummer/Standort vergleichen.
+- Durchschnittsbetrag je Leistung und Standort.
+- Eigenlabor/Fremdlabor getrennt auswerten.
+- Behandlungszeitraeume/Positionen fuer Matching Neueinreichungen nutzen.
+
+## Wenn ich als Geschaeftsfuehrer/Management weiterentwickeln wuerde
 
 Die App ist funktional schon deutlich nutzbar, aber der groesste Mehrwert entsteht jetzt durch mehr Management-Visualisierung.
 

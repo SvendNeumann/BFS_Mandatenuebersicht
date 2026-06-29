@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 13:35 Uhr
+Stand: 29.06.2026, ca. 14:05 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -16,6 +16,10 @@ Letzte Aenderung/Pruefung:
 - Im Tab `Forderungen und Geldfluss` wurde oberhalb der bisherigen Standortkarten/Monats- und Quartalscharts eine `CashFlow-Herleitung` als Wasserfall-Diagramm ergaenzt. Eigene Filter: `Zeitraum CashFlow` und `Standort CashFlow` inkl. `Alle Standorte`. Kette: Umsatz eingereicht minus BFS-Gebuehr netto, MwSt, EWMA/Adresspruefung und Brutto Storno/Rueckgabe plus zurueckgeholt/bezahlt ergibt den wirtschaftlich verbleibenden Betrag. Zusaetzlich werden BFS-Auszahlung laut Import, offener Abzug, Anzahl zurueckgeholt/bezahlt und Differenz zur BFS-Auszahlung gezeigt. Responsive: Summary stapelt mobil, Wasserfall bleibt horizontal scrollbar mit stabiler Hoehe.
 - Im Tab `Zusammenfassung` wurden die KPI-Kacheln auf die komplette CashFlow-/Storno-Logik erweitert: eingereichter Umsatz, BFS-Gebuehren, BFS-Gebuehr netto, MwSt, EWMA/Adresspruefung, ausgezahlter Umsatz, Brutto Storno/Rueckgabe, Storno-Grundmenge, davon zurueckgeholt inkl. Betrag, offener Abzug, Zahlung/Grund pruefen, Praxis nachfassen, wirtschaftlich verbleibend, eingereichte Rechnungen und Durchschnittswert je Forderung. Info-Texte erklaeren die Herleitung; Trends nutzen Monatswerte fuer die neuen Logikfelder.
 - Im Bereich `Forderungen und Geldfluss` -> `Storno/Rueckgabe & Wiedereinholung` wurde die Restlogik komplett sichtbar gemacht: zusaetzlich zu Brutto-Abzug, Zurueckgeholt/bezahlt und Noch ungeklaert werden jetzt `Zahlung/Grund pruefen`, `Praxis nachfassen` und `Endgueltig storniert` als operative Restkategorien ausgewiesen. Damit ist im gleichen Ablauf sichtbar, wohin der offene Restbetrag fachlich geht.
+- Nachpruefung der App-weiten Logik: `Offener Abzug`, `Noch ungeklaert`, Wasserfall-Rest und Management-Vergleich nutzen jetzt einheitlich die zentrale Herleitung `Brutto Storno/Rueckgabe minus zurueckgeholt/bezahlt`. `Zurueckgeholt/bezahlt` zaehlt echte Neueinreichungen/Ersatzrechnungen plus manuell als bezahlt markierte Faelle, jeweils bis maximal zur Hoehe des urspruenglichen Abzugs. Diese Logik ist in `Zusammenfassung`, `Forderungen und Geldfluss`, CashFlow-Wasserfall, Management Cockpit, Benchmark, Standort-Dashboard und Reports angebunden.
+- Wichtig zur Lesart: `Storno-Grundmenge` und stornobezogene Kacheln bleiben bewusst eine Untermenge nur aus Storno-Bewegungen. Sie duerfen deshalb von `Brutto Storno/Rueckgabe` bzw. `Offener Abzug` abweichen, weil Rueckgaben/Rueckbelastungen dort zusaetzlich enthalten sind. Der Begriff `Offener Abzug` meint appweit nicht mehr "offene Stornos", sondern den wirtschaftlich noch nicht belegten Rest aus allen Abzugsbewegungen.
+- Monats-Trends/Sparklines fuer `Offener Abzug` wurden auf dieselbe Logik umgestellt: monatlich wird erst der Brutto-Abzug aus Rueckgabe/Rueckbelastung/Storno aufgebaut und danach werden erkannte Neueinreichungen oder manuelle Zahlungen gegengerechnet. Dadurch laufen Kachelwert, Wasserfall und Trenddarstellung nicht mehr auseinander.
+- Pruefung am 29.06.2026 nach der Vereinheitlichung: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build` und `git diff --check` erfolgreich.
 
 ## Prompt fuer den naechsten Chat
 

@@ -615,7 +615,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
-                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
+                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
@@ -648,9 +648,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "repeatRisks" && <RecurringRiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={tabFilterStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
-            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases.filter(isPracticeFollowupCase)} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases.filter(isPracticeFollowupCase)} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "outcomes" && <OutcomeControlView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />)}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -927,9 +927,8 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const economicCheckRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, scopedRows)
     .filter((row) => row.category === "economic_check"), [invoiceStatusRows, scopedRows]);
   const economicCheckAmount = useMemo(() => economicCheckRows.reduce((sum, row) => sum + row.amount, 0), [economicCheckRows]);
-  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, stornoReview.rows), [scopedRows, stornoReview.rows]);
-  const chartStornoReview = useMemo(() => stornoReviewFromImportRows(chartRows, standort?.id, manualCaseResolutions), [chartRows, standort?.id, manualCaseResolutions]);
-  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, chartStornoReview.rows), [chartRows, chartStornoReview.rows]);
+  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions), [manualCaseResolutions, scopedRows]);
+  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions), [chartRows, manualCaseResolutions]);
   const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
@@ -937,9 +936,10 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
-  const grossDeductionAmount = metrics.returnAmount + metrics.cancellationAmount;
-  const recoveredStornoAmount = stornoReview.rows.filter((row) => row.done).reduce((sum, row) => sum + row.amount, 0);
-  const openStornoAmount = stornoReview.rows.filter((row) => row.open).reduce((sum, row) => sum + row.amount, 0);
+  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
+  const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
+  const recoveredStornoAmount = deductionRecovery.recoveredAmount;
+  const openStornoAmount = deductionRecovery.openAmount;
   const practiceFollowupAmount = practiceFollowupCases.reduce((sum, fall) => sum + fall.amount, 0);
   const finalCashflowAmount = Math.max(metrics.submitted - metrics.feeNet - metrics.feeVat - metrics.ewmaTotal - grossDeductionAmount + recoveredStornoAmount, 0);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
@@ -1071,21 +1071,21 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
         />
         <PriorityCard
           label="Davon zurückgeholt"
-          value={integerNumber.format(stornoReview.done)}
-          hint={`${money.format(recoveredStornoAmount)} · ${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
+          value={integerNumber.format(deductionRecovery.recoveredCount)}
+          hint={`${money.format(recoveredStornoAmount)} · ${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`}
           period={selectedPeriod.label}
-          tone={stornoReview.done ? "green" : stornoReview.total ? "amber" : "blue"}
+          tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"}
           trend={customKpiTrend("recoveredStornos", kpiTrendPoints)}
-          info="Lesart: Von der Storno-Grundmenge links wurden diese Fälle über eine echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung geklärt. Saldo 0 allein zählt hier nicht als Zahlung."
+          info="Lesart: Vom Brutto-Abzug aus Rückgaben und Stornos wurde dieser Betrag über echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung geklärt. Saldo 0 allein zählt hier nicht als Zahlung."
         />
         <PriorityCard
           label="Offener Abzug"
           value={money.format(openStornoAmount)}
-          hint={`${integerNumber.format(stornoReview.open)} Stornos offen`}
+          hint="Brutto-Abzug minus zurückgeholt/bezahlt"
           period={selectedPeriod.label}
           tone={openStornoAmount ? "amber" : "green"}
           trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)}
-          info="Noch nicht zurückgeholter Storno-Betrag aus der Storno-Grundmenge. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert."
+          info="Noch nicht zurückgeholter Betrag aus Brutto Storno/Rückgabe. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert."
         />
         <PriorityCard
           label="Zahlung/Grund prüfen"
@@ -1700,7 +1700,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod), [importRows, filteredStandorte, openCases, cockpitPeriod]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
@@ -2349,16 +2349,16 @@ function buildManagementChartSeries(rowsStandorte: Standort[], importRows: Impor
   ];
 }
 
-function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[], period?: PeriodOption) {
+function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[], period?: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = []) {
   const currentPeriod = comparableCurrentPeriod(period ?? ytdPeriod(todayReference.getFullYear()));
   const previousPeriod = previousYearPeriod(currentPeriod);
   const currentRows = rowsForSparklinePeriod(importRows, relevantStandorte, currentPeriod);
   const previousRows = rowsForSparklinePeriod(importRows, relevantStandorte, previousPeriod);
   const currentMetrics = metricsFromRows(currentRows);
   const previousMetrics = metricsFromRows(previousRows);
-  const deductionAmount = currentMetrics.returnAmount + currentMetrics.cancellationAmount;
-  const recoveredCandidates = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(currentRows));
-  const recoveredAmount = recoveredCandidates.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const deductionRecovery = buildDeductionRecovery(importRows, relevantStandorte, currentPeriod, manualCaseResolutions);
+  const deductionAmount = deductionRecovery.grossDeductionAmount;
+  const recoveredAmount = deductionRecovery.recoveredAmount;
   const currentOpenCases = openCases.filter((fall) => {
     const standort = relevantStandorte.find((entry) => entry.id === fall.standortId);
     return standort ? shortDateInPeriod(fall.sourceDate, currentPeriod, standort) : false;
@@ -2571,18 +2571,18 @@ function locationChargebackRateInfo(entry: LocationSnapshot) {
   ].join(" ");
 }
 
-function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: ImportPreviewRow[]) {
+function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const growing = [...snapshots]
     .map((snapshot) => {
-      const comparison = buildManagementComparison(scopedRows, [snapshot.standort], []);
+      const comparison = buildManagementComparison(scopedRows, [snapshot.standort], [], undefined, manualCaseResolutions);
       return { snapshot, delta: comparison.submittedDeltaRate };
     })
     .sort((a, b) => b.delta - a.delta);
   const expensive = [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate);
   const weakQuality = [...snapshots].sort((a, b) => b.chargebackRate - a.chargebackRate || b.noProtectionCaseRate - a.noProtectionCaseRate);
   const goodRecovery = [...snapshots].sort((a, b) => {
-    const aComparison = buildManagementComparison(scopedRows, [a.standort], []);
-    const bComparison = buildManagementComparison(scopedRows, [b.standort], []);
+    const aComparison = buildManagementComparison(scopedRows, [a.standort], [], undefined, manualCaseResolutions);
+    const bComparison = buildManagementComparison(scopedRows, [b.standort], [], undefined, manualCaseResolutions);
     return bComparison.recoveryRate - aComparison.recoveryRate;
   });
   return [
@@ -2652,7 +2652,7 @@ function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRo
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
   const highestRisk = useMemo(() => [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const benchmarkCharts = useMemo(() => buildGroupDashboardSeries(orderedLocations, selectedPeriod, scopedRows), [orderedLocations, selectedPeriod, scopedRows]);
-  const benchmarkSignals = useMemo(() => buildBenchmarkSignals(snapshots, importRows), [snapshots, importRows]);
+  const benchmarkSignals = useMemo(() => buildBenchmarkSignals(snapshots, importRows, manualCaseResolutions), [snapshots, importRows, manualCaseResolutions]);
 
   return (
     <div className="content-stack">
@@ -3055,7 +3055,8 @@ function LocationDashboard({
   onNavigate,
   onScopeChange,
   importRows,
-  peerImportRows
+  peerImportRows,
+  manualCaseResolutions = []
 }: {
   standort: Standort;
   cases: BfsCase[];
@@ -3063,6 +3064,7 @@ function LocationDashboard({
   onScopeChange?: (standortId: string) => void;
   importRows: ImportPreviewRow[];
   peerImportRows: ImportPreviewRow[];
+  manualCaseResolutions?: ManualCaseResolution[];
 }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -3072,7 +3074,7 @@ function LocationDashboard({
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt") && isPracticeFollowupCase(fall)), [cases]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases), [importRows, openCases, standort]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases, undefined, manualCaseResolutions), [importRows, openCases, standort, manualCaseResolutions]);
   const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
@@ -3542,6 +3544,38 @@ function rowsForSparklinePeriod(importRows: ImportPreviewRow[], relevantStandort
   });
 }
 
+function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = []) {
+  const scopedRows = rowsForSparklinePeriod(importRows, relevantStandorte, period);
+  const allLocationRows = importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location));
+  const metrics = metricsFromRows(scopedRows);
+  const grossDeductionAmount = metrics.returnAmount + metrics.cancellationAmount;
+  const recoveryMatches = resubmissionCandidatesFromImportRows(allLocationRows)
+    .filter((candidate) => {
+      const candidateStandort = relevantStandorte.find((entry) => entry.name === candidate.locationName);
+      return candidateStandort ? shortDateInPeriod(candidate.originalDate, period, candidateStandort) : false;
+    });
+  const recoveredByResubmission = uniqueRecoveryCandidates(recoveryMatches);
+  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+  const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  const manuallyPaidCases = casesFromImportRows(scopedRows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
+  const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const recoveredAmount = Math.min(grossDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
+  return {
+    scopedRows,
+    metrics,
+    grossDeductionAmount,
+    recoveredAmount,
+    openAmount: Math.max(grossDeductionAmount - recoveredAmount, 0),
+    recoveryRate: grossDeductionAmount ? Math.min(100, (recoveredAmount / grossDeductionAmount) * 100) : 0,
+    recoveredByResubmission,
+    manuallyPaidCases,
+    recoveredCount: recoveredByResubmission.length + manuallyPaidCases.length,
+    matchedNewSubmissionAmount: recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0)
+  };
+}
+
 function previousYearPeriod(period: PeriodOption): PeriodOption {
   const currentYear = period.start?.getFullYear();
   const previousYear = currentYear ? currentYear - 1 : undefined;
@@ -3659,17 +3693,14 @@ function ClaimsFlowView({
     const rowStandort = deductionStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, deductionPeriod, rowStandort) : false;
   }), [deductionPeriod, deductionStandorte, importRows]);
-  const allDeductionLocationRows = useMemo(() => importRows.filter((row) => deductionStandorte.some((entry) => entry.name === row.location)), [deductionStandorte, importRows]);
   const recoveryScopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = recoveryStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, recoveryPeriod, rowStandort) : false;
   }), [importRows, recoveryPeriod, recoveryStandorte]);
-  const allScopedLocationRows = useMemo(() => importRows.filter((row) => recoveryStandorte.some((entry) => entry.name === row.location)), [importRows, recoveryStandorte]);
   const waterfallScopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = waterfallStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, waterfallPeriod, rowStandort) : false;
   }), [importRows, waterfallPeriod, waterfallStandorte]);
-  const allWaterfallLocationRows = useMemo(() => importRows.filter((row) => waterfallStandorte.some((entry) => entry.name === row.location)), [importRows, waterfallStandorte]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const deductionSummary = useMemo(() => summarizeImportRows(deductionScopedImportRows), [deductionScopedImportRows]);
@@ -3680,34 +3711,9 @@ function ClaimsFlowView({
   const waterfallMetrics = useMemo(() => waterfallSummary.rows ? metricsFromImportSummary(waterfallSummary) : zeroMetrics(), [waterfallSummary]);
   const recentMonths = useMemo(() => buildRecentMonthlyTrend(detailsStandortIds, selectedPeriod, importRows), [detailsStandortIds, selectedPeriod, importRows]);
   const quarterRows = useMemo(() => buildQuarterComparison(detailsStandortIds, importRows), [detailsStandortIds, importRows]);
-  const recoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allScopedLocationRows)
-    .filter((candidate) => {
-      const candidateStandort = recoveryStandorte.find((entry) => entry.name === candidate.locationName);
-      return candidateStandort ? shortDateInPeriod(candidate.originalDate, recoveryPeriod, candidateStandort) : false;
-    }), [allScopedLocationRows, recoveryPeriod, recoveryStandorte]);
-  const deductionRecoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allDeductionLocationRows)
-    .filter((candidate) => {
-      const candidateStandort = deductionStandorte.find((entry) => entry.name === candidate.locationName);
-      return candidateStandort ? shortDateInPeriod(candidate.originalDate, deductionPeriod, candidateStandort) : false;
-    }), [allDeductionLocationRows, deductionPeriod, deductionStandorte]);
-  const waterfallRecoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allWaterfallLocationRows)
-    .filter((candidate) => {
-      const candidateStandort = waterfallStandorte.find((entry) => entry.name === candidate.locationName);
-      return candidateStandort ? shortDateInPeriod(candidate.originalDate, waterfallPeriod, candidateStandort) : false;
-    }), [allWaterfallLocationRows, waterfallPeriod, waterfallStandorte]);
-  const recoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(recoveryMatches), [recoveryMatches]);
-  const deductionRecoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(deductionRecoveryMatches), [deductionRecoveryMatches]);
-  const waterfallRecoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(waterfallRecoveryMatches), [waterfallRecoveryMatches]);
-  const deductionRecoveredByResubmissionKeys = useMemo(() => new Set(deductionRecoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [deductionRecoveredByResubmission]);
-  const recoveredByResubmissionKeys = useMemo(() => new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [recoveredByResubmission]);
-  const waterfallRecoveredByResubmissionKeys = useMemo(() => new Set(waterfallRecoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [waterfallRecoveredByResubmission]);
-  const manualResolutionKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const deductionManuallyPaidCases = useMemo(() => casesFromImportRows(deductionScopedImportRows)
-    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !deductionRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [deductionScopedImportRows, deductionRecoveredByResubmissionKeys, manualResolutionKeys]);
-  const manuallyPaidCases = useMemo(() => casesFromImportRows(recoveryScopedImportRows)
-    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
-  const waterfallManuallyPaidCases = useMemo(() => casesFromImportRows(waterfallScopedImportRows)
-    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !waterfallRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [manualResolutionKeys, waterfallRecoveredByResubmissionKeys, waterfallScopedImportRows]);
+  const deductionRecoverySummary = useMemo(() => buildDeductionRecovery(importRows, deductionStandorte, deductionPeriod, manualCaseResolutions), [deductionPeriod, deductionStandorte, importRows, manualCaseResolutions]);
+  const recoveryDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, recoveryStandorte, recoveryPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, recoveryPeriod, recoveryStandorte]);
+  const waterfallDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, waterfallStandorte, waterfallPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, waterfallPeriod, waterfallStandorte]);
   const recoveryClosedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const recoveryReviewRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, recoveryScopedImportRows), [invoiceStatusRows, recoveryScopedImportRows]);
   const recoveryEconomicCheckRows = useMemo(() => recoveryReviewRows.filter((row) => row.category === "economic_check"), [recoveryReviewRows]);
@@ -3725,19 +3731,13 @@ function ClaimsFlowView({
   const recoveryFinalCancelledAmount = useMemo(() => recoveryStornoReview.rows.filter((row) => row.finalCancelled).reduce((sum, row) => sum + row.amount, 0), [recoveryStornoReview.rows]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
-  const analysisRecoveredByResubmissionAmount = deductionRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
-  const analysisManuallyPaidAmount = deductionManuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const analysisRecoveredAmount = Math.min(analysisDeductionAmount, analysisRecoveredByResubmissionAmount + analysisManuallyPaidAmount);
-  const recoveryDeductionAmount = recoveryMetrics.returnAmount + recoveryMetrics.cancellationAmount;
-  const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
-  const matchedNewSubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0);
-  const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const recoveredAmount = Math.min(recoveryDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
-  const stillOpenAmount = Math.max(recoveryDeductionAmount - recoveredAmount, 0);
-  const waterfallDeductionAmount = waterfallMetrics.returnAmount + waterfallMetrics.cancellationAmount;
-  const waterfallRecoveredByResubmissionAmount = waterfallRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
-  const waterfallManuallyPaidAmount = waterfallManuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const waterfallRecoveredAmount = Math.min(waterfallDeductionAmount, waterfallRecoveredByResubmissionAmount + waterfallManuallyPaidAmount);
+  const analysisRecoveredAmount = deductionRecoverySummary.recoveredAmount;
+  const recoveryDeductionAmount = recoveryDeductionSummary.grossDeductionAmount;
+  const matchedNewSubmissionAmount = recoveryDeductionSummary.matchedNewSubmissionAmount;
+  const recoveredAmount = recoveryDeductionSummary.recoveredAmount;
+  const stillOpenAmount = recoveryDeductionSummary.openAmount;
+  const waterfallDeductionAmount = waterfallDeductionSummary.grossDeductionAmount;
+  const waterfallRecoveredAmount = waterfallDeductionSummary.recoveredAmount;
   const waterfallScopeLabel = waterfallStandorte.length === 1 ? waterfallStandorte[0].name : "Alle Standorte";
   const waterfallSteps = useMemo(() => buildCashflowWaterfallSteps(waterfallMetrics, waterfallDeductionAmount, waterfallRecoveredAmount), [waterfallDeductionAmount, waterfallMetrics, waterfallRecoveredAmount]);
   const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
@@ -3827,7 +3827,7 @@ function ClaimsFlowView({
           <PriorityCard label="Größter Abzug" value={money.format(deductionMetrics.fees)} hint="BFS-Gebühr inkl. MwSt" period={deductionPeriod.label} tone={deductionMetrics.fees ? "red" : "green"} />
           <PriorityCard label="Kosten ohne Storno" value={money.format(deductionMetrics.fees + deductionMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={deductionPeriod.label} tone={deductionMetrics.fees + deductionMetrics.ewmaTotal ? "amber" : "green"} />
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(analysisDeductionAmount)} hint="ursprünglicher Abzug aus Kontoauszug" period={deductionPeriod.label} tone={analysisDeductionAmount ? "red" : "green"} info="Brutto-Grundmenge aus Rückgaben, Rückläufern und Stornos, bevor die App in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert trennt." />
-          <PriorityCard label="Davon zurückgeholt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoveredByResubmission.length} Matches plus manuell bezahlt`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} info="Zurückgeholt zählt nur echte spätere Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung. Saldo 0 allein zählt nicht als Geldzufluss." />
+          <PriorityCard label="Davon zurückgeholt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoverySummary.recoveredCount} Matches/Zahlungen`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} info="Zurückgeholt zählt nur echte spätere Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung. Saldo 0 allein zählt nicht als Geldzufluss." />
         </div>
         <div className="table-wrap compact-table recovery-table-scroll deduction-breakdown-table">
           <table>
@@ -3895,7 +3895,7 @@ function ClaimsFlowView({
           scopeLabel={waterfallScopeLabel}
           payout={waterfallMetrics.payout}
           openDeduction={Math.max(waterfallDeductionAmount - waterfallRecoveredAmount, 0)}
-          recoveredCount={waterfallRecoveredByResubmission.length + waterfallManuallyPaidCases.length}
+          recoveredCount={waterfallDeductionSummary.recoveredCount}
         />
       </section>
       <section className="panel">
@@ -3994,7 +3994,7 @@ function ClaimsFlowView({
         <div className="priority-grid compact-priority recovery-priority-grid">
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} info="Grundmenge vor Folgeentscheidung: Rückläufer, Rückgaben und Stornos aus den BFS-Kontoauszug-Bewegungen." />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
-          <PriorityCard label="Zurückgeholt / bezahlt" value={money.format(recoveredAmount)} hint={`${recoveredByResubmission.length} Matches · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen und belegte Zahlungen bis maximal zur Höhe des ursprünglichen Abzugs." />
+          <PriorityCard label="Zurückgeholt / bezahlt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Matches/Zahlungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen und belegte Zahlungen bis maximal zur Höhe des ursprünglichen Abzugs." />
           <PriorityCard label="Noch ungeklärt" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus zurückgeholt/bezahlt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Restbetrag nach angerechneter Neueinreichung oder Zahlung. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert." />
           <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
@@ -4189,7 +4189,7 @@ function buildCustomChartPeriods(): PeriodOption[] {
   return [...basePeriods, ...monthPeriods];
 }
 
-function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnType<typeof stornoReviewFromImportRows>["rows"]): CustomChartPoint[] {
+function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []): CustomChartPoint[] {
   const byMonth = new Map<string, CustomChartPoint>();
   const ensurePoint = (month: string) => {
     const current = byMonth.get(month);
@@ -4234,19 +4234,34 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
       if (isStornoMovement(movement)) cancellationPoint.cancellations += 1;
       const amount = Math.abs(movement.amount ?? 0);
       cancellationPoint.practiceFollowupAmount += movement.reasonCategory === "rueckgabe_ohne_ausfallschutz" ? amount : 0;
+      cancellationPoint.openStornoAmount += amount;
       monthDeductionAmount += movementMonth === month || !movementMonth ? amount : 0;
     });
     point.finalCashflow += Math.max(submitted - feeNet - feeVat - ewma - monthDeductionAmount, 0);
   });
 
-  stornoRows.forEach((row) => {
-    const month = monthKeyFromGermanDate(row.recoveryDate || row.date);
+  const recoveredByResubmission = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows));
+  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+  recoveredByResubmission.forEach((candidate) => {
+    const month = monthKeyFromGermanDate(candidate.originalDate);
     if (!month) return;
-    if (row.open) ensurePoint(month).openStornoAmount += row.amount;
-    if (!row.done) return;
     const point = ensurePoint(month);
+    const recoveredAmount = Math.min(candidate.originalAmount, candidate.newAmount);
+    point.openStornoAmount = Math.max(point.openStornoAmount - recoveredAmount, 0);
     point.recoveredStornos += 1;
-    point.finalCashflow += row.amount;
+    point.finalCashflow += recoveredAmount;
+  });
+
+  const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+  casesFromImportRows(rows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)))
+    .forEach((fall) => {
+      const month = monthKeyFromGermanDate(fall.sourceDate ?? "");
+      if (!month) return;
+      const point = ensurePoint(month);
+      point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+      point.recoveredStornos += 1;
+      point.finalCashflow += fall.amount;
   });
 
   return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
@@ -9277,7 +9292,7 @@ function MatchesView({
   );
 }
 
-function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
+function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows = [], manualCaseResolutions = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [selectedReportStandortId, setSelectedReportStandortId] = useState(() => role === "super_admin" ? "alle" : standort.id);
@@ -9300,7 +9315,7 @@ function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows
       const fallStandort = selectedReportStandorte.find((entry) => entry.id === fall.standortId);
       return fallStandort ? shortDateInPeriod(fall.sourceDate, selectedPeriod, fallStandort) : false;
     }), [cases, selectedPeriod, selectedReportStandortIds, selectedReportStandorte]);
-  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod), [importRows, reportCases, selectedPeriod, selectedReportStandorte]);
+  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod, manualCaseResolutions), [importRows, reportCases, selectedPeriod, selectedReportStandorte, manualCaseResolutions]);
   const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
   const reportStandortId = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].id : undefined;
   const recurring = useMemo(() => getRecurringRiskProfiles(reportStandortId, scopedImportRows), [reportStandortId, scopedImportRows]);

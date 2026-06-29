@@ -6833,7 +6833,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           <table>
             <thead>
               <tr>
-                <th>Nr.</th>
+                <th>Leistungsnr.</th>
                 <th>Kurzbeschreibung</th>
                 <th>{selectedStandort ? `${selectedStandort.name} Fälle` : "Häufigkeit"}</th>
                 <th>Ø Faktor</th>

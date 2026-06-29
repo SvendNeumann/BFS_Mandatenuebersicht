@@ -4,6 +4,7 @@ import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
 const shortDatePattern = /^\d{2}\.\d{2}\.\d{2}$/;
 const serviceCodePattern = /^(?:§?\d{1,4}(?:[a-z])?|\d{1,3}\.\d|[a-z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}[a-z]?|Glasur|Cerkat)$/;
+const strongServiceCodePattern = /^(?:Ä\d{1,3}[a-z]?|§?\d{3,4}[a-z]?|\d{1,3}\.\d|[a-zäöü]{1,4}\d{1,4}[a-z]?|Glasur|Cerkat)$/i;
 
 export async function parseInvoiceUploadFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
   const pdfFiles = files.filter(isInvoicePdfUploadFile);
@@ -158,15 +159,14 @@ function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], 
   const quantity = Number(afterFactor.match(/^(\d+(?:,\d+)?)/)?.[1]?.replace(",", ".") ?? 1);
   const tokens = beforeFactor.split(/\s+/);
   const date = shortDatePattern.test(tokens[0] ?? "") ? tokens.shift() : undefined;
-  const codeIndex = tokens.findIndex((token) => serviceCodePattern.test(token));
-  if (codeIndex < 0) return [];
-  const code = tokens[codeIndex];
-  const region = tokens.slice(0, codeIndex).join(" ") || undefined;
-  const description = tokens.slice(codeIndex + 1).join(" ").trim() || code;
+  const serviceCode = findServiceCode(tokens);
+  if (!serviceCode) return [];
+  const region = tokens.slice(0, serviceCode.index).join(" ") || undefined;
+  const description = tokens.slice(serviceCode.descriptionStartIndex).join(" ").trim() || serviceCode.code;
   return [{
     date,
     region,
-    code,
+    code: serviceCode.code,
     description,
     factor: parseAmount(factorMatch[0]),
     quantity,
@@ -174,6 +174,18 @@ function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], 
     category,
     sourceSection
   }];
+}
+
+function findServiceCode(tokens: string[]) {
+  const strongIndex = tokens.findIndex((token) => strongServiceCodePattern.test(token));
+  const index = strongIndex >= 0 ? strongIndex : tokens.findIndex((token) => serviceCodePattern.test(token));
+  if (index < 0) return null;
+  const token = tokens[index];
+  const suffix = tokens[index + 1];
+  if (/^\d{3,4}$/i.test(token) && /^[a-z]$/i.test(suffix ?? "")) {
+    return { index, code: `${token}${suffix}`, descriptionStartIndex: index + 2 };
+  }
+  return { index, code: token, descriptionStartIndex: index + 1 };
 }
 
 function parseLabLine(line: string): ParsedInvoiceLine[] {

@@ -924,3 +924,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - PDF-/Druckexport und CSV der offenen Pruefliste enthalten am Ende keine technischen Spalten `Wiedervorlage` und `AbrechnungsNr` mehr.
 - Stattdessen gibt es zwei manuelle Bearbeitungsspalten: `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.
+
+## Update 2026-06-29: Leistungsnummer vs. Zahnregion
+
+- In der BFS-Rechnungsanalyse wurde die Leistungsnummer-Erkennung verbessert: zweistellige Region-/Zahnangaben wie `36`, `25` oder `37` werden nicht mehr als GOZ-/GOAe-Abrechnungsnummer genutzt, wenn danach eine echte Leistungsnummer wie `2180`, `5070`, `4030` oder `Ä1` folgt.
+- Die Tabelle `Leistungsuebersicht` zeigt damit in `Leistungsnr.` die fachlich relevante Leistungsnummer; Zahn/Region bleibt intern als Region an der Position erhalten.
+- Gegencheck mit 66 PDFs aus `3. Einzel-Rechnungen_BFS`: 0 Parser-Statusfehler und 0 verbliebene auffaellige Faelle, in denen zweistellige Zahn-/Regionnummern vor einer echten Leistungsnummer als Leistungscode gruppiert wurden.

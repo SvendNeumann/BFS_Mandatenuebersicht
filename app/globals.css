@@ -1947,10 +1947,19 @@ input {
   overscroll-behavior: contain;
 }
 
+.invoice-services-scroll {
+  max-height: min(68vh, 760px);
+  border: 1px solid rgba(157, 226, 230, 0.16);
+  border-radius: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .import-history-scroll thead th,
 .import-detail-scroll thead th,
 .import-reason-scroll thead th,
-.invoice-status-scroll thead th {
+.invoice-status-scroll thead th,
+.invoice-services-scroll thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -1958,7 +1967,8 @@ input {
 
 .import-detail-scroll table,
 .import-reason-scroll table,
-.invoice-status-scroll table {
+.invoice-status-scroll table,
+.invoice-services-scroll table {
   min-width: 1280px;
 }
 

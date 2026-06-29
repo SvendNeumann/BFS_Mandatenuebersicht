@@ -15,6 +15,7 @@ Letzte Aenderung/Pruefung:
 - Live-Fix direkt danach: `Rechnungsimport bestaetigen` scheiterte, weil die neuen Tabellen zwar im Code/Migration lagen, aber in Supabase live noch nicht angewendet waren. Migration `patient_invoice_analysis` wurde per Supabase MCP auf Projekt `dozcaktodvogbkiomcqo` erfolgreich angewendet. Verifikation per Service-Client: `bfs_invoice_import_batches`, `bfs_patient_invoices`, `bfs_patient_invoice_lines` sind erreichbar und leer (`count=0`). Rechnungsimport kann nach Hard-Reload erneut bestaetigt werden.
 - Weitere Live-Nachkorrektur Rechnungsimport: Nach Bestaetigung wurden nur 1 Rechnung/1 Position geladen und 28 Dateien als Dubletten gemeldet. Ursache: `parseInvoicePdfBytes` berechnete den Datei-Hash nach dem PDF.js-Textauslesen; der ArrayBuffer war dann leer/uebernommen, dadurch bekamen alle PDFs den leeren SHA-256 `e3b0...b855`. Fix: Hash wird jetzt vor PDF.js berechnet; Dublettenpruefung ignoriert den leeren SHA-256 als Hash-Basis. Der kaputte Teilimport wurde aus den drei neuen Rechnungsanalyse-Tabellen geloescht; Tabellen sind wieder leer. Lokale Hash-Pruefung der 28 Beispiel-PDFs: 28 eindeutige Hashes, 0 leere Hashes.
 - Tab `BFS-Rechnungsanalyse > Leistungsanalyse` erweitert: Zeitraumfilter und Standortfilter ergaenzt. Bei `Alle Standorte` zeigt die Tabelle die konsolidierte Leistungsuebersicht. Bei Einzelstandort zeigt sie je Leistungsnummer die realen Standortfaelle, den realen Standort-Ø-Faktor, den Gruppendurchschnitt ohne diesen Standort und das Faktor-Delta. Dadurch verfaelscht der Zielstandort den Vergleich nicht mehr.
+- Leistungsanalyse-Tabelle nachgezogen: Tabelle ist jetzt intern scrollbar mit Sticky Header und bleibt nach Haeufigkeit der abgerechneten Positionen absteigend sortiert, sodass die meistabgerechneten Positionen oben stehen.
 - Standort-Verlaufsgrafiken (`YearComparisonLines`) schneiden bei der Monatsachse jetzt am letzten tatsaechlich importierten Monat der jeweiligen Standort-/Zeitraumauswahl ab. Dadurch wird z.B. bei Datenstand bis Mai 2026 kein kuenstlicher Juni-2026-Wert mit `0 EUR` mehr angezeigt.
 - Die aktive Wertbox in der Verlaufsgrafik bleibt innerhalb des Chartkopfs und laeuft an linker/rechter Kante nicht mehr aus dem Container.
 - Die SVG-Hoehe der Verlaufsgrafik ist responsiv gedeckelt (`clamp(230px, 28vw, 360px)`), damit breite Bildschirme die Grafik nicht mehr riesig leer aufziehen.
@@ -862,3 +863,17 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
   - 2026 gesamt aus dem Import: 1.687.113 EUR eingereicht, 1.609.085 EUR Auszahlung, 45.276 EUR BFS-Gebuehren, 38.047 EUR netto, 7.234 EUR MwSt inkl. EWMA-Steuer, 29 EUR EWMA, 5.804 Rechnungs-/Patientenpositionen.
 - Fachlicher Randfall gefunden und korrigiert: `Rueckgabe lt. RA-Liste` wurde als echte Rueckgabe erkannt, hatte aber keine eigene Kategorie. Parser fuehrt diese Bewegungen jetzt als `ra_liste`.
 - Summenbasis `summarizeImportRows` zaehlt echte Storno-/Rueckgabe-/Rueckbelastungsbewegungen jetzt auch dann, wenn die Bemerkung keine Kategorie bekommen hat. Dadurch bleiben Brutto Storno/Rueckgabe, Storno-Grundmenge, offener Abzug und CashFlow-Herleitung auf derselben fachlichen Basis.
+
+## Update 2026-06-29: Appweite Abzugslogik vereinheitlicht
+
+- Die Definition fuer relevante Storno-/Rueckgabe-Bewegungen wurde appweit zentralisiert:
+  - echte Kategorie vorhanden und nicht `regulierung`/`abrechnungsumsatz`;
+  - oder strukturell erkennbar als Storno, Rueckgabe oder Rueckbelastung, auch wenn keine Kategorie erkannt wurde.
+- Diese Logik wird jetzt nicht nur in den Cockpit-Kacheln genutzt, sondern auch in:
+  - operativen Faellen/Praxis-Nachfassen,
+  - Risikoprofilen und Patientenqualitaet,
+  - Neueinreichungs-/Matching-Logik,
+  - Outcome- und offene Bewegungen-Auswertungen,
+  - Import-Center-Vorschau und Import-Bestaetigungszahlen,
+  - Grund-/Bewegungsaggregation in Tabellen und Reports.
+- Direktzahlungen bleiben wirtschaftlich relevante Bewegungen, werden aber nicht als offene Praxis-Nachfassaufgabe gefuehrt.

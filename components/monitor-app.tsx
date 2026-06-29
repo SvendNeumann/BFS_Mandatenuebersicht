@@ -4598,7 +4598,7 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort) return [];
     return (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz", "direktzahlung_patient"].includes(movement.reasonCategory))
+      .filter(isOperationalCaseMovement)
       .map((movement, index) => {
         const ageDays = movement.date ? ageFromShortDate(movement.date) : 0;
         const amount = Math.abs(movement.amount ?? 0);
@@ -4742,7 +4742,7 @@ function buildRiskClaimActivityLookup(rows: ImportPreviewRow[]) {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort) return;
     (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .forEach((movement) => {
         const keys = riskActivityKeys(standort.id, movement.patientName ?? "", movement.invoiceNo, movement.bfsNo);
         if (!keys.length) return;
@@ -4865,7 +4865,7 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
     return (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .map((movement) => ({
         ...movement,
         file: row.file,
@@ -5051,7 +5051,7 @@ function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: st
     });
 
     (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .forEach((movement) => {
         const patientName = movement.patientName ?? "Patient noch nicht gematcht";
         const key = `${standort.id}:${normalizePatientName(patientName)}`;
@@ -5152,7 +5152,7 @@ function patientHistoryFromImportRows(rows: ImportPreviewRow[], standortId?: str
     }));
 
     const movements = (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .map((movement) => ({
         date: movement.date || row.date,
         dateKey: importDateKey(row.date),
@@ -5184,7 +5184,7 @@ function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string
     if (!standort || (standortId && standort.id !== standortId)) return [];
 
     return (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .map((movement) => {
         const key = `${normalizePatientName(movement.patientName ?? "")}:${row.date}:${movement.bfsNo ?? "-"}`;
         const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
@@ -5214,7 +5214,7 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
     if (!standort || (standortId && standort.id !== standortId)) return [];
 
     return (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter(isRelevantDeductionMovement)
       .flatMap((movement) => {
         const patientName = movement.patientName ?? "Patient noch nicht gematcht";
         const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
@@ -5347,6 +5347,25 @@ function isStornoMovement(movement: NonNullable<ImportPreviewRow["parsedMovement
   const type = movement.type.toLowerCase();
   const reason = `${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
   return type.includes("storno") || reason.includes("storno");
+}
+
+function isStructuralReturnMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  const type = movement.type.toLowerCase();
+  return type.includes("rueckgabe") || type.includes("rueckbelastung");
+}
+
+function isSettlementMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  return ["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory ?? "");
+}
+
+function isRelevantDeductionMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  if (isSettlementMovement(movement)) return false;
+  if (movement.reasonCategory) return true;
+  return isStornoMovement(movement) || isStructuralReturnMovement(movement);
+}
+
+function isOperationalCaseMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  return isRelevantDeductionMovement(movement) && movement.reasonCategory !== "direktzahlung_patient";
 }
 
 function groupOutcomeRows(rows: Array<{ month: string; locationName: string; patientName: string; amount: number; reworked: boolean; paid: boolean; open: boolean }>) {
@@ -5891,7 +5910,7 @@ function UploadView({
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
   const importConfirmationMovements = previewRows.flatMap((row) => row.parsedMovements ?? [])
-    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+    .filter(isRelevantDeductionMovement);
   const importConfirmationRetainedAmount = importConfirmationMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
   const displayedStatusDocuments = pendingStatusDocuments ?? statusDocuments;
   const hasPendingStatusImport = pendingStatusDocuments !== null;
@@ -7002,7 +7021,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           </label>
           <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
         </div>
-        <div className="table-wrap compact-table">
+        <div className="table-wrap compact-table invoice-services-scroll">
           <table>
             <thead>
               <tr>
@@ -7770,7 +7789,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const reviewRows = rows.filter(importRowNeedsReview);
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
-    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+    .filter(isRelevantDeductionMovement);
   const retainedAmount = relevantMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
   const matchedMovements = relevantMovements.filter((movement) => movement.matchStatus !== "unmatched");
   const reasonCount = new Set(relevantMovements.map((movement) => movement.reasonCategory)).size;
@@ -7865,7 +7884,7 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const rowReasons = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
+                    const rowReasons = row.parsedMovements?.filter(isRelevantDeductionMovement) ?? [];
                     return (
                       <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
                         <td>
@@ -8194,7 +8213,7 @@ function aggregateMovementReasons(rows: ImportPreviewRow[]) {
   const groups = new Map<string, { key: string; label: string; count: number; amount: number; examples: Set<string>; needsReview: boolean }>();
 
   rows.flatMap((row) => row.parsedMovements ?? [])
-    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+    .filter(isRelevantDeductionMovement)
     .forEach((movement) => {
       const category = movement.reasonCategory ?? "sonstiger_storno_grund";
       const originalReason = movement.reason?.trim() || reasonLabel(category);

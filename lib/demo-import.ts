@@ -157,7 +157,7 @@ function findMovementClaim(
 
 function addMatchingNotes(row: ImportPreviewRow) {
   const notes = row.parseNotes ?? [];
-  const relevantMovements = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
+  const relevantMovements = row.parsedMovements?.filter(isRelevantDeductionMovement) ?? [];
   if (!relevantMovements.length) return notes;
 
   const unmatched = relevantMovements.filter((movement) => movement.matchStatus === "unmatched").length;
@@ -167,6 +167,17 @@ function addMatchingNotes(row: ImportPreviewRow) {
     : `${matched} Rückgaben/Stornos mit Patient und Grund zugeordnet.`;
 
   return [...notes.filter((note) => !note.includes("Rückgaben/Stornos")), matchingNote];
+}
+
+function isRelevantDeductionMovement(movement: ParsedImportMovement) {
+  if (["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory ?? "")) return false;
+  if (movement.reasonCategory) return true;
+  const type = movement.type.toLowerCase();
+  const reason = `${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
+  return type.includes("storno")
+    || reason.includes("storno")
+    || type.includes("rueckgabe")
+    || type.includes("rueckbelastung");
 }
 
 function relativeFilePath(file: File) {

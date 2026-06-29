@@ -7709,27 +7709,6 @@ function CasesView({
           <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
-      {!compact && (
-        <div className="period-filter case-table-filter">
-          <label className="select-label">
-            Standort
-            <select value={caseStandortFilter} onChange={(event) => setCaseStandortFilter(event.target.value)}>
-              <option value="alle">Alle Standorte</option>
-              {caseStandorte.map((entry) => (
-                <option key={entry.id} value={entry.id}>{entry.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="select-label">
-            Zeitraum
-            <select value={casePeriodId} onChange={(event) => setCasePeriodId(event.target.value)}>
-              {periodOptions.map((period) => (
-                <option key={period.id} value={period.id}>{period.label}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      )}
       <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
         <article>
           <span>Offener Betrag gesamt</span>
@@ -7758,6 +7737,31 @@ function CasesView({
           <CaseColumnChart title="Fallgründe" values={caseReasonDistribution(filteredRows)} valueKind="money" />
         </div>
       </section>
+      {(!compact || enableFilters) && (
+        <div className="period-filter case-table-filter">
+          <label className="select-label">
+            Standort
+            <select value={caseStandortFilter} onChange={(event) => setCaseStandortFilter(event.target.value)}>
+              <option value="alle">Alle Standorte</option>
+              {caseStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Zeitraum
+            <select value={casePeriodId} onChange={(event) => setCasePeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <span>Tabellenfilter</span>
+            <strong>{integerNumber.format(filteredRows.length)} Fälle / {money.format(totalAmount)}</strong>
+          </div>
+        </div>
+      )}
       <div className={`table-wrap${compact && !tableScrollable ? "" : " case-table-scroll"}`}>
         <table>
           <thead>

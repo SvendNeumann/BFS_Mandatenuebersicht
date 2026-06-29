@@ -29,6 +29,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  TrendingUp,
   Upload,
   UserRoundCheck,
   Users,
@@ -143,9 +144,9 @@ const superAdminNavGroups: NavGroup[] = [
       {
         title: "Auswertungen",
         items: [
-          ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
-          ["invoiceServices", "Leistungsanalyse", BarChart3],
-          ["invoiceLabs", "Laboranalyse", ClipboardList]
+          ["invoiceServices", "Leistungsübersicht", BarChart3],
+          ["invoicePotential", "Potenzialanalyse", TrendingUp],
+          ["invoiceLocations", "Standortvergleich", Building2]
         ]
       },
       {
@@ -215,9 +216,9 @@ const leadNavGroups: NavGroup[] = [
       {
         title: "Auswertungen",
         items: [
-          ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
-          ["invoiceServices", "Leistungsanalyse", BarChart3],
-          ["invoiceLabs", "Laboranalyse", ClipboardList]
+          ["invoiceServices", "Leistungsübersicht", BarChart3],
+          ["invoicePotential", "Potenzialanalyse", TrendingUp],
+          ["invoiceLocations", "Standortvergleich", Building2]
         ]
       },
       {
@@ -302,8 +303,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
   const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
-  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs", "locations", "users", "settings"];
-  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "economicCheck", "matches", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
+  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoicePotential", "invoiceLocations", "locations", "users", "settings"];
+  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "economicCheck", "matches", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoicePotential", "invoiceLocations"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -640,9 +641,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
             {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
-            {activeView === "invoiceOverview" && <InvoiceOverviewView invoiceRows={invoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
-            {activeView === "invoiceLabs" && <InvoiceLabsView invoiceRows={invoiceRows} />}
+            {activeView === "invoicePotential" && <InvoicePotentialView invoiceRows={invoiceRows} />}
+            {activeView === "invoiceLocations" && <InvoiceLocationsView invoiceRows={invoiceRows} />}
             {(activeView === "cases" || activeView === "practiceFollowup") && (
               <CasesView
                 title="Praxis nachfassen"
@@ -848,9 +849,9 @@ function titleFor(view: string) {
     preview: "Import-Center Abrechnung",
     history: "Import-Center Abrechnung",
     invoiceImport: "Import-Center Rechnungen",
-    invoiceOverview: "Rechnungsübersicht",
-    invoiceServices: "Leistungsanalyse",
-    invoiceLabs: "Laboranalyse",
+    invoiceServices: "Leistungsübersicht",
+    invoicePotential: "Potenzialanalyse",
+    invoiceLocations: "Standortvergleich",
     cases: "Praxis nachfassen",
     practiceFollowup: "Praxis nachfassen",
     economicCheck: "Zahlung / Grund prüfen",
@@ -7098,28 +7099,6 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   );
 }
 
-function InvoiceOverviewView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
-  const totalAmount = invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0);
-  const serviceCount = invoiceRows.reduce((sum, row) => sum + row.serviceLines.length, 0);
-  const avgInvoice = invoiceRows.length ? totalAmount / invoiceRows.length : 0;
-  const eigenlabor = invoiceRows.reduce((sum, row) => sum + row.eigenlaborTotal, 0);
-  const fremdlabor = invoiceRows.reduce((sum, row) => sum + row.fremdlaborGross, 0);
-
-  return (
-    <div className="content-stack">
-      <section className="priority-grid">
-        <PriorityCard label="Rechnungen" value={integerNumber.format(invoiceRows.length)} hint="importierte Vorschau" tone="blue" />
-        <PriorityCard label="Rechnungsvolumen" value={money.format(totalAmount)} hint="Rechnungsbetrag gesamt" tone="green" />
-        <PriorityCard label="Ø Rechnung" value={money.format(avgInvoice)} hint="pro Rechnung" tone="blue" />
-        <PriorityCard label="Positionen" value={integerNumber.format(serviceCount)} hint="abrechenbare Leistungen" tone="blue" />
-        <PriorityCard label="Eigenlabor" value={money.format(eigenlabor)} hint="erkannte Anlagen" tone="amber" />
-        <PriorityCard label="Fremdlabor" value={money.format(fremdlabor)} hint="erkannte Fremdbelege" tone="amber" />
-      </section>
-      <InvoiceImportPreview rows={invoiceRows} compact />
-    </div>
-  );
-}
-
 function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -7135,7 +7114,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">Leistungsanalyse</span>
+            <span className="eyebrow">Leistungsübersicht</span>
             <h2>Leistungsnummern nach Häufigkeit, Faktor und Betrag</h2>
             <p>Leistungspositionen im gewählten Zeitraum. Bei Einzelstandorten wird der reale Standortfaktor gegen den Gruppendurchschnitt ohne diesen Standort verglichen.</p>
           </div>
@@ -7197,51 +7176,168 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
   );
 }
 
-function InvoiceLabsView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
-  const rows = invoiceRows.filter((row) => row.hasEigenlabor || row.hasFremdlabor);
-  const eigenlabor = rows.reduce((sum, row) => sum + row.eigenlaborTotal, 0);
-  const fremdlabor = rows.reduce((sum, row) => sum + row.fremdlaborGross, 0);
+function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => row.standortId === standort.id || row.standortName === standort.name)), [invoiceRows]);
+  const [standortId, setStandortId] = useState(() => invoiceStandorte[0]?.id ?? "");
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
+  const selectedStandort = invoiceStandorte.find((standort) => standort.id === standortId) ?? invoiceStandorte[0];
+  const rows = useMemo(() => invoicePotentialSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
+  const totalPotential = rows.reduce((sum, row) => sum + row.potential, 0);
+  const monthlyPotential = annualizeInvoicePotential(totalPotential, selectedPeriod) / 12;
+  const underBenchmarkRows = rows.filter((row) => row.factorDelta !== null && row.factorDelta < 0).length;
+  const topLever = rows[0];
+
+  useEffect(() => {
+    if (!standortId && invoiceStandorte[0]) setStandortId(invoiceStandorte[0].id);
+  }, [invoiceStandorte, standortId]);
+
   return (
     <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Potenzialanalyse</span>
+            <h2>Euro-Potenzial aus echten Rechnungspositionen</h2>
+            <p>Verglichen wird die ausgewählte Praxis je Leistungsnummer mit dem Gruppendurchschnitt ohne diese Praxis. Potenzial entsteht nur, wenn der eigene Faktor darunter liegt.</p>
+          </div>
+        </div>
+        <div className="period-filter custom-kpi-period">
+          <label>
+            Zeitraum
+            <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Standort
+            <select value={selectedStandort?.id ?? ""} onChange={(event) => setStandortId(event.target.value)}>
+              {invoiceStandorte.map((standort) => (
+                <option key={standort.id} value={standort.id}>{standort.name}</option>
+              ))}
+            </select>
+          </label>
+          <span>{selectedPeriod.detail} · Benchmark ohne {selectedStandort?.name ?? "ausgewählten Standort"}</span>
+        </div>
+      </section>
       <section className="priority-grid">
-        <PriorityCard label="Laborfälle" value={integerNumber.format(rows.length)} hint="Rechnungen mit Labor" tone="amber" />
-        <PriorityCard label="Eigenlabor" value={money.format(eigenlabor)} hint="Summe Laborkosten" tone="amber" />
-        <PriorityCard label="Fremdlabor" value={money.format(fremdlabor)} hint="Bruttowerte Fremdbelege" tone="amber" />
-        <PriorityCard label="Laborquote" value={formatPercent(invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0) ? ((eigenlabor + fremdlabor) / invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0)) * 100 : 0)} hint="Labor zu Rechnungsvolumen" tone="blue" />
+        <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" tone={totalPotential ? "green" : "blue"} />
+        <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" tone={monthlyPotential ? "green" : "blue"} />
+        <PriorityCard label="Unter Benchmark" value={integerNumber.format(underBenchmarkRows)} hint="Leistungsnummern" tone={underBenchmarkRows ? "amber" : "green"} />
+        <PriorityCard label="Top-Hebel" value={topLever?.code ?? "-"} hint={topLever ? money.format(topLever.potential) : "kein Potenzial"} tone={topLever?.potential ? "green" : "blue"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">Laboranalyse</span>
-            <h2>Eigenlabor und Fremdlabor je Rechnung</h2>
-            <p>Laborpositionen werden getrennt von den normalen Leistungspositionen geführt, damit Laborquote und Fremdlaboranbieter auswertbar bleiben.</p>
+            <span className="eyebrow">Top-Hebel</span>
+            <h2>Leistungen mit größtem Mehrumsatz</h2>
           </div>
         </div>
-        <div className="table-wrap compact-table">
+        <div className="table-wrap compact-table invoice-services-scroll">
           <table>
             <thead>
               <tr>
-                <th>Standort</th>
-                <th>BFS-Nr.</th>
-                <th>Patient</th>
-                <th>Eigenlabor</th>
-                <th>Fremdlabor</th>
-                <th>Anbieter</th>
-                <th>Laborpositionen</th>
+                <th>Nr.</th>
+                <th>Kurzbeschreibung</th>
+                <th>Häufigkeit</th>
+                <th>Praxis Ø</th>
+                <th>Gruppe ohne Praxis</th>
+                <th>Delta</th>
+                <th>Ist-Umsatz</th>
+                <th>Potenzial</th>
               </tr>
             </thead>
             <tbody>
               {rows.length ? rows.map((row) => (
-                <tr key={row.bfsNo}>
-                  <td>{row.standortName}</td>
-                  <td><strong>{row.bfsNo}</strong><small>{row.invoiceNo}</small></td>
-                  <td>{row.patientName}</td>
-                  <td>{money.format(row.eigenlaborTotal)}</td>
-                  <td>{money.format(row.fremdlaborGross || row.fremdlaborNet)}</td>
-                  <td>{row.labProviders.length ? row.labProviders.join(", ") : "-"}</td>
-                  <td>{integerNumber.format(row.labLines.length)}</td>
+                <tr key={row.code}>
+                  <td><strong>{row.code}</strong></td>
+                  <td>{row.description}</td>
+                  <td>{integerNumber.format(row.count)}</td>
+                  <td>{row.avgFactor ? feeRateNumber.format(row.avgFactor) : "-"}</td>
+                  <td>{row.groupAvgFactor ? feeRateNumber.format(row.groupAvgFactor) : "-"}</td>
+                  <td>{row.factorDelta === null ? "-" : formatFactorDelta(row.factorDelta)}</td>
+                  <td>{money.format(row.amount)}</td>
+                  <td><strong>{money.format(row.potential)}</strong></td>
                 </tr>
-              )) : <EmptyTableRow colSpan={7} label="Noch keine Laborrechnung eingelesen." />}
+              )) : <EmptyTableRow colSpan={8} label="Noch kein Potenzial im gewählten Filter." />}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function InvoiceLocationsView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
+  const rows = useMemo(() => invoiceLocationSummary(invoiceRows, selectedPeriod), [invoiceRows, selectedPeriod]);
+  const totalPotential = rows.reduce((sum, row) => sum + row.potential, 0);
+  const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+  const topLocation = rows[0];
+
+  return (
+    <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Standortvergleich</span>
+            <h2>Welche Praxis rechnet wie stark ab?</h2>
+            <p>Je Standort werden Rechnungsvolumen, Fallwert, Faktor, Laborquote und Potenzial gegen die restliche Gruppe verglichen.</p>
+          </div>
+        </div>
+        <div className="period-filter custom-kpi-period">
+          <label>
+            Zeitraum
+            <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <span>{selectedPeriod.detail} · {integerNumber.format(rows.length)} Standorte mit Rechnungsdaten</span>
+        </div>
+      </section>
+      <section className="priority-grid">
+        <PriorityCard label="Rechnungsvolumen" value={money.format(totalAmount)} hint="im Filter" tone="green" />
+        <PriorityCard label="Standorte" value={integerNumber.format(rows.length)} hint="mit BFS-Rechnungen" tone="blue" />
+        <PriorityCard label="Gruppenpotenzial" value={money.format(totalPotential)} hint="gegen Restgruppe" tone={totalPotential ? "green" : "blue"} />
+        <PriorityCard label="Größter Hebel" value={topLocation?.standortName ?? "-"} hint={topLocation ? money.format(topLocation.potential) : "kein Potenzial"} tone={topLocation?.potential ? "amber" : "blue"} />
+      </section>
+      <section className="panel">
+        <div className="table-wrap compact-table invoice-services-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Standort</th>
+                <th>Rechnungen</th>
+                <th>Positionen</th>
+                <th>Umsatz</th>
+                <th>Ø Rechnung</th>
+                <th>Ø Faktor</th>
+                <th>Laborquote</th>
+                <th>Unter Benchmark</th>
+                <th>Potenzial</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((row) => (
+                <tr key={row.standortId}>
+                  <td><strong>{row.standortName}</strong><small>Benchmark ohne eigenen Standort</small></td>
+                  <td>{integerNumber.format(row.invoiceCount)}</td>
+                  <td>{integerNumber.format(row.serviceCount)}</td>
+                  <td>{money.format(row.amount)}</td>
+                  <td>{money.format(row.avgInvoice)}</td>
+                  <td>{row.avgFactor ? feeRateNumber.format(row.avgFactor) : "-"}</td>
+                  <td>{formatPercent(row.labRate)}</td>
+                  <td>{integerNumber.format(row.underBenchmarkCount)}</td>
+                  <td><strong>{money.format(row.potential)}</strong></td>
+                </tr>
+              )) : <EmptyTableRow colSpan={9} label="Noch keine Standortdaten im gewählten Filter." />}
             </tbody>
           </table>
         </div>
@@ -7371,6 +7467,52 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
       locations: [...entry.locations].sort()
     }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount);
+}
+
+function invoicePotentialSummary(invoiceRows: ParsedInvoiceDocument[], period: PeriodOption, selectedStandort?: Standort) {
+  if (!selectedStandort) return [];
+  return invoiceServiceSummary(invoiceRows, period, selectedStandort)
+    .map((row) => {
+      const potential = row.avgFactor > 0 && row.groupAvgFactor > row.avgFactor
+        ? row.amount * ((row.groupAvgFactor / row.avgFactor) - 1)
+        : 0;
+      return { ...row, potential };
+    })
+    .filter((row) => row.groupAvgFactor > 0 && row.potential > 0)
+    .sort((a, b) => b.potential - a.potential || b.count - a.count || b.amount - a.amount);
+}
+
+function invoiceLocationSummary(invoiceRows: ParsedInvoiceDocument[], period: PeriodOption) {
+  return orderedStandorte()
+    .map((standort) => {
+      const rows = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
+      if (!rows.length) return null;
+      const amount = rows.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+      const serviceLines = rows.flatMap((invoice) => invoice.serviceLines);
+      const factorLines = serviceLines.filter((line) => line.factor);
+      const labAmount = rows.reduce((sum, invoice) => sum + invoice.eigenlaborTotal + (invoice.fremdlaborGross || invoice.fremdlaborNet), 0);
+      const potentialRows = invoicePotentialSummary(invoiceRows, period, standort);
+      return {
+        standortId: standort.id,
+        standortName: standort.name,
+        invoiceCount: rows.length,
+        serviceCount: serviceLines.length,
+        amount,
+        avgInvoice: rows.length ? amount / rows.length : 0,
+        avgFactor: factorLines.length ? factorLines.reduce((sum, line) => sum + (line.factor ?? 0), 0) / factorLines.length : 0,
+        labRate: amount ? (labAmount / amount) * 100 : 0,
+        underBenchmarkCount: potentialRows.filter((row) => row.factorDelta !== null && row.factorDelta < 0).length,
+        potential: potentialRows.reduce((sum, row) => sum + row.potential, 0)
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => b.potential - a.potential || b.amount - a.amount);
+}
+
+function annualizeInvoicePotential(value: number, period?: PeriodOption) {
+  if (!period?.start || !period.end) return value;
+  const dayCount = Math.max(1, Math.round((period.end.getTime() - period.start.getTime()) / 86400000) + 1);
+  return value * (365 / dayCount);
 }
 
 function invoiceInPeriod(invoice: ParsedInvoiceDocument, period: PeriodOption) {

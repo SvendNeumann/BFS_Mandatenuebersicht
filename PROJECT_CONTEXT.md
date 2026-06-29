@@ -598,6 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- Offene Korrektur aus aktuellem Filter-Bug: Der Tab `Klaerfaelle` bekommt fuer Super-Admins jetzt die komplette `appCases`-Fallmenge statt der bereits auf den aktuell selektierten Standort eingeschraenkten `visibleCases`. Dadurch kann der lokale Standortfilter wieder alle Standorte auswerten; die Seite wird im Header als `Alle Standorte` gefuehrt.
 - Offene Aenderung aus aktueller Klarstellung: Die Standort-/Zeitraumfilter im Tab `Klaerfaelle` stehen oben im Panel als Tab-Auswertung und steuern den gesamten Tab-Inhalt darunter: KPI-Zeile, beide Charts und Tabelle. `Alle Standorte` bleibt als echte Auswertungsoption erhalten.
 - Offene Aenderung aus aktuellem UI-Wunsch: Die obere Standort-Taskleiste wurde im Tab `Klaerfaelle` wieder entfernt. Die direkt an die Klaerfallansicht gekoppelten Standort-/Zeitraumfilter bleiben erhalten und steuern KPI-Zeile, Charts und Tabelle.
 - Offene Aenderung aus aktuellem UI-Wunsch: In der Klaerfalltabelle sitzen Zeitraum- und Standortfilter jetzt direkt oberhalb der Tabelle und sind an die Tabellenzeilen gekoppelt. Die Filterzeile zeigt zusaetzlich die aktuell gefilterte Fallanzahl und Summe.

@@ -301,7 +301,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "cases", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -653,7 +653,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "invoiceOverview" && <InvoiceOverviewView invoiceRows={invoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
             {activeView === "invoiceLabs" && <InvoiceLabsView invoiceRows={invoiceRows} />}
-            {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
+            {activeView === "cases" && <CasesView cases={role === "super_admin" ? appCases : visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}

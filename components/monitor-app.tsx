@@ -639,7 +639,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
-                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} />
+                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
@@ -963,7 +963,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
     return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
-  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
+  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
   const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
   const recoveredStornoAmount = deductionRecovery.recoveredAmount;
   const openStornoAmount = deductionRecovery.openAmount;
@@ -1727,9 +1727,9 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
-  const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
+  const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions };
@@ -1741,7 +1741,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, groupSparkline("fees")],
     ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, groupSparkline("feeRate")],
     ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, `Grundmenge nach BFS-Abrechnung: erkannte Rückgaben, Rückläufer und Stornos im Zeitraum ${managementComparison.currentPeriod.label}. Dieser Betrag ist vor der weiteren Einordnung in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert.`, groupSparkline("deductionAmount")],
-    ["Davon zurückgeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, "Zurückgeholt bedeutet: echte spätere Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung. Saldo 0 allein zählt nicht als Zahlung.", groupSparkline("recoveryRate")],
+    ["Davon zurückgeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, "Zurückgeholt bedeutet: echte spätere Neueinreichung/Ersatzrechnung, wirtschaftlich belegte Zahlung oder bei BFS hinterlegter Ratenplan. Saldo 0 allein zählt nicht als Zahlung.", groupSparkline("recoveryRate")],
     ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, groupSparkline("noProtection")],
     ["Praxis nachfassen", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, "Gezählt werden nur echte Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Fälle mit BFS-Saldo 0, deren wirtschaftlicher Grund noch unklar ist, liegen separat unter Zahlung / Grund prüfen.", caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "count")],
     ["Ältester Praxisfall", `${oldestOpenCase} Tage`, "älteste Nachfassposition", "Alter des ältesten Praxis-Nachfassfalls im aktuellen Filter. Saldo-geschlossene Prüffälle werden hier nicht mitgezählt.", caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "oldest")]
@@ -2376,14 +2376,14 @@ function buildManagementChartSeries(rowsStandorte: Standort[], importRows: Impor
   ];
 }
 
-function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[], period?: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = []) {
+function buildManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], openCases: BfsCase[], period?: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
   const currentPeriod = comparableCurrentPeriod(period ?? ytdPeriod(todayReference.getFullYear()));
   const previousPeriod = previousYearPeriod(currentPeriod);
   const currentRows = rowsForSparklinePeriod(importRows, relevantStandorte, currentPeriod);
   const previousRows = rowsForSparklinePeriod(importRows, relevantStandorte, previousPeriod);
   const currentMetrics = metricsFromRows(currentRows);
   const previousMetrics = metricsFromRows(previousRows);
-  const deductionRecovery = buildDeductionRecovery(importRows, relevantStandorte, currentPeriod, manualCaseResolutions);
+  const deductionRecovery = buildDeductionRecovery(importRows, relevantStandorte, currentPeriod, manualCaseResolutions, invoiceStatusRows);
   const deductionAmount = deductionRecovery.grossDeductionAmount;
   const recoveredAmount = deductionRecovery.recoveredAmount;
   const currentOpenCases = openCases.filter((fall) => {
@@ -2514,7 +2514,7 @@ function buildLocationSnapshots(
     const locationCases = openCases.filter((fall) => fall.standortId === standort.id);
     const openAmount = locationCases.reduce((sum, fall) => sum + fall.amount, 0);
     const oldest = locationCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-    const deductionRecovery = buildDeductionRecovery(importRows, [standort], period, manualCaseResolutions);
+    const deductionRecovery = buildDeductionRecovery(importRows, [standort], period, manualCaseResolutions, invoiceStatusRows);
     const deductionAmount = deductionRecovery.grossDeductionAmount;
     const recoveredAmount = deductionRecovery.recoveredAmount;
     const openDeductionAmount = deductionRecovery.openAmount;
@@ -3130,7 +3130,8 @@ function LocationDashboard({
   onScopeChange,
   importRows,
   peerImportRows,
-  manualCaseResolutions = []
+  manualCaseResolutions = [],
+  invoiceStatusRows = []
 }: {
   standort: Standort;
   cases: BfsCase[];
@@ -3139,6 +3140,7 @@ function LocationDashboard({
   importRows: ImportPreviewRow[];
   peerImportRows: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
+  invoiceStatusRows?: ParsedInvoiceStatusRow[];
 }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -3148,7 +3150,7 @@ function LocationDashboard({
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
   const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt") && isPracticeFollowupCase(fall)), [cases]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases, undefined, manualCaseResolutions), [importRows, openCases, standort, manualCaseResolutions]);
+  const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases, undefined, manualCaseResolutions, invoiceStatusRows), [importRows, openCases, standort, manualCaseResolutions, invoiceStatusRows]);
   const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
   const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
@@ -3619,7 +3621,7 @@ function rowsForSparklinePeriod(importRows: ImportPreviewRow[], relevantStandort
   });
 }
 
-function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = []) {
+function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
   const scopedRows = rowsForSparklinePeriod(importRows, relevantStandorte, period);
   const allLocationRows = importRows.filter((row) => relevantStandorte.some((entry) => entry.name === row.location));
   const metrics = metricsFromRows(scopedRows);
@@ -3630,13 +3632,16 @@ function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandort
       return candidateStandort ? shortDateInPeriod(candidate.originalDate, period, candidateStandort) : false;
     });
   const recoveredByResubmission = uniqueRecoveryCandidates(recoveryMatches);
-  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.flatMap((candidate) => resubmissionResolutionKeys(candidate)));
   const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   const manuallyPaidCases = casesFromImportRows(scopedRows)
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
+  const paidByInvoiceStatusCases = paidCasesFromInvoiceStatus(scopedRows, invoiceStatusRows)
+    .filter((fall) => !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key) || manualPaidKeys.has(key)));
   const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
   const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const recoveredAmount = Math.min(grossDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
+  const paidByInvoiceStatusAmount = paidByInvoiceStatusCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const recoveredAmount = Math.min(grossDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount + paidByInvoiceStatusAmount);
   return {
     scopedRows,
     metrics,
@@ -3646,9 +3651,24 @@ function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandort
     recoveryRate: grossDeductionAmount ? Math.min(100, (recoveredAmount / grossDeductionAmount) * 100) : 0,
     recoveredByResubmission,
     manuallyPaidCases,
-    recoveredCount: recoveredByResubmission.length + manuallyPaidCases.length,
+    paidByInvoiceStatusCases,
+    recoveredCount: recoveredByResubmission.length + manuallyPaidCases.length + paidByInvoiceStatusCases.length,
     matchedNewSubmissionAmount: recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0)
   };
+}
+
+function paidCasesFromInvoiceStatus(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[]) {
+  if (!invoiceStatusRows.length) return [];
+  const paidStatusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows
+    .filter(isInvoiceStatusPaidOrSecured)
+    .forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => paidStatusRowsByKey.set(key, row)));
+
+  return casesFromImportRows(importRows).filter((fall) => caseInvoiceMatchKeys(fall).some((key) => paidStatusRowsByKey.has(key)));
+}
+
+function isInvoiceStatusPaidOrSecured(row: ParsedInvoiceStatusRow) {
+  return row.paymentStatus === "bezahlt" || row.installmentPlan || row.paymentStatus === "ratenzahlung";
 }
 
 function previousYearPeriod(period: PeriodOption): PeriodOption {
@@ -3796,9 +3816,9 @@ function ClaimsFlowView({
   const waterfallMetrics = useMemo(() => waterfallSummary.rows ? metricsFromImportSummary(waterfallSummary) : zeroMetrics(), [waterfallSummary]);
   const recentMonths = useMemo(() => buildRecentMonthlyTrend(detailsStandortIds, selectedPeriod, importRows), [detailsStandortIds, selectedPeriod, importRows]);
   const quarterRows = useMemo(() => buildQuarterComparison(detailsStandortIds, importRows), [detailsStandortIds, importRows]);
-  const deductionRecoverySummary = useMemo(() => buildDeductionRecovery(importRows, deductionStandorte, deductionPeriod, manualCaseResolutions), [deductionPeriod, deductionStandorte, importRows, manualCaseResolutions]);
-  const recoveryDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, recoveryStandorte, recoveryPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, recoveryPeriod, recoveryStandorte]);
-  const waterfallDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, waterfallStandorte, waterfallPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, waterfallPeriod, waterfallStandorte]);
+  const deductionRecoverySummary = useMemo(() => buildDeductionRecovery(importRows, deductionStandorte, deductionPeriod, manualCaseResolutions, invoiceStatusRows), [deductionPeriod, deductionStandorte, importRows, invoiceStatusRows, manualCaseResolutions]);
+  const recoveryDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, recoveryStandorte, recoveryPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, recoveryPeriod, recoveryStandorte]);
+  const waterfallDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, waterfallStandorte, waterfallPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, waterfallPeriod, waterfallStandorte]);
   const recoveryClosedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const recoveryReviewRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, recoveryScopedImportRows), [invoiceStatusRows, recoveryScopedImportRows]);
   const recoveryEconomicCheckRows = useMemo(() => recoveryReviewRows.filter((row) => row.category === "economic_check"), [recoveryReviewRows]);

@@ -615,7 +615,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
+                ? <GroupDashboard importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
                 : <LocationDashboard standort={selectedStandort} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
@@ -1569,16 +1569,14 @@ function customBenchmarkSignal(openReviewRate: number, recoveredRate: number, no
   return "ok";
 }
 
-function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], invoiceStatusRows = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
+function GroupDashboard({ importRows, manualCaseResolutions = [], invoiceStatusRows = [] }: { importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [cockpitPeriodId, setCockpitPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [chartStandortFilter, setChartStandortFilter] = useState("alle");
-  const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const cockpitPeriod = useMemo(() => periodOptions.find((period) => period.id === cockpitPeriodId) ?? periodOptions[0], [periodOptions, cockpitPeriodId]);
   const chartPeriod = useMemo(() => periodOptions.find((period) => period.id === chartPeriodId) ?? cockpitPeriod, [periodOptions, chartPeriodId, cockpitPeriod]);
-  const benchmarkPeriod = useMemo(() => periodOptions.find((period) => period.id === benchmarkPeriodId) ?? cockpitPeriod, [periodOptions, benchmarkPeriodId, cockpitPeriod]);
   const filteredStandorte = useMemo(() => groupStandortFilter === "alle"
     ? orderedStandorte()
     : standorte.filter((standort) => standort.id === groupStandortFilter), [groupStandortFilter]);
@@ -1594,18 +1592,8 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, cockpitPeriod, fallStandort) : false;
   }), [cockpitPeriod, dashboardCases, filteredStandortIds, filteredStandorte]);
-  const benchmarkImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = filteredStandorte.find((standort) => standort.name === row.location);
-    return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
-  }), [importRows, filteredStandorte, benchmarkPeriod]);
-  const benchmarkOpenCases = useMemo(() => dashboardCases.filter((fall) => {
-    if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
-    const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
-    return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
-  }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
   const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
-  const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows]);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions, invoiceStatusRows };
   const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
@@ -1654,26 +1642,6 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
       </section>
       <section className="management-summary-grid">
         <ManagementDeltaPanel comparison={managementComparison} />
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Standort-Benchmark</h2>
-            <p>Zeitraum: {benchmarkPeriod.label}. Chronologisch nach Vertragsstart: Volumen, Gebühren, Rückbelastungen, Ohne-Ausfallschutz und offene Fälle je Standort.</p>
-          </div>
-          <div className="benchmark-panel-actions">
-            <label className="select-label benchmark-period-select">
-              Zeitraum Benchmark
-              <select value={benchmarkPeriodId} onChange={(event) => setBenchmarkPeriodId(event.target.value)}>
-                {periodOptions.map((period) => (
-                  <option key={period.id} value={period.id}>{period.label}</option>
-                ))}
-              </select>
-            </label>
-            <button className="secondary-button" onClick={() => onNavigate("benchmark")}><BarChart3 size={16} /> Vollansicht</button>
-          </div>
-        </div>
-        <LocationBenchmarkCards snapshots={benchmarkSnapshots} compact />
       </section>
     </div>
   );

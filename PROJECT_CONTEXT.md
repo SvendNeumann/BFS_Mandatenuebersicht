@@ -963,3 +963,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - `Bereits geklaert` zeigt jetzt den geklaerten Betrag und die Quote vom Brutto-Abzug statt `gewandelt`/Stueckzahl.
 - `Offene Pruefsumme` kommt aus `Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`; die Fallanzahl bleibt nur als Hinweis auf die operative Pruefliste.
 - Die Schnellantwort-Sparklines nutzen jetzt `deductionAmount`, `recoveryRate` und `openAmount`; fehlende Vorjahreswerte werden als `VJ startet` gezeigt.
+
+## Update 2026-06-29: Standort-Benchmark aus Management Cockpit entfernt
+
+- Der komplette Standort-Benchmark-Block wurde aus dem `Management Cockpit` entfernt, inklusive eigenem Zeitraumfilter, `Vollansicht`-Button und Standortkarten.
+- Hintergrund: Der Inhalt existiert bereits im eigenen Bereich `Standorte`/Standort-Benchmark und soll im Cockpit nicht doppelt erscheinen.
+- Das Management Cockpit fokussiert damit auf Filter, KPI-Kacheln, Diagramme und `Lage & Entwicklung`.
+- Der separate Standort-Bereich und die dortige Standortkartenlogik bleiben unveraendert erhalten.

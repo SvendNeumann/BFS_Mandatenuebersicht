@@ -21,12 +21,13 @@ export function isInvoicePdfUploadFile(file: File) {
 }
 
 export async function parseInvoicePdfBytes(bytes: ArrayBuffer, meta: { file?: string; fileSizeBytes?: number } = {}) {
+  const fileHash = await sha256(bytes);
   const extracted = await extractPdfText(bytes);
   return parseInvoiceText(extracted.text, {
     file: meta.file ?? "Rechnung.pdf",
     fileSizeBytes: meta.fileSizeBytes ?? bytes.byteLength,
     pageCount: extracted.pageCount,
-    fileHash: await sha256(bytes)
+    fileHash
   });
 }
 

@@ -279,12 +279,14 @@ function lineInsertPayload(invoiceId: string, lineKind: "service" | "lab", sortO
 }
 
 async function findExistingInvoiceId(supabase: SupabaseDbClient, row: ParsedInvoiceDocument) {
-  const { data: byHash } = await supabase
-    .from("bfs_patient_invoices")
-    .select("id")
-    .eq("file_hash", row.fileHash)
-    .maybeSingle();
-  if (byHash?.id) return String(byHash.id);
+  if (row.fileHash && row.fileHash !== emptySha256Hash) {
+    const { data: byHash } = await supabase
+      .from("bfs_patient_invoices")
+      .select("id")
+      .eq("file_hash", row.fileHash)
+      .maybeSingle();
+    if (byHash?.id) return String(byHash.id);
+  }
 
   const { data: byBfsNo } = await supabase
     .from("bfs_patient_invoices")
@@ -526,3 +528,5 @@ function noStoreHeaders() {
     "cache-control": "no-store, max-age=0"
   };
 }
+
+const emptySha256Hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";

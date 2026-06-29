@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 14:05 Uhr
+Stand: 29.06.2026, ca. 14:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -20,6 +20,8 @@ Letzte Aenderung/Pruefung:
 - Wichtig zur Lesart: `Storno-Grundmenge` und stornobezogene Kacheln bleiben bewusst eine Untermenge nur aus Storno-Bewegungen. Sie duerfen deshalb von `Brutto Storno/Rueckgabe` bzw. `Offener Abzug` abweichen, weil Rueckgaben/Rueckbelastungen dort zusaetzlich enthalten sind. Der Begriff `Offener Abzug` meint appweit nicht mehr "offene Stornos", sondern den wirtschaftlich noch nicht belegten Rest aus allen Abzugsbewegungen.
 - Monats-Trends/Sparklines fuer `Offener Abzug` wurden auf dieselbe Logik umgestellt: monatlich wird erst der Brutto-Abzug aus Rueckgabe/Rueckbelastung/Storno aufgebaut und danach werden erkannte Neueinreichungen oder manuelle Zahlungen gegengerechnet. Dadurch laufen Kachelwert, Wasserfall und Trenddarstellung nicht mehr auseinander.
 - Pruefung am 29.06.2026 nach der Vereinheitlichung: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build` und `git diff --check` erfolgreich.
+- Nachpruefung direkt danach: Auch die Management-/Antwort-Sparklines fuer `Davon zurueckgeholt` verwenden jetzt manuelle Zahlungen plus erkannte Neueinreichungen bis maximal zum Brutto-Abzug. Es bleibt kein alter Recovery-Trendpfad uebrig, der nur reine Matching-Kandidaten zaehlt. Erneut erfolgreich geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check`.
+- Bedienhinweis: Nach Deployment/Codewechsel Browser hart neu laden. Fuer einen fachlich sauberen Datenstand die BFS-Abrechnungen und danach die BFS-Rechnungsstatus-/Saldo-Listen neu hochladen bzw. im Upload ersetzen, damit alle Kacheln mit der neuen Logik aus dem aktuellen Importzustand berechnet werden. Alte Browser-Vorschauen koennen noch alte Zahlen anzeigen, bis neu geladen/importiert wurde.
 
 ## Prompt fuer den naechsten Chat
 

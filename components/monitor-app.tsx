@@ -1705,7 +1705,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases]);
   const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
-  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod };
+  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions };
   const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
   const groupKpis: KpiCardTuple[] = [
     ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
@@ -3411,6 +3411,7 @@ type AnswerSparklineContext = {
   importRows: ImportPreviewRow[];
   relevantStandorte: Standort[];
   period: PeriodOption;
+  manualCaseResolutions?: ManualCaseResolution[];
 };
 
 function AnswerSparkline({ trend }: { trend: AnswerSparklineTrend }) {
@@ -3442,9 +3443,9 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const comparisonPeriod = comparableCurrentPeriod(context.period);
   const currentComparisonRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, comparisonPeriod);
   const previousRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, previousYearPeriod(comparisonPeriod));
-  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte);
-  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte);
-  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte);
+  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte, context.manualCaseResolutions);
+  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte, context.manualCaseResolutions);
+  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte, context.manualCaseResolutions);
   const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
   const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "deductionAmount", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
   const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
@@ -3588,15 +3589,15 @@ function previousYearPeriod(period: PeriodOption): PeriodOption {
   };
 }
 
-function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[]) {
+function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const monthKeys = [...new Set(rows.map((row) => importRowMonth(row)).filter(Boolean))].sort();
   return monthKeys.map((month) => {
     const monthRows = rows.filter((row) => importRowMonth(row) === month);
-    return valueForAnswerMetric(metric, monthRows, relevantStandorte);
+    return valueForAnswerMetric(metric, monthRows, relevantStandorte, manualCaseResolutions);
   }).slice(-12);
 }
 
-function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[]) {
+function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const summary = summarizeImportRows(rows);
   const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
   if (metric === "submitted") return metrics.submitted;
@@ -3608,8 +3609,14 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
   if (metric === "deductionAmount") return metrics.returnAmount + metrics.cancellationAmount;
   if (metric === "recoveryRate") {
     const deductionAmount = metrics.returnAmount + metrics.cancellationAmount;
-    const recoveredAmount = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows))
-      .reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+    const recoveredByResubmission = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows));
+    const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+    const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
+    const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+    const manuallyPaidAmount = casesFromImportRows(rows)
+      .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)))
+      .reduce((sum, fall) => sum + fall.amount, 0);
+    const recoveredAmount = Math.min(deductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
     return deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
   }
   if (metric === "chargebackRate") return metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;

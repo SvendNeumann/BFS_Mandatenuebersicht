@@ -4234,11 +4234,13 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
 
 function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedInvoiceStatusRow[]) {
   if (!invoiceStatusRows.length) return cases;
+  const coveredStandortIds = invoiceStatusCoveredStandortIds(invoiceStatusRows);
   const statusByKey = new Map<string, ParsedInvoiceStatusRow>();
   invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusByKey.set(key, row)));
 
   return cases
     .flatMap((fall) => {
+      if (!coveredStandortIds.has(fall.standortId)) return [fall];
       const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusByKey.get(key)).find(Boolean);
       if (!statusRow) {
         return [{
@@ -5821,7 +5823,8 @@ type InvoiceStatusReviewRow = {
 };
 
 function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
-  const importCases = casesFromImportRows(importRows);
+  const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);
+  const importCases = casesFromImportRows(importRows).filter((fall) => coveredStandortIds.has(fall.standortId));
   const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
   const items: InvoiceStatusReviewRow[] = [];
 
@@ -5964,7 +5967,8 @@ function invoiceStatusReviewPriority(category: InvoiceStatusReviewCategory) {
 }
 
 function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
-  const importCases = casesFromImportRows(importRows);
+  const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);
+  const importCases = casesFromImportRows(importRows).filter((fall) => coveredStandortIds.has(fall.standortId));
   const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
   const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
   rows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
@@ -6009,10 +6013,13 @@ function isInvoiceStatusAutoResolved(row: ParsedInvoiceStatusRow) {
   return row.paymentStatus === "bezahlt" || row.installmentPlan;
 }
 
+function invoiceStatusCoveredStandortIds(rows: ParsedInvoiceStatusRow[]) {
+  return new Set(rows.map((row) => standortFromMandantNo(row.mandantNo)?.id).filter((id): id is string => Boolean(id)));
+}
+
 function invoiceStatusMatchKeys(row: ParsedInvoiceStatusRow) {
   return normalizeMatchKeys([
     row.bfsNo,
-    row.invoiceNo,
     `${row.patientName}|${row.invoiceNo}`,
     `${row.patientName}|${row.bfsNo}`
   ]);
@@ -6021,7 +6028,6 @@ function invoiceStatusMatchKeys(row: ParsedInvoiceStatusRow) {
 function caseInvoiceMatchKeys(fall: BfsCase) {
   return normalizeMatchKeys([
     fall.bfsNo,
-    fall.invoiceNo,
     `${fall.patientName}|${fall.invoiceNo}`,
     `${fall.patientName}|${fall.bfsNo}`,
     ...caseResolutionKeys(fall)

@@ -4404,7 +4404,10 @@ const uploadChunkMaxBytes = 3.5 * 1024 * 1024;
 
 function summarizeImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
-    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+    .filter((movement) => {
+      if (movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) return true;
+      return isStornoMovement(movement) || movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung");
+    });
   const returnMovements = relevantMovements.filter((movement) => movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung"));
   const cancellationMovements = relevantMovements.filter((movement) => isStornoMovement(movement));
   const submitted = rows.reduce((sum, row) => sum + rowSubmittedAmount(row), 0);
@@ -5408,6 +5411,7 @@ function reasonLabel(reasonCategory?: string) {
     neue_rechnung: "Neue Rechnung",
     zahlung_nach_storno: "Zahlung nach Storno",
     direktzahlung_patient: "Direktzahlung Patient",
+    ra_liste: "lt. RA-Liste",
     gemaess_vertrag: "gem. Vertrag",
     rueckgabe_ohne_ausfallschutz: "Rückgabe ohne Ausfallschutz",
     iportal_rechnungsliste: "lt. iPortal-Rechnungsliste",

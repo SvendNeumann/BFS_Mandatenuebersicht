@@ -852,3 +852,12 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Standort- und Report-Zaehler fuer offene operative Arbeit zaehlen jetzt nur noch Praxis-Nachfassfaelle. Saldogeschlossene Belegfaelle laufen separat in `Zahlung / Grund pruefen`.
 - Saldo-Import-Kacheln wurden umbenannt: `BFS geschlossen` und `Status BFS geschlossen` zeigen nur BFS-Status, nicht automatisch wirtschaftliche Zahlung. `Zahlung/Grund pruefen` weist saldobereinigte Storno-/Rueckgabefaelle separat aus.
 - Generische `i`-Infotexte erklaeren jetzt die Unterscheidung zwischen Brutto-Abzug, zurueckgeholt/bezahlt, wirtschaftlich pruefen und Praxis-Nachfassen.
+
+## Update 2026-06-29: Objektiver Upload-Gegencheck
+
+- Gegencheck gegen die echten Ordner `1. Abrechnungen` und `2. Saldolisten`:
+  - Saldolisten: 5 PDFs, 14.428 Rechnungsstatus-Zeilen, 5 von 6 Standorten erkannt. Kassel fehlt erwartbar, weil keine Saldoliste mitgeliefert wurde.
+  - Abrechnungen: 839 PDFs auf Platte, nach fachlicher Dublettenlogik 837 importfaehige Abrechnungsnachweise, 0 zu pruefen.
+  - 2026 gesamt aus dem Import: 1.687.113 EUR eingereicht, 1.609.085 EUR Auszahlung, 45.276 EUR BFS-Gebuehren, 38.047 EUR netto, 7.234 EUR MwSt inkl. EWMA-Steuer, 29 EUR EWMA, 5.804 Rechnungs-/Patientenpositionen.
+- Fachlicher Randfall gefunden und korrigiert: `Rueckgabe lt. RA-Liste` wurde als echte Rueckgabe erkannt, hatte aber keine eigene Kategorie. Parser fuehrt diese Bewegungen jetzt als `ra_liste`.
+- Summenbasis `summarizeImportRows` zaehlt echte Storno-/Rueckgabe-/Rueckbelastungsbewegungen jetzt auch dann, wenn die Bemerkung keine Kategorie bekommen hat. Dadurch bleiben Brutto Storno/Rueckgabe, Storno-Grundmenge, offener Abzug und CashFlow-Herleitung auf derselben fachlichen Basis.

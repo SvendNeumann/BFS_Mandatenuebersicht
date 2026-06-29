@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
+import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
 import { parseInvoiceStatusText } from "../lib/invoice-status-parser.ts";
 import type { ImportPreviewRow } from "../lib/types.ts";
@@ -98,6 +99,22 @@ test("Rechnungsstatus-Parser trennt Mahnstufe und Ratenplan-Monate", () => {
   assert.equal(document.rows[2].paymentStatus, "bezahlt");
   assert.equal(document.rows[3].cancelledAmount, 12.94);
   assert.equal(document.rows[3].paymentStatus, "storniert");
+});
+
+test("BFS-Parser erkennt Rückgabe laut RA-Liste als relevante Rückgabe", () => {
+  const document = parseBfsText([
+    "Mandant-Nr: 19260",
+    "Abrechnung-Nr.: 90",
+    "Datum: 07.04.2026",
+    "Forderungen 1 349,06",
+    "Kuschel, Vanessa Laura 529-024110 5-19260-69972010 349,06",
+    "Kontoauszug Mandant",
+    "02.04.26 Rückgabe lt. RA-Liste 5-19260-69972010 / 529-024110 349,06"
+  ].join("\n"));
+
+  assert.equal(document.movements.length, 1);
+  assert.equal(document.movements[0].type, "sonstige_rueckbelastung");
+  assert.equal(document.movements[0].reasonCategory, "ra_liste");
 });
 
 function importRow(file: string, mandantNo: string, statementNo: string, fileHash: string): ImportPreviewRow {

@@ -367,6 +367,7 @@ function reasonCategory(reason: string | undefined, line: string) {
   if (value.includes("neue rechnung")) return "neue_rechnung";
   if (value.includes("zahlung nach storno")) return "zahlung_nach_storno";
   if (value.includes("direktzahlung")) return "direktzahlung_patient";
+  if (value.includes("ra-liste") || value.includes("ra liste")) return "ra_liste";
   if (value.includes("gem. vertrag") || value.includes("gemäß vertrag")) return "gemaess_vertrag";
   if (value.includes("rückgabe") && value.includes("ausfallschutz")) return "rueckgabe_ohne_ausfallschutz";
   if (value.includes("rückgabe ohne")) return "rueckgabe_ohne_ausfallschutz";

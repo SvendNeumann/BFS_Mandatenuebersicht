@@ -2109,6 +2109,11 @@ td small {
   margin-top: 3px;
 }
 
+.muted-table-note {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .note-list {
   display: grid;
   gap: 6px;

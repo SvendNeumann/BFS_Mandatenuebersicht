@@ -132,3 +132,50 @@ export type ParsedImportMovement = {
   matchStatus?: "matched_claim" | "patient_from_kontoauszug" | "unmatched";
   rawText: string;
 };
+
+export type ParsedInvoiceLine = {
+  date?: string;
+  region?: string;
+  code: string;
+  description: string;
+  factor?: number;
+  quantity?: number;
+  amount: number;
+  category: "leistung" | "eigenlabor" | "fremdlabor" | "material" | "auslage";
+  sourceSection: string;
+};
+
+export type ParsedInvoiceDocument = {
+  file: string;
+  fileSizeBytes: number;
+  fileHash?: string;
+  bfsNo: string;
+  mandantNo: string;
+  standortId?: string;
+  standortName: string;
+  practiceName?: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  patientName: string;
+  treatedPerson?: string;
+  birthDate?: string;
+  treatmentPeriod?: string;
+  integrationDate?: string;
+  totalAmount: number;
+  openAmount: number;
+  subsidyAmount: number;
+  honorarBema: number;
+  honorarGoz: number;
+  eigenlaborTotal: number;
+  fremdlaborNet: number;
+  fremdlaborGross: number;
+  materialAuslagen: number;
+  hasEigenlabor: boolean;
+  hasFremdlabor: boolean;
+  labProviders: string[];
+  serviceLines: ParsedInvoiceLine[];
+  labLines: ParsedInvoiceLine[];
+  pageCount: number;
+  status: "OK" | "Zu prüfen";
+  parseNotes: string[];
+};

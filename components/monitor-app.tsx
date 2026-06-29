@@ -42,10 +42,11 @@ import {
   liveStatusLabel,
   orderedStandorte
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, RiskClaim, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, ImportPreviewRow, ParsedInvoiceDocument, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
+import { isInvoicePdfUploadFile, parseInvoiceUploadFiles } from "@/lib/invoice-parser";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
@@ -134,7 +135,10 @@ const superAdminNavGroups: NavGroup[] = [
       {
         title: "Import & Prüfung",
         items: [
-          ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
+          ["invoiceImport", "Import-Center Rechnungen", FolderUp],
+          ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
+          ["invoiceServices", "Leistungsanalyse", BarChart3],
+          ["invoiceLabs", "Laboranalyse", ClipboardList]
         ]
       }
     ]
@@ -197,7 +201,10 @@ const leadNavGroups: NavGroup[] = [
       {
         title: "Import & Prüfung",
         items: [
-          ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
+          ["invoiceImport", "Import-Center Rechnungen", FolderUp],
+          ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
+          ["invoiceServices", "Leistungsanalyse", BarChart3],
+          ["invoiceLabs", "Laboranalyse", ClipboardList]
         ]
       }
     ]
@@ -258,6 +265,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
+  const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
@@ -271,7 +279,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
   const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
-  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "locations", "users", "settings"];
+  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
     "cases",
@@ -280,7 +288,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -616,7 +624,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
-            {activeView === "invoiceImport" && <InvoiceImportView />}
+            {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
+            {activeView === "invoiceOverview" && <InvoiceOverviewView invoiceRows={invoiceRows} />}
+            {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
+            {activeView === "invoiceLabs" && <InvoiceLabsView invoiceRows={invoiceRows} />}
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
@@ -838,6 +849,9 @@ function titleFor(view: string) {
     preview: "Import-Center Abrechnung",
     history: "Import-Center Abrechnung",
     invoiceImport: "Import-Center Rechnungen",
+    invoiceOverview: "Rechnungsübersicht",
+    invoiceServices: "Leistungsanalyse",
+    invoiceLabs: "Laboranalyse",
     cases: "Klärfälle",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
@@ -5461,60 +5475,387 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
   );
 }
 
-function InvoiceImportView() {
+function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("Bereit für Rechnungsimport");
+  const [selectedFileCount, setSelectedFileCount] = useState(0);
+  const okRows = invoiceRows.filter((row) => row.status === "OK").length;
+  const reviewRows = invoiceRows.length - okRows;
+  const serviceCount = invoiceRows.reduce((sum, row) => sum + row.serviceLines.length, 0);
+  const labCount = invoiceRows.filter((row) => row.hasEigenlabor || row.hasFremdlabor).length;
+
+  async function handleInvoiceFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
+    if (!files?.length) return;
+    const importableFiles = [...files].filter(isInvoicePdfUploadFile);
+    setSelectedFileCount(importableFiles.length);
+    if (!importableFiles.length) {
+      setUploadStatus("Keine Rechnungs-PDFs gefunden");
+      return;
+    }
+    setIsProcessing(true);
+    setUploadStatus(`${importableFiles.length} Rechnungs-PDFs werden ausgelesen`);
+    try {
+      if (mode === "replace") onRowsChange([]);
+      const parsedRows = await parseInvoiceFiles(importableFiles, (processed, total, fileName) => {
+        const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
+        setUploadStatus(`${processed} von ${total} Rechnungen gelesen (${shortName})`);
+      });
+      const nextRows = mergeInvoiceRows(mode === "append" ? invoiceRows : [], parsedRows);
+      onRowsChange(nextRows);
+      setUploadStatus(`${parsedRows.length} Rechnungen ausgelesen, ${nextRows.length} eindeutige Rechnungen in der Vorschau`);
+    } catch (error) {
+      if (mode === "replace") onRowsChange([]);
+      setUploadStatus(`Rechnungen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   return (
     <div className="content-stack">
       <section className="upload-zone">
-        <div className="upload-status">
-          <ReceiptText size={24} />
-          <span>Vorbereitet für Patientenrechnungen</span>
-          <strong>Rechnungsimport wird hier aufgebaut</strong>
-        </div>
+        <ReceiptText size={28} />
         <div>
           <h2>Patientenrechnungen aus dem BFS-Portal einreichen</h2>
-          <p>Dieser Bereich ist für die Analyse der einzelnen Rechnungspositionen vorgesehen: Leistungsnummer, Kurzbeschreibung, Faktor, Anzahl, Betrag und Behandlungszeitraum je Standort.</p>
+          <p>Die App liest Rechnungs-PDFs auch aus Unterordnern, erkennt den Standort über BFS-Mandant und Anschrift und trennt Rechnungskopf, Leistungspositionen, Eigenlabor und Fremdlabor.</p>
+          <div className={isProcessing ? "upload-status processing" : invoiceRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
+            <RefreshCw size={14} />
+            <span>{isProcessing ? "Wird ausgelesen" : invoiceRows.length ? "Fertig" : "Bereit"}</span>
+            <strong>{uploadStatus}</strong>
+          </div>
         </div>
         <div className="upload-actions">
-          <button className="file-upload-button disabled" type="button" disabled>
-            <FolderUp size={18} /> Rechnungs-PDFs auswählen
+          <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
+            <Upload size={16} />
+            Rechnungs-PDFs
+            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, "replace")} />
+          </label>
+          <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
+            <FolderUp size={16} />
+            Ordner inkl. Unterordner
+            <input
+              disabled={isProcessing}
+              type="file"
+              multiple
+              accept=".pdf,application/pdf"
+              onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace")}
+              {...{ webkitdirectory: "", directory: "" }}
+            />
+          </label>
+          <button className="secondary-button reset-upload-button" disabled={isProcessing || !invoiceRows.length} onClick={() => {
+            onRowsChange([]);
+            setSelectedFileCount(0);
+            setUploadStatus("Rechnungsvorschau zurückgesetzt");
+          }}>
+            <X size={16} />
+            Vorschau zurücksetzen
           </button>
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Rechnungen" value="0" hint="noch kein Rechnungsimport aktiv" tone="blue" />
-        <PriorityCard label="Positionen" value="0" hint="Nr. + Kurzbeschreibung" tone="blue" />
-        <PriorityCard label="Faktoren" value="-" hint="Analyse vorbereitet" tone="amber" />
-        <PriorityCard label="Matching-Hilfe" value="bereit" hint="Behandlungszeitraum + Positionen" tone="green" />
+        <PriorityCard label="Rechnungen" value={String(isProcessing ? selectedFileCount : invoiceRows.length)} hint={isProcessing ? "werden ausgelesen" : "eindeutige PDFs"} tone="blue" />
+        <PriorityCard label="Positionen" value={String(serviceCount)} hint="Leistungsnummern mit Faktor" tone="blue" />
+        <PriorityCard label="Laborfälle" value={String(labCount)} hint="Eigenlabor oder Fremdlabor" tone="amber" />
+        <PriorityCard label="Zu prüfen" value={String(reviewRows)} hint="fehlende Felder oder Zuordnung" tone={reviewRows ? "amber" : "green"} />
       </section>
+      <section className="insight-grid">
+        <InsightCard title="Mengenfähig vorbereitet" items={["Dateien werden rekursiv aus Ordnern übernommen", "Dubletten laufen über BFS-Nr. und Hash", "PDF-Speicher kann später separat bereinigt werden"]} />
+        <InsightCard title="Standortzuordnung" items={["Mandant 18504: Kirchberg", "Mandant 18790: Essen", "Mandant 19260: Ulmet"]} />
+        <InsightCard title="Extraktion" items={["Leistungsnummer, Faktor und Betrag", "Eigenlabor und Fremdlabor getrennt", "Behandlungszeitraum für Matching"]} />
+      </section>
+      <InvoiceImportPreview rows={invoiceRows} />
+    </div>
+  );
+}
+
+function InvoiceOverviewView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const totalAmount = invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0);
+  const serviceCount = invoiceRows.reduce((sum, row) => sum + row.serviceLines.length, 0);
+  const avgInvoice = invoiceRows.length ? totalAmount / invoiceRows.length : 0;
+  const eigenlabor = invoiceRows.reduce((sum, row) => sum + row.eigenlaborTotal, 0);
+  const fremdlabor = invoiceRows.reduce((sum, row) => sum + row.fremdlaborGross, 0);
+
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Rechnungen" value={integerNumber.format(invoiceRows.length)} hint="importierte Vorschau" tone="blue" />
+        <PriorityCard label="Rechnungsvolumen" value={money.format(totalAmount)} hint="Rechnungsbetrag gesamt" tone="green" />
+        <PriorityCard label="Ø Rechnung" value={money.format(avgInvoice)} hint="pro Rechnung" tone="blue" />
+        <PriorityCard label="Positionen" value={integerNumber.format(serviceCount)} hint="abrechenbare Leistungen" tone="blue" />
+        <PriorityCard label="Eigenlabor" value={money.format(eigenlabor)} hint="erkannte Anlagen" tone="amber" />
+        <PriorityCard label="Fremdlabor" value={money.format(fremdlabor)} hint="erkannte Fremdbelege" tone="amber" />
+      </section>
+      <InvoiceImportPreview rows={invoiceRows} compact />
+    </div>
+  );
+}
+
+function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const rows = invoiceServiceSummary(invoiceRows);
+  return (
+    <div className="content-stack">
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">Zielstruktur</span>
-            <h2>Was aus den Rechnungen gelesen werden soll</h2>
-            <p>Die spätere Auswertung trennt Rechnungskopf, Behandlungszeitraum und einzelne Leistungspositionen, damit Standortvergleich und Neueinreichungs-Matching fachlich belastbarer werden.</p>
+            <span className="eyebrow">Leistungsanalyse</span>
+            <h2>Leistungsnummern nach Häufigkeit, Faktor und Betrag</h2>
+            <p>Schlanke Startauswertung: alle erkannten Leistungspositionen aus den eingelesenen Rechnungen, konsolidiert über Standorte.</p>
           </div>
         </div>
         <div className="table-wrap compact-table">
           <table>
             <thead>
               <tr>
-                <th>Feld</th>
-                <th>Beispiel</th>
-                <th>Nutzung</th>
+                <th>Nr.</th>
+                <th>Kurzbeschreibung</th>
+                <th>Häufigkeit</th>
+                <th>Ø Faktor</th>
+                <th>Min / Max</th>
+                <th>Summe</th>
+                <th>Standorte</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>Rechnungskopf</td><td>BFS-Nr., Rechnungsnummer, Rechnungsdatum, Patient</td><td>Zuordnung und Suche</td></tr>
-              <tr><td>Behandlungszeitraum</td><td>16.06.2026 bis 16.06.2026</td><td>Matching gegen Storno/Neueinreichung</td></tr>
-              <tr><td>Leistungsposition</td><td>2080 · Kompositfüllung zweiflächig</td><td>Positionsanalyse je Standort</td></tr>
-              <tr><td>Faktor / Anzahl / Betrag</td><td>4,800 · 1 · 150,10 €</td><td>Faktoren- und Umsatzvergleich</td></tr>
-              <tr><td>Begründung</td><td>erhöhter Schwierigkeitsgrad</td><td>Detailprüfung und Plausibilität</td></tr>
+              {rows.length ? rows.map((row) => (
+                <tr key={row.code}>
+                  <td><strong>{row.code}</strong></td>
+                  <td>{row.description}</td>
+                  <td>{integerNumber.format(row.count)}</td>
+                  <td>{row.avgFactor ? feeRateNumber.format(row.avgFactor) : "-"}</td>
+                  <td>{row.minFactor ? `${feeRateNumber.format(row.minFactor)} / ${feeRateNumber.format(row.maxFactor)}` : "-"}</td>
+                  <td>{money.format(row.amount)}</td>
+                  <td>{row.locations.join(", ")}</td>
+                </tr>
+              )) : <EmptyTableRow colSpan={7} label="Noch keine Rechnungen eingelesen." />}
             </tbody>
           </table>
         </div>
       </section>
     </div>
   );
+}
+
+function InvoiceLabsView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const rows = invoiceRows.filter((row) => row.hasEigenlabor || row.hasFremdlabor);
+  const eigenlabor = rows.reduce((sum, row) => sum + row.eigenlaborTotal, 0);
+  const fremdlabor = rows.reduce((sum, row) => sum + row.fremdlaborGross, 0);
+  return (
+    <div className="content-stack">
+      <section className="priority-grid">
+        <PriorityCard label="Laborfälle" value={integerNumber.format(rows.length)} hint="Rechnungen mit Labor" tone="amber" />
+        <PriorityCard label="Eigenlabor" value={money.format(eigenlabor)} hint="Summe Laborkosten" tone="amber" />
+        <PriorityCard label="Fremdlabor" value={money.format(fremdlabor)} hint="Bruttowerte Fremdbelege" tone="amber" />
+        <PriorityCard label="Laborquote" value={formatPercent(invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0) ? ((eigenlabor + fremdlabor) / invoiceRows.reduce((sum, row) => sum + row.totalAmount, 0)) * 100 : 0)} hint="Labor zu Rechnungsvolumen" tone="blue" />
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Laboranalyse</span>
+            <h2>Eigenlabor und Fremdlabor je Rechnung</h2>
+            <p>Laborpositionen werden getrennt von den normalen Leistungspositionen geführt, damit Laborquote und Fremdlaboranbieter auswertbar bleiben.</p>
+          </div>
+        </div>
+        <div className="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Standort</th>
+                <th>BFS-Nr.</th>
+                <th>Patient</th>
+                <th>Eigenlabor</th>
+                <th>Fremdlabor</th>
+                <th>Anbieter</th>
+                <th>Laborpositionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((row) => (
+                <tr key={row.bfsNo}>
+                  <td>{row.standortName}</td>
+                  <td><strong>{row.bfsNo}</strong><small>{row.invoiceNo}</small></td>
+                  <td>{row.patientName}</td>
+                  <td>{money.format(row.eigenlaborTotal)}</td>
+                  <td>{money.format(row.fremdlaborGross || row.fremdlaborNet)}</td>
+                  <td>{row.labProviders.length ? row.labProviders.join(", ") : "-"}</td>
+                  <td>{integerNumber.format(row.labLines.length)}</td>
+                </tr>
+              )) : <EmptyTableRow colSpan={7} label="Noch keine Laborrechnung eingelesen." />}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDocument[]; compact?: boolean }) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Rechnungsvorschau</span>
+          <h2>{compact ? "Eingelesene Rechnungen" : "Erkannte Rechnungen und Zuordnung"}</h2>
+          <p>Die PDF-Datei dient als Beleg; die ausgelesenen Daten bleiben später getrennt für Auswertungen erhalten.</p>
+        </div>
+      </div>
+      <div className="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Standort</th>
+              <th>BFS-Nr.</th>
+              <th>Rechnung</th>
+              <th>Patient</th>
+              <th>Betrag</th>
+              <th>Positionen</th>
+              <th>Labor</th>
+              <th>Datei</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? rows.map((row) => (
+              <tr key={row.bfsNo !== "-" ? row.bfsNo : row.file}>
+                <td><StatusBadge status={row.status} /></td>
+                <td><strong>{row.standortName}</strong><small>Mandant {row.mandantNo}</small></td>
+                <td>{row.bfsNo}</td>
+                <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
+                <td><strong>{row.patientName}</strong><small>{row.treatmentPeriod ?? row.integrationDate ?? "kein Zeitraum"}</small></td>
+                <td>{money.format(row.totalAmount || row.openAmount)}</td>
+                <td>{integerNumber.format(row.serviceLines.length)}</td>
+                <td>{row.hasEigenlabor || row.hasFremdlabor ? `${row.hasEigenlabor ? "Eigenlabor" : ""}${row.hasEigenlabor && row.hasFremdlabor ? " + " : ""}${row.hasFremdlabor ? "Fremdlabor" : ""}` : "-"}</td>
+                <td><span>{shortFileName(row.file)}</span><small>{integerNumber.format(Math.round(row.fileSizeBytes / 1024))} KB · {row.pageCount} Seiten</small></td>
+              </tr>
+            )) : <EmptyTableRow colSpan={9} label="Noch keine Rechnungs-PDFs eingelesen." />}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function mergeInvoiceRows(currentRows: ParsedInvoiceDocument[], nextRows: ParsedInvoiceDocument[]) {
+  const byKey = new Map<string, ParsedInvoiceDocument>();
+  [...currentRows, ...nextRows].forEach((row) => {
+    const key = row.bfsNo !== "-" ? row.bfsNo : row.fileHash ?? row.file;
+    byKey.set(key, row);
+  });
+  return [...byKey.values()];
+}
+
+function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[]) {
+  const byCode = new Map<string, {
+    code: string;
+    description: string;
+    count: number;
+    amount: number;
+    factorSum: number;
+    factorCount: number;
+    minFactor: number;
+    maxFactor: number;
+    locations: Set<string>;
+  }>();
+
+  invoiceRows.forEach((invoice) => {
+    invoice.serviceLines.forEach((line) => {
+      const entry = byCode.get(line.code) ?? {
+        code: line.code,
+        description: line.description,
+        count: 0,
+        amount: 0,
+        factorSum: 0,
+        factorCount: 0,
+        minFactor: Number.POSITIVE_INFINITY,
+        maxFactor: 0,
+        locations: new Set<string>()
+      };
+      entry.count += 1;
+      entry.amount += line.amount;
+      entry.locations.add(invoice.standortName);
+      if (line.factor) {
+        entry.factorSum += line.factor;
+        entry.factorCount += 1;
+        entry.minFactor = Math.min(entry.minFactor, line.factor);
+        entry.maxFactor = Math.max(entry.maxFactor, line.factor);
+      }
+      byCode.set(line.code, entry);
+    });
+  });
+
+  return [...byCode.values()]
+    .map((entry) => ({
+      ...entry,
+      avgFactor: entry.factorCount ? entry.factorSum / entry.factorCount : 0,
+      minFactor: Number.isFinite(entry.minFactor) ? entry.minFactor : 0,
+      locations: [...entry.locations].sort()
+    }))
+    .sort((a, b) => b.count - a.count || b.amount - a.amount);
+}
+
+function EmptyTableRow({ colSpan, label }: { colSpan: number; label: string }) {
+  return (
+    <tr>
+      <td colSpan={colSpan}>
+        <span className="muted-table-note">{label}</span>
+      </td>
+    </tr>
+  );
+}
+
+function shortFileName(file: string) {
+  const name = file.split("/").at(-1) ?? file;
+  return name.length > 42 ? `${name.slice(0, 39)}...` : name;
+}
+
+async function parseInvoiceFiles(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const chunks = chunkUploadFiles(files);
+  const rows: ParsedInvoiceDocument[] = [];
+  let processed = 0;
+
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    const chunkRows = await parseInvoiceFileChunk(chunk, (chunkProcessed, _chunkTotal, fileName) => {
+      onProgress?.(processed + chunkProcessed, files.length, `Paket ${chunkIndex + 1}/${chunks.length}: ${fileName}`);
+    });
+    rows.push(...chunkRows);
+    processed += chunk.length;
+    onProgress?.(processed, files.length, `Paket ${chunkIndex + 1}/${chunks.length} abgeschlossen`);
+  }
+
+  return mergeInvoiceRows([], rows);
+}
+
+async function parseInvoiceFileChunk(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    const filePath = uploadFilePath(file);
+    formData.append("files", file, filePath);
+    formData.append("paths", filePath);
+  });
+
+  const response = await fetch("/api/invoices/parse", {
+    method: "POST",
+    body: formData,
+    cache: "no-store"
+  });
+
+  if (response.ok) {
+    const payload = await response.json() as { rows: ParsedInvoiceDocument[] };
+    payload.rows.forEach((row, index) => onProgress?.(index + 1, files.length, row.file));
+    return payload.rows;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return parseInvoiceUploadFiles(files, onProgress);
+  }
+
+  const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
+  throw new Error(errorPayload?.error ?? "Serverseitiger Rechnungsimport fehlgeschlagen.");
 }
 
 async function parseImportFiles(
@@ -8112,7 +8453,7 @@ function StatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase();
   const tone = normalized.includes("ok") || normalized.includes("aktiv") || normalized.includes("automatisch")
     ? "green"
-    : normalized.includes("warn") || normalized.includes("vorschlag") || normalized.includes("ohne") || normalized.includes("beobachten")
+    : normalized.includes("warn") || normalized.includes("prüfen") || normalized.includes("vorschlag") || normalized.includes("ohne") || normalized.includes("beobachten")
       ? "amber"
       : normalized.includes("fehler") || normalized.includes("offen") || normalized.includes("sperrhinweis") || normalized.includes("praxisprozess")
         ? "red"

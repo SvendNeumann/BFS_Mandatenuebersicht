@@ -3654,7 +3654,6 @@ function ClaimsFlowView({
     { label: "MwSt auf EWMA", amount: deductionMetrics.ewmaVat, detail: "Steuer auf EWMA", kind: "Steuer" }
   ].sort((a, b) => b.amount - a.amount), [deductionMetrics]);
   const recoveryDeductionRate = recoveryMetrics.submitted ? (recoveryDeductionAmount / recoveryMetrics.submitted) * 100 : 0;
-  const cancellationRate = selectedMetrics.submitted ? (selectedMetrics.cancellationAmount / selectedMetrics.submitted) * 100 : 0;
   const notRecoveredRate = recoveryMetrics.submitted ? (stillOpenAmount / recoveryMetrics.submitted) * 100 : 0;
   const recoveryRate = recoveryDeductionAmount ? Math.min(100, (recoveredAmount / recoveryDeductionAmount) * 100) : 0;
 
@@ -3685,7 +3684,7 @@ function ClaimsFlowView({
           <span>{selectedPeriod.detail}</span>
         </div>
       </section>
-      <section className="priority-grid">
+      <section className="priority-grid details-kpi-grid">
         <PriorityCard label="Umsatz eingereicht" value={money.format(selectedMetrics.submitted)} hint="Summe aus Abrechnungen" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
@@ -3695,7 +3694,6 @@ function ClaimsFlowView({
         <PriorityCard label="Gesamtabzug" value={money.format(totalCostAndDeductions)} hint="BFS-Gebühr, MwSt, EWMA und Storno/Rückgabe" period={selectedPeriod.label} tone={totalCostAndDeductions ? "red" : "green"} />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
-        <PriorityCard label="Stornoquote" value={formatPercent(cancellationRate)} hint="Stornos vom eingereichten Umsatz" period={selectedPeriod.label} tone={cancellationRate ? "amber" : "green"} />
       </section>
       <section className="panel">
         <div className="panel-heading">

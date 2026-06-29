@@ -970,3 +970,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Hintergrund: Der Inhalt existiert bereits im eigenen Bereich `Standorte`/Standort-Benchmark und soll im Cockpit nicht doppelt erscheinen.
 - Das Management Cockpit fokussiert damit auf Filter, KPI-Kacheln, Diagramme und `Lage & Entwicklung`.
 - Der separate Standort-Bereich und die dortige Standortkartenlogik bleiben unveraendert erhalten.
+
+## Update 2026-06-29: Standortdetails-KPI-Block desktopkompatibel
+
+- Der KPI-Block in `Standortdetails`/Detailsicht wurde auf Desktop auf 9 Kacheln reduziert und als 5 oben / 4 unten angeordnet.
+- Die alte separate `Stornoquote`-Kachel wurde entfernt, weil die fuehrende Logik ueber Brutto Storno/Rueckgabe, Gesamtabzug und die nachgelagerten Abzugs-/Recovery-Bloecke laeuft.
+- Technisch nutzt nur dieser Block ein eigenes 20-Spalten-Grid; andere `priority-grid`-Bereiche bleiben unveraendert.
+- Unterhalb breiter Desktopansichten greifen weiter die bestehenden 3-/2-/1-Spalten-Regeln.

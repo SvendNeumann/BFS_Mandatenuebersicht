@@ -1490,6 +1490,18 @@ input {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.details-kpi-grid {
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+}
+
+.details-kpi-grid .priority-card {
+  grid-column: span 4;
+}
+
+.details-kpi-grid .priority-card:nth-child(n + 6) {
+  grid-column: span 5;
+}
+
 .benchmark-priority-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -4232,8 +4244,14 @@ td small {
   }
 
   .cockpit-kpi-grid .kpi-card,
-  .cockpit-kpi-grid .kpi-card:nth-child(n + 6) {
+  .cockpit-kpi-grid .kpi-card:nth-child(n + 6),
+  .details-kpi-grid .priority-card,
+  .details-kpi-grid .priority-card:nth-child(n + 6) {
     grid-column: auto;
+  }
+
+  .details-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

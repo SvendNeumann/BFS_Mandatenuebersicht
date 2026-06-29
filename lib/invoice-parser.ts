@@ -38,7 +38,7 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
   const bfsNo = text.match(/\b5-(\d{5})-\d{6,10}\b/)?.[0] ?? "-";
   const mandantNo = bfsNo.match(/^5-(\d{5})-/)?.[1] ?? "-";
   const standort = detectStandort(mandantNo, text, meta.file);
-  const invoiceHeader = text.match(/Rechnungsnummer:\s*(.+?)\s+Rechnungsdatum:\s*(\d{2}\.\d{2}\.\d{4})/i);
+  const invoiceHeader = extractInvoiceHeader(text, lines, meta.file);
   const patientName = findValueLine(lines, /^Behandelte Person:\s*(.+)$/i)
     ?? text.match(/Verwendungszweck:\s*BFS-Nr\.\s*5-\d{5}-\d+,\s*(.+)/i)?.[1]?.trim()
     ?? "-";
@@ -55,6 +55,7 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     ...matchAmounts(text, /Endsumme\s*\n?(-?\d{1,3}(?:\.\d{3})*,\d{2})/gi),
     ...matchAmounts(text, /Endbetrag\s*€:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/gi)
   ]);
+  const honorarBema = firstAmount(text, /(?:Honorar Bema|ZA-Honorar BEMA)[^:]*:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
   const serviceLines = parseServiceLines(lines);
   const labLines = parseLabLines(lines);
   const labProviders = detectLabProviders(lines);
@@ -63,10 +64,12 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
   if (bfsNo === "-") notes.push("BFS-Nr. nicht erkannt.");
   if (mandantNo === "-") notes.push("BFS-Mandantennummer nicht erkannt.");
   if (!standort) notes.push("Standort konnte nicht sicher zugeordnet werden.");
-  if (!invoiceHeader?.[1]) notes.push("Rechnungsnummer nicht erkannt.");
-  if (!invoiceHeader?.[2]) notes.push("Rechnungsdatum nicht erkannt.");
+  if (invoiceHeader.invoiceNo === "-") notes.push("Rechnungsnummer nicht erkannt.");
+  if (invoiceHeader.invoiceDate === "-") notes.push("Rechnungsdatum nicht erkannt.");
   if (patientName === "-") notes.push("Patient nicht erkannt.");
-  if (!serviceLines.length) notes.push("Keine abrechenbaren Leistungspositionen mit Faktor erkannt.");
+  if (!serviceLines.length && !isRecognizedNonFactorInvoice({ honorarBema, eigenlaborTotal: eigenlaborTotals.length ? Math.max(...eigenlaborTotals) : 0, labLines })) {
+    notes.push("Keine abrechenbaren Leistungspositionen mit Faktor erkannt.");
+  }
 
   return {
     file: meta.file,
@@ -77,8 +80,8 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     standortId: standort?.id,
     standortName: standort?.name ?? "Unbekannt",
     practiceName: standort?.praxisname,
-    invoiceNo: invoiceHeader?.[1]?.trim() ?? "-",
-    invoiceDate: invoiceHeader?.[2] ?? "-",
+    invoiceNo: invoiceHeader.invoiceNo,
+    invoiceDate: invoiceHeader.invoiceDate,
     patientName,
     treatedPerson,
     birthDate: findValueLine(lines, /^Geburtsdatum:\s*(.+)$/i),
@@ -87,7 +90,7 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     totalAmount: firstAmount(text, /Rechnungsbetrag:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
     openAmount: firstAmount(text, /Offener Betrag:?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
     subsidyAmount: Math.abs(firstAmount(text, /(?:Zuschuss der Krankenkasse|Kassenanteil|abzgl\. Festzuschuss):\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)),
-    honorarBema: firstAmount(text, /(?:Honorar Bema|ZA-Honorar BEMA)[^:]*:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
+    honorarBema,
     honorarGoz: firstAmount(text, /(?:Honorar GOZ|ZA-Honorar GOZ):\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
     eigenlaborTotal: eigenlaborTotals.length ? Math.max(...eigenlaborTotals) : 0,
     fremdlaborNet,
@@ -123,6 +126,26 @@ function parseLabLines(lines: string[]) {
   const labStart = lines.findIndex((line) => /Anlage Eigenlabor|FREMDLABORBELEG|Eigenbeleg|Laborrechnung/i.test(line));
   if (labStart < 0) return [];
   return lines.slice(labStart).flatMap((line) => parseLabLine(line));
+}
+
+function extractInvoiceHeader(text: string, lines: string[], filePath: string) {
+  const inlineHeader = text.match(/Rechnungsnummer:\s*(\S+)\s+Rechnungsdatum:\s*(\d{2}\.\d{2}\.\d{4})/i);
+  const splitHeaderLine = lines.find((line) => /Rechnungsnummer:|Rechnungsdatum:/i.test(line));
+  const splitInvoiceNo = splitHeaderLine?.match(/Rechnungsnummer:\s*(\S+)/i)?.[1]
+    ?? text.match(/Rech\.-Nr\.:\s*(\S+)/i)?.[1]
+    ?? filePath.match(/Rechnung_(5-\d{5}-\d+)\.pdf/i)?.[1];
+  const splitInvoiceDate = splitHeaderLine?.match(/Rechnungsdatum:\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1]
+    ?? text.match(/Anlage zur Rechnung Nr\.\s+\S+\s+Datum\s+(\d{2}\.\d{2}\.\d{4})/i)?.[1]
+    ?? text.match(/\bDatum:\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1];
+
+  return {
+    invoiceNo: inlineHeader?.[1]?.trim() ?? splitInvoiceNo?.trim() ?? "-",
+    invoiceDate: inlineHeader?.[2] ?? splitInvoiceDate ?? "-"
+  };
+}
+
+function isRecognizedNonFactorInvoice(invoice: { honorarBema: number; eigenlaborTotal: number; labLines: ParsedInvoiceLine[] }) {
+  return invoice.honorarBema > 0 || invoice.eigenlaborTotal > 0 || invoice.labLines.length > 0;
 }
 
 function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], sourceSection: string): ParsedInvoiceLine[] {

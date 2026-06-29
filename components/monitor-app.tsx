@@ -7070,7 +7070,7 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
                 <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
                 <td><strong>{row.patientName}</strong><small>{row.treatmentPeriod ?? row.integrationDate ?? "kein Zeitraum"}</small></td>
                 <td>{money.format(row.totalAmount || row.openAmount)}</td>
-                <td>{integerNumber.format(row.serviceLines.length)}</td>
+                <td>{invoicePreviewPositionLabel(row)}</td>
                 <td>{row.hasEigenlabor || row.hasFremdlabor ? `${row.hasEigenlabor ? "Eigenlabor" : ""}${row.hasEigenlabor && row.hasFremdlabor ? " + " : ""}${row.hasFremdlabor ? "Fremdlabor" : ""}` : "-"}</td>
                 <td><span>{shortFileName(row.file)}</span><small>{integerNumber.format(Math.round(row.fileSizeBytes / 1024))} KB · {row.pageCount} Seiten</small></td>
               </tr>
@@ -7089,6 +7089,14 @@ function mergeInvoiceRows(currentRows: ParsedInvoiceDocument[], nextRows: Parsed
     byKey.set(key, row);
   });
   return [...byKey.values()];
+}
+
+function invoicePreviewPositionLabel(row: ParsedInvoiceDocument) {
+  if (row.serviceLines.length) return integerNumber.format(row.serviceLines.length);
+  if (row.honorarBema > 0 && (row.eigenlaborTotal > 0 || row.labLines.length > 0)) return "BEMA + Labor";
+  if (row.honorarBema > 0) return "BEMA";
+  if (row.eigenlaborTotal > 0 || row.labLines.length > 0) return "Labor";
+  return "0";
 }
 
 function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: PeriodOption, selectedStandort?: Standort) {

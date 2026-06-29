@@ -2498,26 +2498,43 @@ function metricValueForRows(rows: ImportPreviewRow[], metric: "submitted" | "fee
 
 type LocationSnapshot = ReturnType<typeof buildLocationSnapshots>[number];
 
-function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption, importRows: ImportPreviewRow[], openCases: BfsCase[] = []) {
+function buildLocationSnapshots(
+  rowsStandorte: Standort[],
+  period: PeriodOption,
+  importRows: ImportPreviewRow[],
+  openCases: BfsCase[] = [],
+  manualCaseResolutions: ManualCaseResolution[] = [],
+  invoiceStatusRows: ParsedInvoiceStatusRow[] = []
+) {
+  const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
   return rowsStandorte.map((standort) => {
-    const locationRows = importRows.filter((row) => row.location === standort.name);
+    const locationRows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort));
     const summary = summarizeImportRows(locationRows);
     const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
     const locationCases = openCases.filter((fall) => fall.standortId === standort.id);
     const openAmount = locationCases.reduce((sum, fall) => sum + fall.amount, 0);
     const oldest = locationCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-    const chargebackAmount = metrics.returnAmount + metrics.cancellationAmount;
-    const chargebackRate = metrics.submitted ? (chargebackAmount / metrics.submitted) * 100 : 0;
+    const deductionRecovery = buildDeductionRecovery(importRows, [standort], period, manualCaseResolutions);
+    const deductionAmount = deductionRecovery.grossDeductionAmount;
+    const recoveredAmount = deductionRecovery.recoveredAmount;
+    const openDeductionAmount = deductionRecovery.openAmount;
+    const deductionRate = metrics.submitted ? (deductionAmount / metrics.submitted) * 100 : 0;
     const claimCount = locationRows.reduce((sum, row) => sum + (row.parsedClaims?.length ?? 0), 0);
     const noProtectionClaimCount = locationRows.reduce((sum, row) => sum + rowNoProtectionClaims(row).length, 0);
     const noProtectionCaseRate = claimCount ? (noProtectionClaimCount / claimCount) * 100 : 0;
+    const economicCheckRows = buildInvoiceStatusReviewBasket(invoiceStatusRows, locationRows)
+      .filter((row) => row.category === "economic_check")
+      .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => closedKeys.has(key)));
+    const economicCheckAmount = economicCheckRows.reduce((sum, row) => sum + row.amount, 0);
     const riskClaims = riskClaimsFromImportRows(locationRows);
     const suspiciousNoProtectionAmount = riskClaims
       .filter((claim) => claim.assessment === "auffaellig")
       .reduce((sum, claim) => sum + claim.amount, 0);
     const cleanNoProtectionShare = Math.max(metrics.noProtectionAmount - suspiciousNoProtectionAmount, 0) / Math.max(metrics.submitted, 1);
     const suspiciousNoProtectionShare = suspiciousNoProtectionAmount / Math.max(metrics.submitted, 1);
-    const riskScore = chargebackRate * 2
+    const riskScore = deductionRate * 2
+      + Math.min(35, (openDeductionAmount / Math.max(metrics.submitted, 1)) * 150)
+      + Math.min(18, (economicCheckAmount / Math.max(metrics.submitted, 1)) * 100)
       + Math.min(10, cleanNoProtectionShare * 100)
       + Math.min(35, suspiciousNoProtectionShare * 150)
       + (oldest > 30 ? 20 : oldest > 14 ? 10 : 0);
@@ -2530,7 +2547,14 @@ function buildLocationSnapshots(rowsStandorte: Standort[], period: PeriodOption,
       openCases: locationCases.length,
       openAmount,
       oldest,
-      chargebackRate,
+      deductionAmount,
+      recoveredAmount,
+      openDeductionAmount,
+      recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
+      deductionRate,
+      economicCheckCount: economicCheckRows.length,
+      economicCheckAmount,
+      chargebackRate: deductionRate,
       claimCount,
       noProtectionClaimCount,
       noProtectionCaseRate,
@@ -2560,13 +2584,13 @@ function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = f
               <LocationMetricTile label="Auszahlung" value={money.format(entry.metrics.payout)} current={entry.metrics.payout} previous={previous?.metrics.payout ?? 0} format={money.format} />
               <LocationMetricTile label="Gebühr" value={formatFeeRate(entry.metrics.feeRate)} current={entry.metrics.feeRate} previous={previous?.metrics.feeRate ?? 0} format={formatFeeRate} />
               <span className="location-metric-with-info">
-                <MetricInfo title={`Rückbelastungsquote ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
-                <LocationMetricTile label="Rückbelastung" value={formatPercent(entry.chargebackRate)} current={entry.chargebackRate} previous={previous?.chargebackRate ?? 0} format={formatPercent} bare />
+                <MetricInfo title={`Brutto Storno/Rückgabe ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
+                <LocationMetricTile label="Brutto Storno/Rückgabe" value={money.format(entry.deductionAmount)} current={entry.deductionAmount} previous={previous?.deductionAmount ?? 0} format={money.format} bare />
               </span>
-              <LocationMetricTile label="ohne Schutz" value={money.format(entry.metrics.noProtectionAmount)} current={entry.metrics.noProtectionAmount} previous={previous?.metrics.noProtectionAmount ?? 0} format={money.format} />
-              <LocationMetricTile label="ohne Schutz Quote" value={formatPercent(entry.noProtectionCaseRate)} current={entry.noProtectionCaseRate} previous={previous?.noProtectionCaseRate ?? 0} format={formatPercent} />
+              <LocationMetricTile label="Zurückgeholt / bezahlt" value={money.format(entry.recoveredAmount)} current={entry.recoveredAmount} previous={previous?.recoveredAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="Offener Abzug" value={money.format(entry.openDeductionAmount)} current={entry.openDeductionAmount} previous={previous?.openDeductionAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="Zahlung/Grund prüfen" value={String(entry.economicCheckCount)} current={entry.economicCheckCount} previous={previous?.economicCheckCount ?? 0} format={integerNumber.format} />
               <LocationMetricTile label="Praxis nachfassen" value={String(entry.openCases)} current={entry.openCases} previous={previous?.openCases ?? 0} format={integerNumber.format} />
-              <LocationMetricTile label="ältester Fall" value={`${entry.oldest} Tage`} current={entry.oldest} previous={previous?.oldest ?? 0} format={(value) => `${integerNumber.format(value)} Tage`} />
             </div>
           </article>
         );
@@ -2589,10 +2613,11 @@ function LocationMetricTile({ label, value, current, previous, format, bare = fa
 }
 
 function locationChargebackRateInfo(entry: LocationSnapshot) {
-  const chargebackAmount = entry.metrics.returnAmount + entry.metrics.cancellationAmount;
   return [
-    `Herleitung Rückbelastungsquote: Rückgaben/Rückbelastungen plus Stornos geteilt durch eingereichten Umsatz.`,
-    `${money.format(chargebackAmount)} / ${money.format(entry.metrics.submitted)} = ${formatPercent(entry.chargebackRate)}.`,
+    `Herleitung Brutto Storno/Rückgabe: Rückgaben, Rückläufer und Stornos aus dem BFS-Kontoauszug, bevor die weitere Einordnung erfolgt.`,
+    `${money.format(entry.deductionAmount)} / ${money.format(entry.metrics.submitted)} = ${formatPercent(entry.deductionRate)} vom eingereichten Umsatz.`,
+    `Davon zurückgeholt oder bezahlt: ${money.format(entry.recoveredAmount)}. Offener Abzug nach Anrechnung: ${money.format(entry.openDeductionAmount)}.`,
+    `Zahlung/Grund prüfen: ${entry.economicCheckCount} Fall/Fälle mit ${money.format(entry.economicCheckAmount)}.`,
     `Rückgaben/Rückbelastungen: ${entry.metrics.returnCount} Fall/Fälle mit ${money.format(entry.metrics.returnAmount)}. Stornos: ${entry.metrics.cancellationCount} Fall/Fälle mit ${money.format(entry.metrics.cancellationAmount)}.`,
     `Zusatzinfo ohne Ausfallschutz: ${entry.noProtectionClaimCount} von ${entry.claimCount} erkannten Forderungspositionen laufen ohne Schutz, also ${formatPercent(entry.noProtectionCaseRate)}.`
   ].join(" ");
@@ -2606,7 +2631,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
     })
     .sort((a, b) => b.delta - a.delta);
   const expensive = [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate);
-  const weakQuality = [...snapshots].sort((a, b) => b.chargebackRate - a.chargebackRate || b.noProtectionCaseRate - a.noProtectionCaseRate);
+  const weakQuality = [...snapshots].sort((a, b) => b.deductionRate - a.deductionRate || b.openDeductionAmount - a.openDeductionAmount || b.noProtectionCaseRate - a.noProtectionCaseRate);
   const goodRecovery = [...snapshots].sort((a, b) => {
     const aComparison = buildManagementComparison(scopedRows, [a.standort], [], undefined, manualCaseResolutions);
     const bComparison = buildManagementComparison(scopedRows, [b.standort], [], undefined, manualCaseResolutions);
@@ -2618,7 +2643,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
       items: [
         `${growing[0]?.snapshot.standort.name ?? "-"} führt beim YTD-Delta (${formatDelta(growing[0]?.delta ?? 0)})`,
         `${growing.at(-1)?.snapshot.standort.name ?? "-"} ist im Wachstum schwächster Vergleichspunkt`,
-        "Wachstum immer gegen Gebührenquote und Rückbelastung lesen"
+        "Wachstum immer gegen Gebührenquote und offene Abzüge lesen"
       ]
     },
     {
@@ -2633,7 +2658,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
       title: "Forderungsqualität",
       items: [
         `${weakQuality[0]?.standort.name ?? "-"} hat den stärksten Qualitätsdruck`,
-        `Rückbelastungsquote dort: ${formatPercent(weakQuality[0]?.chargebackRate ?? 0)}`,
+        `Brutto-Storno/Rückgabe-Quote dort: ${formatPercent(weakQuality[0]?.deductionRate ?? 0)}`,
         `Ohne-Schutz-Quote dort: ${formatPercent(weakQuality[0]?.noProtectionCaseRate ?? 0)}`
       ]
     },
@@ -2641,8 +2666,8 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
       title: "Wiedereinholung",
       items: [
         `${goodRecovery[0]?.standort.name ?? "-"} wirkt bei Wiedereinholung am stärksten`,
-        "Hohe Rückbelastung mit guter Wiedereinholung ist anders zu bewerten als offene Rückbelastung",
-        "Niedrige Rückbelastung mit schlechter Patientenselektion bleibt Standortthema"
+        "Hoher Brutto-Abzug mit guter Wiedereinholung ist anders zu bewerten als offener Abzug",
+        "Niedriger Brutto-Abzug mit schlechter Patientenselektion bleibt Standortthema"
       ]
     }
   ];
@@ -2661,20 +2686,20 @@ function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRo
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
   const openCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [scopedRows, closedCaseKeys, invoiceStatusRows]);
-  const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, scopedRows, openCases), [orderedLocations, selectedPeriod, scopedRows, openCases]);
+  const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, importRows, openCases, manualCaseResolutions, invoiceStatusRows), [orderedLocations, selectedPeriod, importRows, openCases, manualCaseResolutions, invoiceStatusRows]);
   const comparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, comparisonPeriod, rowStandort) : false;
   }), [comparisonPeriod, importRows]);
   const comparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [closedCaseKeys, comparisonRows, invoiceStatusRows]);
-  const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, comparisonRows, comparisonOpenCases), [comparisonOpenCases, comparisonPeriod, comparisonRows, orderedLocations]);
+  const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, importRows, comparisonOpenCases, manualCaseResolutions, invoiceStatusRows), [comparisonOpenCases, comparisonPeriod, importRows, manualCaseResolutions, invoiceStatusRows, orderedLocations]);
   const previousComparisonPeriod = useMemo(() => previousYearPeriod(comparisonPeriod), [comparisonPeriod]);
   const previousComparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, previousComparisonPeriod, rowStandort) : false;
   }), [importRows, previousComparisonPeriod]);
   const previousComparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(previousComparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [closedCaseKeys, previousComparisonRows, invoiceStatusRows]);
-  const previousComparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, previousComparisonPeriod, previousComparisonRows, previousComparisonOpenCases), [orderedLocations, previousComparisonOpenCases, previousComparisonPeriod, previousComparisonRows]);
+  const previousComparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, previousComparisonPeriod, importRows, previousComparisonOpenCases, manualCaseResolutions, invoiceStatusRows), [orderedLocations, previousComparisonOpenCases, previousComparisonPeriod, importRows, manualCaseResolutions, invoiceStatusRows]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
   const highestRisk = useMemo(() => [...snapshots].sort((a, b) => b.riskScore - a.riskScore || b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);

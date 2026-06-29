@@ -1019,3 +1019,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Kacheln: haeufigste Position inkl. Durchschnittsfaktor, Standort mit hoechstem Durchschnittsfaktor, Standort mit niedrigstem Durchschnittsfaktor, umsatzstaerkste Position, groesste Faktorstreuung und Leistungsvielfalt.
 - Die KPI-Kacheln folgen dem gewaehlten Zeitraum- und Standortfilter.
 - Layout: 3 Spalten auf Desktop, damit die sechs Kacheln als ruhiger 3x2-Block lesbar bleiben.
+
+## Update 2026-06-29: Potenzialanalyse Top-Hebel erklaert
+
+- Die Kachel `Top-Hebel` in der Potenzialanalyse zeigt den Eurobetrag jetzt explizit als `Potenzial`.
+- Der Hint nennt zusaetzlich eigenen Durchschnittsfaktor und Gruppenschnitt-Faktor.
+- Der Info-Text nennt die konkrete Abrechnungsposition/Kurzbeschreibung und erklaert, dass der Eurobetrag der geschaetzte Mehrumsatz bei Erreichen des Gruppenschnitts ist.

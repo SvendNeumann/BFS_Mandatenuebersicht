@@ -6920,7 +6920,13 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
         <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" tone={totalPotential ? "green" : "blue"} />
         <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" tone={monthlyPotential ? "green" : "blue"} />
         <PriorityCard label="Unter Benchmark" value={integerNumber.format(underBenchmarkRows)} hint="Leistungsnummern" tone={underBenchmarkRows ? "amber" : "green"} />
-        <PriorityCard label="Top-Hebel" value={topLever?.code ?? "-"} hint={topLever ? money.format(topLever.potential) : "kein Potenzial"} tone={topLever?.potential ? "green" : "blue"} />
+        <PriorityCard
+          label="Top-Hebel"
+          value={topLever?.code ?? "-"}
+          hint={topLever ? `Potenzial ${money.format(topLever.potential)} · Ø ${feeRateNumber.format(topLever.avgFactor)} statt ${feeRateNumber.format(topLever.groupAvgFactor)}` : "kein Potenzial"}
+          tone={topLever?.potential ? "green" : "blue"}
+          info={topLever ? `${topLever.code}: ${topLever.description}. Das Potenzial beschreibt den geschätzten Mehrumsatz im gewählten Zeitraum, wenn der eigene Durchschnittsfaktor dieser Position den Gruppenschnitt ohne diesen Standort erreichen würde.` : undefined}
+        />
       </section>
       <section className="panel">
         <div className="panel-heading">

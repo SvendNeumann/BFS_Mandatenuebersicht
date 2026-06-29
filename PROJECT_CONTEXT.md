@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 14:25 Uhr
+Stand: 29.06.2026, ca. 14:40 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -23,6 +23,7 @@ Letzte Aenderung/Pruefung:
 - Nachpruefung direkt danach: Auch die Management-/Antwort-Sparklines fuer `Davon zurueckgeholt` verwenden jetzt manuelle Zahlungen plus erkannte Neueinreichungen bis maximal zum Brutto-Abzug. Es bleibt kein alter Recovery-Trendpfad uebrig, der nur reine Matching-Kandidaten zaehlt. Erneut erfolgreich geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check`.
 - Bedienhinweis: Nach Deployment/Codewechsel Browser hart neu laden. Fuer einen fachlich sauberen Datenstand die BFS-Abrechnungen und danach die BFS-Rechnungsstatus-/Saldo-Listen neu hochladen bzw. im Upload ersetzen, damit alle Kacheln mit der neuen Logik aus dem aktuellen Importzustand berechnet werden. Alte Browser-Vorschauen koennen noch alte Zahlen anzeigen, bis neu geladen/importiert wurde.
 - Tab `Forderungsqualitaet` nachgezogen: Der obere Qualitaets-KPI-Block hat jetzt ebenfalls Zeitraum- und Standortfilter inkl. `Alle Standorte`. Die Kacheln wurden fachlich klar getrennt: `Brutto Storno/Rueckgabe` als Qualitaets-Grundmenge aus Rueckgaben/Rueckbelastungen plus Stornos, `Rueckgabe/Rueckbelastung` als Rueckgabe-Untermenge, `Stornoquote` als reine Storno-Untermenge und `Storno-Zeilen erledigt` als Storno-Quercheck. Info-Texte erklaeren explizit, dass der wirtschaftliche `Offener Abzug` weiter appweit in Zusammenfassung/Geldfluss als Brutto-Abzug minus zurueckgeholt/bezahlt hergeleitet wird. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
+- Layout-Nachzug `Forderungsqualitaet`: Die obere KPI-Gruppe nutzt nun ein gleichmaessiges 3-Spalten-Raster statt der alten 2-3-1-Sonderaufteilung. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, `git diff --check` erfolgreich.
 
 ## Prompt fuer den naechsten Chat
 

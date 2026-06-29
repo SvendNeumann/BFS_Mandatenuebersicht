@@ -648,7 +648,15 @@ input {
 }
 
 .cockpit-kpi-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+}
+
+.cockpit-kpi-grid .kpi-card {
+  grid-column: span 4;
+}
+
+.cockpit-kpi-grid .kpi-card:nth-child(n + 6) {
+  grid-column: span 5;
 }
 
 .cockpit-kpi-grid .kpi-card {
@@ -4214,6 +4222,11 @@ td small {
   .custom-kpi-slider,
   .custom-kpi-secondary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cockpit-kpi-grid .kpi-card,
+  .cockpit-kpi-grid .kpi-card:nth-child(n + 6) {
+    grid-column: auto;
   }
 }
 

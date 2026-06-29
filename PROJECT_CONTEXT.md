@@ -928,3 +928,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die Standortzeilen verwenden dieselbe Formel wie die KPI-Kacheln: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
 - `Bereits geklaert` ist als Betrag relativ zum Brutto-Abzug dargestellt; `Offene Pruefsumme` als Betrag relativ zum eingereichten Umsatz.
 - Das Benchmark-Signal bewertet jetzt offene Pruefsumme, Ohne-Schutz-Anteil und Gebuehrenquote statt alter Storno-Stueckzahlquoten.
+
+## Update 2026-06-29: Management-KPI-Reihen gleich breit
+
+- Die KPI-Kacheln im `Management Cockpit` nutzen auf breitem Desktop ein 20-Spalten-Grid.
+- Obere Reihe: 5 Kacheln mit je 4 Spalten. Untere Reihe: 4 Kacheln mit je 5 Spalten.
+- Dadurch ist die untere KPI-Reihe real gleichmaessig ueber die volle Breite verteilt, statt rechts eine leere Fuenfergrid-Spalte stehen zu lassen.
+- Unterhalb der breiten Desktop-Ansicht greifen weiter die bestehenden 3-/2-/1-Spalten-Regeln.

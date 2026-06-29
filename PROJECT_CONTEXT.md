@@ -796,3 +796,15 @@ Prioritaet 4: Operative Arbeit sauber getrennt halten
 - Tabellen immer kompakt, scrollbar, exportierbar
 
 Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf zeigen. Die Detailtabelle ist Beleg und Arbeitswerkzeug, nicht die Hauptgeschichte.
+
+## Update 2026-06-29: Operative BFS-Logik nach Saldo-Abgleich
+
+- Fachliche Logikstrecke ist jetzt: Umsatz eingereicht -> BFS-Kosten -> Umsatz ausgezahlt -> davon ohne Ausfallschutz -> Brutto Storno/Rueckgabe -> weiterer Status.
+- Saldo 0 bei BFS bedeutet nur: der BFS-Saldo ist geschlossen. Es bedeutet nicht automatisch, dass die Praxis wirtschaftlich Geld bekommen hat.
+- Operative Fallarbeit ist deshalb getrennt:
+  - Praxis nachfassen: Rueckgaben ohne Ausfallschutz und echte Praxis-Aufgaben. Diese Faelle bleiben aktiv, auch wenn BFS-Saldo 0 ist.
+  - Zahlung / Grund pruefen: saldobereinigte Storno-/Rueckgabefaelle, bei denen Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegt werden muss.
+  - Neueinreichung / Matching: echte Ersatz-/Neueinreichungen, die Brutto-Stornos als zurueckgeholt/gewandelt erklaeren.
+- Erledigt braucht keinen eigenen Haupttab. Erledigungen bleiben Status/Filter/Historie.
+- Navigation wurde entsprechend angepasst; die alte interne `cases`-Route bleibt nur als Rueckwaertskompatibilitaet und zeigt fachlich `Praxis nachfassen`.
+- `Zahlung / Grund pruefen` wird aus dem Saldo-Pruefkorb gespeist und hat eigene Standort-/Zeitraumfilter sowie Summen, damit wirtschaftlich offene Belegfaelle sichtbar bleiben.

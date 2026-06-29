@@ -110,8 +110,9 @@ const superAdminNavGroups: NavGroup[] = [
       {
         title: "Operative Fallarbeit",
         items: [
-          ["matches", "Matching & Neueinreichungen", RefreshCw],
-          ["cases", "Klärfälle", AlertCircle]
+          ["practiceFollowup", "Praxis nachfassen", AlertCircle],
+          ["economicCheck", "Zahlung / Grund prüfen", ClipboardCheck],
+          ["matches", "Neueinreichung / Matching", RefreshCw]
         ]
       },
       {
@@ -188,8 +189,9 @@ const leadNavGroups: NavGroup[] = [
       {
         title: "Operative Fallarbeit",
         items: [
-          ["matches", "Matching & Neueinreichungen", RefreshCw],
-          ["cases", "Klärfälle", AlertCircle]
+          ["practiceFollowup", "Praxis nachfassen", AlertCircle],
+          ["economicCheck", "Zahlung / Grund prüfen", ClipboardCheck],
+          ["matches", "Neueinreichung / Matching", RefreshCw]
         ]
       },
       {
@@ -301,7 +303,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "cases", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "economicCheck", "matches", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -653,7 +655,22 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "invoiceOverview" && <InvoiceOverviewView invoiceRows={invoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
             {activeView === "invoiceLabs" && <InvoiceLabsView invoiceRows={invoiceRows} />}
-            {activeView === "cases" && <CasesView cases={role === "super_admin" ? appCases : visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
+            {(activeView === "cases" || activeView === "practiceFollowup") && (
+              <CasesView
+                title="Praxis nachfassen"
+                description="Rückgaben ohne Ausfallschutz und echte Praxis-Aufgaben. Diese Beträge sind bei BFS nicht mehr abgesichert; die Praxis muss Zahlung oder Klärung selbst nachhalten."
+                cases={(role === "super_admin" ? appCases : visibleCases).filter(isPracticeFollowupCase)}
+                onResolvePaid={resolveCaseAsPaid}
+                onCancelFinal={cancelCaseFinally}
+              />
+            )}
+            {activeView === "economicCheck" && (
+              <EconomicCheckView
+                rows={invoiceStatusRows}
+                importRows={privacyScopedImportRows}
+                standort={isGroupScope ? undefined : selectedStandort}
+              />
+            )}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
@@ -846,10 +863,11 @@ function flattenNavGroups(groups: NavGroup[]) {
 }
 
 function isKnownView(view: string) {
-  return [...flattenNavGroups(superAdminNavGroups), ...flattenNavGroups(leadNavGroups)].some((section) => section.items.some(([key]) => key === view));
+  return view === "cases" || [...flattenNavGroups(superAdminNavGroups), ...flattenNavGroups(leadNavGroups)].some((section) => section.items.some(([key]) => key === view));
 }
 
 function isKnownViewForRole(view: string, role: AppRole) {
+  if (view === "cases") return true;
   const nav = flattenNavGroups(role === "super_admin" ? superAdminNavGroups : leadNavGroups);
   return nav.some((section) => section.items.some(([key]) => key === view));
 }
@@ -879,11 +897,13 @@ function titleFor(view: string) {
     invoiceOverview: "Rechnungsübersicht",
     invoiceServices: "Leistungsanalyse",
     invoiceLabs: "Laboranalyse",
-    cases: "Klärfälle",
+    cases: "Praxis nachfassen",
+    practiceFollowup: "Praxis nachfassen",
+    economicCheck: "Zahlung / Grund prüfen",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     patientClasses: "Patientenklassifizierung",
-    matches: "Neueinreichungsvorschläge",
+    matches: "Neueinreichung / Matching",
     reports: "Report-Center",
     outcomes: "Maßnahmenkontrolle",
     groupReports: "Gruppenreports",
@@ -5833,6 +5853,120 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
   );
 }
 
+function EconomicCheckView({ rows, importRows, standort }: { rows: ParsedInvoiceStatusRow[]; importRows: ImportPreviewRow[]; standort?: Standort }) {
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [standortFilter, setStandortFilter] = useState(standort?.id ?? "alle");
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const period = useMemo(() => periodOptions.find((entry) => entry.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
+  const reviewRows = useMemo(() => buildInvoiceStatusReviewBasket(rows, importRows).filter((row) => row.category === "economic_check"), [rows, importRows]);
+  const availableStandorte = useMemo(() => orderedStandorte().filter((entry) => reviewRows.some((row) => row.standortId === entry.id)), [reviewRows]);
+  const filteredRows = useMemo(() => {
+    const effectiveStandortId = standort?.id ?? standortFilter;
+    return reviewRows.filter((row) => {
+      const rowStandort = row.standortId ? standorte.find((entry) => entry.id === row.standortId) : undefined;
+      const matchesStandort = effectiveStandortId === "alle" || row.standortId === effectiveStandortId;
+      const matchesPeriod = rowStandort ? shortDateInPeriod(row.sourceDate, period, rowStandort) : true;
+      return matchesStandort && matchesPeriod;
+    });
+  }, [reviewRows, standort?.id, standortFilter, period]);
+  const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => sum + row.amount, 0), [filteredRows]);
+  const highestRow = useMemo(() => filteredRows.reduce<InvoiceStatusReviewRow | undefined>((max, row) => !max || row.amount > max.amount ? row : max, undefined), [filteredRows]);
+  const locationCount = useMemo(() => new Set(filteredRows.map((row) => row.standortId ?? row.locationName)).size, [filteredRows]);
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Zahlung / Grund prüfen</h2>
+          <p>BFS-Saldo ist geschlossen, aber die wirtschaftliche Ursache muss belegt werden: Zahlung, echte Neueinreichung oder nachvollziehbarer Storno-Grund.</p>
+        </div>
+        <div className="case-list-actions">
+          <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+        </div>
+      </div>
+      <div className="period-filter case-table-filter">
+        {!standort && (
+          <label className="select-label">
+            Standort
+            <select value={standortFilter} onChange={(event) => setStandortFilter(event.target.value)}>
+              <option value="alle">Alle Standorte</option>
+              {availableStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {standort && (
+          <label className="select-label">
+            Standort
+            <select value={standort.id} disabled>
+              <option value={standort.id}>{standort.name}</option>
+            </select>
+          </label>
+        )}
+        <label className="select-label">
+          Zeitraum
+          <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+            {periodOptions.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.label}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <span>Tab-Auswertung</span>
+          <strong>{integerNumber.format(filteredRows.length)} Fälle / {money.format(totalAmount)}</strong>
+        </div>
+      </div>
+      <div className="case-summary-grid" aria-label="Zahlung und Grund prüfen">
+        <article>
+          <span>Prüfbetrag gesamt</span>
+          <strong>{money.format(totalAmount)}</strong>
+        </article>
+        <article>
+          <span>Prüffälle</span>
+          <strong>{integerNumber.format(filteredRows.length)}</strong>
+        </article>
+        <article>
+          <span>Betroffene Standorte</span>
+          <strong>{integerNumber.format(locationCount)}</strong>
+        </article>
+        <article>
+          <span>Höchste Einzelposition</span>
+          <strong>{money.format(highestRow?.amount ?? 0)}</strong>
+        </article>
+      </div>
+      <div className="table-wrap case-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Standort</th>
+              <th>Patient</th>
+              <th>Rechnung</th>
+              <th>Betrag</th>
+              <th>Grund / Status</th>
+              <th>Nächster Schritt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRows.length ? filteredRows.map((row) => (
+              <tr key={row.id}>
+                <td><StatusBadge status={row.categoryLabel} /></td>
+                <td>{row.locationName}</td>
+                <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
+                <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
+                <td>{money.format(row.amount)}</td>
+                <td>{row.detail}</td>
+                <td>{row.nextStep}</td>
+              </tr>
+            )) : <EmptyTableRow colSpan={7} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function InvoiceStatusFileSummary({
   documents,
   selectedFileNames,
@@ -5977,6 +6111,7 @@ type InvoiceStatusReviewRow = {
   id: string;
   category: InvoiceStatusReviewCategory;
   categoryLabel: string;
+  standortId?: string;
   locationName: string;
   patientName: string;
   invoiceNo: string;
@@ -5984,6 +6119,7 @@ type InvoiceStatusReviewRow = {
   amount: number;
   detail: string;
   source: string;
+  sourceDate?: string;
   nextStep: string;
 };
 
@@ -5998,6 +6134,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
   rows.forEach((row) => {
     const standort = standortFromMandantNo(row.mandantNo);
     const base = {
+      standortId: standort?.id,
       locationName: standort?.name ?? "Standort nicht erkannt",
       patientName: row.patientName,
       invoiceNo: row.invoiceNo,
@@ -6057,6 +6194,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         id: `practice-followup-${fall.id}`,
         category: "no_protection",
         categoryLabel: "Praxis nachfassen",
+        standortId: fall.standortId,
         locationName: fall.locationName,
         patientName: fall.patientName,
         invoiceNo: fall.invoiceNo,
@@ -6064,6 +6202,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         amount: fall.amount,
         detail: `${fall.reason}; ${statusRow ? `${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}` : "kein Saldo-Treffer"}`,
         source: "Abrechnung + Saldo-Liste",
+        sourceDate: fall.sourceDate,
         nextStep: "Praxis muss den Betrag selbst klären/eintreiben; Saldo 0 bei BFS ist hier kein Zahlungsnachweis."
       });
     });
@@ -6075,6 +6214,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         id: `missing-saldo-${fall.id}`,
         category: "missing_in_saldo",
         categoryLabel: "nicht in Saldo",
+        standortId: fall.standortId,
         locationName: fall.locationName,
         patientName: fall.patientName,
         invoiceNo: fall.invoiceNo,
@@ -6082,6 +6222,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         amount: fall.amount,
         detail: fall.reason,
         source: "Abrechnungsimport",
+        sourceDate: fall.sourceDate,
         nextStep: "Prüfen, warum der Abrechnungsfall in der aktuellen Saldo-Liste fehlt."
       });
     });
@@ -6095,6 +6236,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         id: `saldo-economic-check-${fall.id}`,
         category: "economic_check",
         categoryLabel: "Zahlung/Grund prüfen",
+        standortId: fall.standortId,
         locationName: fall.locationName,
         patientName: fall.patientName,
         invoiceNo: fall.invoiceNo,
@@ -6102,6 +6244,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         amount: fall.amount,
         detail: `${fall.reason}; ${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}`,
         source: "Abrechnung + Saldo-Liste",
+        sourceDate: fall.sourceDate,
         nextStep: "BFS ist geschlossen; Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegen."
       });
     });
@@ -6121,6 +6264,7 @@ function finalCancelledImportRows(importRows: ImportPreviewRow[]) {
         id: `final-cancelled-${importRow.fileHash ?? importRow.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
         category: "final_cancelled" as const,
         categoryLabel: "storniert/ausgebucht",
+        standortId: standort.id,
         locationName: standort.name,
         patientName: movement.patientName ?? "Patient noch nicht gematcht",
         invoiceNo: movement.invoiceNo ?? "-",
@@ -6128,9 +6272,14 @@ function finalCancelledImportRows(importRows: ImportPreviewRow[]) {
         amount: Math.abs(movement.amount ?? 0),
         detail: movement.reason ?? reasonLabel(movement.reasonCategory),
         source: "Abrechnungsimport",
+        sourceDate: importRow.date,
         nextStep: "Grund und Betrag dokumentieren; prüfen, ob Praxis aktiv storniert/ausgebucht hat."
       }));
   });
+}
+
+function isPracticeFollowupCase(fall: BfsCase) {
+  return fall.status === "ohne_schutz_offen" || isNoProtectionReturnCase(fall);
 }
 
 function isFinalCancellationMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {

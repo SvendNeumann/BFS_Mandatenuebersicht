@@ -6963,7 +6963,15 @@ function InvoiceOverviewView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
 }
 
 function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
-  const rows = invoiceServiceSummary(invoiceRows);
+  const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [standortId, setStandortId] = useState("gruppe");
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
+  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => row.standortId === standort.id || row.standortName === standort.name)), [invoiceRows]);
+  const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
+  const scopedRows = useMemo(() => invoiceRows.filter((row) => invoiceInPeriod(row, selectedPeriod) && (!selectedStandort || row.standortId === selectedStandort.id || row.standortName === selectedStandort.name)), [invoiceRows, selectedPeriod, selectedStandort]);
+  const rows = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
+  const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
   return (
     <div className="content-stack">
       <section className="panel">
@@ -6971,8 +6979,28 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           <div>
             <span className="eyebrow">Leistungsanalyse</span>
             <h2>Leistungsnummern nach Häufigkeit, Faktor und Betrag</h2>
-            <p>Schlanke Startauswertung: alle erkannten Leistungspositionen aus den eingelesenen Rechnungen, konsolidiert über Standorte.</p>
+            <p>Leistungspositionen im gewählten Zeitraum. Bei Einzelstandorten wird der reale Standortfaktor gegen den Gruppendurchschnitt ohne diesen Standort verglichen.</p>
           </div>
+        </div>
+        <div className="period-filter custom-kpi-period">
+          <label>
+            Zeitraum
+            <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Standort
+            <select value={standortId} onChange={(event) => setStandortId(event.target.value)}>
+              <option value="gruppe">Alle Standorte</option>
+              {invoiceStandorte.map((standort) => (
+                <option key={standort.id} value={standort.id}>{standort.name}</option>
+              ))}
+            </select>
+          </label>
+          <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
         </div>
         <div className="table-wrap compact-table">
           <table>
@@ -6980,8 +7008,10 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
               <tr>
                 <th>Nr.</th>
                 <th>Kurzbeschreibung</th>
-                <th>Häufigkeit</th>
+                <th>{selectedStandort ? `${selectedStandort.name} Fälle` : "Häufigkeit"}</th>
                 <th>Ø Faktor</th>
+                <th>{comparisonLabel}</th>
+                <th>Delta</th>
                 <th>Min / Max</th>
                 <th>Summe</th>
                 <th>Standorte</th>
@@ -6994,11 +7024,13 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
                   <td>{row.description}</td>
                   <td>{integerNumber.format(row.count)}</td>
                   <td>{row.avgFactor ? feeRateNumber.format(row.avgFactor) : "-"}</td>
+                  <td>{row.groupAvgFactor ? feeRateNumber.format(row.groupAvgFactor) : "-"}</td>
+                  <td>{row.factorDelta === null ? "-" : formatFactorDelta(row.factorDelta)}</td>
                   <td>{row.minFactor ? `${feeRateNumber.format(row.minFactor)} / ${feeRateNumber.format(row.maxFactor)}` : "-"}</td>
                   <td>{money.format(row.amount)}</td>
                   <td>{row.locations.join(", ")}</td>
                 </tr>
-              )) : <EmptyTableRow colSpan={7} label="Noch keine Rechnungen eingelesen." />}
+              )) : <EmptyTableRow colSpan={9} label="Noch keine Rechnungen im gewählten Filter." />}
             </tbody>
           </table>
         </div>
@@ -7115,7 +7147,7 @@ function mergeInvoiceRows(currentRows: ParsedInvoiceDocument[], nextRows: Parsed
   return [...byKey.values()];
 }
 
-function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[]) {
+function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: PeriodOption, selectedStandort?: Standort) {
   const byCode = new Map<string, {
     code: string;
     description: string;
@@ -7126,9 +7158,17 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[]) {
     minFactor: number;
     maxFactor: number;
     locations: Set<string>;
+    groupFactorSum: number;
+    groupFactorCount: number;
   }>();
 
-  invoiceRows.forEach((invoice) => {
+  invoiceRows.filter((invoice) => !period || invoiceInPeriod(invoice, period)).forEach((invoice) => {
+    const isSelectedStandort = selectedStandort
+      ? invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name
+      : true;
+    const isComparisonStandort = selectedStandort
+      ? invoice.standortId !== selectedStandort.id && invoice.standortName !== selectedStandort.name
+      : true;
     invoice.serviceLines.forEach((line) => {
       const entry = byCode.get(line.code) ?? {
         code: line.code,
@@ -7139,29 +7179,58 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[]) {
         factorCount: 0,
         minFactor: Number.POSITIVE_INFINITY,
         maxFactor: 0,
-        locations: new Set<string>()
+        locations: new Set<string>(),
+        groupFactorSum: 0,
+        groupFactorCount: 0
       };
-      entry.count += 1;
-      entry.amount += line.amount;
-      entry.locations.add(invoice.standortName);
-      if (line.factor) {
+      if (isSelectedStandort) {
+        entry.count += 1;
+        entry.amount += line.amount;
+        entry.locations.add(invoice.standortName);
+      }
+      if (isSelectedStandort && line.factor) {
         entry.factorSum += line.factor;
         entry.factorCount += 1;
         entry.minFactor = Math.min(entry.minFactor, line.factor);
         entry.maxFactor = Math.max(entry.maxFactor, line.factor);
+      }
+      if (isComparisonStandort && line.factor) {
+        entry.groupFactorSum += line.factor;
+        entry.groupFactorCount += 1;
       }
       byCode.set(line.code, entry);
     });
   });
 
   return [...byCode.values()]
+    .filter((entry) => entry.count > 0)
     .map((entry) => ({
       ...entry,
       avgFactor: entry.factorCount ? entry.factorSum / entry.factorCount : 0,
+      groupAvgFactor: entry.groupFactorCount ? entry.groupFactorSum / entry.groupFactorCount : 0,
+      factorDelta: entry.factorCount && entry.groupFactorCount ? (entry.factorSum / entry.factorCount) - (entry.groupFactorSum / entry.groupFactorCount) : null,
       minFactor: Number.isFinite(entry.minFactor) ? entry.minFactor : 0,
       locations: [...entry.locations].sort()
     }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount);
+}
+
+function invoiceInPeriod(invoice: ParsedInvoiceDocument, period: PeriodOption) {
+  const date = parseGermanDate(invoice.invoiceDate);
+  if (Number.isNaN(date.getTime())) return true;
+  if (!period.start && !period.end) {
+    const standort = standorte.find((entry) => entry.id === invoice.standortId || entry.name === invoice.standortName);
+    return standort ? date >= new Date(`${standort.goLiveDate}T00:00:00`) : true;
+  }
+  if (period.start && date < period.start) return false;
+  if (period.end && date > period.end) return false;
+  return true;
+}
+
+function formatFactorDelta(value: number) {
+  const formatted = feeRateNumber.format(Math.abs(value));
+  if (Math.abs(value) < 0.005) return "0,00";
+  return `${value > 0 ? "+" : "-"}${formatted}`;
 }
 
 function EmptyTableRow({ colSpan, label }: { colSpan: number; label: string }) {

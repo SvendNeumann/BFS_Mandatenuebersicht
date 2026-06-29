@@ -4250,6 +4250,15 @@ function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedIn
           lastComment: "Kein Treffer in bestätigter BFS-Saldo-Liste"
         } satisfies BfsCase];
       }
+      if (isNoProtectionReturnCase(fall)) {
+        return [{
+          ...fall,
+          reason: fall.reason.startsWith("Rückgabe ohne Ausfallschutz") ? fall.reason : `Rückgabe ohne Ausfallschutz: ${fall.reason}`,
+          status: "ohne_schutz_offen",
+          traffic: "red",
+          lastComment: `BFS-Saldo: ${money.format(statusRow.saldo)} · Rückgabe ohne Ausfallschutz bleibt Nachfassfall der Praxis`
+        } satisfies BfsCase];
+      }
       if (isInvoiceStatusAutoResolved(statusRow)) return [];
 
       const criticalOpen = statusRow.saldo < -0.005 && !statusRow.installmentPlan;
@@ -6053,7 +6062,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
     });
 
   importCases
-    .filter((fall) => isStornoClarificationCase(fall))
+    .filter((fall) => isStornoClarificationCase(fall) && !isNoProtectionReturnCase(fall))
     .forEach((fall) => {
       const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusRowsByKey.get(key)).find(Boolean);
       if (!statusRow || !isInvoiceStatusAutoResolved(statusRow)) return;
@@ -6109,6 +6118,11 @@ function isStornoClarificationCase(fall: BfsCase) {
   return text.includes("storno") || text.includes("ausbuch") || text.includes("liquidation");
 }
 
+function isNoProtectionReturnCase(fall: BfsCase) {
+  const text = `${fall.status} ${fall.reason} ${fall.lastComment ?? ""}`.toLowerCase();
+  return text.includes("rückgabe ohne ausfallschutz") || text.includes("rueckgabe ohne ausfallschutz") || text.includes("ohne ausfallschutz");
+}
+
 function summarizeInvoiceStatusReviewBasket(rows: InvoiceStatusReviewRow[]) {
   return rows.reduce((summary, row) => {
     if (row.category === "critical_open") summary.criticalOpen += 1;
@@ -6151,13 +6165,13 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
   const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
   rows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
   const correctedCaseCount = rows.length
-    ? importCases.filter((fall) => caseInvoiceMatchKeys(fall).some((key) => {
+    ? importCases.filter((fall) => !isNoProtectionReturnCase(fall) && caseInvoiceMatchKeys(fall).some((key) => {
       const statusRow = statusRowsByKey.get(key);
       return statusRow ? isInvoiceStatusAutoResolved(statusRow) : false;
     })).length
     : 0;
   const cancelledCorrectedCaseCount = rows.length
-    ? importCases.filter((fall) => isStornoClarificationCase(fall) && caseInvoiceMatchKeys(fall).some((key) => {
+    ? importCases.filter((fall) => !isNoProtectionReturnCase(fall) && isStornoClarificationCase(fall) && caseInvoiceMatchKeys(fall).some((key) => {
       const statusRow = statusRowsByKey.get(key);
       return statusRow ? isInvoiceStatusAutoResolved(statusRow) : false;
     })).length

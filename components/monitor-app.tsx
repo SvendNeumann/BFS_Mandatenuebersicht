@@ -7258,9 +7258,28 @@ async function parseInvoiceStatusFileChunk(
   });
 
   if (response.ok) {
-    const payload = await response.json() as { documents: ParsedInvoiceStatusDocument[] };
-    payload.documents.forEach((document, index) => onProgress?.(index + 1, files.length, document.file));
-    return payload.documents;
+    const payload = await response.json() as {
+      documents?: ParsedInvoiceStatusDocument[];
+      persistence?: { errors?: Array<{ file: string; message: string }> };
+    };
+    const serverDocuments = payload.documents ?? [];
+    serverDocuments.forEach((document, index) => onProgress?.(index + 1, files.length, document.file));
+    const parsedFiles = new Set(serverDocuments.map((document) => document.file));
+    const missingFiles = files.filter((file) => !parsedFiles.has(uploadFilePath(file)));
+    if (!missingFiles.length) return serverDocuments;
+
+    const recoveredDocuments = await parseInvoiceStatusUploadFiles(missingFiles, (processed, total, fileName) => {
+      onProgress?.(serverDocuments.length + processed, files.length, `Browser-Nachlesung ${processed}/${total}: ${fileName}`);
+    });
+    const recoveredFileNames = new Set(recoveredDocuments.map((document) => document.file));
+    const stillMissing = missingFiles
+      .map(uploadFilePath)
+      .filter((fileName) => !recoveredFileNames.has(fileName));
+    if (stillMissing.length && !serverDocuments.length && !recoveredDocuments.length) {
+      const serverErrors = payload.persistence?.errors?.map((entry) => `${entry.file}: ${entry.message}`).join("; ");
+      throw new Error(serverErrors || `Saldo-Listen konnten nicht gelesen werden: ${stillMissing.join(", ")}`);
+    }
+    return mergeInvoiceStatusDocuments(serverDocuments, recoveredDocuments);
   }
 
   if (process.env.NODE_ENV !== "production") {

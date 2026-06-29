@@ -8977,9 +8977,6 @@ function CasesView({
           <p>{description ?? "Originaldaten sind read-only; nur interne Bearbeitung und Erledigungsgründe werden gepflegt."}</p>
         </div>
         <div className="case-list-actions">
-          <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
-            <Printer size={16} /> PDF Export
-          </button>
           <div className="search-box"><Search size={16} /><input value={caseSearchTerm} onChange={(event) => setCaseSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
@@ -9036,8 +9033,17 @@ function CasesView({
           <CaseColumnChart title="Fallgründe" values={caseReasonDistribution(filteredRows)} valueKind="money" />
         </div>
       </section>
+      <div className="table-section-heading">
+        <div>
+          <span className="eyebrow">Arbeitsliste</span>
+          <h2>Offene Nachfassfälle</h2>
+        </div>
+        <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
+          <Printer size={16} /> PDF Export
+        </button>
+      </div>
       <div className={`table-wrap${compact && !tableScrollable ? "" : " case-table-scroll"}`}>
-        <table>
+        <table className="case-followup-table">
           <thead>
             <tr>
               <th>Ampel</th>

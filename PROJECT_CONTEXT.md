@@ -955,3 +955,11 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die Standort-Benchmark-Karten waren fachlich bereits auf die neue Logik umgestellt: `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`, `Pruefliste`.
 - Korrigiert wurde die Vorjahrszeile: Wenn der Vorjahreswert 0 ist, wird nicht mehr irrefuehrend `+100,0 %` angezeigt, sondern `Vergleich startet`.
 - Der Infotext fuer `Auffaelligster Standort` nennt jetzt ausdruecklich offene Pruefsumme, Ohne-Ausfallschutz-Risiko, Prueflistenalter und Volumen statt alter offener-Prueflisten-Sprache.
+
+## Update 2026-06-29: Schnellantworten auf neue Abzugslogik umgestellt
+
+- Im Tab `Schnellantworten` wurden die Kacheln `Brutto Storno/Rueckgabe`, `Bereits geklaert` und `Offene Pruefsumme` auf die zentrale Betragslogik umgestellt.
+- `Brutto Storno/Rueckgabe` zeigt jetzt den Brutto-Abzugsbetrag statt einer reinen Storno-Zeilenanzahl.
+- `Bereits geklaert` zeigt jetzt den geklaerten Betrag und die Quote vom Brutto-Abzug statt `gewandelt`/Stueckzahl.
+- `Offene Pruefsumme` kommt aus `Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`; die Fallanzahl bleibt nur als Hinweis auf die operative Pruefliste.
+- Die Schnellantwort-Sparklines nutzen jetzt `deductionAmount`, `recoveryRate` und `openAmount`; fehlende Vorjahreswerte werden als `VJ startet` gezeigt.

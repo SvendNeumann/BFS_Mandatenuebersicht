@@ -2700,9 +2700,9 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
   const qualityScopeLabel = qualityStandorte.length === 1 ? qualityStandorte[0].name : "Alle Standorte";
   const grossQualityDeduction = metrics.returnAmount + metrics.cancellationAmount;
   const openStornoInfo = [
-    `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als zurückgeholt/gewandelt.`,
+    `Diese Kachel betrachtet nur erkannte Storno-Zeilen: ${stornoReview.done} von ${stornoReview.total} Storno-Zeilen gelten als bereits geklärt.`,
     `${stornoReview.finalCancelled} Storno-Zeilen sind endgültig storniert und deshalb nicht mehr operativ offen.`,
-    "Als zurückgeholt/bezahlt gelten echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung. Saldo 0 allein reicht nicht.",
+    "Als bereits geklärt gelten echte Neueinreichung/Ersatzrechnung, wirtschaftlich belegte Zahlung oder eine manuelle Klärentscheidung. Saldo 0 allein reicht nicht.",
     `Weiter zu prüfen sind hier die noch nicht geklärten Storno-Zeilen aus dieser Grundmenge: ${stornoReview.open}.`
   ].join(" ");
 
@@ -3231,9 +3231,14 @@ function AnswerCockpit({
   const noProtectionTrend = useMemo(() => buildAnswerSparkline("noProtection", answerSparklineContext), [answerSparklineContext]);
   const recurringTrend = useMemo(() => buildAnswerSparkline("recurring", answerSparklineContext), [answerSparklineContext]);
   const feesTrend = useMemo(() => buildAnswerSparkline("fees", answerSparklineContext), [answerSparklineContext]);
-  const stornoTotalTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "total"), [stornoReview.rows]);
-  const stornoDoneTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "done"), [stornoReview.rows]);
-  const stornoOpenTrend = useMemo(() => stornoAnswerSparkline(stornoReview.rows, "open"), [stornoReview.rows]);
+  const grossDeductionTrend = useMemo(() => buildAnswerSparkline("deductionAmount", answerSparklineContext), [answerSparklineContext]);
+  const recoveredTrend = useMemo(() => buildAnswerSparkline("recoveryRate", answerSparklineContext), [answerSparklineContext]);
+  const openDeductionTrend = useMemo(() => buildAnswerSparkline("openAmount", answerSparklineContext), [answerSparklineContext]);
+  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
+  const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
+  const recoveredAmount = deductionRecovery.recoveredAmount;
+  const openDeductionAmount = deductionRecovery.openAmount;
+  const grossDeductionRate = submitted ? (grossDeductionAmount / submitted) * 100 : 0;
   const answerInfo = useMemo(() => buildAnswerCardInfo({
     periodLabel: resolvedPeriodLabel,
     scopeLabel: selectedStandortLabel,
@@ -3243,8 +3248,9 @@ function AnswerCockpit({
     recurringRisks,
     oldest,
     stornoReview,
-    openCaseAmount
-  }), [chargebacks, openCaseAmount, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel, stornoReview]);
+    openCaseAmount,
+    deductionRecovery
+  }), [chargebacks, deductionRecovery, openCaseAmount, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel, stornoReview]);
 
   useEffect(() => {
     if (previousAnswerScope.current !== scope) {
@@ -3288,9 +3294,9 @@ function AnswerCockpit({
         <AnswerMetricCard title="BFS-Kosten" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
         <AnswerMetricCard title="Umsatz ausgezahlt" value={money.format(payout)} hint="nach BFS-Abzug" trend={payoutTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.payout} onClick={() => onNavigate("claims")} />
         <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
-        <AnswerMetricCard title="Brutto Storno/Rückgabe" value={integerNumber.format(stornoReview.total)} hint={money.format(stornoReview.amount)} trend={stornoTotalTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
-        <AnswerMetricCard title="Bereits geklärt" value={integerNumber.format(stornoReview.done)} hint={`${formatPercent(stornoReview.doneRate)} geklärt`} trend={stornoDoneTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
-        <AnswerMetricCard title="Offene Prüfsumme" value={money.format(openCaseAmount)} hint={`${integerNumber.format(openCases.length)} Fälle in der Prüfliste`} trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
+        <AnswerMetricCard title="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${formatPercent(grossDeductionRate)} vom Eingang`} trend={grossDeductionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug`} trend={recoveredTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Offene Prüfsumme" value={money.format(openDeductionAmount)} hint={`${integerNumber.format(openCases.length)} Fälle in der Prüfliste`} trend={openDeductionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
         <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
       </div>
     </section>
@@ -3312,7 +3318,7 @@ function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClic
   );
 }
 
-function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, stornoReview, openCaseAmount }: {
+function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, stornoReview, openCaseAmount, deductionRecovery }: {
   periodLabel: string;
   scopeLabel: string;
   metrics: BfsMetrics;
@@ -3322,6 +3328,7 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   oldest: number;
   stornoReview: ReturnType<typeof stornoReviewFromImportRows>;
   openCaseAmount: number;
+  deductionRecovery: ReturnType<typeof buildDeductionRecovery>;
 }) {
   const openAmount = openCaseAmount;
   const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
@@ -3336,9 +3343,9 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
     noProtection: `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
     recurring: `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${recurringRisks.length} Wiederholer. Diese Kachel zeigt Patientenselektion und Standortprozess, nicht einzelne Buchungssummen.`,
     fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
-    stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
-    stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder wirtschaftlich geklärt. Dazu zählen echte spätere Neueinreichung/Ersatzrechnung oder belegte Zahlung. Saldo 0 allein ist kein Zahlungsnachweis. Quote: ${formatPercent(stornoReview.doneRate)}.`,
-    stornoOpen: `Herleitung: Summe der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: ${periodLabel}. Aktuell: ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Diese Fälle werden einzeln als bezahlt/geklärt oder endgültig storniert entschieden.`,
+    stornoTotal: `Herleitung: Brutto Storno/Rückgabe ist die Grundmenge aller erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${money.format(deductionRecovery.grossDeductionAmount)} aus ${metrics.returnCount + metrics.cancellationCount} erkannten Abzugsbewegungen. Danach wird getrennt in bereits geklärt, offene Prüfsumme und endgültig verloren.`,
+    stornoDone: `Herleitung: Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. Dazu zählen echte Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder manuell belegte Zahlung/Klärung. Aktuell: ${money.format(deductionRecovery.recoveredAmount)} bzw. ${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug. Saldo 0 allein ist kein Zahlungsnachweis.`,
+    stornoOpen: `Herleitung: Offene Prüfsumme = Brutto Storno/Rückgabe - Bereits geklärt - Endgültig verloren. Zeitraum: ${periodLabel}, Filter: ${scopeLabel}. Aktuell: ${money.format(deductionRecovery.openAmount)}; die zugehörige operative Liste enthält ${openCases.length} Fälle mit zusammen ${money.format(openAmount)} und wird je Fall als bezahlt/geklärt oder endgültig storniert entschieden.`,
     oldest: `Herleitung: Höchstes Alter unter allen Fällen der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
@@ -3411,36 +3418,13 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const label = previousTotal
     ? `VJ ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
     : currentTotal
-      ? "VJ 0"
+      ? "VJ startet"
       : "kein Trend";
 
   return {
     points: points.length ? points : [0, currentTotal, currentTotal],
     tone,
     label
-  };
-}
-
-function stornoAnswerSparkline(stornoRows: ReturnType<typeof stornoReviewFromImportRows>["rows"], metric: "total" | "done" | "open"): AnswerSparklineTrend {
-  const monthForRow = (row: ReturnType<typeof stornoReviewFromImportRows>["rows"][number]) => metric === "done"
-    ? monthKeyFromGermanDate(row.recoveryDate || row.date)
-    : monthKeyFromGermanDate(row.date);
-  const monthKeys = [...new Set(stornoRows.map((row) => monthForRow(row)).filter(Boolean))].sort();
-  const points = monthKeys.map((month) => {
-    const monthRows = stornoRows.filter((row) => monthForRow(row) === month);
-    if (metric === "done") return monthRows.filter((row) => row.done).length;
-    if (metric === "open") return monthRows.filter((row) => row.open).length;
-    return monthRows.length;
-  });
-  const total = metric === "done"
-    ? stornoRows.filter((row) => row.done).length
-    : metric === "open"
-      ? stornoRows.filter((row) => row.open).length
-      : stornoRows.length;
-  return {
-    points: points.length ? points : [0, total, total],
-    tone: metric === "done" ? "green" : total ? metric === "open" ? "red" : "amber" : "green",
-    label: metric === "done" ? "gewandelt" : metric === "open" ? "offen" : "Storno Verlauf"
   };
 }
 

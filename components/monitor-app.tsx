@@ -7224,28 +7224,46 @@ async function parseInvoiceStatusFiles(
   files: File[],
   onProgress?: (processed: number, total: number, fileName: string) => void
 ) {
-  if (typeof window !== "undefined") {
-    try {
-      return mergeInvoiceStatusDocuments([], await parseInvoiceStatusUploadFiles(files, onProgress));
-    } catch (error) {
-      onProgress?.(0, files.length, `Browser-Lesung fehlgeschlagen, Server-Fallback: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
-    }
-  }
-
-  const chunks = chunkUploadFiles(files);
   const documents: ParsedInvoiceStatusDocument[] = [];
-  let processed = 0;
-
-  for (const [chunkIndex, chunk] of chunks.entries()) {
-    const chunkDocuments = await parseInvoiceStatusFileChunk(chunk, (chunkProcessed, _chunkTotal, fileName) => {
-      onProgress?.(processed + chunkProcessed, files.length, `Paket ${chunkIndex + 1}/${chunks.length}: ${fileName}`);
-    });
-    documents.push(...chunkDocuments);
-    processed += chunk.length;
-    onProgress?.(processed, files.length, `Paket ${chunkIndex + 1}/${chunks.length} abgeschlossen`);
+  for (const [index, file] of files.entries()) {
+    const filePath = uploadFilePath(file);
+    onProgress?.(index, files.length, `Starte ${filePath}`);
+    try {
+      const parsed = typeof window !== "undefined"
+        ? await parseInvoiceStatusUploadFiles([file])
+        : await parseInvoiceStatusFileChunk([file]);
+      if (parsed.length) {
+        documents.push(...parsed);
+      } else {
+        documents.push(unreadableInvoiceStatusDocument(file, "Keine Rechnungsstatus-Liste erkannt."));
+      }
+    } catch (browserError) {
+      try {
+        const fallback = await parseInvoiceStatusFileChunk([file]);
+        documents.push(...(fallback.length ? fallback : [unreadableInvoiceStatusDocument(file, "Server-Fallback hat keine Liste zurückgegeben.")]));
+      } catch (serverError) {
+        const message = [
+          browserError instanceof Error ? browserError.message : "Browser-Lesung fehlgeschlagen",
+          serverError instanceof Error ? serverError.message : "Server-Lesung fehlgeschlagen"
+        ].join(" / ");
+        documents.push(unreadableInvoiceStatusDocument(file, message));
+      }
+    }
+    onProgress?.(index + 1, files.length, filePath);
   }
 
   return mergeInvoiceStatusDocuments([], documents);
+}
+
+function unreadableInvoiceStatusDocument(file: File, message: string): ParsedInvoiceStatusDocument {
+  return {
+    file: uploadFilePath(file),
+    fileSizeBytes: file.size,
+    pageCount: 0,
+    rows: [],
+    status: "Zu prüfen",
+    parseNotes: [message]
+  };
 }
 
 async function parseInvoiceStatusFileChunk(

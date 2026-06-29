@@ -5534,7 +5534,9 @@ function UploadView({
       const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, parsedDocuments) : parsedDocuments;
       setPendingStatusDocuments(nextDocuments);
       const nextRows = nextDocuments.flatMap((document) => document.rows);
-      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt. Bitte bestätigen.`);
+      const coverage = summarizeInvoiceStatusCoverage(nextRows);
+      const coverageNote = `${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt${coverage.unknownMandantCount ? `, ${integerNumber.format(coverage.unknownMandantCount)} Zeilen ohne Standort` : ""}`;
+      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt, ${coverageNote}. Bitte bestätigen.`);
     } catch (error) {
       if (mode === "replace") setPendingStatusDocuments(null);
       setStatusUploadStatus(`Saldo-Listen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -5551,8 +5553,9 @@ function UploadView({
       const savedDocuments = await saveConfirmedInvoiceStatusDocuments(pendingStatusDocuments);
       onStatusDocumentsChange(savedDocuments);
       const confirmedRows = savedDocuments.flatMap((document) => document.rows);
+      const coverage = summarizeInvoiceStatusCoverage(confirmedRows);
       setPendingStatusDocuments(null);
-      setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen`);
+      setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen, ${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt`);
     } catch (error) {
       setStatusUploadStatus(`Saldo-Import konnte nicht bestätigt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
@@ -5709,6 +5712,7 @@ function UploadView({
       </section>
       <section className="priority-grid">
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : hasPendingStatusImport ? "Vorschau aus Saldo-Listen" : "bestätigte Saldo-Listen"} tone="blue" />
+        <PriorityCard label="Standorte erkannt" value={`${statusSummary.coveredStandortCount}/${standorte.length}`} hint={statusSummary.unknownMandantCount ? `${integerNumber.format(statusSummary.unknownMandantCount)} Zeilen ohne Standort` : "über Mandant-Nr. zugeordnet"} tone={statusSummary.coveredStandortCount === standorte.length && !statusSummary.unknownMandantCount ? "green" : "amber"} />
         <PriorityCard label="Storno-Basis" value={integerNumber.format(statusSummary.importCaseCount)} hint="offene Fälle aus Abrechnungsimport" tone="amber" />
         <PriorityCard label="Durch Saldo korrigiert" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" />
         <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0 oder RP aktiv" tone="green" />
@@ -6011,6 +6015,7 @@ function invoiceStatusReviewPriority(category: InvoiceStatusReviewCategory) {
 
 function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
   const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);
+  const unknownMandantCount = rows.filter((row) => !standortFromMandantNo(row.mandantNo)).length;
   const importCases = casesFromImportRows(importRows).filter((fall) => coveredStandortIds.has(fall.standortId));
   const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
   const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
@@ -6040,6 +6045,8 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
     if (criticalOpen && !row.protection) summary.noProtectionOpenCount += 1;
     return summary;
   }, {
+    coveredStandortCount: coveredStandortIds.size,
+    unknownMandantCount,
     importCaseCount: importCases.length,
     correctedCaseCount,
     autoResolvedCount: 0,
@@ -6050,6 +6057,13 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
     noProtectionOpenCount: 0,
     unmatchedCaseCount
   });
+}
+
+function summarizeInvoiceStatusCoverage(rows: ParsedInvoiceStatusRow[]) {
+  return {
+    coveredStandortCount: invoiceStatusCoveredStandortIds(rows).size,
+    unknownMandantCount: rows.filter((row) => !standortFromMandantNo(row.mandantNo)).length
+  };
 }
 
 function isInvoiceStatusAutoResolved(row: ParsedInvoiceStatusRow) {

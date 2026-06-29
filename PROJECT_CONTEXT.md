@@ -598,6 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- Offene Aenderung aus aktuellem Upload-Feedback: Saldo-/Rechnungsstatus-Vorschau zeigt jetzt zusaetzlich die Standortabdeckung `x/6 Standorte erkannt` und weist auf Zeilen ohne Standortzuordnung hin. Hintergrund: `1 Liste(n)` bedeutet Dateianzahl, nicht Standortanzahl.
 - Offene Aenderung aus aktueller Pruefung: Rechnungsstatus-Parser trennt Ratenplan-Monate in Klammern jetzt sauber von Mahnstufen. Beispiel `RP ja (12)` wird nicht mehr als `MS 12` angezeigt. Dazu gibt es einen Test in `tests/core-logic.test.ts`.
 - `dc38ebeb Collapse billing import detail sections`
 - `e1983efb Compact BFS import preview sections`

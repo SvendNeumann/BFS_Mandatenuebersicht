@@ -5567,6 +5567,8 @@ function UploadView({
       </section>
       <section className="priority-grid">
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : "Rechnungen aus Saldo-Listen"} tone="blue" />
+        <PriorityCard label="Storno-Basis" value={integerNumber.format(statusSummary.importCaseCount)} hint="offene Fälle aus Abrechnungsimport" tone="amber" />
+        <PriorityCard label="Durch Saldo korrigiert" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" />
         <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0 oder RP aktiv" tone="green" />
         <PriorityCard label="Kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" />
         <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
@@ -5636,11 +5638,22 @@ function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
 }
 
 function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
+  const importCases = casesFromImportRows(importRows);
   const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
-  const unmatchedCaseCount = casesFromImportRows(importRows).filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key))).length;
+  const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  rows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
+  const correctedCaseCount = rows.length
+    ? importCases.filter((fall) => caseInvoiceMatchKeys(fall).some((key) => {
+      const statusRow = statusRowsByKey.get(key);
+      return statusRow ? isInvoiceStatusAutoResolved(statusRow) : false;
+    })).length
+    : 0;
+  const unmatchedCaseCount = rows.length
+    ? importCases.filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key))).length
+    : 0;
 
   return rows.reduce((summary, row) => {
-    const autoResolved = row.paymentStatus === "bezahlt" || row.installmentPlan;
+    const autoResolved = isInvoiceStatusAutoResolved(row);
     const criticalOpen = row.saldo < -0.005 && !row.installmentPlan;
     if (autoResolved) {
       summary.autoResolvedCount += 1;
@@ -5654,6 +5667,8 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
     if (criticalOpen && !row.protection) summary.noProtectionOpenCount += 1;
     return summary;
   }, {
+    importCaseCount: importCases.length,
+    correctedCaseCount,
     autoResolvedCount: 0,
     autoResolvedAmount: 0,
     criticalOpenCount: 0,
@@ -5664,23 +5679,31 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
   });
 }
 
+function isInvoiceStatusAutoResolved(row: ParsedInvoiceStatusRow) {
+  return row.paymentStatus === "bezahlt" || row.installmentPlan;
+}
+
 function invoiceStatusMatchKeys(row: ParsedInvoiceStatusRow) {
-  return [
+  return normalizeMatchKeys([
     row.bfsNo,
     row.invoiceNo,
     `${row.patientName}|${row.invoiceNo}`,
     `${row.patientName}|${row.bfsNo}`
-  ].map(normalizeMatchKey);
+  ]);
 }
 
 function caseInvoiceMatchKeys(fall: BfsCase) {
-  return [
+  return normalizeMatchKeys([
     fall.bfsNo,
     fall.invoiceNo,
     `${fall.patientName}|${fall.invoiceNo}`,
     `${fall.patientName}|${fall.bfsNo}`,
     ...caseResolutionKeys(fall)
-  ].map(normalizeMatchKey);
+  ]);
+}
+
+function normalizeMatchKeys(values: string[]) {
+  return Array.from(new Set(values.map(normalizeMatchKey).filter(Boolean)));
 }
 
 function normalizeMatchKey(value: string) {

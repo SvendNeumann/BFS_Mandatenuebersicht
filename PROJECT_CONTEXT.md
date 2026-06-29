@@ -1005,3 +1005,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Entfernt wurden `Tab-Auswertung`, `Offener Betrag gesamt`, `Offene Faelle`, `Aeltester Fall`, `Hoechste Einzelposition`, `Offener Betrag je Standort` und `Fallgruende`.
 - Die Ansicht startet nach Standort-/Zeitraum-/Suchfilter direkt mit der Arbeitsliste und dem PDF-Export.
 - Ziel: Die Pruefliste bleibt eine reine operative Abarbeitungsliste; Auswertungen bleiben in den Analyse-/Cockpit-Bereichen.
+
+## Update 2026-06-29: Leistungsuebersicht Tabellenkopf desktopkompatibel
+
+- Die Tabellenkopfzeile der `Leistungsuebersicht` wurde fuer Desktop stabilisiert.
+- Problematische Header wie Leistungsnummer, Haeufigkeit und Gruppenschnitt brechen nicht mehr mitten im Wort um.
+- Die Leistungsuebersicht nutzt jetzt eigene Tabellen-Spaltenbreiten und eine groessere Mindestbreite mit horizontalem Scroll bei kleineren Viewports.
+- Die Inhalte und Berechnungen der Leistungsuebersicht bleiben unveraendert.

@@ -6823,15 +6823,15 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           </label>
           <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
         </div>
-        <div className="table-wrap compact-table invoice-services-scroll">
-          <table>
+        <div className="table-wrap compact-table invoice-services-scroll invoice-services-table-wrap">
+          <table className="invoice-services-table">
             <thead>
               <tr>
-                <th>Leistungsnr.</th>
+                <th>Nr.</th>
                 <th>Kurzbeschreibung</th>
                 <th>{selectedStandort ? `${selectedStandort.name} Fälle` : "Häufigkeit"}</th>
                 <th>Ø Faktor</th>
-                <th>{comparisonLabel}</th>
+                <th>{selectedStandort ? "Gruppenschnitt" : "Gruppen-Ø"}</th>
                 <th>Delta</th>
                 <th>Min / Max</th>
                 <th>Summe</th>

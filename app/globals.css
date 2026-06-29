@@ -2037,6 +2037,68 @@ input {
   overscroll-behavior: contain;
 }
 
+.invoice-services-table {
+  min-width: 1490px;
+  table-layout: fixed;
+}
+
+.invoice-services-table th,
+.invoice-services-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+.invoice-services-table th {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.invoice-services-table td:nth-child(1),
+.invoice-services-table th:nth-child(1) {
+  width: 112px;
+}
+
+.invoice-services-table td:nth-child(2),
+.invoice-services-table th:nth-child(2) {
+  width: 420px;
+}
+
+.invoice-services-table td:nth-child(3),
+.invoice-services-table th:nth-child(3) {
+  width: 116px;
+}
+
+.invoice-services-table td:nth-child(4),
+.invoice-services-table th:nth-child(4) {
+  width: 104px;
+}
+
+.invoice-services-table td:nth-child(5),
+.invoice-services-table th:nth-child(5) {
+  width: 132px;
+}
+
+.invoice-services-table td:nth-child(6),
+.invoice-services-table th:nth-child(6) {
+  width: 90px;
+}
+
+.invoice-services-table td:nth-child(7),
+.invoice-services-table th:nth-child(7) {
+  width: 112px;
+}
+
+.invoice-services-table td:nth-child(8),
+.invoice-services-table th:nth-child(8) {
+  width: 104px;
+}
+
+.invoice-services-table td:nth-child(9),
+.invoice-services-table th:nth-child(9) {
+  width: 300px;
+}
+
 .import-history-scroll thead th,
 .import-detail-scroll thead th,
 .import-reason-scroll thead th,

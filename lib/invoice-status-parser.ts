@@ -1,7 +1,7 @@
 import type { ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow } from "./types";
 
 const amountPattern = String.raw`-?\d{1,3}(?:\.\d{3})*,\d{2}`;
-const statusLinePattern = new RegExp(String.raw`^(?<mandantNo>\d{5})\s+(?<bfsNo>5-\d{5}-\d+)\s+(?<patient>.+?)\s+(?<externalPatientNo>\d+)\s+(?<invoiceNo>\S+)\s+(?<invoiceDate>\d{2}\.\d{2}\.\d{4})\s+(?<flags>.*?)\s+(?<amount>${amountPattern})\s€\s+(?<saldo>${amountPattern})\s€?$`);
+const statusLinePattern = new RegExp(String.raw`^(?<mandantNo>\d{5})\s+(?<bfsNo>5-\d{5}-\d+)\s+(?<patient>.+?)\s+(?<externalPatientNo>\d+)\s+(?<invoiceNo>\S+)\s+(?<invoiceDate>\d{2}\.\d{2}\.\d{4})\s+(?<flags>.*?)\s+(?<amount>${amountPattern})\s€\s+(?<saldo>${amountPattern})\s€?(?:\s+(?<cancelledAmount>${amountPattern})\s€?)?$`);
 
 export async function parseInvoiceStatusUploadFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
   const pdfFiles = files.filter(isInvoiceStatusPdfUploadFile);
@@ -60,6 +60,7 @@ function parseStatusLine(line: string, file: string, page: number): ParsedInvoic
   if (!match?.groups) return null;
   const amount = parseAmount(match.groups.amount);
   const saldo = parseAmount(match.groups.saldo);
+  const cancelledAmount = match.groups.cancelledAmount ? parseAmount(match.groups.cancelledAmount) : 0;
   const flags = parseStatusFlags(match.groups.flags);
   return {
     file,
@@ -77,7 +78,8 @@ function parseStatusLine(line: string, file: string, page: number): ParsedInvoic
     protection: flags.protection,
     amount,
     saldo,
-    paymentStatus: paymentStatus(amount, saldo, flags.installmentPlan),
+    cancelledAmount,
+    paymentStatus: paymentStatus(amount, saldo, flags.installmentPlan, cancelledAmount),
     riskFlags: []
   };
 }
@@ -101,7 +103,8 @@ function parseStatusFlags(raw: string) {
   };
 }
 
-function paymentStatus(amount: number, saldo: number, installmentPlan: boolean): ParsedInvoiceStatusRow["paymentStatus"] {
+function paymentStatus(amount: number, saldo: number, installmentPlan: boolean, cancelledAmount = 0): ParsedInvoiceStatusRow["paymentStatus"] {
+  if (cancelledAmount > 0.005 && Math.abs(saldo) < 0.005) return "storniert";
   if (Math.abs(saldo) < 0.005) return "bezahlt";
   if (installmentPlan) return "ratenzahlung";
   if (saldo < -0.005 && Math.abs(saldo) < amount - 0.005) return "teilbezahlt";

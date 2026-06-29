@@ -196,7 +196,8 @@ export type ParsedInvoiceStatusRow = {
   protection: boolean;
   amount: number;
   saldo: number;
-  paymentStatus: "bezahlt" | "offen" | "teilbezahlt" | "ratenzahlung";
+  cancelledAmount?: number;
+  paymentStatus: "bezahlt" | "offen" | "teilbezahlt" | "ratenzahlung" | "storniert";
   riskFlags: string[];
 };
 

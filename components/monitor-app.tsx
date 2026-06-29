@@ -5715,7 +5715,8 @@ function UploadView({
         <PriorityCard label="Standorte erkannt" value={`${statusSummary.coveredStandortCount}/${standorte.length}`} hint={statusSummary.unknownMandantCount ? `${integerNumber.format(statusSummary.unknownMandantCount)} Zeilen ohne Standort` : "über Mandant-Nr. zugeordnet"} tone={statusSummary.coveredStandortCount === standorte.length && !statusSummary.unknownMandantCount ? "green" : "amber"} />
         <PriorityCard label="Storno-Basis" value={integerNumber.format(statusSummary.importCaseCount)} hint="offene Fälle aus Abrechnungsimport" tone="amber" />
         <PriorityCard label="Durch Saldo korrigiert" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" />
-        <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0 oder RP aktiv" tone="green" />
+        <PriorityCard label="Davon storniert" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="Saldo 0 mit Storno-Grund" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} />
+        <PriorityCard label="Automatisch erledigt" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="Saldo 0, Storno oder RP aktiv" tone="green" />
         <PriorityCard label="Kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" />
         <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
         <PriorityCard label="Ohne Schutz offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" />
@@ -5798,7 +5799,7 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
         <div>
           <span className="eyebrow">{isPreview ? "Saldo-Vorschau" : "Saldo-Listen"}</span>
           <h2>Rechnungsstatus nach BFS-Saldo</h2>
-          <p>Die Vorschau zeigt die größten offenen Salden zuerst. Bezahlt bedeutet Saldo 0,00 €; Ratenplan bedeutet akzeptierte Forderung mit laufender BFS-Zahlung.</p>
+          <p>Die Vorschau zeigt die größten offenen Salden zuerst. Saldo 0,00 € schließt die operative Klärung; Storno-Gründe bleiben separat auswertbar.</p>
         </div>
         <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
           <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
@@ -5817,6 +5818,7 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
                 <th>Rechnung</th>
                 <th>Betrag</th>
                 <th>Saldo</th>
+                <th>Storniert</th>
                 <th>MS</th>
                 <th>RP</th>
                 <th>Ausfallschutz</th>
@@ -5832,11 +5834,12 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
                   <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
                   <td>{money.format(row.amount)}</td>
                   <td>{money.format(row.saldo)}</td>
+                  <td>{row.cancelledAmount ? money.format(row.cancelledAmount) : "-"}</td>
                   <td>{row.reminderLevel || "-"}</td>
                   <td>{row.installmentPlan ? `ja${row.installmentMonths ? ` (${row.installmentMonths})` : ""}` : "-"}</td>
                   <td>{row.protection ? "ja" : "nein"}</td>
                 </tr>
-              )) : <EmptyTableRow colSpan={10} label="Noch keine Saldo-Listen eingelesen." />}
+              )) : <EmptyTableRow colSpan={11} label="Noch keine Saldo-Listen eingelesen." />}
             </tbody>
           </table>
         </div>
@@ -5846,6 +5849,7 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
 }
 
 function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
+  if (row.paymentStatus === "storniert") return "storniert";
   if (row.paymentStatus === "bezahlt") return "bezahlt";
   if (row.paymentStatus === "ratenzahlung") return row.installmentMonths ? `Ratenplan ${row.installmentMonths} Monate` : "Ratenplan";
   if (row.paymentStatus === "teilbezahlt") return "teilbezahlt";
@@ -5873,6 +5877,8 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
   const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);
   const importCases = casesFromImportRows(importRows).filter((fall) => coveredStandortIds.has(fall.standortId));
   const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
+  const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  rows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
   const items: InvoiceStatusReviewRow[] = [];
 
   rows.forEach((row) => {
@@ -5947,6 +5953,26 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
       });
     });
 
+  importCases
+    .filter((fall) => isStornoClarificationCase(fall))
+    .forEach((fall) => {
+      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusRowsByKey.get(key)).find(Boolean);
+      if (!statusRow || !isInvoiceStatusAutoResolved(statusRow)) return;
+      items.push({
+        id: `saldo-final-cancelled-${fall.id}`,
+        category: "final_cancelled",
+        categoryLabel: "storniert/ausgebucht",
+        locationName: fall.locationName,
+        patientName: fall.patientName,
+        invoiceNo: fall.invoiceNo,
+        bfsNo: fall.bfsNo,
+        amount: fall.amount,
+        detail: `${fall.reason}; ${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}`,
+        source: "Abrechnung + Saldo-Liste",
+        nextStep: "Nicht mehr operativ offen; Betrag als Storno/Teil-Storno in Auswertungen behalten."
+      });
+    });
+
   finalCancelledImportRows(importRows).forEach((row) => items.push(row));
 
   return dedupeInvoiceStatusReviewRows(items).sort((a, b) => invoiceStatusReviewPriority(a.category) - invoiceStatusReviewPriority(b.category) || b.amount - a.amount);
@@ -5977,6 +6003,11 @@ function finalCancelledImportRows(importRows: ImportPreviewRow[]) {
 function isFinalCancellationMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
   const text = `${movement.type} ${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
   return movement.reasonCategory === "storno_praxis" || text.includes("ausbuch") || text.includes("endgültig storniert") || text.includes("endgueltig storniert");
+}
+
+function isStornoClarificationCase(fall: BfsCase) {
+  const text = `${fall.status} ${fall.reason} ${fall.lastComment ?? ""}`.toLowerCase();
+  return text.includes("storno") || text.includes("ausbuch") || text.includes("liquidation");
 }
 
 function summarizeInvoiceStatusReviewBasket(rows: InvoiceStatusReviewRow[]) {
@@ -6026,6 +6057,12 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
       return statusRow ? isInvoiceStatusAutoResolved(statusRow) : false;
     })).length
     : 0;
+  const cancelledCorrectedCaseCount = rows.length
+    ? importCases.filter((fall) => isStornoClarificationCase(fall) && caseInvoiceMatchKeys(fall).some((key) => {
+      const statusRow = statusRowsByKey.get(key);
+      return statusRow ? isInvoiceStatusAutoResolved(statusRow) : false;
+    })).length
+    : 0;
   const unmatchedCaseCount = rows.length
     ? importCases.filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key))).length
     : 0;
@@ -6049,6 +6086,7 @@ function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: 
     unknownMandantCount,
     importCaseCount: importCases.length,
     correctedCaseCount,
+    cancelledCorrectedCaseCount,
     autoResolvedCount: 0,
     autoResolvedAmount: 0,
     criticalOpenCount: 0,
@@ -6067,7 +6105,7 @@ function summarizeInvoiceStatusCoverage(rows: ParsedInvoiceStatusRow[]) {
 }
 
 function isInvoiceStatusAutoResolved(row: ParsedInvoiceStatusRow) {
-  return row.paymentStatus === "bezahlt" || row.installmentPlan;
+  return row.paymentStatus === "bezahlt" || row.paymentStatus === "storniert" || row.installmentPlan;
 }
 
 function invoiceStatusCoveredStandortIds(rows: ParsedInvoiceStatusRow[]) {

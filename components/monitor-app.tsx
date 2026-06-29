@@ -281,6 +281,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
+  const [invoiceRowsLoaded, setInvoiceRowsLoaded] = useState(false);
   const [invoiceStatusLoaded, setInvoiceStatusLoaded] = useState(false);
   const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
@@ -364,6 +365,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       .finally(() => {
         if (active) setCaseResolutionsLoaded(true);
       });
+    loadConfirmedInvoiceRows()
+      .then((rows) => {
+        if (active) setInvoiceRows(rows);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setInvoiceRowsLoaded(true);
+      });
     loadConfirmedInvoiceStatusDocuments()
       .then((documents) => {
         if (active) setInvoiceStatusDocuments(documents);
@@ -412,8 +421,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
   }
 
-  if (!appDataLoaded || !caseResolutionsLoaded || !invoiceStatusLoaded) {
-    return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände, Saldo-Status und Standortfilter werden synchronisiert." />;
+  if (!appDataLoaded || !caseResolutionsLoaded || !invoiceRowsLoaded || !invoiceStatusLoaded) {
+    return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Rechnungen, Fallstände, Saldo-Status und Standortfilter werden synchronisiert." />;
   }
 
   function toggleNavSection(title: string) {
@@ -5884,6 +5893,7 @@ function UploadView({
   const hasPendingStatusImport = pendingStatusDocuments !== null;
   const statusRows = displayedStatusDocuments.flatMap((document) => document.rows);
   const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
+  const nextStatusUploadMode = displayedStatusDocuments.length ? "append" : "replace";
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
@@ -6108,8 +6118,17 @@ function UploadView({
         <div className="upload-actions">
           <label className={isStatusProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
-            Saldo-Listen
-            <input disabled={isStatusProcessing || isStatusConfirming} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleStatusFiles(event.target.files, "replace")} />
+            {displayedStatusDocuments.length ? "Saldo-Listen ergänzen" : "Saldo-Listen"}
+            <input
+              disabled={isStatusProcessing || isStatusConfirming}
+              type="file"
+              multiple
+              accept=".pdf,application/pdf"
+              onChange={(event) => {
+                void handleStatusFiles(event.target.files, nextStatusUploadMode);
+                event.currentTarget.value = "";
+              }}
+            />
           </label>
           <label className={isStatusProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
@@ -6119,7 +6138,10 @@ function UploadView({
               type="file"
               multiple
               accept=".pdf,application/pdf"
-              onChange={(event) => handleStatusFiles(event.target.files, displayedStatusDocuments.length ? "append" : "replace")}
+              onChange={(event) => {
+                void handleStatusFiles(event.target.files, nextStatusUploadMode);
+                event.currentTarget.value = "";
+              }}
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
@@ -6794,6 +6816,7 @@ function normalizeMatchKey(value: string) {
 
 function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Bereit für Rechnungsimport");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const okRows = invoiceRows.filter((row) => row.status === "OK").length;
@@ -6825,6 +6848,24 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       setUploadStatus(`Rechnungen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  async function confirmInvoiceImport() {
+    if (!invoiceRows.length || isProcessing || isSaving) return;
+    setIsSaving(true);
+    setUploadStatus(`${invoiceRows.length} Rechnungen werden dauerhaft gespeichert`);
+    try {
+      const result = await saveConfirmedInvoiceRows(invoiceRows);
+      onRowsChange(result.rows);
+      const detail = result.persistence
+        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} Dubletten übersprungen, ${result.persistence.failed} fehlgeschlagen`
+        : `${result.rows.length} gespeicherte Rechnungen geladen`;
+      setUploadStatus(`Rechnungsimport bestätigt: ${detail}`);
+    } catch (error) {
+      setUploadStatus(`Rechnungsimport konnte nicht bestätigt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -6866,6 +6907,10 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
           }}>
             <X size={16} />
             Vorschau zurücksetzen
+          </button>
+          <button className="primary-button" disabled={isProcessing || isSaving || !invoiceRows.length} onClick={() => void confirmInvoiceImport()}>
+            <CheckCircle2 size={16} />
+            {isSaving ? "Speichern..." : "Rechnungsimport bestätigen"}
           </button>
         </div>
       </section>
@@ -8080,6 +8125,33 @@ async function loadConfirmedInvoiceStatusDocuments() {
   if (!response.ok) throw new Error("Bestätigter Rechnungsstatus konnte nicht geladen werden.");
   const payload = await response.json() as { documents?: ParsedInvoiceStatusDocument[] };
   return payload.documents ?? [];
+}
+
+async function loadConfirmedInvoiceRows() {
+  if (typeof window === "undefined") return [];
+  const response = await fetch("/api/invoices/parse", { method: "GET", cache: "no-store" });
+  if (!response.ok) throw new Error("Bestätigte Rechnungen konnten nicht geladen werden.");
+  const payload = await response.json() as { rows?: ParsedInvoiceDocument[] };
+  return payload.rows ?? [];
+}
+
+async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
+  const response = await fetch("/api/invoices/parse", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ rows }),
+    cache: "no-store"
+  });
+  const payload = await response.json().catch(() => null) as {
+    rows?: ParsedInvoiceDocument[];
+    persistence?: { imported: number; duplicates: number; failed: number; errors?: Array<{ file: string; message: string }> };
+    error?: string;
+  } | null;
+  if (!response.ok) throw new Error(payload?.error ?? "Rechnungsimport konnte nicht gespeichert werden.");
+  return {
+    rows: payload?.rows ?? [],
+    persistence: payload?.persistence
+  };
 }
 
 async function saveConfirmedInvoiceStatusDocuments(documents: ParsedInvoiceStatusDocument[]) {

@@ -1932,8 +1932,8 @@ function ManagementComboChart({
   const chartValues = values.length ? values : [{ label: "-", current: 0, previous: 0, currentYear: fallbackYear, previousYear: fallbackYear - 1 }];
   const defaultCurrentYear = chartValues[0]?.currentYear ?? fallbackYear;
   const defaultPreviousYear = chartValues[0]?.previousYear ?? defaultCurrentYear - 1;
-  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, chartValues.length - 1));
-  const activeValue = chartValues[Math.min(activeIndex, chartValues.length - 1)] ?? chartValues[0];
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activeValue = activeIndex === null ? undefined : chartValues[Math.min(activeIndex, chartValues.length - 1)];
   const maxValue = Math.max(...chartValues.flatMap((value) => [value.current, value.previous]), 1);
   const width = 420;
   const height = 230;
@@ -1944,14 +1944,16 @@ function ManagementComboChart({
   const yFor = (value: number) => padding.top + plotHeight - (value / maxValue) * plotHeight;
   const barWidth = Math.max(12, Math.min(42, plotWidth / Math.max(chartValues.length, 1) * 0.48));
   const previousLine = chartValues.map((value, index) => `${index === 0 ? "M" : "L"} ${xFor(index).toFixed(1)} ${yFor(value.previous).toFixed(1)}`).join(" ");
-  const activeX = chartValues.length === 1 ? 50 : (activeIndex / (chartValues.length - 1)) * 100;
+  const activeX = activeIndex === null ? 50 : chartValues.length === 1 ? 50 : (activeIndex / (chartValues.length - 1)) * 100;
   const currentTotal = chartValues.reduce((sum, value) => sum + value.current, 0);
   const previousTotal = chartValues.reduce((sum, value) => sum + value.previous, 0);
   const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
-  const activeCurrentYear = activeValue.currentYear ?? defaultCurrentYear;
-  const activeLabel = Number.isInteger(Number(activeValue.label))
-    ? monthAxisLabel(activeValue.label, activeCurrentYear)
-    : activeValue.label;
+  const activeCurrentYear = activeValue?.currentYear ?? defaultCurrentYear;
+  const activeLabel = activeValue
+    ? Number.isInteger(Number(activeValue.label))
+      ? monthAxisLabel(activeValue.label, activeCurrentYear)
+      : activeValue.label
+    : "";
   const normalizedTitle = title.toLowerCase();
   const tone = normalizedTitle.includes("rück") || normalizedTitle.includes("storno")
     ? "risk"
@@ -1960,7 +1962,7 @@ function ManagementComboChart({
       : "revenue";
 
   return (
-    <div className={`management-combo-chart ${tone}`} aria-label={title} onPointerLeave={() => setActiveIndex(Math.max(0, chartValues.length - 1))}>
+    <div className={`management-combo-chart ${tone}`} aria-label={title} onPointerLeave={() => setActiveIndex(null)}>
       <div className="combo-chart-summary">
         <div className="combo-legend">
           <span><i className="current" /> {defaultCurrentYear}</span>
@@ -1969,11 +1971,13 @@ function ManagementComboChart({
         <strong className={delta >= 0 ? "positive" : "negative"}>{formatDelta(delta)}</strong>
       </div>
       <div className="combo-chart-canvas">
-        <div className="combo-chart-tooltip" style={{ left: `${Math.max(16, Math.min(84, activeX))}%` }}>
-          <span>{activeValue.context ?? activeLabel}</span>
-          <strong>{format(activeValue.current)}</strong>
-          <small>{activeLabel} · Vorjahr {format(activeValue.previous)}</small>
-        </div>
+        {activeValue && (
+          <div className="combo-chart-tooltip" style={{ left: `${Math.max(16, Math.min(84, activeX))}%` }}>
+            <span>{activeValue.context ?? activeLabel}</span>
+            <strong>{format(activeValue.current)}</strong>
+            <small>{activeLabel} · VJ {format(activeValue.previous)}</small>
+          </div>
+        )}
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: Balken ${defaultCurrentYear}, Linie ${defaultPreviousYear}`}>
           {[0.25, 0.5, 0.75].map((ratio) => (
             <line key={ratio} className="combo-grid-line" x1={padding.left} x2={width - padding.right} y1={padding.top + plotHeight * ratio} y2={padding.top + plotHeight * ratio} />
@@ -2005,7 +2009,7 @@ function ManagementComboChart({
           })}
           <path className="combo-previous-line" d={previousLine} />
           {chartValues.map((value, index) => (
-            <circle key={`${value.label}-previous`} className={index === activeIndex ? "combo-line-point active" : "combo-line-point"} cx={xFor(index)} cy={yFor(value.previous)} r="4" />
+            <circle key={`${value.label}-previous`} className={index === activeIndex ? "combo-line-point active" : "combo-line-point"} cx={xFor(index)} cy={yFor(value.previous)} r="3.2" />
           ))}
         </svg>
       </div>

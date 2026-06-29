@@ -935,3 +935,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Obere Reihe: 5 Kacheln mit je 4 Spalten. Untere Reihe: 4 Kacheln mit je 5 Spalten.
 - Dadurch ist die untere KPI-Reihe real gleichmaessig ueber die volle Breite verteilt, statt rechts eine leere Fuenfergrid-Spalte stehen zu lassen.
 - Unterhalb der breiten Desktop-Ansicht greifen weiter die bestehenden 3-/2-/1-Spalten-Regeln.
+
+## Update 2026-06-29: Management-Diagramme dezenter
+
+- Die Management-Cockpit-Diagramme zeigen Tooltips nicht mehr dauerhaft, sondern nur noch bei Hover/Fokus/Klick auf einen Datenpunkt.
+- Tooltips wurden kompakter und ruhiger gestaltet: kleinerer Wert, weniger Rahmenkontrast, dezenter Hintergrund, kuerzere Vorjahreszeile.
+- Legenden, Achsenlabels, Delta-Badge, Linienpunkte und aktive Balken-Glows wurden visuell reduziert, damit die Diagramme weniger laut wirken.
+- Lokale Sichtpruefung wurde versucht; `/dashboard` leitet lokal ohne aktive Sitzung auf `/login` weiter. Technische Pruefung bleibt ueber Typecheck/Build.

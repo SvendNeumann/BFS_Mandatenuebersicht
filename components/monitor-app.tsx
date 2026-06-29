@@ -1777,6 +1777,96 @@ function CaseColumnChart({ title, values, valueKind }: { title: string; values: 
   );
 }
 
+type CashflowWaterfallStep = {
+  label: string;
+  amount: number;
+  start: number;
+  end: number;
+  tone: "start" | "negative" | "positive" | "final";
+  detail: string;
+};
+
+function CashflowWaterfallChart({
+  steps,
+  periodLabel,
+  scopeLabel,
+  payout,
+  openDeduction,
+  recoveredCount
+}: {
+  steps: CashflowWaterfallStep[];
+  periodLabel: string;
+  scopeLabel: string;
+  payout: number;
+  openDeduction: number;
+  recoveredCount: number;
+}) {
+  const maxValue = Math.max(...steps.flatMap((step) => [step.start, step.end, Math.abs(step.amount)]), 1);
+  const chartHeight = 260;
+  const yFor = (value: number) => chartHeight - (Math.max(0, value) / maxValue) * chartHeight;
+  const finalAmount = steps.at(-1)?.end ?? 0;
+  const bridgeDelta = payout ? finalAmount - payout : 0;
+
+  return (
+    <div className="cashflow-waterfall">
+      <div className="cashflow-waterfall-summary">
+        <article>
+          <span>Eingereicht</span>
+          <strong>{money.format(steps[0]?.end ?? 0)}</strong>
+        </article>
+        <article>
+          <span>BFS-Auszahlung laut Import</span>
+          <strong>{money.format(payout)}</strong>
+        </article>
+        <article>
+          <span>Zurückgeholt / bezahlt</span>
+          <strong>{integerNumber.format(recoveredCount)}</strong>
+        </article>
+        <article>
+          <span>Offener Abzug</span>
+          <strong>{money.format(openDeduction)}</strong>
+        </article>
+        <article>
+          <span>Wirtschaftlich verbleibend</span>
+          <strong>{money.format(finalAmount)}</strong>
+        </article>
+      </div>
+      <div className="cashflow-waterfall-chart" role="img" aria-label={`CashFlow-Herleitung ${scopeLabel}, ${periodLabel}`}>
+        <div className="cashflow-waterfall-grid" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        {steps.map((step) => {
+          const top = yFor(Math.max(step.start, step.end));
+          const bottom = yFor(Math.min(step.start, step.end));
+          const height = Math.max(8, bottom - top);
+          return (
+            <div className={`waterfall-step ${step.tone}`} key={step.label}>
+              <div className="waterfall-bar-space" style={{ height: chartHeight }}>
+                <span
+                  className="waterfall-bar"
+                  style={{
+                    height,
+                    top
+                  }}
+                />
+              </div>
+              <strong>{money.format(step.amount)}</strong>
+              <span>{step.label}</span>
+              <small>{step.detail}</small>
+            </div>
+          );
+        })}
+      </div>
+      <div className="cashflow-waterfall-note">
+        <span>{scopeLabel} · {periodLabel}</span>
+        <strong>{payout ? `Differenz zur BFS-Auszahlung nach späteren Abzügen/Erledigungen: ${money.format(bridgeDelta)}` : "Keine BFS-Auszahlung im Filter erkannt"}</strong>
+      </div>
+    </div>
+  );
+}
+
 function LocationRevenueBars({ title, values }: { title: string; values: { label: string; value: number; detailLabel?: string }[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chartValues = values.length ? values : [{ label: "Keine Daten", value: 0 }];
@@ -3460,9 +3550,12 @@ function ClaimsFlowView({
   const [deductionStandortFilterId, setDeductionStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [recoveryPeriodId, setRecoveryPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [recoveryStandortFilterId, setRecoveryStandortFilterId] = useState(() => standort?.id ?? "alle");
+  const [waterfallPeriodId, setWaterfallPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [waterfallStandortFilterId, setWaterfallStandortFilterId] = useState(() => standort?.id ?? "alle");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const deductionPeriod = useMemo(() => periodOptions.find((period) => period.id === deductionPeriodId) ?? selectedPeriod, [periodOptions, deductionPeriodId, selectedPeriod]);
   const recoveryPeriod = useMemo(() => periodOptions.find((period) => period.id === recoveryPeriodId) ?? selectedPeriod, [periodOptions, recoveryPeriodId, selectedPeriod]);
+  const waterfallPeriod = useMemo(() => periodOptions.find((period) => period.id === waterfallPeriodId) ?? selectedPeriod, [periodOptions, selectedPeriod, waterfallPeriodId]);
   const detailsStandorte = useMemo(() => {
     if (standort) return [standort];
     if (detailsStandortFilterId === "alle") return rowsStandorte;
@@ -3479,6 +3572,11 @@ function ClaimsFlowView({
     if (recoveryStandortFilterId === "alle") return rowsStandorte;
     return rowsStandorte.filter((entry) => entry.id === recoveryStandortFilterId);
   }, [recoveryStandortFilterId, rowsStandorte, standort]);
+  const waterfallStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (waterfallStandortFilterId === "alle") return rowsStandorte;
+    return rowsStandorte.filter((entry) => entry.id === waterfallStandortFilterId);
+  }, [rowsStandorte, standort, waterfallStandortFilterId]);
   const scopedImportRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = detailsStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
@@ -3493,12 +3591,19 @@ function ClaimsFlowView({
     return rowStandort ? importRowInPeriod(row, recoveryPeriod, rowStandort) : false;
   }), [importRows, recoveryPeriod, recoveryStandorte]);
   const allScopedLocationRows = useMemo(() => importRows.filter((row) => recoveryStandorte.some((entry) => entry.name === row.location)), [importRows, recoveryStandorte]);
+  const waterfallScopedImportRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = waterfallStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, waterfallPeriod, rowStandort) : false;
+  }), [importRows, waterfallPeriod, waterfallStandorte]);
+  const allWaterfallLocationRows = useMemo(() => importRows.filter((row) => waterfallStandorte.some((entry) => entry.name === row.location)), [importRows, waterfallStandorte]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const deductionSummary = useMemo(() => summarizeImportRows(deductionScopedImportRows), [deductionScopedImportRows]);
   const deductionMetrics = useMemo(() => deductionSummary.rows ? metricsFromImportSummary(deductionSummary) : zeroMetrics(), [deductionSummary]);
   const recoverySummary = useMemo(() => summarizeImportRows(recoveryScopedImportRows), [recoveryScopedImportRows]);
   const recoveryMetrics = useMemo(() => recoverySummary.rows ? metricsFromImportSummary(recoverySummary) : zeroMetrics(), [recoverySummary]);
+  const waterfallSummary = useMemo(() => summarizeImportRows(waterfallScopedImportRows), [waterfallScopedImportRows]);
+  const waterfallMetrics = useMemo(() => waterfallSummary.rows ? metricsFromImportSummary(waterfallSummary) : zeroMetrics(), [waterfallSummary]);
   const recentMonths = useMemo(() => buildRecentMonthlyTrend(detailsStandortIds, selectedPeriod, importRows), [detailsStandortIds, selectedPeriod, importRows]);
   const quarterRows = useMemo(() => buildQuarterComparison(detailsStandortIds, importRows), [detailsStandortIds, importRows]);
   const recoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allScopedLocationRows)
@@ -3511,15 +3616,24 @@ function ClaimsFlowView({
       const candidateStandort = deductionStandorte.find((entry) => entry.name === candidate.locationName);
       return candidateStandort ? shortDateInPeriod(candidate.originalDate, deductionPeriod, candidateStandort) : false;
     }), [allDeductionLocationRows, deductionPeriod, deductionStandorte]);
+  const waterfallRecoveryMatches = useMemo(() => resubmissionCandidatesFromImportRows(allWaterfallLocationRows)
+    .filter((candidate) => {
+      const candidateStandort = waterfallStandorte.find((entry) => entry.name === candidate.locationName);
+      return candidateStandort ? shortDateInPeriod(candidate.originalDate, waterfallPeriod, candidateStandort) : false;
+    }), [allWaterfallLocationRows, waterfallPeriod, waterfallStandorte]);
   const recoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(recoveryMatches), [recoveryMatches]);
   const deductionRecoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(deductionRecoveryMatches), [deductionRecoveryMatches]);
+  const waterfallRecoveredByResubmission = useMemo(() => uniqueRecoveryCandidates(waterfallRecoveryMatches), [waterfallRecoveryMatches]);
   const deductionRecoveredByResubmissionKeys = useMemo(() => new Set(deductionRecoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [deductionRecoveredByResubmission]);
   const recoveredByResubmissionKeys = useMemo(() => new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [recoveredByResubmission]);
+  const waterfallRecoveredByResubmissionKeys = useMemo(() => new Set(waterfallRecoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate))), [waterfallRecoveredByResubmission]);
   const manualResolutionKeys = useMemo(() => buildPaidResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const deductionManuallyPaidCases = useMemo(() => casesFromImportRows(deductionScopedImportRows)
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !deductionRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [deductionScopedImportRows, deductionRecoveredByResubmissionKeys, manualResolutionKeys]);
   const manuallyPaidCases = useMemo(() => casesFromImportRows(recoveryScopedImportRows)
     .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall))), [recoveryScopedImportRows, manualResolutionKeys, recoveredByResubmissionKeys]);
+  const waterfallManuallyPaidCases = useMemo(() => casesFromImportRows(waterfallScopedImportRows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualResolutionKeys.has(key)) && !waterfallRecoveredByResubmissionKeys.has(caseResolutionKey(fall))), [manualResolutionKeys, waterfallRecoveredByResubmissionKeys, waterfallScopedImportRows]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
   const analysisRecoveredByResubmissionAmount = deductionRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
@@ -3531,6 +3645,12 @@ function ClaimsFlowView({
   const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
   const recoveredAmount = Math.min(recoveryDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
   const stillOpenAmount = Math.max(recoveryDeductionAmount - recoveredAmount, 0);
+  const waterfallDeductionAmount = waterfallMetrics.returnAmount + waterfallMetrics.cancellationAmount;
+  const waterfallRecoveredByResubmissionAmount = waterfallRecoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
+  const waterfallManuallyPaidAmount = waterfallManuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const waterfallRecoveredAmount = Math.min(waterfallDeductionAmount, waterfallRecoveredByResubmissionAmount + waterfallManuallyPaidAmount);
+  const waterfallScopeLabel = waterfallStandorte.length === 1 ? waterfallStandorte[0].name : "Alle Standorte";
+  const waterfallSteps = useMemo(() => buildCashflowWaterfallSteps(waterfallMetrics, waterfallDeductionAmount, waterfallRecoveredAmount), [waterfallDeductionAmount, waterfallMetrics, waterfallRecoveredAmount]);
   const totalCostAndDeductions = selectedMetrics.fees + selectedMetrics.ewmaTotal + deductionAmount;
   const deductionBreakdown = useMemo(() => [
     { label: "Stornierungen", amount: deductionMetrics.cancellationAmount, detail: `${deductionMetrics.cancellationCount} Fälle`, kind: "Kontoauszug-Abzug" },
@@ -3649,6 +3769,46 @@ function ClaimsFlowView({
       )}
       {mode === "cashflow" && (
         <>
+      <section className="panel cashflow-waterfall-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">CashFlow-Herleitung</span>
+            <h2>Vom eingereichten Umsatz zum wirtschaftlichen Betrag</h2>
+            <p>Gebühren, Steuer, EWMA, Brutto-Storno/Rückgabe und zurückgeholte Beträge werden als Wasserfall zusammengeführt.</p>
+          </div>
+        </div>
+        <div className="period-filter deduction-analysis-filter">
+          <label className="select-label">
+            Zeitraum CashFlow
+            <select value={waterfallPeriodId} onChange={(event) => setWaterfallPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-label">
+            Standort CashFlow
+            <select value={standort ? standort.id : waterfallStandortFilterId} onChange={(event) => setWaterfallStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+              {!standort && <option value="alle">Alle Standorte</option>}
+              {rowsStandorte.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>{waterfallScopeLabel}</strong>
+            <span>{waterfallPeriod.detail}</span>
+          </div>
+        </div>
+        <CashflowWaterfallChart
+          steps={waterfallSteps}
+          periodLabel={waterfallPeriod.label}
+          scopeLabel={waterfallScopeLabel}
+          payout={waterfallMetrics.payout}
+          openDeduction={Math.max(waterfallDeductionAmount - waterfallRecoveredAmount, 0)}
+          recoveredCount={waterfallRecoveredByResubmission.length + waterfallManuallyPaidCases.length}
+        />
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -4212,6 +4372,52 @@ function metricsFromImportSummary(summary: ImportSummary) {
     noProtectionCount: summary.noProtectionCount,
     noProtectionAmount: summary.noProtectionAmount
   };
+}
+
+function buildCashflowWaterfallSteps(metrics: BfsMetrics, deductionAmount: number, recoveredAmount: number): CashflowWaterfallStep[] {
+  const feeNet = Math.max(metrics.feeNet, 0);
+  const feeVat = Math.max(metrics.feeVat, 0);
+  const ewmaTotal = Math.max(metrics.ewmaTotal, 0);
+  const deduction = Math.max(deductionAmount, 0);
+  const recovered = Math.max(recoveredAmount, 0);
+  const start = Math.max(metrics.submitted, 0);
+  const changes = [
+    { label: "BFS-Gebühr netto", amount: -feeNet, detail: "Factoring- und Bearbeitungsgebühr", tone: "negative" as const },
+    { label: "MwSt", amount: -feeVat, detail: "Steuer auf BFS-Gebühren", tone: "negative" as const },
+    { label: "EWMA / Adressprüfung", amount: -ewmaTotal, detail: "Meldeamt und Adressprüfung", tone: "negative" as const },
+    { label: "Brutto Storno/Rückgabe", amount: -deduction, detail: `${metrics.returnCount + metrics.cancellationCount} Fälle`, tone: "negative" as const },
+    { label: "Zurückgeholt / bezahlt", amount: recovered, detail: "Neueinreichung oder Zahlung belegt", tone: "positive" as const }
+  ];
+  let current = start;
+  const steps: CashflowWaterfallStep[] = [{
+    label: "Umsatz eingereicht",
+    amount: start,
+    start: 0,
+    end: start,
+    tone: "start",
+    detail: "Aus BFS-Abrechnungsimport"
+  }];
+  changes.forEach((change) => {
+    const next = Math.max(current + change.amount, 0);
+    steps.push({
+      label: change.label,
+      amount: change.amount,
+      start: current,
+      end: next,
+      tone: change.tone,
+      detail: change.detail
+    });
+    current = next;
+  });
+  steps.push({
+    label: "Wirtschaftlich verbleibend",
+    amount: current,
+    start: 0,
+    end: current,
+    tone: "final",
+    detail: "nach offenen Abzügen"
+  });
+  return steps;
 }
 
 function cashflowFromImportSummary(summary: ImportSummary) {

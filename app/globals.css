@@ -3811,6 +3811,140 @@ td small {
   gap: 14px;
 }
 
+.cashflow-waterfall-panel {
+  overflow: hidden;
+}
+
+.cashflow-waterfall {
+  display: grid;
+  gap: 16px;
+}
+
+.cashflow-waterfall-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cashflow-waterfall-summary article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(7, 31, 45, 0.74);
+  padding: 12px;
+}
+
+.cashflow-waterfall-summary span,
+.waterfall-step small,
+.cashflow-waterfall-note span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cashflow-waterfall-summary strong {
+  color: #f8ffff;
+  font-size: clamp(18px, 2vw, 26px);
+  line-height: 1.05;
+}
+
+.cashflow-waterfall-chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(96px, 1fr));
+  gap: 10px;
+  min-height: 360px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 14px 2px 2px;
+}
+
+.cashflow-waterfall-grid {
+  position: absolute;
+  inset: 14px 0 92px;
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  pointer-events: none;
+}
+
+.cashflow-waterfall-grid span {
+  border-top: 1px solid rgba(178, 226, 229, 0.12);
+}
+
+.waterfall-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: 260px auto auto auto;
+  gap: 6px;
+  min-width: 0;
+  z-index: 1;
+}
+
+.waterfall-bar-space {
+  position: relative;
+  border-bottom: 1px solid rgba(178, 226, 229, 0.18);
+}
+
+.waterfall-bar {
+  position: absolute;
+  left: 16%;
+  width: 68%;
+  min-height: 8px;
+  border-radius: 8px 8px 3px 3px;
+  background: #65f4ec;
+  box-shadow: 0 0 18px rgba(101, 244, 236, 0.22);
+}
+
+.waterfall-step.negative .waterfall-bar {
+  background: #ff8a8a;
+  box-shadow: 0 0 18px rgba(255, 138, 138, 0.2);
+}
+
+.waterfall-step.positive .waterfall-bar {
+  background: #73f1bd;
+  box-shadow: 0 0 18px rgba(115, 241, 189, 0.24);
+}
+
+.waterfall-step.final .waterfall-bar {
+  background: #8bb8ff;
+  box-shadow: 0 0 18px rgba(139, 184, 255, 0.24);
+}
+
+.waterfall-step strong {
+  color: #f8ffff;
+  font-size: 15px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.waterfall-step > span {
+  color: #dceff1;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.waterfall-step small {
+  line-height: 1.2;
+}
+
+.cashflow-waterfall-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--soft-line);
+  padding-top: 12px;
+}
+
+.cashflow-waterfall-note strong {
+  color: #f8ffff;
+  font-size: 13px;
+  text-align: right;
+}
+
 .cashflow-card {
   display: grid;
   gap: 14px;
@@ -3958,6 +4092,10 @@ td small {
   .benchmark-priority-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .cashflow-waterfall-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1080px) {
@@ -4080,8 +4218,22 @@ td small {
   .report-summary,
   .landing-grid-shell,
   .upload-zone,
+  .cashflow-waterfall-summary,
   .user-admin-form {
     grid-template-columns: 1fr;
+  }
+
+  .cashflow-waterfall-chart {
+    grid-template-columns: repeat(7, minmax(112px, 1fr));
+  }
+
+  .cashflow-waterfall-note {
+    display: grid;
+    justify-items: start;
+  }
+
+  .cashflow-waterfall-note strong {
+    text-align: left;
   }
 
   .landing-grid-shell {

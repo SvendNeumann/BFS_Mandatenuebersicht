@@ -4049,7 +4049,7 @@ td small {
 
 .case-followup-table {
   table-layout: fixed;
-  min-width: 1320px;
+  min-width: 1440px;
 }
 
 .case-followup-table th,
@@ -4075,56 +4075,62 @@ td small {
 
 .case-followup-table th:nth-child(2),
 .case-followup-table td:nth-child(2) {
-  width: 220px;
+  width: 110px;
+  white-space: nowrap;
 }
 
 .case-followup-table th:nth-child(3),
-.case-followup-table td:nth-child(3),
-.case-followup-table th:nth-child(4),
-.case-followup-table td:nth-child(4) {
-  width: 150px;
+.case-followup-table td:nth-child(3) {
+  width: 220px;
 }
 
+.case-followup-table th:nth-child(4),
+.case-followup-table td:nth-child(4),
 .case-followup-table th:nth-child(5),
 .case-followup-table td:nth-child(5) {
-  width: 96px;
-  white-space: nowrap;
+  width: 150px;
 }
 
 .case-followup-table th:nth-child(6),
 .case-followup-table td:nth-child(6) {
-  width: 280px;
+  width: 96px;
+  white-space: nowrap;
 }
 
 .case-followup-table th:nth-child(7),
 .case-followup-table td:nth-child(7) {
-  width: 86px;
-  white-space: nowrap;
+  width: 280px;
 }
 
 .case-followup-table th:nth-child(8),
 .case-followup-table td:nth-child(8) {
-  width: 150px;
+  width: 86px;
+  white-space: nowrap;
 }
 
 .case-followup-table th:nth-child(9),
 .case-followup-table td:nth-child(9) {
-  width: 132px;
+  width: 150px;
 }
 
 .case-followup-table th:nth-child(10),
 .case-followup-table td:nth-child(10) {
-  width: 128px;
-  white-space: nowrap;
+  width: 132px;
 }
 
 .case-followup-table th:nth-child(11),
 .case-followup-table td:nth-child(11) {
+  width: 128px;
+  white-space: nowrap;
+}
+
+.case-followup-table th:nth-child(12),
+.case-followup-table td:nth-child(12) {
   width: 210px;
 }
 
-.case-followup-table td:nth-child(3),
-.case-followup-table td:nth-child(4) {
+.case-followup-table td:nth-child(4),
+.case-followup-table td:nth-child(5) {
   overflow-wrap: anywhere;
 }
 

@@ -5516,6 +5516,12 @@ function economicCheckRowInPeriod(row: InvoiceStatusReviewRow, period: PeriodOpt
   return shortDateInPeriod(row.sourceDate, period, standort);
 }
 
+function caseInSelectedPeriod(fall: BfsCase, period: PeriodOption, standort: Standort) {
+  const month = monthKeyFromShortDate(fall.sourceDate);
+  if (!month) return !period.start && !period.end;
+  return shortDateInPeriod(fall.sourceDate, period, standort);
+}
+
 function monthKeyFromShortDate(value: string | undefined) {
   const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return match ? `${match[3]}-${match[2]}` : "";
@@ -8966,7 +8972,7 @@ function CasesView({
     const baseRows = compact && !enableFilters ? rows : rows.filter((fall) => {
       const rowStandort = standorte.find((entry) => entry.id === fall.standortId);
       const matchesStandort = caseStandortFilter === "alle" || fall.standortId === caseStandortFilter;
-      const matchesPeriod = rowStandort ? shortDateInPeriod(fall.sourceDate, casePeriod, rowStandort) : true;
+      const matchesPeriod = rowStandort ? caseInSelectedPeriod(fall, casePeriod, rowStandort) : false;
       return matchesStandort && matchesPeriod;
     });
     if (!query) return baseRows;
@@ -9055,6 +9061,7 @@ function CasesView({
           <thead>
             <tr>
               <th>Ampel</th>
+              <th>Datum</th>
               <th>Patient</th>
               <th>Re.-Nr.</th>
               <th>BFS-Nr.</th>
@@ -9071,6 +9078,7 @@ function CasesView({
             {filteredRows.map((fall) => (
               <tr key={fall.id}>
                 <td><span className={`traffic traffic-${fall.traffic}`} /></td>
+                <td>{fall.sourceDate ?? "-"}</td>
                 <td><strong>{fall.patientName}</strong><span>{fall.locationName}</span></td>
                 <td>{fall.invoiceNo}</td>
                 <td>{fall.bfsNo}</td>
@@ -9105,7 +9113,7 @@ function CasesView({
             ))}
             {!filteredRows.length && (
               <tr>
-                <td colSpan={onResolvePaid || onKeepOpen || onCancelFinal ? 11 : 10}>Keine Praxis-Nachfassfälle für den aktuellen Datenstand.</td>
+                <td colSpan={onResolvePaid || onKeepOpen || onCancelFinal ? 12 : 11}>Keine Praxis-Nachfassfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>

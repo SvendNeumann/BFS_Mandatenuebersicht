@@ -5451,6 +5451,7 @@ function UploadView({
   const [isStatusProcessing, setIsStatusProcessing] = useState(false);
   const [statusUploadStatus, setStatusUploadStatus] = useState("Bereit für Saldo-Listen");
   const [selectedStatusFileCount, setSelectedStatusFileCount] = useState(0);
+  const [selectedStatusFileNames, setSelectedStatusFileNames] = useState<string[]>([]);
   const [pendingStatusDocuments, setPendingStatusDocuments] = useState<ParsedInvoiceStatusDocument[] | null>(null);
   const [isStatusConfirming, setIsStatusConfirming] = useState(false);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
@@ -5518,6 +5519,7 @@ function UploadView({
     if (!files?.length) return;
     const importableFiles = [...files].filter(isInvoiceStatusPdfUploadFile);
     setSelectedStatusFileCount(importableFiles.length);
+    setSelectedStatusFileNames(importableFiles.map(uploadFilePath));
     if (!importableFiles.length) {
       setStatusUploadStatus("Keine PDF-Listen gefunden");
       return;
@@ -5536,7 +5538,7 @@ function UploadView({
       const nextRows = nextDocuments.flatMap((document) => document.rows);
       const coverage = summarizeInvoiceStatusCoverage(nextRows);
       const coverageNote = `${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt${coverage.unknownMandantCount ? `, ${integerNumber.format(coverage.unknownMandantCount)} Zeilen ohne Standort` : ""}`;
-      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt, ${coverageNote}. Bitte bestätigen.`);
+      setStatusUploadStatus(`${importableFiles.length} Datei(en) ausgewählt, ${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt, ${coverageNote}. Bitte bestätigen.`);
     } catch (error) {
       if (mode === "replace") setPendingStatusDocuments(null);
       setStatusUploadStatus(`Saldo-Listen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -5568,11 +5570,13 @@ function UploadView({
       setPendingStatusDocuments(null);
       setStatusUploadStatus("Saldo-Vorschau verworfen");
       setSelectedStatusFileCount(0);
+      setSelectedStatusFileNames([]);
     } else {
       setIsStatusConfirming(true);
       try {
         await clearConfirmedInvoiceStatusDocuments();
         onStatusDocumentsChange([]);
+        setSelectedStatusFileNames([]);
         setStatusUploadStatus("Saldo-Import zurückgesetzt");
       } catch (error) {
         setStatusUploadStatus(`Saldo-Import konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -5675,7 +5679,7 @@ function UploadView({
         <ClipboardList size={28} />
         <div>
           <h2>BFS-Rechnungsstatus- und Saldo-Listen hochladen</h2>
-          <p>Diese monatlichen Übersichtslisten ergänzen die Abrechnungsanalyse um Zahlungsstatus, Saldo, Mahnstufe, Ratenplan und Ausfallschutz je BFS-Nr. Saldo 0,00 € gilt als bezahlt.</p>
+          <p>Diese monatlichen Übersichtslisten ergänzen die Abrechnungsanalyse um Zahlungsstatus, Saldo, Mahnstufe, Ratenplan und Ausfallschutz je BFS-Nr.</p>
           <div className={isStatusProcessing ? "upload-status processing" : statusRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
             <RefreshCw size={14} />
             <span>{isStatusProcessing ? "Wird gelesen" : isStatusConfirming ? "Speichert" : hasPendingStatusImport ? "Vorschau" : statusRows.length ? "Bestätigt" : "Bereit"}</span>
@@ -5722,6 +5726,7 @@ function UploadView({
         <PriorityCard label="Ohne Schutz offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" />
         <PriorityCard label="Nicht zuordenbar" value={integerNumber.format(statusSummary.unmatchedCaseCount)} hint="Klärfälle ohne Saldo-Treffer" tone="amber" />
       </section>
+      <InvoiceStatusFileSummary documents={displayedStatusDocuments} selectedFileNames={selectedStatusFileNames} isPreview={hasPendingStatusImport} />
       <InvoiceStatusReviewBasket rows={statusRows} importRows={previewRows} />
       <InvoiceStatusPreview rows={statusRows} isPreview={hasPendingStatusImport} />
     </div>
@@ -5785,6 +5790,77 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
             </table>
           </div>
         </>
+      )}
+    </section>
+  );
+}
+
+function InvoiceStatusFileSummary({
+  documents,
+  selectedFileNames,
+  isPreview
+}: {
+  documents: ParsedInvoiceStatusDocument[];
+  selectedFileNames: string[];
+  isPreview?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOnly = !documents.length && selectedFileNames.length;
+  const visibleFiles = documents.length
+    ? documents.map((document) => {
+      const rows = document.rows;
+      const locations = [...new Set(rows.map((row) => standortFromMandantNo(row.mandantNo)?.name ?? "unbekannt"))].sort();
+      return {
+        file: document.file,
+        rows: rows.length,
+        pages: document.pageCount,
+        status: document.status,
+        locations: locations.join(", "),
+        notes: document.parseNotes.join(" ")
+      };
+    })
+    : selectedFileNames.map((file) => ({ file, rows: 0, pages: 0, status: "ausgewählt", locations: "-", notes: "Datei wurde ausgewählt, aber noch nicht gelesen." }));
+
+  if (!visibleFiles.length) return null;
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">{isPreview ? "Dateikontrolle Vorschau" : "Dateikontrolle"}</span>
+          <h2>Gelesene Saldo-Listen</h2>
+          <p>{selectedOnly ? "Diese Dateien wurden vom Browser ausgewählt." : "Diese Dateien wurden tatsächlich eingelesen. Vor der Bestätigung sollten hier alle erwarteten Standortlisten auftauchen."}</p>
+        </div>
+        <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+          <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
+          {isOpen ? "Einklappen" : "Ausklappen"}
+        </button>
+      </div>
+      {isOpen && (
+        <div className="table-wrap compact-table invoice-status-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Datei</th>
+                <th>Zeilen</th>
+                <th>Seiten</th>
+                <th>Standorte</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleFiles.map((file) => (
+                <tr key={file.file}>
+                  <td><strong>{shortFileName(file.file)}</strong><small>{file.notes}</small></td>
+                  <td>{file.rows ? integerNumber.format(file.rows) : "-"}</td>
+                  <td>{file.pages || "-"}</td>
+                  <td>{file.locations}</td>
+                  <td><StatusBadge status={file.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

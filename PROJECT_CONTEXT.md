@@ -977,3 +977,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die alte separate `Stornoquote`-Kachel wurde entfernt, weil die fuehrende Logik ueber Brutto Storno/Rueckgabe, Gesamtabzug und die nachgelagerten Abzugs-/Recovery-Bloecke laeuft.
 - Technisch nutzt nur dieser Block ein eigenes 20-Spalten-Grid; andere `priority-grid`-Bereiche bleiben unveraendert.
 - Unterhalb breiter Desktopansichten greifen weiter die bestehenden 3-/2-/1-Spalten-Regeln.
+
+## Update 2026-06-29: Forderungen und Geldfluss auf neue Abzugslogik geprueft
+
+- Der Tab `Forderungen und Geldfluss` nutzt bereits die zentrale Funktion `buildDeductionRecovery`.
+- Damit gilt dort dieselbe Formel wie in Zusammenfassung, Benchmark und Schnellantworten: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
+- `Bereits geklaert` wird aus echter Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder manuell belegter Zahlung/Klaerung gebildet; `Saldo 0` allein bleibt kein Zahlungsnachweis.
+- Alte Oberflaechenbegriffe wie `zurueckgeholt`/`Wiedereinholung` wurden im Tab durch `bereits geklaert`/`Klaerung` ersetzt, damit Beschriftung und neue KPI-Logik zusammenpassen.

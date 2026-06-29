@@ -3699,7 +3699,7 @@ function ClaimsFlowView({
         <div className="panel-heading">
           <div>
             <h2>Abzugsanalyse nach Kostenart</h2>
-            <p>Eigenständig gefilterte Sicht auf Kosten, Storno/Rückgabe und zurückgeholte Abzüge.</p>
+            <p>Eigenständig gefilterte Sicht auf Kosten, Brutto-Storno/Rückgabe, bereits geklärte Abzüge und offene Prüfsumme.</p>
           </div>
         </div>
         <div className="period-filter deduction-analysis-filter">
@@ -3765,7 +3765,7 @@ function ClaimsFlowView({
           <div>
             <span className="eyebrow">CashFlow-Herleitung</span>
             <h2>Vom eingereichten Umsatz zum wirtschaftlichen Betrag</h2>
-            <p>Gebühren, Steuer, EWMA, Brutto-Storno/Rückgabe und zurückgeholte Beträge werden als Wasserfall zusammengeführt.</p>
+            <p>Gebühren, Steuer, EWMA, Brutto-Storno/Rückgabe und bereits geklärte Beträge werden als Wasserfall zusammengeführt.</p>
           </div>
         </div>
         <div className="period-filter deduction-analysis-filter">
@@ -3863,13 +3863,13 @@ function ClaimsFlowView({
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Storno/Rückgabe & Wiedereinholung</h2>
-            <p>Abgezogene Fälle werden gegen spätere Einreichungen oder manuell als bezahlt markierte Fälle geprüft.</p>
+            <h2>Storno/Rückgabe & Klärung</h2>
+            <p>Abgezogene Fälle werden gegen echte Neueinreichungen, BFS-Ratenpläne oder manuell belegte Zahlungen geprüft.</p>
           </div>
         </div>
         <div className="period-filter deduction-analysis-filter">
           <label className="select-label">
-            Zeitraum Wiedereinholung
+            Zeitraum Klärung
             <select value={recoveryPeriodId} onChange={(event) => setRecoveryPeriodId(event.target.value)}>
               {periodOptions.map((period) => (
                 <option key={period.id} value={period.id}>{period.label}</option>
@@ -3877,7 +3877,7 @@ function ClaimsFlowView({
             </select>
           </label>
           <label className="select-label">
-            Standort Wiedereinholung
+            Standort Klärung
             <select value={standort ? standort.id : recoveryStandortFilterId} onChange={(event) => setRecoveryStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
               {!standort && <option value="alle">Alle Standorte</option>}
               {rowsStandorte.map((entry) => (
@@ -3893,8 +3893,8 @@ function ClaimsFlowView({
         <div className="priority-grid compact-priority recovery-priority-grid">
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} info="Grundmenge vor Folgeentscheidung: Rückläufer, Rückgaben und Stornos aus den BFS-Kontoauszug-Bewegungen." />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
-	          <PriorityCard label="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Klärungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info={`Angerechnet werden echte Neueinreichungen, manuell bezahlte Fälle und Ratenpläne laut BFS bis maximal zur Höhe des ursprünglichen Abzugs. Saldo 0 allein zählt nicht. ${recoveryBreakdownText(recoveryDeductionSummary)}`} />
-	          <PriorityCard label="Offene Prüfsumme" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus bereits geklärt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Diese Summe muss in der operativen Prüfliste abgearbeitet und als bezahlt/geklärt oder endgültig storniert markiert werden." />
+	          <PriorityCard label="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Klärungen · neue Einreichungen ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info={`Angerechnet werden echte Neueinreichungen, manuell bezahlte Fälle und Ratenpläne laut BFS bis maximal zur Höhe des ursprünglichen Abzugs. Saldo 0 allein zählt nicht. ${recoveryBreakdownText(recoveryDeductionSummary)}`} />
+	          <PriorityCard label="Offene Prüfsumme" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus bereits geklärt und endgültig verloren" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Diese Summe muss in der operativen Prüfliste abgearbeitet und als bezahlt/geklärt oder endgültig storniert markiert werden." />
 	          <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
 	          <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
 	          <PriorityCard label="Prüfliste" value={integerNumber.format(recoveryReviewCases.length)} hint={money.format(recoveryReviewCaseAmount)} period={recoveryPeriod.label} tone={recoveryReviewCases.length ? "amber" : "green"} info="Eine gemeinsame operative Liste. Dort wird je Fall entschieden: bezahlt/geklärt oder endgültig storniert." />

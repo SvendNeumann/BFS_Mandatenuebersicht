@@ -117,9 +117,7 @@ const superAdminNavGroups: NavGroup[] = [
       {
         title: "Operative Fallarbeit",
         items: [
-          ["practiceFollowup", "Praxis nachfassen", AlertCircle],
-          ["economicCheck", "Zahlung / Grund prüfen", ClipboardCheck],
-          ["matches", "Neueinreichung / Matching", RefreshCw]
+          ["practiceFollowup", "Prüfliste", ClipboardCheck]
         ]
       },
       {
@@ -196,9 +194,7 @@ const leadNavGroups: NavGroup[] = [
       {
         title: "Operative Fallarbeit",
         items: [
-          ["practiceFollowup", "Praxis nachfassen", AlertCircle],
-          ["economicCheck", "Zahlung / Grund prüfen", ClipboardCheck],
-          ["matches", "Neueinreichung / Matching", RefreshCw]
+          ["practiceFollowup", "Prüfliste", ClipboardCheck]
         ]
       },
       {
@@ -316,9 +312,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       invoiceStatusRows
     );
   }, [privacyScopedImportRows, manualCaseResolutions, invoiceStatusRows]);
+  const operationalReviewCases = useMemo(() => buildUnifiedOperationalReviewCases(privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions), [privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [appCases, isGroupScope, selectedStandort.id]
+  );
+  const visibleOperationalReviewCases = useMemo(
+    () => operationalReviewCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
+    [isGroupScope, operationalReviewCases, selectedStandort.id]
   );
   const navGroups = role === "super_admin" ? superAdminNavGroups : leadNavGroups;
   const nav = flattenNavGroups(navGroups);
@@ -639,14 +640,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
                 ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
-                : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
+                : <LocationDashboard standort={selectedStandort} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "quality" && <QualityView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
-            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
             {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
@@ -654,11 +655,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "invoiceLocations" && <InvoiceLocationsView invoiceRows={invoiceRows} />}
             {(activeView === "cases" || activeView === "practiceFollowup") && (
               <CasesView
-                title="Praxis nachfassen"
-                description="Rückgaben ohne Ausfallschutz und echte Praxis-Aufgaben. Diese Beträge sind bei BFS nicht mehr abgesichert; die Praxis muss Zahlung oder Klärung selbst nachhalten."
-                cases={(role === "super_admin" ? appCases : visibleCases).filter(isPracticeFollowupCase)}
+                title="Prüfliste offene Fälle"
+                description="Eine gemeinsame Arbeitsliste für alle noch zu prüfenden Abzüge. Die Praxis hakt je Fall ab: bezahlt/geklärt oder endgültig storniert."
+                cases={role === "super_admin" ? operationalReviewCases : visibleOperationalReviewCases}
                 onResolvePaid={resolveCaseAsPaid}
                 onCancelFinal={cancelCaseFinally}
+                enableFilters
+                tableScrollable
               />
             )}
             {activeView === "economicCheck" && (
@@ -675,9 +678,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "repeatRisks" && <RecurringRiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={tabFilterStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
-            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases.filter(isPracticeFollowupCase)} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "outcomes" && <OutcomeControlView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />)}
+            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -740,12 +743,12 @@ function NoUploadDataView({ onUpload }: { onUpload: () => void }) {
       <div>
         <span className="eyebrow">Keine Importdaten</span>
         <h2>Datenupload zurückgesetzt</h2>
-        <p>Aktuell sind keine BFS-Abrechnungen im Datenstand. Deshalb werden Cockpit, Auswertungen, Praxis-Nachfassen, Risiko, Matching und Reports erst wieder befüllt, sobald ein neuer Upload verarbeitet wurde.</p>
+        <p>Aktuell sind keine BFS-Abrechnungen im Datenstand. Deshalb werden Cockpit, Auswertungen, Prüfliste, Risiko, Matching und Reports erst wieder befüllt, sobald ein neuer Upload verarbeitet wurde.</p>
       </div>
       <div className="case-summary-grid" aria-label="Leerer Datenstand">
         <article><span>Dateien</span><strong>0</strong></article>
         <article><span>Umsatz eingereicht</span><strong>{money.format(0)}</strong></article>
-        <article><span>Praxis nachfassen</span><strong>0</strong></article>
+        <article><span>Prüfliste</span><strong>0</strong></article>
         <article><span>Rückgaben/Stornos</span><strong>0</strong></article>
       </div>
       <button className="primary-button" onClick={onUpload}>
@@ -860,8 +863,8 @@ function titleFor(view: string) {
     invoiceServices: "Leistungsübersicht",
     invoicePotential: "Potenzialanalyse",
     invoiceLocations: "Standortvergleich",
-    cases: "Praxis nachfassen",
-    practiceFollowup: "Praxis nachfassen",
+    cases: "Prüfliste",
+    practiceFollowup: "Prüfliste",
     economicCheck: "Zahlung / Grund prüfen",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
@@ -946,29 +949,15 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
-  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const practiceFollowupCases = useMemo(() => applyInvoiceStatusToCases(
-    casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))),
-    invoiceStatusRows
-  ).filter(isPracticeFollowupCase), [closedCaseKeys, invoiceStatusRows, scopedRows]);
-  const economicCheckRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, scopedRows)
-    .filter((row) => row.category === "economic_check"), [invoiceStatusRows, scopedRows]);
-  const economicCheckAmount = useMemo(() => economicCheckRows.reduce((sum, row) => sum + row.amount, 0), [economicCheckRows]);
   const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions), [manualCaseResolutions, scopedRows]);
   const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions), [chartRows, manualCaseResolutions]);
   const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
-  const invoiceCount = useMemo(() => scopedRows.reduce((sum, row) => {
-    const parsedCount = row.parsedClaims?.length ?? 0;
-    return sum + (parsedCount || row.claimsExtracted || row.claimsHeader || 0);
-  }, 0), [scopedRows]);
-  const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
   const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
   const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
   const recoveredStornoAmount = deductionRecovery.recoveredAmount;
   const openStornoAmount = deductionRecovery.openAmount;
-  const practiceFollowupAmount = practiceFollowupCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const finalCashflowAmount = Math.max(metrics.submitted - metrics.feeNet - metrics.feeVat - metrics.ewmaTotal - grossDeductionAmount + recoveredStornoAmount, 0);
+  const finalLostAmount = manualCancelledAmountFromRows(scopedRows, manualCaseResolutions);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
   const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
   const printLocationExport = () => {
@@ -1020,7 +1009,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
         </div>
       </section>
 
-      <section className="custom-kpi-slider" aria-label="Zusammenfassung KPI-Kacheln">
+      <section className="custom-kpi-slider" aria-label="Zusammenfassung Geldfluss">
         <PriorityCard
           label="Eingereichter Umsatz"
           value={money.format(metrics.submitted)}
@@ -1029,15 +1018,6 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           tone="blue"
           trend={customKpiTrend("submitted", kpiTrendPoints)}
           info={`Summe aller im gewählten Zeitraum eingereichten Forderungen für ${scopeHint}.`}
-        />
-        <PriorityCard
-          label="BFS-Gebühren"
-          value={money.format(metrics.fees)}
-          hint={`Gebührenquote ${formatFeeRate(metrics.feeRate)}`}
-          period={selectedPeriod.label}
-          tone="amber"
-          trend={customKpiTrend("fees", kpiTrendPoints, true)}
-          info="Summe der erkannten BFS-Gebühren im gewählten Zeitraum; die Quote bezieht sich auf den eingereichten Umsatz."
         />
         <PriorityCard
           label="BFS-Gebühr netto"
@@ -1075,89 +1055,13 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           trend={customKpiTrend("payout", kpiTrendPoints)}
           info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
         />
-        <PriorityCard
-          label="Brutto Storno/Rückgabe"
-          value={money.format(grossDeductionAmount)}
-          hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`}
-          period={selectedPeriod.label}
-          tone={grossDeductionAmount ? "amber" : "green"}
-          trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)}
-          info={`Grundmenge nach der neuen Logik: alle erkannten Rückgaben und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}. Diese Kachel zeigt den Brutto-Abzug vor weiterer Einordnung in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert.`}
-        />
       </section>
 
-      <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung Storno- und Rechnungs-KPI">
-        <PriorityCard
-          label="Storno-Grundmenge"
-          value={integerNumber.format(stornoReview.total)}
-          hint={`${money.format(stornoReview.amount)} Brutto-Storno`}
-          period={selectedPeriod.label}
-          tone={stornoReview.open ? "amber" : stornoReview.total ? "green" : "blue"}
-          trend={customKpiTrend("cancellations", kpiTrendPoints, true)}
-          info={`Grundmenge: alle erkannten Storno-Zeilen im gewählten Zeitraum für ${scopeHint}. Danach wird getrennt: zurückgeholt durch Neueinreichung, bezahlt/manuell geklärt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert. Storno-Betrag gesamt: ${money.format(stornoReview.amount)}.`}
-        />
-        <PriorityCard
-          label="Davon zurückgeholt"
-          value={integerNumber.format(deductionRecovery.recoveredCount)}
-          hint={`${money.format(recoveredStornoAmount)} · ${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`}
-          period={selectedPeriod.label}
-          tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"}
-          trend={customKpiTrend("recoveredStornos", kpiTrendPoints)}
-          info="Lesart: Vom Brutto-Abzug aus Rückgaben und Stornos wurde dieser Betrag über echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung geklärt. Saldo 0 allein zählt hier nicht als Zahlung."
-        />
-        <PriorityCard
-          label="Offener Abzug"
-          value={money.format(openStornoAmount)}
-          hint="Brutto-Abzug minus zurückgeholt/bezahlt"
-          period={selectedPeriod.label}
-          tone={openStornoAmount ? "amber" : "green"}
-          trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)}
-          info="Noch nicht zurückgeholter Betrag aus Brutto Storno/Rückgabe. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert."
-        />
-        <PriorityCard
-          label="Zahlung/Grund prüfen"
-          value={integerNumber.format(economicCheckRows.length)}
-          hint={money.format(economicCheckAmount)}
-          period={selectedPeriod.label}
-          tone={economicCheckRows.length ? "amber" : "green"}
-          info={`Diese Fälle sind laut Saldo-Liste bei BFS geschlossen, aber wirtschaftlich noch nicht erklärt. Es muss belegt werden, ob Zahlung, echte Neueinreichung oder korrekter Storno-Grund vorliegt. Saldo 0 allein ist kein Zahlungsnachweis.`}
-        />
-        <PriorityCard
-          label="Praxis nachfassen"
-          value={integerNumber.format(practiceFollowupCases.length)}
-          hint={money.format(practiceFollowupAmount)}
-          period={selectedPeriod.label}
-          tone={practiceFollowupCases.length ? "amber" : "green"}
-          trend={customKpiTrend("practiceFollowupAmount", kpiTrendPoints, true)}
-          info="Echte operative Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle sind nicht nur saldobereinigt, sondern müssen durch die Praxis nachgehalten werden."
-        />
-        <PriorityCard
-          label="Wirtschaftlich verbleibend"
-          value={money.format(finalCashflowAmount)}
-          hint="eingereicht minus Kosten/Abzug plus zurückgeholt"
-          period={selectedPeriod.label}
-          tone="green"
-          trend={customKpiTrend("finalCashflow", kpiTrendPoints)}
-          info={`CashFlow-Herleitung: ${money.format(metrics.submitted)} eingereicht minus BFS-Gebühr netto, MwSt, EWMA und Brutto Storno/Rückgabe plus ${money.format(recoveredStornoAmount)} zurückgeholt/bezahlt.`}
-        />
-        <PriorityCard
-          label="Eingereichte Rechnungen"
-          value={integerNumber.format(invoiceCount)}
-          hint="Patienten-/Rechnungspositionen"
-          period={selectedPeriod.label}
-          tone="blue"
-          trend={customKpiTrend("claims", kpiTrendPoints)}
-          info={`Gezählt werden die erkannten Forderungspositionen aus den importierten Abrechnungen für ${scopeHint}. Wenn keine Positionsliste erkannt wurde, nutzt die App die erkannte Kopfanzahl als Fallback.`}
-        />
-        <PriorityCard
-          label="Ø Wert je Forderung"
-          value={money.format(averageClaimValue)}
-          hint="eingereicht / Forderungen"
-          period={selectedPeriod.label}
-          tone="blue"
-          trend={customKpiTrend("averageClaim", kpiTrendPoints)}
-          info={`Berechnung: eingereichter Umsatz ${money.format(metrics.submitted)} geteilt durch ${integerNumber.format(invoiceCount)} erkannte Forderungs-/Rechnungspositionen im gewählten Zeitraum für ${scopeHint}.`}
-        />
+      <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung offene Prüfsumme">
+        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info={`Grundmenge: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}.`} />
+        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredStornos", kpiTrendPoints)} info="Bereits geklärt heißt: Neueinreichung, belegte Zahlung, manuell bezahlt oder Ratenplan laut BFS." />
+        <PriorityCard label="Offene Prüfsumme" value={money.format(openStornoAmount)} hint="Brutto-Abzug minus bereits geklärt" period={selectedPeriod.label} tone={openStornoAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info="Das ist die Summe, die in der operativen Prüfliste abgearbeitet wird." />
+        <PriorityCard label="Endgültig verloren" value={money.format(finalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={finalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
       </section>
 
       <section className="panel period-filter custom-kpi-period custom-chart-period">
@@ -1730,21 +1634,19 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
   const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows]);
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows]);
-  const oldestOpenCase = managementComparison.openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
   const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions };
   const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
   const groupKpis: KpiCardTuple[] = [
     ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
-    ["Eingereicht Vorjahr", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForPeriod("submitted", importRows, filteredStandorte, managementComparison.previousPeriod)],
-    ["Delta zum Vorjahr", money.format(managementComparison.submittedDelta), formatDelta(managementComparison.submittedDeltaRate), undefined, groupSparkline("submitted"), managementComparison.currentPeriod.label],
-    ["BFS-Gebühren", money.format(managementComparison.currentMetrics.fees), managementComparison.currentPeriod.label, groupKpiInfo.fees, groupSparkline("fees")],
-    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Vorjahr ${formatFeeRate(managementComparison.previousMetrics.feeRate)}`, undefined, groupSparkline("feeRate")],
-    ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, `Grundmenge nach BFS-Abrechnung: erkannte Rückgaben, Rückläufer und Stornos im Zeitraum ${managementComparison.currentPeriod.label}. Dieser Betrag ist vor der weiteren Einordnung in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert.`, groupSparkline("deductionAmount")],
-    ["Davon zurückgeholt", formatPercent(managementComparison.recoveryRate), `${money.format(managementComparison.recoveredAmount)} angerechnet`, "Zurückgeholt bedeutet: echte spätere Neueinreichung/Ersatzrechnung, wirtschaftlich belegte Zahlung oder bei BFS hinterlegter Ratenplan. Saldo 0 allein zählt nicht als Zahlung.", groupSparkline("recoveryRate")],
-    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), money.format(managementComparison.currentMetrics.noProtectionAmount), undefined, groupSparkline("noProtection")],
-    ["Praxis nachfassen", String(managementComparison.openCases.length), `${oldestOpenCase} Tage ältester Fall`, "Gezählt werden nur echte Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Fälle mit BFS-Saldo 0, deren wirtschaftlicher Grund noch unklar ist, liegen separat unter Zahlung / Grund prüfen.", caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "count")],
-    ["Ältester Praxisfall", `${oldestOpenCase} Tage`, "älteste Nachfassposition", "Alter des ältesten Praxis-Nachfassfalls im aktuellen Filter. Saldo-geschlossene Prüffälle werden hier nicht mitgezählt.", caseSparklineForPeriod(managementComparison.openCases, managementComparison.currentPeriod, "oldest")]
+    ["BFS-Gebühr netto", money.format(managementComparison.currentMetrics.feeNet), "Kostenblock", groupKpiInfo.fees, groupSparkline("feeNet")],
+    ["MwSt", money.format(managementComparison.currentMetrics.feeVat + managementComparison.currentMetrics.ewmaVat), "auf Gebühren/EWMA", undefined, groupSparkline("tax")],
+    ["Adressprüfung", money.format(managementComparison.currentMetrics.ewmaTotal), "EWMA", undefined, groupSparkline("fees")],
+    ["Auszahlung", money.format(managementComparison.currentMetrics.payout), "laut BFS-Abrechnung", undefined, groupSparkline("payout")],
+    ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, "Grundmenge aller Rückgaben, Rückbelastungen und Stornos.", groupSparkline("deductionAmount")],
+    ["Bereits geklärt", money.format(managementComparison.recoveredAmount), `${formatPercent(managementComparison.recoveryRate)} vom Brutto-Abzug`, "Neueinreichung, Zahlung, manuell bezahlt oder Ratenplan laut BFS.", groupSparkline("recoveryRate")],
+    ["Offene Prüfsumme", money.format(Math.max(managementComparison.deductionAmount - managementComparison.recoveredAmount, 0)), "geht in die Prüfliste", "Diese Summe wird operativ abgearbeitet.", groupSparkline("deductionAmount")],
+    ["Endgültig verloren", money.format(managementComparison.finalLostAmount), "manuell endgültig storniert", "Betrag, der nach Prüfung nicht weiterverfolgt wird.", groupSparkline("deductionAmount")]
   ];
   return (
     <div className="content-stack">
@@ -1919,11 +1821,11 @@ function CashflowWaterfallChart({
           <strong>{money.format(payout)}</strong>
         </article>
         <article>
-          <span>Zurückgeholt / bezahlt</span>
+          <span>Bereits geklärt</span>
           <strong>{integerNumber.format(recoveredCount)}</strong>
         </article>
         <article>
-          <span>Offener Abzug</span>
+          <span>Offene Prüfsumme</span>
           <strong>{money.format(openDeduction)}</strong>
         </article>
         <article>
@@ -2403,6 +2305,7 @@ function buildManagementComparison(importRows: ImportPreviewRow[], relevantStand
     submittedDeltaRate,
     deductionAmount,
     recoveredAmount,
+    finalLostAmount: manualCancelledAmountFromRows(currentRows, manualCaseResolutions),
     recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
     chargebackRate: currentMetrics.submitted ? (deductionAmount / currentMetrics.submitted) * 100 : 0,
     noProtectionShare: currentMetrics.submitted ? (currentMetrics.noProtectionAmount / currentMetrics.submitted) * 100 : 0,
@@ -2550,6 +2453,7 @@ function buildLocationSnapshots(
       deductionAmount,
       recoveredAmount,
       openDeductionAmount,
+      finalLostAmount: manualCancelledAmountFromRows(locationRows, manualCaseResolutions),
       recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
       deductionRate,
       economicCheckCount: economicCheckRows.length,
@@ -2587,10 +2491,10 @@ function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = f
                 <MetricInfo title={`Brutto Storno/Rückgabe ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
                 <LocationMetricTile label="Brutto Storno/Rückgabe" value={money.format(entry.deductionAmount)} current={entry.deductionAmount} previous={previous?.deductionAmount ?? 0} format={money.format} bare />
               </span>
-              <LocationMetricTile label="Zurückgeholt / bezahlt" value={money.format(entry.recoveredAmount)} current={entry.recoveredAmount} previous={previous?.recoveredAmount ?? 0} format={money.format} />
-              <LocationMetricTile label="Offener Abzug" value={money.format(entry.openDeductionAmount)} current={entry.openDeductionAmount} previous={previous?.openDeductionAmount ?? 0} format={money.format} />
-              <LocationMetricTile label="Zahlung/Grund prüfen" value={String(entry.economicCheckCount)} current={entry.economicCheckCount} previous={previous?.economicCheckCount ?? 0} format={integerNumber.format} />
-              <LocationMetricTile label="Praxis nachfassen" value={String(entry.openCases)} current={entry.openCases} previous={previous?.openCases ?? 0} format={integerNumber.format} />
+              <LocationMetricTile label="Bereits geklärt" value={money.format(entry.recoveredAmount)} current={entry.recoveredAmount} previous={previous?.recoveredAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="Offene Prüfsumme" value={money.format(entry.openDeductionAmount)} current={entry.openDeductionAmount} previous={previous?.openDeductionAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="Endgültig verloren" value={money.format(entry.finalLostAmount)} current={entry.finalLostAmount} previous={previous?.finalLostAmount ?? 0} format={money.format} />
+              <LocationMetricTile label="Prüfliste" value={String(entry.openCases)} current={entry.openCases} previous={previous?.openCases ?? 0} format={integerNumber.format} />
             </div>
           </article>
         );
@@ -2616,8 +2520,7 @@ function locationChargebackRateInfo(entry: LocationSnapshot) {
   return [
     `Herleitung Brutto Storno/Rückgabe: Rückgaben, Rückläufer und Stornos aus dem BFS-Kontoauszug, bevor die weitere Einordnung erfolgt.`,
     `${money.format(entry.deductionAmount)} / ${money.format(entry.metrics.submitted)} = ${formatPercent(entry.deductionRate)} vom eingereichten Umsatz.`,
-    `Davon zurückgeholt oder bezahlt: ${money.format(entry.recoveredAmount)}. Offener Abzug nach Anrechnung: ${money.format(entry.openDeductionAmount)}.`,
-    `Zahlung/Grund prüfen: ${entry.economicCheckCount} Fall/Fälle mit ${money.format(entry.economicCheckAmount)}.`,
+    `Bereits geklärt: ${money.format(entry.recoveredAmount)}. Offene Prüfsumme nach Anrechnung: ${money.format(entry.openDeductionAmount)}. Endgültig verloren: ${money.format(entry.finalLostAmount)}.`,
     `Rückgaben/Rückbelastungen: ${entry.metrics.returnCount} Fall/Fälle mit ${money.format(entry.metrics.returnAmount)}. Stornos: ${entry.metrics.cancellationCount} Fall/Fälle mit ${money.format(entry.metrics.cancellationAmount)}.`,
     `Zusatzinfo ohne Ausfallschutz: ${entry.noProtectionClaimCount} von ${entry.claimCount} erkannten Forderungspositionen laufen ohne Schutz, also ${formatPercent(entry.noProtectionCaseRate)}.`
   ].join(" ");
@@ -2853,8 +2756,8 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
       </section>
       <section className="priority-grid quality-priority-grid">
         <PriorityCard label="Ohne Ausfallschutz" value={money.format(metrics.noProtectionAmount)} hint={`${formatPercent(noProtectionShare)} vom Eingang`} period={selectedPeriod.label} tone={metrics.noProtectionAmount ? "amber" : "green"} info={`Qualitätsrisiko im Filter ${qualityScopeLabel}: Summe der eingereichten Forderungen ohne Ausfallschutz. Diese Kachel zeigt Risikoexposition, nicht offenen Abzug.`} />
-        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossQualityDeduction)} hint={`${formatPercent(metrics.submitted ? (grossQualityDeduction / metrics.submitted) * 100 : 0)} vom Eingang`} period={selectedPeriod.label} tone={grossQualityDeduction ? "red" : "green"} info="Qualitäts-Grundmenge aus Rückgaben/Rückbelastungen plus Stornos im gewählten Filter. Die wirtschaftliche Restlogik Offener Abzug = Brutto Storno/Rückgabe minus zurückgeholt/bezahlt liegt im Tab Forderungen und Geldfluss bzw. Zusammenfassung." />
-        <PriorityCard label="Rückgabe/Rückbelastung" value={money.format(metrics.returnAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} period={selectedPeriod.label} tone={chargebackShare ? "red" : "green"} info="Nur Rückgaben/Rückbelastungen aus den BFS-Kontoauszügen. Rückgabe ohne Ausfallschutz wird operativ als Praxis nachfassen geführt; saldogeschlossene Belegfälle liegen unter Zahlung/Grund prüfen." />
+        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossQualityDeduction)} hint={`${formatPercent(metrics.submitted ? (grossQualityDeduction / metrics.submitted) * 100 : 0)} vom Eingang`} period={selectedPeriod.label} tone={grossQualityDeduction ? "red" : "green"} info="Qualitäts-Grundmenge aus Rückgaben/Rückbelastungen plus Stornos im gewählten Filter. Die wirtschaftliche Restlogik Offene Prüfsumme = Brutto Storno/Rückgabe minus bereits geklärt liegt im Tab Forderungen und Geldfluss bzw. Zusammenfassung." />
+        <PriorityCard label="Rückgabe/Rückbelastung" value={money.format(metrics.returnAmount)} hint={`${formatPercent(chargebackShare)} vom Eingang`} period={selectedPeriod.label} tone={chargebackShare ? "red" : "green"} info="Nur Rückgaben/Rückbelastungen aus den BFS-Kontoauszügen. Offene Fälle werden gesammelt in der operativen Prüfliste abgearbeitet." />
         <PriorityCard label="Stornoquote" value={formatPercent(stornoShare)} hint={money.format(metrics.cancellationAmount)} period={selectedPeriod.label} tone={stornoShare ? "amber" : "green"} info="Nur Storno-Bewegungen bezogen auf eingereichten Umsatz. Das ist bewusst eine Storno-Untermenge und nicht identisch mit dem appweiten offenen Abzug." />
         <PriorityCard label="Storno-Zeilen erledigt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} offene Klärbewegungen`} period={selectedPeriod.label} tone={stornoReview.open ? "amber" : "green"} info={openStornoInfo} />
         <PriorityCard label="Wiederholer" value={String(recurring.length)} hint="Patienten mehrfach ohne Schutz" period={selectedPeriod.label} tone={recurring.length ? "amber" : "green"} info="Patienten mit wiederholten Ohne-Ausfallschutz-Markierungen im gewählten Qualitätsfilter. Diese Kachel dient der Patientenselektion, nicht der Abzugsbuchung." />
@@ -3003,7 +2906,7 @@ function StornoReviewSection({
       )}
       <div className="priority-grid compact-priority recovery-priority-grid storno-review-priority">
         <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} period={periodLabel} tone={review.total ? "amber" : "green"} />
-        <PriorityCard label="Zurückgeholt / bezahlt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} der Storno-Grundmenge`} period={periodLabel} tone={review.done ? "green" : "blue"} info="Zurückgeholt/bezahlt meint echte Neueinreichung, belegte Zahlung oder manuelle Zahlungsklärung. Saldo 0 allein reicht dafür nicht." />
+        <PriorityCard label="Bereits geklärt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} der Storno-Grundmenge`} period={periodLabel} tone={review.done ? "green" : "blue"} info="Bereits geklärt meint echte Neueinreichung, belegte Zahlung, Ratenplan laut BFS oder manuelle Zahlungsklärung. Saldo 0 allein reicht dafür nicht." />
         <PriorityCard label="Weiter zu prüfen" value={String(review.open)} hint="nicht zurückgeholt oder storniert" period={periodLabel} tone={review.open ? "red" : "green"} />
       </div>
       <div className="location-card-grid storno-review-grid">
@@ -3125,7 +3028,6 @@ function CockpitChartFilterBar({
 
 function LocationDashboard({
   standort,
-  cases,
   onNavigate,
   onScopeChange,
   importRows,
@@ -3134,7 +3036,6 @@ function LocationDashboard({
   invoiceStatusRows = []
 }: {
   standort: Standort;
-  cases: BfsCase[];
   onNavigate: (view: string) => void;
   onScopeChange?: (standortId: string) => void;
   importRows: ImportPreviewRow[];
@@ -3149,7 +3050,10 @@ function LocationDashboard({
   const importSummary = useMemo(() => summarizeImportRows(locationImportRows), [locationImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
-  const openCases = useMemo(() => cases.filter((fall) => !fall.status.includes("erledigt") && isPracticeFollowupCase(fall)), [cases]);
+  const openCases = useMemo(
+    () => buildUnifiedOperationalReviewCases(locationImportRows, invoiceStatusRows, manualCaseResolutions),
+    [invoiceStatusRows, locationImportRows, manualCaseResolutions]
+  );
   const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases, undefined, manualCaseResolutions, invoiceStatusRows), [importRows, openCases, standort, manualCaseResolutions, invoiceStatusRows]);
   const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
@@ -3163,7 +3067,7 @@ function LocationDashboard({
     ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Ø Gruppe ${formatFeeRate(peerAverage.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
     ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Ø Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
     ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Ø Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
-    ["Praxis nachfassen", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, "Echte Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Saldobereinigte Fälle ohne wirtschaftlichen Beleg liegen unter Zahlung / Grund prüfen.", kpiSparklineForLabel("Praxis nachfassen", locationSparklineContext)],
+    ["Prüfliste", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, "Eine operative Liste für offene Fälle. Je Fall wird bezahlt/geklärt oder endgültig storniert markiert.", kpiSparklineForLabel("Prüfliste", locationSparklineContext)],
     ["Patientenqualität", patientQualityMixLabel(importRows, standort.id), "A/B/C/D-Mix", undefined, kpiSparklineForLabel("Ohne Ausfallschutz", locationSparklineContext)]
   ];
 
@@ -3232,8 +3136,7 @@ function LocationDashboard({
             <p>Gebührenquote {formatFeeRate(managementComparison.currentMetrics.feeRate)} gegen Ø Gruppe {formatFeeRate(peerAverage.feeRate)}. Rückbelastungsquote {formatPercent(managementComparison.chargebackRate)} gegen Ø Gruppe {formatPercent(groupChargebackRate)}.</p>
           </div>
           <div className="quick-actions">
-            <button className="primary-button" onClick={() => onNavigate("practiceFollowup")}><AlertCircle size={16} /> Praxis nachfassen</button>
-            <button className="secondary-button" onClick={() => onNavigate("economicCheck")}><ClipboardCheck size={16} /> Zahlung / Grund prüfen</button>
+            <button className="primary-button" onClick={() => onNavigate("practiceFollowup")}><ClipboardCheck size={16} /> Prüfliste</button>
             <button className="secondary-button" onClick={() => onNavigate("risks")}><ShieldCheck size={16} /> Risiko</button>
             <button className="secondary-button" onClick={() => onNavigate("claims")}><ReceiptText size={16} /> Geldfluss</button>
           </div>
@@ -3243,7 +3146,7 @@ function LocationDashboard({
           <div className="stacked-checks">
             <span>1. Brutto Storno/Rückgabe erkennen</span>
             <span>2. Neueinreichung oder Zahlung belegen</span>
-            <span>3. Ohne Ausfallschutz durch Praxis nachfassen</span>
+            <span>3. Offene Prüfsumme in der Prüfliste entscheiden</span>
           </div>
         </article>
       </section>
@@ -3255,9 +3158,9 @@ function LocationDashboard({
             <p>Konkrete Patienten, Praxis-Nachfassfälle, Zahlung/Grund-Prüfungen und Reports werden hier weiterbearbeitet.</p>
           </div>
         </div>
-        <AnswerCockpit scope="location" standort={standort} cases={cases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} />
+        <AnswerCockpit scope="location" standort={standort} cases={openCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
       </section>
-      <CasesView cases={cases} compact />
+      <CasesView title="Prüfliste offene Fälle" cases={openCases} compact />
     </div>
   );
 }
@@ -3407,9 +3310,9 @@ function AnswerCockpit({
         <AnswerMetricCard title="BFS-Kosten" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
         <AnswerMetricCard title="Umsatz ausgezahlt" value={money.format(payout)} hint="nach BFS-Abzug" trend={payoutTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.payout} onClick={() => onNavigate("claims")} />
         <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
-        <AnswerMetricCard title="Stornierte Fälle" value={integerNumber.format(stornoReview.total)} hint={money.format(stornoReview.amount)} trend={stornoTotalTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("matches")} />
-        <AnswerMetricCard title="Davon zurückgeholt" value={integerNumber.format(stornoReview.done)} hint={`${formatPercent(stornoReview.doneRate)} gewandelt`} trend={stornoDoneTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("matches")} />
-        <AnswerMetricCard title="Stornos offen" value={integerNumber.format(stornoReview.open)} hint="noch nicht zurückgeholt" trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("economicCheck")} />
+        <AnswerMetricCard title="Brutto Storno/Rückgabe" value={integerNumber.format(stornoReview.total)} hint={money.format(stornoReview.amount)} trend={stornoTotalTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Bereits geklärt" value={integerNumber.format(stornoReview.done)} hint={`${formatPercent(stornoReview.doneRate)} geklärt`} trend={stornoDoneTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Offene Prüfsumme" value={integerNumber.format(stornoReview.open)} hint="in Prüfliste abarbeiten" trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
         <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
       </div>
     </section>
@@ -3536,32 +3439,6 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
     points: points.length ? points : [0, currentTotal, currentTotal],
     tone,
     label
-  };
-}
-
-function kpiSparklineForPeriod(metric: AnswerSparklineMetric, importRows: ImportPreviewRow[], relevantStandorte: Standort[], period: PeriodOption): AnswerSparklineTrend {
-  const rows = rowsForSparklinePeriod(importRows, relevantStandorte, period);
-  const points = monthlySparklinePoints(metric, rows, relevantStandorte);
-  const total = valueForAnswerMetric(metric, rows, relevantStandorte);
-  const yearLabel = period.start?.getFullYear() ? String(period.start.getFullYear()) : period.label;
-  return {
-    points: points.length ? points : [0, total, total],
-    tone: "green",
-    label: `${yearLabel} Verlauf`
-  };
-}
-
-function caseSparklineForPeriod(cases: BfsCase[], period: PeriodOption, metric: "count" | "oldest"): AnswerSparklineTrend {
-  const monthKeys = [...new Set(cases.map((fall) => monthKeyFromShortDate(fall.sourceDate)).filter(Boolean))].sort();
-  const points = monthKeys.map((month) => {
-    const monthCases = cases.filter((fall) => monthKeyFromShortDate(fall.sourceDate) === month);
-    return metric === "count" ? monthCases.length : monthCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  });
-  const total = metric === "count" ? cases.length : cases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  return {
-    points: points.length ? points : [0, total, total],
-    tone: total ? "red" : "green",
-    label: metric === "count" ? "offener Verlauf" : "Fallalter"
   };
 }
 
@@ -3738,21 +3615,15 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
 function ClaimsFlowView({
   mode = "details",
   standort,
-  cases: rows,
   importRows = [],
   manualCaseResolutions = [],
-  invoiceStatusRows = [],
-  onResolvePaid,
-  onCancelFinal
+  invoiceStatusRows = []
 }: {
   mode?: "details" | "cashflow";
   standort?: Standort;
-  cases: BfsCase[];
   importRows?: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
   invoiceStatusRows?: ParsedInvoiceStatusRow[];
-  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
-  onCancelFinal?: (fall: BfsCase) => void | Promise<void>;
 }) {
   const rowsStandorte = useMemo(() => standort ? [standort] : standorte, [standort]);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
@@ -3819,78 +3690,12 @@ function ClaimsFlowView({
   const deductionRecoverySummary = useMemo(() => buildDeductionRecovery(importRows, deductionStandorte, deductionPeriod, manualCaseResolutions, invoiceStatusRows), [deductionPeriod, deductionStandorte, importRows, invoiceStatusRows, manualCaseResolutions]);
   const recoveryDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, recoveryStandorte, recoveryPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, recoveryPeriod, recoveryStandorte]);
   const waterfallDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, waterfallStandorte, waterfallPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, waterfallPeriod, waterfallStandorte]);
-  const recoveryClosedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const recoveryReviewRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, recoveryScopedImportRows), [invoiceStatusRows, recoveryScopedImportRows]);
-  const recoveryEconomicCheckRows = useMemo(() => recoveryReviewRows.filter((row) => row.category === "economic_check"), [recoveryReviewRows]);
-  const recoveryOpenEconomicCheckRows = useMemo(() => recoveryEconomicCheckRows
-    .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => recoveryClosedKeys.has(key))),
-    [recoveryClosedKeys, recoveryEconomicCheckRows]
+  const recoveryReviewCases = useMemo(
+    () => buildUnifiedOperationalReviewCases(recoveryScopedImportRows, invoiceStatusRows, manualCaseResolutions),
+    [invoiceStatusRows, manualCaseResolutions, recoveryScopedImportRows]
   );
-  const recoveryOpenEconomicCheckAmount = useMemo(() => recoveryOpenEconomicCheckRows.reduce((sum, row) => sum + row.amount, 0), [recoveryOpenEconomicCheckRows]);
-  const recoveryPracticeFollowupCases = useMemo(() => applyInvoiceStatusToCases(
-    casesFromImportRows(recoveryScopedImportRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => recoveryClosedKeys.has(key))),
-    invoiceStatusRows
-  ).filter(isPracticeFollowupCase), [invoiceStatusRows, recoveryClosedKeys, recoveryScopedImportRows]);
-  const recoveryPracticeFollowupAmount = useMemo(() => recoveryPracticeFollowupCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryPracticeFollowupCases]);
-  const recoveryStornoReview = useMemo(() => stornoReviewFromImportRows(
-    recoveryScopedImportRows,
-    recoveryStandorte.length === 1 ? recoveryStandorte[0].id : undefined,
-    manualCaseResolutions
-  ), [manualCaseResolutions, recoveryScopedImportRows, recoveryStandorte]);
-  const recoveryFinalCancelledAmount = useMemo(() => recoveryStornoReview.rows.filter((row) => row.finalCancelled).reduce((sum, row) => sum + row.amount, 0), [recoveryStornoReview.rows]);
-  const recoveryOpenEconomicCheckKeys = useMemo(() => new Set(recoveryOpenEconomicCheckRows.flatMap((row) => caseResolutionKeys(invoiceStatusReviewRowToCase(row)))), [recoveryOpenEconomicCheckRows]);
-  const recoveryPracticeFollowupKeys = useMemo(() => new Set(recoveryPracticeFollowupCases.flatMap((fall) => caseResolutionKeys(fall))), [recoveryPracticeFollowupCases]);
-  const recoveryFinalCancelledKeys = useMemo(() => new Set(recoveryStornoReview.rows
-    .filter((row) => row.finalCancelled)
-    .flatMap((row) => caseResolutionKeys({
-      standortId: row.standortId,
-      patientName: row.patientName,
-      invoiceNo: row.invoiceNo,
-      bfsNo: row.bfsNo,
-      amount: row.amount,
-      reason: row.reason
-    }))), [recoveryStornoReview.rows]);
-  const recoveryUnassignedCases = useMemo(() => openUnresolvedMovementsFromImportRows(
-    recoveryScopedImportRows,
-    recoveryStandorte.length === 1 ? recoveryStandorte[0].id : undefined
-  )
-    .map((row, index) => {
-      const rowStandort = standorte.find((entry) => entry.name === row.locationName);
-      const reason = row.reason || "Noch nicht zugeordnet";
-      return {
-        id: `unassigned-${row.statementNo}-${row.bfsNo}-${row.invoiceNo}-${index}`,
-        resolutionKey: caseResolutionKeyFromParts({
-          standortId: rowStandort?.id ?? row.locationName,
-          patientName: row.patientName,
-          invoiceNo: row.invoiceNo,
-          bfsNo: row.bfsNo,
-          amount: row.amount,
-          reason
-        }),
-        standortId: rowStandort?.id ?? row.locationName,
-        locationName: row.locationName,
-        patientName: row.patientName,
-        invoiceNo: row.invoiceNo,
-        bfsNo: row.bfsNo,
-        amount: row.amount,
-        reason,
-        sourceDate: row.date,
-        ageDays: row.date ? ageFromShortDate(row.date) : 0,
-        traffic: "orange",
-        status: "noch_nicht_zugeordnet",
-        dueDate: "-",
-        lastComment: `Abrechnung ${row.statementNo}`
-      } satisfies BfsCase;
-    })
-    .filter((fall) => {
-      const keys = caseResolutionKeys(fall);
-      return !keys.some((key) => recoveryClosedKeys.has(key))
-        && !keys.some((key) => recoveryOpenEconomicCheckKeys.has(key))
-        && !keys.some((key) => recoveryPracticeFollowupKeys.has(key))
-        && !keys.some((key) => recoveryFinalCancelledKeys.has(key));
-    })
-    .sort(compareOperationalCases), [recoveryClosedKeys, recoveryFinalCancelledKeys, recoveryOpenEconomicCheckKeys, recoveryPracticeFollowupKeys, recoveryScopedImportRows, recoveryStandorte]);
-  const recoveryUnassignedCaseAmount = useMemo(() => recoveryUnassignedCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryUnassignedCases]);
+  const recoveryReviewCaseAmount = useMemo(() => recoveryReviewCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryReviewCases]);
+  const recoveryFinalLostAmount = useMemo(() => manualCancelledAmountFromRows(recoveryScopedImportRows, manualCaseResolutions), [manualCaseResolutions, recoveryScopedImportRows]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
   const analysisRecoveredAmount = deductionRecoverySummary.recoveredAmount;
@@ -3898,10 +3703,6 @@ function ClaimsFlowView({
   const matchedNewSubmissionAmount = recoveryDeductionSummary.matchedNewSubmissionAmount;
   const recoveredAmount = recoveryDeductionSummary.recoveredAmount;
   const stillOpenAmount = recoveryDeductionSummary.openAmount;
-  const recoveryOperationalExplainedAmount = recoveryOpenEconomicCheckAmount + recoveryPracticeFollowupAmount + recoveryFinalCancelledAmount;
-  const recoveryUnassignedOpenAmount = Math.max(stillOpenAmount - recoveryOperationalExplainedAmount, recoveryUnassignedCaseAmount, 0);
-  const recoveryOperationalControlAmount = recoveryOperationalExplainedAmount + recoveryUnassignedOpenAmount;
-  const recoveryOperationalDifference = stillOpenAmount - recoveryOperationalControlAmount;
   const waterfallDeductionAmount = waterfallDeductionSummary.grossDeductionAmount;
   const waterfallRecoveredAmount = waterfallDeductionSummary.recoveredAmount;
   const waterfallScopeLabel = waterfallStandorte.length === 1 ? waterfallStandorte[0].name : "Alle Standorte";
@@ -3992,8 +3793,8 @@ function ClaimsFlowView({
         <div className="priority-grid compact-priority deduction-priority-grid">
           <PriorityCard label="Größter Abzug" value={money.format(deductionMetrics.fees)} hint="BFS-Gebühr inkl. MwSt" period={deductionPeriod.label} tone={deductionMetrics.fees ? "red" : "green"} />
           <PriorityCard label="Kosten ohne Storno" value={money.format(deductionMetrics.fees + deductionMetrics.ewmaTotal)} hint="BFS-Gebühr, MwSt und EWMA" period={deductionPeriod.label} tone={deductionMetrics.fees + deductionMetrics.ewmaTotal ? "amber" : "green"} />
-          <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(analysisDeductionAmount)} hint="ursprünglicher Abzug aus Kontoauszug" period={deductionPeriod.label} tone={analysisDeductionAmount ? "red" : "green"} info="Brutto-Grundmenge aus Rückgaben, Rückläufern und Stornos, bevor die App in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert trennt." />
-          <PriorityCard label="Davon zurückgeholt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoverySummary.recoveredCount} Matches/Zahlungen`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} info="Zurückgeholt zählt nur echte spätere Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung. Saldo 0 allein zählt nicht als Geldzufluss." />
+          <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(analysisDeductionAmount)} hint="ursprünglicher Abzug aus Kontoauszug" period={deductionPeriod.label} tone={analysisDeductionAmount ? "red" : "green"} info="Brutto-Grundmenge aus Rückgaben, Rückläufern und Stornos. Danach wird nur noch getrennt in bereits geklärt, offene Prüfsumme und endgültig verloren." />
+          <PriorityCard label="Bereits geklärt" value={money.format(analysisRecoveredAmount)} hint={`${deductionRecoverySummary.recoveredCount} Klärungen`} period={deductionPeriod.label} tone={analysisRecoveredAmount ? "green" : analysisDeductionAmount ? "amber" : "blue"} info="Bereits geklärt zählt echte spätere Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder wirtschaftlich belegte Zahlung. Saldo 0 allein zählt nicht als Geldzufluss." />
         </div>
         <div className="table-wrap compact-table recovery-table-scroll deduction-breakdown-table">
           <table>
@@ -4068,7 +3869,7 @@ function ClaimsFlowView({
         <div className="panel-heading">
           <div>
             <h2>{standort ? `Forderungen und Geldfluss ${standort.name}` : "Forderungen und Geldfluss Gruppe"}</h2>
-            <p>Vom Monatsimport bis zur Rückfrage: eingereicht, Gebühren, Brutto-Storno/Rückgabe, Praxis-Nachfassen und Risiko je Standort.</p>
+            <p>Je Standort: eingereichter Umsatz, BFS-Kosten, Auszahlung und offene Prüfsumme nach der neuen Herleitung.</p>
           </div>
         </div>
         <div className="period-filter">
@@ -4083,14 +3884,13 @@ function ClaimsFlowView({
         </div>
         <div className="cashflow-grid">
           {rowsStandorte.map((entry) => {
-            const StandortCases = rows.filter((fall) => standort ? fall.standortId === entry.id : fall.standortId === entry.id);
-            const openAmount = StandortCases.filter((fall) => !fall.status.includes("erledigt")).reduce((sum, fall) => sum + fall.amount, 0);
             const cardPeriodId = standortPeriodIds[entry.id] ?? selectedPeriodId;
             const cardPeriod = periodOptions.find((period) => period.id === cardPeriodId) ?? selectedPeriod;
             const rowImportSummary = summarizeImportRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, cardPeriod, entry)));
             const periodCashflow = rowImportSummary.rows ? cashflowFromImportSummary(rowImportSummary) : zeroCashflow();
-            const periodRiskAmount = periodCashflow.withoutProtection;
-            const paidEstimate = periodCashflow.payout || Math.max(periodCashflow.submitted - periodCashflow.fees - openAmount, 0);
+            const cardRecovery = buildDeductionRecovery(importRows, [entry], cardPeriod, manualCaseResolutions, invoiceStatusRows);
+            const cardOpenDeduction = cardRecovery.openAmount;
+            const cardFinalLost = manualCancelledAmountFromRows(importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, cardPeriod, entry)), manualCaseResolutions);
             return (
               <article className="cashflow-card" key={entry.id}>
                 <div>
@@ -4111,17 +3911,15 @@ function ClaimsFlowView({
                 </div>
                 <dl>
                   <div><dt>Umsatz eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>
-                  <div><dt>Auszahlungsbetrag</dt><dd>{money.format(paidEstimate)}</dd></div>
-                  <div><dt>BFS-Gebühr netto</dt><dd>{money.format(periodCashflow.feeNet)}</dd></div>
-                  <div><dt>MwSt</dt><dd>{money.format(periodCashflow.feeVat)}</dd></div>
-                  <div><dt>EWMA / Adressprüfung</dt><dd>{money.format(periodCashflow.ewmaTotal)}</dd></div>
-                  <div><dt>Gesamtkosten BFS</dt><dd>{money.format(periodCashflow.fees)}</dd></div>
-                  <div><dt>Gesamtabzug</dt><dd>{money.format(periodCashflow.fees + periodCashflow.ewmaTotal + periodCashflow.returnAmount + periodCashflow.cancellationAmount)}</dd></div>
-                  <div><dt>Praxis nachfassen</dt><dd>{money.format(openAmount)}</dd></div>
-                  <div><dt>Rückläufer</dt><dd>{periodCashflow.returnCount} / {money.format(periodCashflow.returnAmount)}</dd></div>
-                  <div><dt>Stornos</dt><dd>{periodCashflow.cancellationCount} / {money.format(periodCashflow.cancellationAmount)}</dd></div>
-                  <div><dt>ohne Ausfallschutz</dt><dd>{money.format(periodRiskAmount)}</dd></div>
-                </dl>
+	                  <div><dt>Auszahlungsbetrag</dt><dd>{money.format(periodCashflow.payout)}</dd></div>
+	                  <div><dt>BFS-Gebühr netto</dt><dd>{money.format(periodCashflow.feeNet)}</dd></div>
+	                  <div><dt>MwSt</dt><dd>{money.format(periodCashflow.feeVat)}</dd></div>
+	                  <div><dt>EWMA / Adressprüfung</dt><dd>{money.format(periodCashflow.ewmaTotal)}</dd></div>
+	                  <div><dt>Brutto Storno/Rückgabe</dt><dd>{money.format(cardRecovery.grossDeductionAmount)}</dd></div>
+	                  <div><dt>Bereits geklärt</dt><dd>{money.format(cardRecovery.recoveredAmount)}</dd></div>
+	                  <div><dt>Offene Prüfsumme</dt><dd>{money.format(cardOpenDeduction)}</dd></div>
+	                  <div><dt>Endgültig verloren</dt><dd>{money.format(cardFinalLost)}</dd></div>
+	                </dl>
               </article>
             );
           })}
@@ -4160,74 +3958,14 @@ function ClaimsFlowView({
         <div className="priority-grid compact-priority recovery-priority-grid">
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} info="Grundmenge vor Folgeentscheidung: Rückläufer, Rückgaben und Stornos aus den BFS-Kontoauszug-Bewegungen." />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
-          <PriorityCard label="Zurückgeholt / bezahlt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Matches/Zahlungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen und belegte Zahlungen bis maximal zur Höhe des ursprünglichen Abzugs." />
-          <PriorityCard label="Noch ungeklärt" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus zurückgeholt/bezahlt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Restbetrag nach angerechneter Neueinreichung oder Zahlung. Dieser Rest muss in der operativen Fallarbeit vollständig erklärt werden: Zahlung/Grund prüfen, Praxis nachfassen, endgültig storniert oder noch nicht zugeordnet." />
-          <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
-          <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
-          <PriorityCard label="Zahlung/Grund prüfen" value={integerNumber.format(recoveryOpenEconomicCheckRows.length)} hint={money.format(recoveryOpenEconomicCheckAmount)} period={recoveryPeriod.label} tone={recoveryOpenEconomicCheckRows.length ? "amber" : "green"} info="Aktive saldogeschlossene Fälle: BFS zeigt keinen offenen Saldo mehr, aber Zahlung, Neueinreichung oder Storno-Grund muss wirtschaftlich belegt werden. Bereits erledigte Fälle sind hier nicht mehr enthalten." />
-          <PriorityCard label="Praxis nachfassen" value={integerNumber.format(recoveryPracticeFollowupCases.length)} hint={money.format(recoveryPracticeFollowupAmount)} period={recoveryPeriod.label} tone={recoveryPracticeFollowupCases.length ? "amber" : "green"} info="Echte Praxis-Aufgaben aus dem offenen Rest, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle muss die Praxis aktiv nachhalten." />
-          <PriorityCard label="Endgültig storniert" value={integerNumber.format(recoveryStornoReview.finalCancelled)} hint={money.format(recoveryFinalCancelledAmount)} period={recoveryPeriod.label} tone={recoveryStornoReview.finalCancelled ? "red" : "green"} info="Manuell als endgültig storniert markierte Fälle. Sie bleiben in der Brutto-Storno-Grundmenge enthalten, sind aber nicht mehr offene Fallarbeit." />
-          <PriorityCard label="Noch nicht zugeordnet" value={money.format(recoveryUnassignedOpenAmount)} hint="Rest bis zur Kontrollsumme" period={recoveryPeriod.label} tone={recoveryUnassignedOpenAmount ? "red" : "green"} info="Offener Abzug, der noch in keinem operativen Arbeitskorb steckt. Diese Restkategorie zeigt, ob die Fallarbeit den offenen Abzug vollständig erklärt." />
-          <PriorityCard label="Kontrollsumme Operativ" value={money.format(recoveryOperationalControlAmount)} hint={`Differenz ${money.format(recoveryOperationalDifference)}`} period={recoveryPeriod.label} tone={Math.abs(recoveryOperationalDifference) < 0.01 ? "green" : "red"} info="Zahlung/Grund prüfen plus Praxis nachfassen plus endgültig storniert plus noch nicht zugeordnet. Diese Summe muss dem offenen Abzug entsprechen." />
-        </div>
-        <div className="panel-subsection">
-          <div className="panel-heading compact-heading">
-            <div>
-              <h3>Noch nicht zugeordnete offene Abzüge</h3>
-              <p>Diese Liste ist der Restkorb der Kontrollsumme. Hier sortierst du Fälle in bezahlt/geflossen oder endgültig storniert; echte Praxisfälle und saldogeschlossene Belegprüfungen liegen bereits in ihren eigenen Tabs.</p>
-            </div>
-            <div className="tab-evaluation">
-              <span>Restkorb</span>
-              <strong>{integerNumber.format(recoveryUnassignedCases.length)} Fälle / {exactMoney.format(recoveryUnassignedCaseAmount)}</strong>
-            </div>
-          </div>
-          <div className="table-wrap case-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Standort</th>
-                  <th>Datum</th>
-                  <th>Patient</th>
-                  <th>Rechnung</th>
-                  <th>Betrag</th>
-                  <th>Grund</th>
-                  <th>Abrechnung</th>
-                  {(onResolvePaid || onCancelFinal) && <th>Aktion</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {recoveryUnassignedCases.length ? recoveryUnassignedCases.map((fall) => (
-                  <tr key={caseResolutionKey(fall)}>
-                    <td>{fall.locationName}</td>
-                    <td>{fall.sourceDate ?? "-"}</td>
-                    <td><strong>{fall.patientName}</strong></td>
-                    <td><strong>{fall.invoiceNo}</strong><span>{fall.bfsNo}</span></td>
-                    <td>{exactMoney.format(fall.amount)}</td>
-                    <td>{fall.reason}</td>
-                    <td>{fall.lastComment}</td>
-                    {(onResolvePaid || onCancelFinal) && (
-                      <td>
-                        <div className="case-action-stack">
-                          {onResolvePaid && (
-                            <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
-                              <CheckCircle2 size={15} /> Erledigt / bezahlt
-                            </button>
-                          )}
-                          {onCancelFinal && (
-                            <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
-                              <X size={15} /> Endgültig storniert
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                )) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 8 : 7} label="Kein Rest im offenen Abzug. Die operative Fallarbeit erklärt den offenen Abzug vollständig." />}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+	          <PriorityCard label="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Klärungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen, belegte Zahlungen, manuell bezahlte Fälle und Ratenpläne laut BFS bis maximal zur Höhe des ursprünglichen Abzugs." />
+	          <PriorityCard label="Offene Prüfsumme" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus bereits geklärt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Diese Summe muss in der operativen Prüfliste abgearbeitet und als bezahlt/geklärt oder endgültig storniert markiert werden." />
+	          <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
+	          <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
+	          <PriorityCard label="Prüfliste" value={integerNumber.format(recoveryReviewCases.length)} hint={money.format(recoveryReviewCaseAmount)} period={recoveryPeriod.label} tone={recoveryReviewCases.length ? "amber" : "green"} info="Eine gemeinsame operative Liste. Dort wird je Fall entschieden: bezahlt/geklärt oder endgültig storniert." />
+	          <PriorityCard label="Endgültig verloren" value={money.format(recoveryFinalLostAmount)} hint="manuell endgültig storniert" period={recoveryPeriod.label} tone={recoveryFinalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
+	        </div>
+	      </section>
       <section className="dashboard-grid">
         <article className="panel">
           <div className="panel-heading">
@@ -4737,7 +4475,7 @@ function buildCashflowWaterfallSteps(metrics: BfsMetrics, deductionAmount: numbe
     { label: "MwSt", amount: -feeVat, detail: "Steuer auf BFS-Gebühren", tone: "negative" as const },
     { label: "EWMA / Adressprüfung", amount: -ewmaTotal, detail: "Meldeamt und Adressprüfung", tone: "negative" as const },
     { label: "Brutto Storno/Rückgabe", amount: -deduction, detail: `${metrics.returnCount + metrics.cancellationCount} Fälle`, tone: "negative" as const },
-    { label: "Zurückgeholt / bezahlt", amount: recovered, detail: "Neueinreichung oder Zahlung belegt", tone: "positive" as const }
+    { label: "Bereits geklärt", amount: recovered, detail: "Neueinreichung, Zahlung oder Ratenplan belegt", tone: "positive" as const }
   ];
   let current = start;
   const steps: CashflowWaterfallStep[] = [{
@@ -4870,11 +4608,91 @@ function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedIn
     .sort(compareOperationalCases);
 }
 
+function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
+  const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
+  const recoveredKeys = new Set(uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(importRows)).flatMap((candidate) => resubmissionResolutionKeys(candidate)));
+  const coveredStandortIds = invoiceStatusCoveredStandortIds(invoiceStatusRows);
+  const statusByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusByKey.set(key, row)));
+
+  return casesFromImportRows(importRows)
+    .flatMap((fall) => {
+      const keys = caseResolutionKeys(fall);
+      if (keys.some((key) => closedKeys.has(key) || recoveredKeys.has(key))) return [];
+
+      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusByKey.get(key)).find(Boolean);
+      if (statusRow && isInvoiceStatusPaidOrSecured(statusRow)) return [];
+
+      if (isNoProtectionReturnCase(fall)) {
+        return [{
+          ...fall,
+          status: "praxis_nachfassen",
+          traffic: "red",
+          reason: fall.reason.startsWith("Rückgabe ohne Ausfallschutz") ? fall.reason : `Rückgabe ohne Ausfallschutz: ${fall.reason}`,
+          lastComment: statusRow ? `Saldo-Status: ${invoiceStatusLabel(statusRow)}` : "Praxis muss Zahlung selbst nachhalten"
+        } satisfies BfsCase];
+      }
+
+      if (statusRow?.paymentStatus === "storniert") {
+        return [{
+          ...fall,
+          amount: Math.max(fall.amount, Math.abs(statusRow.cancelledAmount ?? 0)),
+          status: "storno_laut_bfs_pruefen",
+          traffic: "orange",
+          reason: `Storno laut BFS prüfen: ${fall.reason}`,
+          lastComment: `BFS storniert ${money.format(statusRow.cancelledAmount ?? 0)} · Saldo ${money.format(statusRow.saldo)}`
+        } satisfies BfsCase];
+      }
+
+      if (statusRow && statusRow.saldo < -0.005 && !statusRow.installmentPlan) {
+        return [{
+          ...fall,
+          amount: Math.max(fall.amount, Math.abs(statusRow.saldo)),
+          status: statusRow.reminderLevel > 0 ? "bfs_offen_mahnstufe" : "bfs_offen_pruefen",
+          traffic: statusRow.reminderLevel > 0 || !statusRow.protection ? "red" : "orange",
+          reason: `BFS offen prüfen: ${fall.reason}`,
+          lastComment: `${invoiceStatusLabel(statusRow)} · Saldo ${money.format(statusRow.saldo)}`
+        } satisfies BfsCase];
+      }
+
+      if (invoiceStatusRows.length && coveredStandortIds.has(fall.standortId) && !statusRow) {
+        return [{
+          ...fall,
+          status: "nicht_in_saldo_liste",
+          traffic: fall.traffic === "red" ? "red" : "orange",
+          reason: `Nicht in Saldo-Liste gefunden: ${fall.reason}`,
+          lastComment: "Keine eindeutige Zuordnung in bestätigter BFS-Saldo-Liste"
+        } satisfies BfsCase];
+      }
+
+      return [{
+        ...fall,
+        status: "offen_pruefen",
+        traffic: fall.traffic === "green" ? "orange" : fall.traffic,
+        lastComment: statusRow ? `Saldo-Status: ${invoiceStatusLabel(statusRow)}` : "Aus Abrechnung als offener Prüffall übernommen"
+      } satisfies BfsCase];
+    })
+    .sort(compareOperationalCases);
+}
+
+function manualCancelledAmountFromRows(importRows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
+  const cancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
+  return casesFromImportRows(importRows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => cancelledKeys.has(key)))
+    .reduce((sum, fall) => sum + fall.amount, 0);
+}
+
 function compareOperationalCases(a: BfsCase, b: BfsCase) {
   return operationalCasePriority(a) - operationalCasePriority(b) || b.amount - a.amount || b.ageDays - a.ageDays;
 }
 
 function operationalCasePriority(fall: BfsCase) {
+  if (fall.status === "praxis_nachfassen" || fall.status === "ohne_schutz_offen") return 1;
+  if (fall.status === "storno_laut_bfs_pruefen") return 2;
+  if (fall.status === "bfs_offen_mahnstufe") return 3;
+  if (fall.status === "bfs_offen_pruefen") return 4;
+  if (fall.status === "nicht_in_saldo_liste") return 5;
+  if (fall.status === "offen_pruefen") return 6;
   if (fall.status === "ohne_schutz_offen") return 1;
   if (fall.status === "mahnstufe_kritisch") return 2;
   if (fall.status === "kritisch_offen") return 3;
@@ -5801,7 +5619,7 @@ function KpiGrid({ standort, cards: customCards, importRows = [], className = ""
       ? [
           ["Umsatz eingereicht", money.format(defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.submitted],
           ["Gesamtkosten BFS", money.format(defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : "kein Datenstand", defaultInfo.fees],
-          ["Praxis nachfassen", "0", "kein Datenstand", defaultInfo.openCases],
+          ["Prüfliste", "0", "kein Datenstand", defaultInfo.openCases],
           ["Laufend ohne Ausfallschutz", money.format(defaultMetrics.noProtectionAmount), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.noProtection]
         ] satisfies KpiCardTuple[]
       : [
@@ -6043,7 +5861,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: BFS-Gebühr netto plus erkannte MwSt. ${base}`;
   }
   if (normalized.includes("abzugsquote")) {
-    return `Herleitung: Brutto Storno/Rückgabe geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Brutto bedeutet vor Einordnung in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert. ${base}`;
+    return `Herleitung: Brutto Storno/Rückgabe geteilt durch den eingereichten Umsatz im gewählten Zeitraum. Brutto bedeutet vor Einordnung in bereits geklärt, offene Prüfsumme oder endgültig verloren. ${base}`;
   }
   if (normalized.includes("nicht reingeholt") || normalized.includes("offene abzugsquote")) {
     return `Herleitung: Noch nicht durch spätere Neueinreichungen oder manuelle Zahlung erledigter Abzug geteilt durch den eingereichten Umsatz im gewählten Zeitraum. ${base}`;
@@ -6055,7 +5873,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Auf den ursprünglichen Brutto-Abzug angerechnete echte Neueinreichungen und wirtschaftlich belegte Zahlungen geteilt durch die gesamte Abzugssumme. Neue Einreichungen werden höchstens bis zur Höhe des ursprünglichen Abzugs angerechnet. ${base}`;
   }
   if (normalized.includes("erledigungsquote") || normalized.includes("wieder erledigt") || normalized.includes("noch nicht erledigt") || normalized.includes("abzug erledigt") || normalized.includes("offener abzug")) {
-    return `Herleitung: Als zurückgeholt/bezahlt zählen spätere echte Neueinreichungen sowie wirtschaftlich belegte Zahlungen. Angerechnet wird maximal der ursprüngliche Storno-/Rückgabe-Abzug, auch wenn die spätere Neueinreichung höher ist. Saldo 0 allein ist kein Zahlungsnachweis. ${base}`;
+    return `Herleitung: Als bereits geklärt zählen spätere echte Neueinreichungen, Ratenpläne laut BFS sowie wirtschaftlich belegte Zahlungen. Angerechnet wird maximal der ursprüngliche Storno-/Rückgabe-Abzug, auch wenn die spätere Neueinreichung höher ist. Saldo 0 allein ist kein Zahlungsnachweis. ${base}`;
   }
   if (normalized.includes("gebühr")) {
     return `Herleitung: Netto-Gebührenposition der BFS-Abrechnungen; MwSt wird separat ausgewiesen und fließt mit in die Gesamtkosten. ${base}`;
@@ -6064,19 +5882,13 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Gezählt werden Kontoauszug-Bewegungen mit Rückgabe, Rückbelastung oder vergleichbarer BFS-Bemerkung. Der Betrag kommt aus der jeweiligen Bewegungszeile und ist Teil der Brutto-Storno/Rückgabe-Grundmenge. ${base}`;
   }
   if (normalized.includes("storno")) {
-    return `Herleitung: Gezählt werden Kontoauszug-Zeilen vom Typ Storno Liquidation. Der Originalgrund aus der BFS-Bemerkung bleibt gespeichert; die spätere Einordnung erfolgt getrennt in zurückgeholt, bezahlt, Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert. ${base}`;
+    return `Herleitung: Gezählt werden Kontoauszug-Zeilen vom Typ Storno Liquidation. Der Originalgrund aus der BFS-Bemerkung bleibt gespeichert; die spätere Einordnung erfolgt in bereits geklärt, offene Prüfsumme oder endgültig verloren. ${base}`;
   }
   if (normalized.includes("ausfallschutz") || normalized.includes("schutz")) {
     return `Herleitung: Summe der Forderungen, die in der Forderungsliste ohne Ausfallschutz markiert sind oder als spätere Rückgabe ohne Ausfallschutz auftauchen. ${base}`;
   }
-  if (normalized.includes("zahlung/grund") || normalized.includes("grund prüfen")) {
-    return `Herleitung: Saldogeschlossene Fälle, bei denen noch wirtschaftlich belegt werden muss, ob Zahlung, echte Neueinreichung oder Storno-Grund vorliegt. Saldo 0 bei BFS ist kein Zahlungsnachweis. ${base}`;
-  }
-  if (normalized.includes("praxis nachfassen")) {
-    return `Herleitung: Echte Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle muss die Praxis selbst nachhalten oder eintreiben; sie bleiben sichtbar, auch wenn der BFS-Saldo geschlossen ist. ${base}`;
-  }
   if (normalized.includes("offen") || normalized.includes("klä") || normalized.includes("prüfen")) {
-    return `Herleitung: Offene operative Fälle werden nach neuer Logik getrennt: Praxis nachfassen für echte Praxis-Aufgaben und Zahlung/Grund prüfen für saldogeschlossene Belegfälle. ${base}`;
+    return `Herleitung: Offene operative Fälle werden in einer gemeinsamen Prüfliste abgearbeitet. Je Fall wird entschieden: bezahlt/geklärt oder endgültig storniert. ${base}`;
   }
   if (normalized.includes("import")) {
     return `Herleitung: Status aus dem aktuellen Import, inklusive erkannter Dateien, Hash-Dubletten und Parsing-Hinweisen. ${base}`;
@@ -6386,9 +6198,9 @@ function UploadView({
       <section className="priority-grid">
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : hasPendingStatusImport ? "Vorschau aus Saldo-Listen" : "bestätigte Saldo-Listen"} tone="blue" />
         <PriorityCard label="Standorte erkannt" value={`${statusSummary.coveredStandortCount}/${standorte.length}`} hint={statusSummary.unknownMandantCount ? `${integerNumber.format(statusSummary.unknownMandantCount)} Zeilen ohne Standort` : "über Mandant-Nr. zugeordnet"} tone={statusSummary.coveredStandortCount === standorte.length && !statusSummary.unknownMandantCount ? "green" : "amber"} />
-        <PriorityCard label="Brutto-Prüfbasis" value={integerNumber.format(statusSummary.importCaseCount)} hint="Storno/Rückgabe aus Abrechnung" tone="amber" info="Grundmenge aus dem Abrechnungsimport, bevor die Saldo-Liste in BFS offen, BFS geschlossen, Praxis nachfassen oder Zahlung/Grund prüfen trennt." />
+        <PriorityCard label="Brutto-Prüfbasis" value={integerNumber.format(statusSummary.importCaseCount)} hint="Storno/Rückgabe aus Abrechnung" tone="amber" info="Grundmenge aus dem Abrechnungsimport. Die Saldo-Liste hilft zu erkennen, was bereits geregelt ist und was in die offene Prüfliste wandert." />
         <PriorityCard label="BFS geschlossen" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" info="Saldo 0 oder Ratenplan heißt: Bei BFS ist der Fall geschlossen oder geregelt. Das ist noch kein Zahlungsnachweis für die Praxis." />
-        <PriorityCard label="Zahlung/Grund prüfen" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="Saldo 0 mit Storno-/Rückgabegrund" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} info="Diese Fälle sind bei BFS saldobereinigt, aber wirtschaftlich muss noch belegt werden, ob Zahlung, echte Neueinreichung oder korrekter Storno-Grund vorliegt." />
+        <PriorityCard label="BFS geschlossen, Beleg prüfen" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="Saldo 0 mit Storno-/Rückgabegrund" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} info="Diese Fälle sind bei BFS saldobereinigt, aber wirtschaftlich muss noch belegt werden, ob Zahlung, echte Neueinreichung oder korrekter Storno-Grund vorliegt." />
         <PriorityCard label="Status BFS geschlossen" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="bezahlt, storniert oder RP laut Saldo" tone="green" info="Reiner BFS-Zahlungsstatus aus der Saldo-Liste. Diese Kachel bedeutet nicht automatisch: Geld ist bei der Praxis angekommen." />
         <PriorityCard label="BFS kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" info="Saldo in der BFS-Liste ist negativ und es gibt keinen Ratenplan. Das bleibt ein offenes BFS-Zahlungsrisiko." />
         <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
@@ -6412,8 +6224,8 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Prüfkorb</span>
-          <h2>Praxis-Aufgaben aus Rechnungsstatus</h2>
-          <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Sie trennt Praxis-Nachfassfälle von Fällen, die bei BFS geschlossen sind, aber wirtschaftlich noch belegt werden müssen.</p>
+          <h2>Prüfhinweise aus Rechnungsstatus</h2>
+          <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Sie erklärt, warum Fälle in die gemeinsame Prüfliste wandern oder bereits als geregelt gelten.</p>
         </div>
         <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
           <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
@@ -6427,7 +6239,7 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
             <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
             <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
             <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
-            <article><span>Zahlung/Grund prüfen</span><strong>{integerNumber.format(summary.economicCheck)}</strong></article>
+            <article><span>BFS geschlossen, Beleg offen</span><strong>{integerNumber.format(summary.economicCheck)}</strong></article>
             <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
             <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
           </div>
@@ -6619,7 +6431,7 @@ function EconomicCheckView({
                   )}
                 </tr>
               );
-            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 9 : 8} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
+            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 9 : 8} label="Keine Belegprüfungen im aktuellen Filter." />}
           </tbody>
         </table>
       </div>
@@ -6880,7 +6692,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
       items.push({
         id: `practice-followup-${fall.id}`,
         category: "no_protection",
-        categoryLabel: "Praxis nachfassen",
+        categoryLabel: "Prüfliste",
         standortId: fall.standortId,
         locationName: fall.locationName,
         patientName: fall.patientName,
@@ -6922,7 +6734,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
       items.push({
         id: `saldo-economic-check-${fall.id}`,
         category: "economic_check",
-        categoryLabel: "Zahlung/Grund prüfen",
+        categoryLabel: "Beleg prüfen",
         standortId: fall.standortId,
         locationName: fall.locationName,
         patientName: fall.patientName,
@@ -8798,7 +8610,7 @@ function printEconomicCheckReport(rows: InvoiceStatusReviewRow[], periodLabel: s
       <td>${escapeHtml(row.nextStep)}</td>
     </tr>`).join(""),
     emptyColSpan: 7,
-    emptyLabel: "Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter.",
+    emptyLabel: "Keine Belegprüfungen im aktuellen Filter.",
     footer: "Hinweis: Der Export bildet exakt die aktuell gefilterte operative Arbeitsliste ab. Entscheidungen werden in der App gepflegt.",
     filename: "orisus-bfs-zahlung-grund-pruefen.html"
   });
@@ -9158,7 +8970,7 @@ function CasesView({
   const totalAmount = useMemo(() => filteredRows.reduce((sum, fall) => sum + fall.amount, 0), [filteredRows]);
   const oldestAge = useMemo(() => filteredRows.reduce((max, fall) => Math.max(max, fall.ageDays), 0), [filteredRows]);
   const highestCase = useMemo(() => filteredRows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined), [filteredRows]);
-  const reportTitle = title ?? (compact ? "Praxis nachfassen am Standort" : "Praxis nachfassen");
+  const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
 
   return (
     <section className="panel">
@@ -10162,7 +9974,7 @@ function MatchesView({
         <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Urspr. Abzugsbetrag" value={exactMoney.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
         <PriorityCard label="Neue Forderungssumme" value={exactMoney.format(matchTotals.newAmount)} hint={`Differenz ${exactMoney.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
-        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} info="Diese Treffer können im Geldfluss bereits als zurückgeholt angerechnet sein. Sie werden deshalb nicht zusätzlich zum offenen Abzug addiert, sondern erklären die Kachel Zurückgeholt / bezahlt." />
+        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} info="Diese Treffer können im Geldfluss bereits als geklärt angerechnet sein. Sie werden deshalb nicht zusätzlich zur offenen Prüfsumme addiert, sondern erklären die Kachel Bereits geklärt." />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -10231,7 +10043,7 @@ function MatchesView({
   );
 }
 
-function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows = [], manualCaseResolutions = [] }: { role: AppRole; standort: Standort; cases: BfsCase[]; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function ReportsView({ role, standort, importRows = [], invoiceStatusRows = [], manualCaseResolutions = [] }: { role: AppRole; standort: Standort; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [selectedReportStandortId, setSelectedReportStandortId] = useState(() => role === "super_admin" ? "alle" : standort.id);
@@ -10248,19 +10060,17 @@ function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows
     const rowStandort = selectedReportStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod, selectedReportStandorte]);
-  const reportCases = useMemo(() => cases
-    .filter((fall) => fall.status !== "erledigt_automatisch" && selectedReportStandortIds.has(fall.standortId))
+  const reportCases = useMemo(() => buildUnifiedOperationalReviewCases(scopedImportRows, invoiceStatusRows, manualCaseResolutions)
+    .filter((fall) => selectedReportStandortIds.has(fall.standortId))
     .filter((fall) => {
       const fallStandort = selectedReportStandorte.find((entry) => entry.id === fall.standortId);
       return fallStandort ? shortDateInPeriod(fall.sourceDate, selectedPeriod, fallStandort) : false;
-    }), [cases, selectedPeriod, selectedReportStandortIds, selectedReportStandorte]);
-  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod, manualCaseResolutions), [importRows, reportCases, selectedPeriod, selectedReportStandorte, manualCaseResolutions]);
+    }), [invoiceStatusRows, manualCaseResolutions, scopedImportRows, selectedPeriod, selectedReportStandortIds, selectedReportStandorte]);
+  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, reportCases, selectedPeriod, selectedReportStandorte, manualCaseResolutions, invoiceStatusRows]);
   const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
   const reportStandortId = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].id : undefined;
   const recurring = useMemo(() => getRecurringRiskProfiles(reportStandortId, scopedImportRows), [reportStandortId, scopedImportRows]);
   const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const economicCheckRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, scopedImportRows)
-    .filter((row) => row.category === "economic_check"), [invoiceStatusRows, scopedImportRows]);
   const reportComment = buildLocationReportComment(scopeLabel, comparison, reportCases, riskClaims, recurring);
   function exportCsv() {
     downloadTextFile(`offene-bfs-klaerfaelle-${scopeLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, createCasesCsv(reportCases));
@@ -10294,9 +10104,8 @@ function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows
         <PriorityCard label="Eingereicht" value={money.format(comparison.currentMetrics.submitted)} hint="Summe Forderungen" period={comparison.currentPeriod.label} tone="blue" />
         <PriorityCard label="Ausgezahlt" value={money.format(comparison.currentMetrics.payout)} hint="BFS-Auszahlungsbetrag" period={comparison.currentPeriod.label} tone="green" />
         <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} period={comparison.currentPeriod.label} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
-        <PriorityCard label="Praxis nachfassen" value={String(reportCases.length)} hint="reportfähige Praxis-Aufgaben" period={comparison.currentPeriod.label} tone={reportCases.length ? "amber" : "green"} info="Enthält echte Praxis-Nachfassfälle, vor allem Rückgaben ohne Ausfallschutz. Saldogeschlossene Zahlung/Grund-Prüfungen werden separat gezählt." />
-        <PriorityCard label="Nachfassbetrag" value={money.format(openAmount)} hint={scopeLabel} period={comparison.currentPeriod.label} tone="blue" />
-        <PriorityCard label="Zahlung/Grund prüfen" value={String(economicCheckRows.length)} hint="Saldo geschlossen, Beleg offen" period={comparison.currentPeriod.label} tone={economicCheckRows.length ? "amber" : "green"} info="Diese Fälle sind bei BFS geschlossen, aber wirtschaftlich muss noch Zahlung, Neueinreichung oder Storno-Grund belegt werden." />
+        <PriorityCard label="Prüfliste" value={String(reportCases.length)} hint="offene Fälle" period={comparison.currentPeriod.label} tone={reportCases.length ? "amber" : "green"} info="Enthält die gemeinsame Abarbeitungsliste. Je Fall wird bezahlt/geklärt oder endgültig storniert markiert." />
+        <PriorityCard label="Prüfsumme Liste" value={money.format(openAmount)} hint={scopeLabel} period={comparison.currentPeriod.label} tone="blue" />
         <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} period={comparison.currentPeriod.label} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
       </section>
       <section className="panel report-toolbar">
@@ -10309,8 +10118,8 @@ function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows
       </section>
       <section className="insight-grid">
         <InsightCard title="Management-Kommentar" items={reportComment} />
-        <InsightCard title="Reportinhalte" items={["Monats-/YTD-Kennzahlen", "Praxis-Nachfassfälle", "Zahlung/Grund-Prüfungen und Ohne-Schutz-Risiko"]} />
-        <InsightCard title="Operative Maßnahme" items={["Praxis-Nachfassfälle zuerst klären", "Neueinreichungen gegen Brutto-Storno prüfen", "Saldogeschlossene Fälle wirtschaftlich belegen"]} />
+        <InsightCard title="Reportinhalte" items={["Monats-/YTD-Kennzahlen", "gemeinsame Prüfliste", "Ohne-Schutz-Risiko"]} />
+        <InsightCard title="Operative Maßnahme" items={["Prüfliste je Fall abhaken", "Neueinreichungen gegen Brutto-Storno prüfen", "Rest als bezahlt/geklärt oder endgültig storniert markieren"]} />
       </section>
       <section className="print-report">
         <header>
@@ -10324,10 +10133,10 @@ function ReportsView({ role, standort, cases, importRows = [], invoiceStatusRows
           <div><strong>{money.format(comparison.currentMetrics.submitted)}</strong><span>{comparison.currentPeriod.label} eingereicht</span></div>
           <div><strong>{money.format(comparison.currentMetrics.payout)}</strong><span>ausgezahlt</span></div>
           <div><strong>{formatFeeRate(comparison.currentMetrics.feeRate)}</strong><span>Gebührenquote</span></div>
-          <div><strong>{reportCases.length}</strong><span>Praxis nachfassen</span></div>
-          <div><strong>{money.format(openAmount)}</strong><span>Nachfassbetrag</span></div>
+          <div><strong>{reportCases.length}</strong><span>Prüfliste</span></div>
+          <div><strong>{money.format(openAmount)}</strong><span>Prüfsumme Liste</span></div>
         </div>
-        <h3>Abschnitt 1: Praxis nachfassen</h3>
+        <h3>Abschnitt 1: Prüfliste offene Fälle</h3>
         <CasesView cases={reportCases} compact tableScrollable />
         <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
         <RiskView standortId={reportStandortId} importRows={scopedImportRows} periodOverride={selectedPeriod} />
@@ -10351,7 +10160,7 @@ function buildLocationReportComment(
   return [
     `${scopeLabel}: ${comparison.currentPeriod.label} ${money.format(comparison.currentMetrics.submitted)} eingereicht, Delta Vorjahr ${formatDelta(comparison.submittedDeltaRate)}.`,
     `Gebührenquote ${formatFeeRate(comparison.currentMetrics.feeRate)}, Rückbelastungs-/Stornoquote ${formatPercent(comparison.chargebackRate)}, Wiedereinholung ${formatPercent(comparison.recoveryRate)}.`,
-    `${reportCases.length} Praxis-Nachfassfälle mit ${money.format(openAmount)}, ältester Fall ${oldest} Tage.`,
+    `${reportCases.length} Fälle in der Prüfliste mit ${money.format(openAmount)}, ältester Fall ${oldest} Tage.`,
     `${suspiciousRisks.length} auffällige Ohne-Schutz-Claims und ${recurring.length} Wiederholer ohne Schutz für Standortleitung markieren.`
   ];
 }
@@ -10368,8 +10177,7 @@ function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }
           <button className="secondary-button" onClick={() => onNavigate("reports")}><FileText size={16} /> Report je Standort</button>
         </div>
         <div className="report-type-grid">
-          <button onClick={() => onNavigate("practiceFollowup")}><AlertCircle size={18} /> Praxis nachfassen gruppiert</button>
-          <button onClick={() => onNavigate("economicCheck")}><ClipboardCheck size={18} /> Zahlung / Grund prüfen</button>
+          <button onClick={() => onNavigate("practiceFollowup")}><ClipboardCheck size={18} /> Prüfliste gruppiert</button>
           <button onClick={() => onNavigate("claims")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
           <button onClick={() => onNavigate("risks")}><ShieldCheck size={18} /> Ohne Ausfallschutz laufend</button>
           <button onClick={() => onNavigate("upload")}><FolderUp size={18} /> Import-Center</button>

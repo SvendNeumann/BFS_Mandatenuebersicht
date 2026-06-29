@@ -1887,6 +1887,36 @@ input {
   flex: 0 0 auto;
 }
 
+.status-review-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.status-review-summary article {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  border: 1px solid rgba(157, 226, 230, 0.18);
+  border-radius: 8px;
+  background: rgba(13, 51, 68, 0.72);
+  padding: 12px;
+}
+
+.status-review-summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.status-review-summary strong {
+  color: #f8ffff;
+  font-size: 24px;
+  line-height: 1;
+}
+
 .import-history-panel,
 .import-detail-panel {
   min-height: 0;
@@ -4427,6 +4457,10 @@ input {
 
   .period-note {
     font-size: 12px;
+  }
+
+  .status-review-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

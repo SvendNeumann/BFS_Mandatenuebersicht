@@ -5598,8 +5598,62 @@ function UploadView({
         <PriorityCard label="Ohne Schutz offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" />
         <PriorityCard label="Nicht zuordenbar" value={integerNumber.format(statusSummary.unmatchedCaseCount)} hint="Klärfälle ohne Saldo-Treffer" tone="amber" />
       </section>
+      <InvoiceStatusReviewBasket rows={statusRows} importRows={previewRows} />
       <InvoiceStatusPreview rows={statusRows} isPreview={hasPendingStatusImport} />
     </div>
+  );
+}
+
+function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceStatusRow[]; importRows: ImportPreviewRow[] }) {
+  const reviewRows = buildInvoiceStatusReviewBasket(rows, importRows);
+  const summary = summarizeInvoiceStatusReviewBasket(reviewRows);
+  const visibleRows = reviewRows.slice(0, 180);
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Prüfkorb</span>
+          <h2>Praxis-Aufgaben aus Rechnungsstatus</h2>
+          <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Normale offene BFS-Rechnungen werden nur dann priorisiert, wenn sie kritisch, ohne Schutz, in Mahnung oder nicht sauber zuordenbar sind.</p>
+        </div>
+      </div>
+      <div className="status-review-summary">
+        <article><span>Kritisch offen ohne RP</span><strong>{integerNumber.format(summary.criticalOpen)}</strong></article>
+        <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
+        <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
+        <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
+        <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
+        <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
+      </div>
+      <div className="table-wrap compact-table invoice-status-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Standort</th>
+              <th>Patient</th>
+              <th>Rechnung</th>
+              <th>Betrag</th>
+              <th>Grund / Status</th>
+              <th>Nächster Schritt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.length ? visibleRows.map((row) => (
+              <tr key={row.id}>
+                <td><StatusBadge status={row.categoryLabel} /></td>
+                <td>{row.locationName}</td>
+                <td><strong>{row.patientName}</strong><small>{row.source}</small></td>
+                <td><strong>{row.invoiceNo}</strong><small>{row.bfsNo}</small></td>
+                <td>{money.format(row.amount)}</td>
+                <td>{row.detail}</td>
+                <td>{row.nextStep}</td>
+              </tr>
+            )) : <EmptyTableRow colSpan={7} label="Noch kein Prüfkorb. Bitte Saldo-Liste hochladen oder Abrechnungsimport prüfen." />}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -5658,6 +5712,165 @@ function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
   if (row.paymentStatus === "teilbezahlt") return "teilbezahlt";
   if (row.reminderLevel > 0) return `offen MS ${row.reminderLevel}`;
   return "offen";
+}
+
+type InvoiceStatusReviewCategory = "critical_open" | "reminder" | "no_protection" | "missing_in_saldo" | "final_cancelled" | "unmappable";
+
+type InvoiceStatusReviewRow = {
+  id: string;
+  category: InvoiceStatusReviewCategory;
+  categoryLabel: string;
+  locationName: string;
+  patientName: string;
+  invoiceNo: string;
+  bfsNo: string;
+  amount: number;
+  detail: string;
+  source: string;
+  nextStep: string;
+};
+
+function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
+  const importCases = casesFromImportRows(importRows);
+  const statusKeys = new Set(rows.flatMap((row) => invoiceStatusMatchKeys(row)));
+  const items: InvoiceStatusReviewRow[] = [];
+
+  rows.forEach((row) => {
+    const standort = standortFromMandantNo(row.mandantNo);
+    const base = {
+      locationName: standort?.name ?? "Standort nicht erkannt",
+      patientName: row.patientName,
+      invoiceNo: row.invoiceNo,
+      bfsNo: row.bfsNo,
+      amount: Math.abs(row.saldo || row.amount),
+      source: "Saldo-Liste"
+    };
+    if (!standort || !row.bfsNo || !row.invoiceNo) {
+      items.push({
+        ...base,
+        id: `unmappable-${row.file}-${row.page}-${row.bfsNo}-${row.invoiceNo}`,
+        category: "unmappable",
+        categoryLabel: "Nr. nicht zuordenbar",
+        detail: `Mandant ${row.mandantNo || "-"} / BFS ${row.bfsNo || "-"} / RE ${row.invoiceNo || "-"}`,
+        nextStep: "Mandant, BFS-Nr. und Rechnungsnummer in BFS/Praxisdaten prüfen."
+      });
+    }
+
+    const criticalOpen = row.saldo < -0.005 && !row.installmentPlan;
+    if (criticalOpen) {
+      items.push({
+        ...base,
+        id: `critical-${row.file}-${row.page}-${row.bfsNo}`,
+        category: "critical_open",
+        categoryLabel: "kritisch offen",
+        detail: `Saldo ${money.format(row.saldo)}, kein Ratenplan`,
+        nextStep: "Als offenes Zahlungsrisiko beobachten; bei späterem Storno/Rücklauf Praxis klären."
+      });
+    }
+    if (row.reminderLevel > 0 && !row.installmentPlan) {
+      items.push({
+        ...base,
+        id: `reminder-${row.file}-${row.page}-${row.bfsNo}`,
+        category: "reminder",
+        categoryLabel: `Mahnstufe ${row.reminderLevel}`,
+        detail: `MS ${row.reminderLevel}, Saldo ${money.format(row.saldo)}`,
+        nextStep: "Mahnstufe priorisiert beobachten; erhöhtes Rückgabe-/Stornorisiko."
+      });
+    }
+    if (criticalOpen && !row.protection) {
+      items.push({
+        ...base,
+        id: `no-protection-${row.file}-${row.page}-${row.bfsNo}`,
+        category: "no_protection",
+        categoryLabel: "ohne Schutz offen",
+        detail: `kein Ausfallschutz, Saldo ${money.format(row.saldo)}`,
+        nextStep: "Praxisrelevantes Risiko prüfen, weil offener Betrag ohne Schutz läuft."
+      });
+    }
+  });
+
+  importCases
+    .filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key)))
+    .forEach((fall) => {
+      items.push({
+        id: `missing-saldo-${fall.id}`,
+        category: "missing_in_saldo",
+        categoryLabel: "nicht in Saldo",
+        locationName: fall.locationName,
+        patientName: fall.patientName,
+        invoiceNo: fall.invoiceNo,
+        bfsNo: fall.bfsNo,
+        amount: fall.amount,
+        detail: fall.reason,
+        source: "Abrechnungsimport",
+        nextStep: "Prüfen, warum der Abrechnungsfall in der aktuellen Saldo-Liste fehlt."
+      });
+    });
+
+  finalCancelledImportRows(importRows).forEach((row) => items.push(row));
+
+  return dedupeInvoiceStatusReviewRows(items).sort((a, b) => invoiceStatusReviewPriority(a.category) - invoiceStatusReviewPriority(b.category) || b.amount - a.amount);
+}
+
+function finalCancelledImportRows(importRows: ImportPreviewRow[]) {
+  return importRows.flatMap((importRow) => {
+    const standort = standorte.find((entry) => entry.name === importRow.location);
+    if (!standort) return [];
+    return (importRow.parsedMovements ?? [])
+      .filter(isFinalCancellationMovement)
+      .map((movement, index) => ({
+        id: `final-cancelled-${importRow.fileHash ?? importRow.file}-${movement.bfsNo ?? index}-${movement.invoiceNo ?? index}`,
+        category: "final_cancelled" as const,
+        categoryLabel: "storniert/ausgebucht",
+        locationName: standort.name,
+        patientName: movement.patientName ?? "Patient noch nicht gematcht",
+        invoiceNo: movement.invoiceNo ?? "-",
+        bfsNo: movement.bfsNo ?? "-",
+        amount: Math.abs(movement.amount ?? 0),
+        detail: movement.reason ?? reasonLabel(movement.reasonCategory),
+        source: "Abrechnungsimport",
+        nextStep: "Grund und Betrag dokumentieren; prüfen, ob Praxis aktiv storniert/ausgebucht hat."
+      }));
+  });
+}
+
+function isFinalCancellationMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
+  const text = `${movement.type} ${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
+  return movement.reasonCategory === "storno_praxis" || text.includes("ausbuch") || text.includes("endgültig storniert") || text.includes("endgueltig storniert");
+}
+
+function summarizeInvoiceStatusReviewBasket(rows: InvoiceStatusReviewRow[]) {
+  return rows.reduce((summary, row) => {
+    if (row.category === "critical_open") summary.criticalOpen += 1;
+    if (row.category === "reminder") summary.reminder += 1;
+    if (row.category === "no_protection") summary.noProtection += 1;
+    if (row.category === "missing_in_saldo") summary.missingInSaldo += 1;
+    if (row.category === "final_cancelled") summary.finalCancelled += 1;
+    if (row.category === "unmappable") summary.unmappable += 1;
+    return summary;
+  }, { criticalOpen: 0, reminder: 0, noProtection: 0, missingInSaldo: 0, finalCancelled: 0, unmappable: 0 });
+}
+
+function dedupeInvoiceStatusReviewRows(rows: InvoiceStatusReviewRow[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = `${row.category}:${normalizeMatchKey(row.locationName)}:${normalizeMatchKey(row.patientName)}:${normalizeMatchKey(row.invoiceNo)}:${normalizeMatchKey(row.bfsNo)}:${Math.round(row.amount * 100)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function invoiceStatusReviewPriority(category: InvoiceStatusReviewCategory) {
+  const priorities: Record<InvoiceStatusReviewCategory, number> = {
+    no_protection: 1,
+    reminder: 2,
+    critical_open: 3,
+    missing_in_saldo: 4,
+    final_cancelled: 5,
+    unmappable: 6
+  };
+  return priorities[category];
 }
 
 function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
@@ -5727,6 +5940,10 @@ function caseInvoiceMatchKeys(fall: BfsCase) {
 
 function normalizeMatchKeys(values: string[]) {
   return Array.from(new Set(values.map(normalizeMatchKey).filter(Boolean)));
+}
+
+function standortFromMandantNo(mandantNo: string) {
+  return standorte.find((standort) => [standort.mandantNo, ...(standort.mandantNos ?? [])].includes(mandantNo));
 }
 
 function normalizeMatchKey(value: string) {

@@ -78,88 +78,139 @@ type NavSection = {
   items: NavItem[];
 };
 
-const superAdminNav: NavSection[] = [
+type NavGroup = {
+  title: string;
+  sections: NavSection[];
+};
+
+const superAdminNavGroups: NavGroup[] = [
   {
-    title: "Management",
-    items: [
-      ["custom", "Zusammenfassung", BarChart3],
-      ["dashboard", "Management Cockpit", LayoutDashboard],
-      ["answers", "Schnellantworten", ClipboardList]
+    title: "BFS-Abrechnungen",
+    sections: [
+      {
+        title: "Management",
+        items: [
+          ["custom", "Zusammenfassung", BarChart3],
+          ["dashboard", "Management Cockpit", LayoutDashboard],
+          ["answers", "Schnellantworten", ClipboardList]
+        ]
+      },
+      {
+        title: "Analyse & Benchmarking",
+        items: [
+          ["benchmark", "Standorte", Building2],
+          ["claims", "Standortdetails", ReceiptText],
+          ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
+          ["quality", "Forderungsqualität", ShieldCheck],
+          ["patientClasses", "Patientenklassifizierung", Users]
+        ]
+      },
+      {
+        title: "Operative Fallarbeit",
+        items: [
+          ["matches", "Matching & Neueinreichungen", RefreshCw],
+          ["cases", "Klärfälle", AlertCircle]
+        ]
+      },
+      {
+        title: "Reports",
+        items: [
+          ["reports", "Report-Center", FileText],
+          ["groupReports", "Gruppenreports", BarChart3],
+          ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
+        ]
+      },
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["upload", "Import-Center Abrechnung", FolderUp]
+        ]
+      }
     ]
   },
   {
-    title: "Analyse & Benchmarking",
-    items: [
-      ["benchmark", "Standorte", Building2],
-      ["claims", "Standortdetails", ReceiptText],
-      ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
-      ["quality", "Forderungsqualität", ShieldCheck],
-      ["patientClasses", "Patientenklassifizierung", Users]
+    title: "BFS-Rechnungsanalyse",
+    sections: [
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
+        ]
+      }
     ]
   },
   {
-    title: "Operative Fallarbeit",
-    items: [
-      ["matches", "Matching & Neueinreichungen", RefreshCw],
-      ["cases", "Klärfälle", AlertCircle]
-    ]
-  },
-  {
-    title: "Reports",
-    items: [
-      ["reports", "Report-Center", FileText],
-      ["groupReports", "Gruppenreports", BarChart3],
-      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
-    ]
-  },
-  {
-    title: "Import & Prüfung",
-    items: [
-      ["upload", "Import-Center Abrechnung", FolderUp],
-      ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
-    ]
-  },
-  {
-    title: "Admin Bereich",
-    items: [
-      ["locations", "Standorte", Building2],
-      ["users", "Nutzer & Rollen", Users],
-      ["settings", "Sicherheit & Regeln", Settings]
+    title: "Administration",
+    sections: [
+      {
+        title: "Admin Bereich",
+        items: [
+          ["locations", "Standorte", Building2],
+          ["users", "Nutzer & Rollen", Users],
+          ["settings", "Sicherheit & Regeln", Settings]
+        ]
+      }
     ]
   }
 ];
 
-const leadNav: NavSection[] = [
+const leadNavGroups: NavGroup[] = [
   {
-    title: "Mein Standort",
-    items: [
-      ["custom", "Zusammenfassung", BarChart3],
-      ["dashboard", "Management Cockpit", LayoutDashboard],
-      ["answers", "Schnellantworten", ClipboardList]
+    title: "BFS-Abrechnungen",
+    sections: [
+      {
+        title: "Mein Standort",
+        items: [
+          ["custom", "Zusammenfassung", BarChart3],
+          ["dashboard", "Management Cockpit", LayoutDashboard],
+          ["answers", "Schnellantworten", ClipboardList]
+        ]
+      },
+      {
+        title: "Analyse",
+        items: [
+          ["claims", "Standortdetails", ReceiptText],
+          ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
+          ["quality", "Forderungsqualität", ShieldCheck],
+          ["patientClasses", "Patientenklassifizierung", Users]
+        ]
+      },
+      {
+        title: "Operative Fallarbeit",
+        items: [
+          ["matches", "Matching & Neueinreichungen", RefreshCw],
+          ["cases", "Klärfälle", AlertCircle]
+        ]
+      },
+      {
+        title: "Reports",
+        items: [
+          ["reports", "Report-Center", FileText],
+          ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
+        ]
+      }
     ]
   },
   {
-    title: "Analyse",
-    items: [
-      ["claims", "Standortdetails", ReceiptText],
-      ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
-      ["quality", "Forderungsqualität", ShieldCheck],
-      ["patientClasses", "Patientenklassifizierung", Users]
+    title: "BFS-Rechnungsanalyse",
+    sections: [
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["invoiceImport", "Import-Center Rechnungen", ReceiptText]
+        ]
+      }
     ]
   },
   {
-    title: "Operative Fallarbeit",
-    items: [
-      ["matches", "Matching & Neueinreichungen", RefreshCw],
-      ["cases", "Klärfälle", AlertCircle]
-    ]
-  },
-  {
-    title: "Reports",
-    items: [
-      ["reports", "Report-Center", FileText],
-      ["outcomes", "Maßnahmenkontrolle", ClipboardCheck],
-      ["settings", "Mein Profil & Sicherheit", UserRoundCheck]
+    title: "Administration",
+    sections: [
+      {
+        title: "Mein Profil",
+        items: [
+          ["settings", "Mein Profil & Sicherheit", UserRoundCheck]
+        ]
+      }
     ]
   }
 ];
@@ -242,7 +293,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [appCases, isGroupScope, selectedStandort.id]
   );
-  const nav = role === "super_admin" ? superAdminNav : leadNav;
+  const navGroups = role === "super_admin" ? superAdminNavGroups : leadNavGroups;
+  const nav = flattenNavGroups(navGroups);
 
   useEffect(() => {
     let active = true;
@@ -462,28 +514,33 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </div>
 
           <nav>
-            {nav.map((section) => {
-              const sectionActive = section.items.some(([key]) => activeView === key);
-              const sectionExpanded = Boolean(expandedSections[section.title]);
-              const SectionIcon = section.items[0][2];
-              return (
-                <div className={sectionExpanded ? "nav-section expanded" : "nav-section"} key={section.title}>
-                  <button className={sectionActive ? "nav-section-toggle active" : "nav-section-toggle"} onClick={() => toggleNavSection(section.title)}>
-                    <SectionIcon size={17} />
-                    <span>{section.title}</span>
-                    <ChevronDown size={16} />
-                  </button>
-                  <div className="nav-subitems">
-                    {section.items.map(([key, label, Icon]) => (
-                      <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => navigateTo(key)}>
-                        <Icon size={18} />
-                        <span>{label}</span>
+            {navGroups.map((group) => (
+              <div className="nav-group" key={group.title}>
+                <span className="nav-group-label">{group.title}</span>
+                {group.sections.map((section) => {
+                  const sectionActive = section.items.some(([key]) => activeView === key);
+                  const sectionExpanded = Boolean(expandedSections[section.title]);
+                  const SectionIcon = section.items[0][2];
+                  return (
+                    <div className={sectionExpanded ? "nav-section expanded" : "nav-section"} key={`${group.title}-${section.title}`}>
+                      <button className={sectionActive ? "nav-section-toggle active" : "nav-section-toggle"} onClick={() => toggleNavSection(section.title)}>
+                        <SectionIcon size={17} />
+                        <span>{section.title}</span>
+                        <ChevronDown size={16} />
                       </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                      <div className="nav-subitems">
+                        {section.items.map(([key, label, Icon]) => (
+                          <button key={key} className={activeView === key ? "nav-item active" : "nav-item"} onClick={() => navigateTo(key)}>
+                            <Icon size={18} />
+                            <span>{label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
 
           <div className="sidebar-footer">
@@ -746,12 +803,16 @@ function currentViewStateStorageKey() {
   return `${viewStateStorageKey}:${window.location.pathname}`;
 }
 
+function flattenNavGroups(groups: NavGroup[]) {
+  return groups.flatMap((group) => group.sections);
+}
+
 function isKnownView(view: string) {
-  return [...superAdminNav, ...leadNav].some((section) => section.items.some(([key]) => key === view));
+  return [...flattenNavGroups(superAdminNavGroups), ...flattenNavGroups(leadNavGroups)].some((section) => section.items.some(([key]) => key === view));
 }
 
 function isKnownViewForRole(view: string, role: AppRole) {
-  const nav = role === "super_admin" ? superAdminNav : leadNav;
+  const nav = flattenNavGroups(role === "super_admin" ? superAdminNavGroups : leadNavGroups);
   return nav.some((section) => section.items.some(([key]) => key === view));
 }
 

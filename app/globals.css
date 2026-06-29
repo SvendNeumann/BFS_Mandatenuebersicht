@@ -279,6 +279,26 @@ nav {
   gap: 12px;
 }
 
+.nav-group {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-group + .nav-group {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(178, 226, 229, 0.12);
+}
+
+.nav-group-label {
+  display: block;
+  color: rgba(198, 219, 226, 0.72);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .nav-section {
   display: grid;
   gap: 8px;

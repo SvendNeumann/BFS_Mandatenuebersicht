@@ -296,7 +296,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
-    "cases",
     "risks",
     "repeatRisks",
     "outcomes"

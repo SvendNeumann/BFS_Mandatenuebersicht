@@ -598,6 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- Offene Aenderung aus aktuellem UI-Wunsch: Die obere Standort-Taskleiste wurde im Tab `Klaerfaelle` wieder entfernt. Die direkt an die Klaerfallansicht gekoppelten Standort-/Zeitraumfilter bleiben erhalten und steuern KPI-Zeile, Charts und Tabelle.
 - Offene Aenderung aus aktuellem UI-Wunsch: In der Klaerfalltabelle sitzen Zeitraum- und Standortfilter jetzt direkt oberhalb der Tabelle und sind an die Tabellenzeilen gekoppelt. Die Filterzeile zeigt zusaetzlich die aktuell gefilterte Fallanzahl und Summe.
 - Offene Aenderung aus aktuellem Upload-Problem: Saldo-Upload zeigt jetzt eine ausklappbare Dateikontrolle mit tatsaechlich eingelesenen PDFs, Zeilenzahl, Seitenzahl, Standortzuordnung und Status. Die Statusmeldung unterscheidet ausdruecklich `Datei(en) ausgewaehlt` und `Liste(n) gelesen`, damit auffaellt, wenn statt fuenf Standortlisten nur eine Datei im Browser-Upload angekommen ist.
 - Offene Aenderung aus aktueller Saldo-/Klaerfall-Logik: Saldo-0-Faelle werden operativ geschlossen, aber nicht blind als bezahlt interpretiert. Wenn der korrespondierende Abrechnungsimport einen Storno-/Teil-Storno-Grund liefert, wird der Fall aus der offenen Klaerliste entfernt, bleibt aber als Storno/Teil-Storno in Auswertungen erhalten. Die Saldo-Liste selbst liefert diesen Grund in den aktuellen PDFs nicht; sie liefert nur den aktuellen BFS-Saldo/RP/MS-Status.

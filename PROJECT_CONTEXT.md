@@ -1025,3 +1025,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die Kachel `Top-Hebel` in der Potenzialanalyse zeigt den Eurobetrag jetzt explizit als `Potenzial`.
 - Der Hint nennt zusaetzlich eigenen Durchschnittsfaktor und Gruppenschnitt-Faktor.
 - Der Info-Text nennt die konkrete Abrechnungsposition/Kurzbeschreibung und erklaert, dass der Eurobetrag der geschaetzte Mehrumsatz bei Erreichen des Gruppenschnitts ist.
+
+## Update 2026-06-29: Potenzialanalyse um weitere KPI-Kacheln erweitert
+
+- Die Potenzialanalyse zeigt zusaetzlich `Potenzial p. Jahr`, `Betroffener Umsatz` und `Groesste Faktor-Luecke`.
+- `Potenzial p. Jahr` rechnet das Zeitraum-Potenzial auf Jahresniveau hoch.
+- `Betroffener Umsatz` zeigt den heutigen Ist-Umsatz der Positionen unter Benchmark.
+- `Groesste Faktor-Luecke` zeigt die Leistungsnummer mit der groessten negativen Faktorabweichung zum Gruppenschnitt, unabhaengig vom Euro-Potenzial.

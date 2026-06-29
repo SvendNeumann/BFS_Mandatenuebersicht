@@ -6879,8 +6879,11 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
   const rows = useMemo(() => invoicePotentialSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
   const totalPotential = rows.reduce((sum, row) => sum + row.potential, 0);
   const monthlyPotential = annualizeInvoicePotential(totalPotential, selectedPeriod) / 12;
+  const annualPotential = annualizeInvoicePotential(totalPotential, selectedPeriod);
   const underBenchmarkRows = rows.filter((row) => row.factorDelta !== null && row.factorDelta < 0).length;
   const topLever = rows[0];
+  const affectedRevenue = rows.reduce((sum, row) => sum + row.amount, 0);
+  const biggestFactorGap = [...rows].sort((a, b) => Math.abs(a.factorDelta ?? 0) - Math.abs(b.factorDelta ?? 0))[rows.length - 1];
 
   useEffect(() => {
     if (!standortId && invoiceStandorte[0]) setStandortId(invoiceStandorte[0].id);
@@ -6919,13 +6922,22 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
       <section className="priority-grid">
         <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" tone={totalPotential ? "green" : "blue"} />
         <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" tone={monthlyPotential ? "green" : "blue"} />
+        <PriorityCard label="Potenzial p. Jahr" value={money.format(annualPotential)} hint="aus Zeitraum hochgerechnet" tone={annualPotential ? "green" : "blue"} info="Jahreswert aus dem aktuellen Zeitraum. Bei Jahresauswahl entspricht er im Wesentlichen dem Zeitraumwert." />
         <PriorityCard label="Unter Benchmark" value={integerNumber.format(underBenchmarkRows)} hint="Leistungsnummern" tone={underBenchmarkRows ? "amber" : "green"} />
+        <PriorityCard label="Betroffener Umsatz" value={money.format(affectedRevenue)} hint="Ist-Umsatz unter Benchmark" tone={affectedRevenue ? "amber" : "blue"} info="Summe des heutigen Ist-Umsatzes aller Leistungsnummern, bei denen der eigene Durchschnittsfaktor unter dem Benchmark liegt." />
         <PriorityCard
           label="Top-Hebel"
           value={topLever?.code ?? "-"}
           hint={topLever ? `Potenzial ${money.format(topLever.potential)} · Ø ${feeRateNumber.format(topLever.avgFactor)} statt ${feeRateNumber.format(topLever.groupAvgFactor)}` : "kein Potenzial"}
           tone={topLever?.potential ? "green" : "blue"}
           info={topLever ? `${topLever.code}: ${topLever.description}. Das Potenzial beschreibt den geschätzten Mehrumsatz im gewählten Zeitraum, wenn der eigene Durchschnittsfaktor dieser Position den Gruppenschnitt ohne diesen Standort erreichen würde.` : undefined}
+        />
+        <PriorityCard
+          label="Größte Faktor-Lücke"
+          value={biggestFactorGap?.code ?? "-"}
+          hint={biggestFactorGap ? `${formatFactorDelta(biggestFactorGap.factorDelta ?? 0)} · Ø ${feeRateNumber.format(biggestFactorGap.avgFactor)} statt ${feeRateNumber.format(biggestFactorGap.groupAvgFactor)}` : "keine Abweichung"}
+          tone={biggestFactorGap ? "amber" : "blue"}
+          info={biggestFactorGap ? `${biggestFactorGap.code}: ${biggestFactorGap.description}. Zeigt die Position mit der größten negativen Faktorabweichung zum Gruppenschnitt, unabhängig vom Euro-Potenzial.` : undefined}
         />
       </section>
       <section className="panel">

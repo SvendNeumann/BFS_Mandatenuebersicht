@@ -4199,7 +4199,7 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
     const standort = standorte.find((entry) => entry.name === row.location);
     if (!standort) return [];
     return (row.parsedMovements ?? [])
-      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz", "direktzahlung_patient"].includes(movement.reasonCategory))
       .map((movement, index) => {
         const ageDays = movement.date ? ageFromShortDate(movement.date) : 0;
         const amount = Math.abs(movement.amount ?? 0);
@@ -4421,6 +4421,7 @@ function riskActivityKeys(standortId: string, patientName: string, invoiceNo?: s
 function isResolvedMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
   const reasonText = `${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
   return movement.reasonCategory === "zahlung_nach_storno"
+    || movement.reasonCategory === "direktzahlung_patient"
     || movement.reasonCategory === "neue_rechnung"
     || reasonText.includes("zahlung nach storno")
     || reasonText.includes("direktzahlung");
@@ -4781,7 +4782,7 @@ function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string
         const key = `${normalizePatientName(movement.patientName ?? "")}:${row.date}:${movement.bfsNo ?? "-"}`;
         const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
         const reasonText = movement.reason?.toLowerCase() ?? "";
-        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || movement.reasonCategory === "direktzahlung_patient" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         return {
           month: monthLabelFromDate(row.date),
           locationName: row.location,
@@ -4812,7 +4813,7 @@ function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standor
         const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
         const reasonText = movement.reason?.toLowerCase() ?? "";
         const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || movement.reasonCategory === "direktzahlung_patient" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         if (wasReworked || wasPaid) return [];
 
         return [{
@@ -4870,7 +4871,7 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
           amount: Math.abs(movement.amount ?? 0),
           reason
         });
-        const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
+        const doneByPayment = movement.reasonCategory === "zahlung_nach_storno" || movement.reasonCategory === "direktzahlung_patient" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
         const resubmissionCandidate = candidateByOriginalKey.get(key);
         const doneByResubmission = Boolean(resubmissionCandidate) || movement.reasonCategory === "neue_rechnung";
         const manualPaidDate = manualKeysForMovement.map((manualKey) => manualPaidDateByKey.get(manualKey)).find(Boolean) ?? "";
@@ -5002,6 +5003,7 @@ function reasonLabel(reasonCategory?: string) {
     nachricht_praxis: "lt. Nachricht / Praxisanweisung",
     neue_rechnung: "Neue Rechnung",
     zahlung_nach_storno: "Zahlung nach Storno",
+    direktzahlung_patient: "Direktzahlung Patient",
     gemaess_vertrag: "gem. Vertrag",
     rueckgabe_ohne_ausfallschutz: "Rückgabe ohne Ausfallschutz",
     iportal_rechnungsliste: "lt. iPortal-Rechnungsliste",

@@ -112,7 +112,9 @@ async function parseInvoiceUploadFile(file: File) {
 }
 
 function parseServiceLines(lines: string[]) {
-  const mainLines = lines.slice(0, firstIndex(lines, /(?:Honorar:|ZA-Honorar|Rechnungsbetrag:|Anlage Eigenlabor|FREMDLABORBELEG)/i));
+  const tableStart = lines.findIndex((line) => /Datum\s+Region\s+Nr\.\s+Leistungsbeschreibung/i.test(line));
+  const sourceLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
+  const mainLines = sourceLines.slice(0, firstIndex(sourceLines, /(?:Zwischensumme Honorar|ZA-Honorar|Anlage Eigenlabor|FREMDLABORBELEG)/i));
   return mainLines.flatMap((line) => parseFactorLine(line, "leistung", "Patientenrechnung"));
 }
 

@@ -3798,7 +3798,11 @@ function ClaimsFlowView({
   const recoveryClosedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const recoveryReviewRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, recoveryScopedImportRows), [invoiceStatusRows, recoveryScopedImportRows]);
   const recoveryEconomicCheckRows = useMemo(() => recoveryReviewRows.filter((row) => row.category === "economic_check"), [recoveryReviewRows]);
-  const recoveryEconomicCheckAmount = useMemo(() => recoveryEconomicCheckRows.reduce((sum, row) => sum + row.amount, 0), [recoveryEconomicCheckRows]);
+  const recoveryOpenEconomicCheckRows = useMemo(() => recoveryEconomicCheckRows
+    .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => recoveryClosedKeys.has(key))),
+    [recoveryClosedKeys, recoveryEconomicCheckRows]
+  );
+  const recoveryOpenEconomicCheckAmount = useMemo(() => recoveryOpenEconomicCheckRows.reduce((sum, row) => sum + row.amount, 0), [recoveryOpenEconomicCheckRows]);
   const recoveryPracticeFollowupCases = useMemo(() => applyInvoiceStatusToCases(
     casesFromImportRows(recoveryScopedImportRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => recoveryClosedKeys.has(key))),
     invoiceStatusRows
@@ -3817,6 +3821,10 @@ function ClaimsFlowView({
   const matchedNewSubmissionAmount = recoveryDeductionSummary.matchedNewSubmissionAmount;
   const recoveredAmount = recoveryDeductionSummary.recoveredAmount;
   const stillOpenAmount = recoveryDeductionSummary.openAmount;
+  const recoveryOperationalExplainedAmount = recoveryOpenEconomicCheckAmount + recoveryPracticeFollowupAmount + recoveryFinalCancelledAmount;
+  const recoveryUnassignedOpenAmount = Math.max(stillOpenAmount - recoveryOperationalExplainedAmount, 0);
+  const recoveryOperationalControlAmount = recoveryOperationalExplainedAmount + recoveryUnassignedOpenAmount;
+  const recoveryOperationalDifference = stillOpenAmount - recoveryOperationalControlAmount;
   const waterfallDeductionAmount = waterfallDeductionSummary.grossDeductionAmount;
   const waterfallRecoveredAmount = waterfallDeductionSummary.recoveredAmount;
   const waterfallScopeLabel = waterfallStandorte.length === 1 ? waterfallStandorte[0].name : "Alle Standorte";
@@ -4076,12 +4084,14 @@ function ClaimsFlowView({
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} info="Grundmenge vor Folgeentscheidung: Rückläufer, Rückgaben und Stornos aus den BFS-Kontoauszug-Bewegungen." />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
           <PriorityCard label="Zurückgeholt / bezahlt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Matches/Zahlungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen und belegte Zahlungen bis maximal zur Höhe des ursprünglichen Abzugs." />
-          <PriorityCard label="Noch ungeklärt" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus zurückgeholt/bezahlt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Restbetrag nach angerechneter Neueinreichung oder Zahlung. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert." />
+          <PriorityCard label="Noch ungeklärt" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus zurückgeholt/bezahlt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Restbetrag nach angerechneter Neueinreichung oder Zahlung. Dieser Rest muss in der operativen Fallarbeit vollständig erklärt werden: Zahlung/Grund prüfen, Praxis nachfassen, endgültig storniert oder noch nicht zugeordnet." />
           <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
           <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
-          <PriorityCard label="Zahlung/Grund prüfen" value={integerNumber.format(recoveryEconomicCheckRows.length)} hint={money.format(recoveryEconomicCheckAmount)} period={recoveryPeriod.label} tone={recoveryEconomicCheckRows.length ? "amber" : "green"} info="Saldogeschlossene Fälle: BFS zeigt keinen offenen Saldo mehr, aber Zahlung, Neueinreichung oder Storno-Grund muss wirtschaftlich belegt werden." />
+          <PriorityCard label="Zahlung/Grund prüfen" value={integerNumber.format(recoveryOpenEconomicCheckRows.length)} hint={money.format(recoveryOpenEconomicCheckAmount)} period={recoveryPeriod.label} tone={recoveryOpenEconomicCheckRows.length ? "amber" : "green"} info="Aktive saldogeschlossene Fälle: BFS zeigt keinen offenen Saldo mehr, aber Zahlung, Neueinreichung oder Storno-Grund muss wirtschaftlich belegt werden. Bereits erledigte Fälle sind hier nicht mehr enthalten." />
           <PriorityCard label="Praxis nachfassen" value={integerNumber.format(recoveryPracticeFollowupCases.length)} hint={money.format(recoveryPracticeFollowupAmount)} period={recoveryPeriod.label} tone={recoveryPracticeFollowupCases.length ? "amber" : "green"} info="Echte Praxis-Aufgaben aus dem offenen Rest, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle muss die Praxis aktiv nachhalten." />
           <PriorityCard label="Endgültig storniert" value={integerNumber.format(recoveryStornoReview.finalCancelled)} hint={money.format(recoveryFinalCancelledAmount)} period={recoveryPeriod.label} tone={recoveryStornoReview.finalCancelled ? "red" : "green"} info="Manuell als endgültig storniert markierte Fälle. Sie bleiben in der Brutto-Storno-Grundmenge enthalten, sind aber nicht mehr offene Fallarbeit." />
+          <PriorityCard label="Noch nicht zugeordnet" value={money.format(recoveryUnassignedOpenAmount)} hint="Rest bis zur Kontrollsumme" period={recoveryPeriod.label} tone={recoveryUnassignedOpenAmount ? "red" : "green"} info="Offener Abzug, der noch in keinem operativen Arbeitskorb steckt. Diese Restkategorie zeigt, ob die Fallarbeit den offenen Abzug vollständig erklärt." />
+          <PriorityCard label="Kontrollsumme Operativ" value={money.format(recoveryOperationalControlAmount)} hint={`Differenz ${money.format(recoveryOperationalDifference)}`} period={recoveryPeriod.label} tone={Math.abs(recoveryOperationalDifference) < 0.01 ? "green" : "red"} info="Zahlung/Grund prüfen plus Praxis nachfassen plus endgültig storniert plus noch nicht zugeordnet. Diese Summe muss dem offenen Abzug entsprechen." />
         </div>
       </section>
       <section className="dashboard-grid">
@@ -10018,13 +10028,13 @@ function MatchesView({
         <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Urspr. Abzugsbetrag" value={exactMoney.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
         <PriorityCard label="Neue Forderungssumme" value={exactMoney.format(matchTotals.newAmount)} hint={`Differenz ${exactMoney.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
-        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} />
+        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} info="Diese Treffer können im Geldfluss bereits als zurückgeholt angerechnet sein. Sie werden deshalb nicht zusätzlich zum offenen Abzug addiert, sondern erklären die Kachel Zurückgeholt / bezahlt." />
       </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
             <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
-            <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
+            <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht. Diese Treffer erklären die Rückholung und werden nicht zusätzlich zur offenen Kontrollsumme addiert.</p>
           </div>
           <div className="case-list-actions">
             <button className="secondary-button" disabled={!filteredCandidates.length} onClick={() => printResubmissionReport(filteredCandidates, scopeLabel, selectedPeriod.label)}>

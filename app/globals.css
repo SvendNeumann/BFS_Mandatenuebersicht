@@ -1923,7 +1923,8 @@ input {
 }
 
 .import-history-scroll,
-.import-detail-scroll {
+.import-detail-scroll,
+.import-reason-scroll {
   border: 1px solid rgba(157, 226, 230, 0.16);
   border-radius: 8px;
   overflow: auto;
@@ -1931,11 +1932,15 @@ input {
 }
 
 .import-history-scroll {
-  max-height: min(360px, 46vh);
+  max-height: min(292px, 34vh);
+}
+
+.import-reason-scroll {
+  max-height: min(292px, 34vh);
 }
 
 .import-detail-scroll {
-  max-height: min(520px, 58vh);
+  max-height: min(318px, 40vh);
 }
 
 .invoice-status-scroll {
@@ -1948,6 +1953,7 @@ input {
 
 .import-history-scroll thead th,
 .import-detail-scroll thead th,
+.import-reason-scroll thead th,
 .invoice-status-scroll thead th {
   position: sticky;
   top: 0;
@@ -1955,6 +1961,7 @@ input {
 }
 
 .import-detail-scroll table,
+.import-reason-scroll table,
 .invoice-status-scroll table {
   min-width: 1280px;
 }
@@ -2034,6 +2041,35 @@ input {
   border: 1px solid var(--line);
   background: #102f42;
   color: #e8f8fa;
+}
+
+.collapse-toggle-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(16, 47, 66, 0.84);
+  color: #d7eef1;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.collapse-toggle-button:hover {
+  border-color: rgba(94, 234, 212, 0.42);
+  color: #f8ffff;
+}
+
+.collapse-icon {
+  transition: transform 160ms ease;
+}
+
+.collapse-icon.open {
+  transform: rotate(180deg);
 }
 
 .app-back-button {

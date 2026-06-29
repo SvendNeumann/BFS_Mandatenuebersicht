@@ -5453,9 +5453,13 @@ function UploadView({
   const [selectedStatusFileCount, setSelectedStatusFileCount] = useState(0);
   const [pendingStatusDocuments, setPendingStatusDocuments] = useState<ParsedInvoiceStatusDocument[] | null>(null);
   const [isStatusConfirming, setIsStatusConfirming] = useState(false);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
+  const importConfirmationMovements = previewRows.flatMap((row) => row.parsedMovements ?? [])
+    .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
+  const importConfirmationRetainedAmount = importConfirmationMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
   const displayedStatusDocuments = pendingStatusDocuments ?? statusDocuments;
   const hasPendingStatusImport = pendingStatusDocuments !== null;
   const statusRows = displayedStatusDocuments.flatMap((document) => document.rows);
@@ -5610,6 +5614,10 @@ function UploadView({
             <X size={16} />
             Upload zurücksetzen
           </button>
+          <button className="primary-button" disabled={isProcessing || !liveRows.length} onClick={() => setImportConfirmOpen(true)}>
+            <CheckCircle2 size={16} />
+            Import bestätigen
+          </button>
         </div>
       </section>
       <section className="priority-grid">
@@ -5641,6 +5649,25 @@ function UploadView({
       )}
       <ImportHistorySummary rows={previewRows} />
       <ImportPreview rows={previewRows} />
+      {importConfirmOpen && (
+        <div className="confirmation-overlay" role="dialog" aria-modal="true" aria-label="Import bestätigt">
+          <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={() => setImportConfirmOpen(false)} />
+          <section className="confirmation-dialog">
+            <div className="confirmation-icon">
+              <CheckCircle2 size={24} />
+            </div>
+            <h2>Import bestätigt</h2>
+            <p>Die Import-Vorschau wurde übernommen. Die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
+            <dl>
+              <div><dt>Dateien</dt><dd>{previewRows.length}</dd></div>
+              <div><dt>Importfähig</dt><dd>{okRows}</dd></div>
+              <div><dt>Rückgaben/Stornos</dt><dd>{importConfirmationMovements.length}</dd></div>
+              <div><dt>Einbehalten</dt><dd>{money.format(importConfirmationRetainedAmount)}</dd></div>
+            </dl>
+            <button className="primary-button" onClick={() => setImportConfirmOpen(false)}>Verstanden</button>
+          </section>
+        </div>
+      )}
       <section className="upload-zone">
         <ClipboardList size={28} />
         <div>
@@ -6660,6 +6687,7 @@ function countNestedUploadFolders(rows: ImportPreviewRow[]) {
 }
 
 function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
+  const [isOpen, setIsOpen] = useState(true);
   const months = buildImportHistoryMonths(rows);
   const totalSubmitted = months.reduce((sum, month) => sum + month.submitted, 0);
   const totalPayout = months.reduce((sum, month) => sum + month.payout, 0);
@@ -6673,71 +6701,79 @@ function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
           <h2>Import-Status & Historie</h2>
           <p>Ein gemeinsamer Überblick über hochgeladene Monate, Prüfstatus und die wichtigsten Summen vor der Detailfreigabe.</p>
         </div>
+        <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+          <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
+          {isOpen ? "Einklappen" : "Ausklappen"}
+        </button>
       </div>
-      <div className="case-summary-grid" aria-label="Import-Historie Gesamtsummen">
-        <article>
-          <span>Dateien gesamt</span>
-          <strong>{rows.length}</strong>
-        </article>
-        <article>
-          <span>Eingereichter Umsatz</span>
-          <strong>{money.format(totalSubmitted)}</strong>
-        </article>
-        <article>
-          <span>Auszahlungsbetrag</span>
-          <strong>{money.format(totalPayout)}</strong>
-        </article>
-        <article>
-          <span>Kosten BFS/EWMA</span>
-          <strong>{money.format(totalCosts)}</strong>
-        </article>
-        <article>
-          <span>Rückgaben/Stornos</span>
-          <strong>{money.format(totalRetained)}</strong>
-        </article>
-      </div>
-      <div className="table-wrap compact-table import-history-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Monat</th>
-              <th>Standorte</th>
-              <th>Dateien</th>
-              <th>Prüfung</th>
-              <th>Umsatz</th>
-              <th>Auszahlung</th>
-              <th>BFS-Gebühr</th>
-              <th>MwSt</th>
-              <th>EWMA</th>
-              <th>Rückgaben/Stornos</th>
-              <th>Ohne Schutz</th>
-            </tr>
-          </thead>
-          <tbody>
-            {months.map((month) => (
-              <tr key={month.month}>
-                <td><strong>{month.label}</strong></td>
-                <td>{month.locations.join(", ") || "unbekannt"}</td>
-                <td>{month.rows}</td>
-                <td>
-                  <StatusBadge status={month.warnings ? `${month.warnings} prüfen` : "OK"} />
-                  <span>{month.importable} importfähig</span>
-                </td>
-                <td>{money.format(month.submitted)}</td>
-                <td>{money.format(month.payout)}</td>
-                <td>{money.format(month.feeNet)}</td>
-                <td>{money.format(month.feeVat)}</td>
-                <td>{money.format(month.ewmaTotal)}</td>
-                <td>{month.chargebackCount}<span>{money.format(month.chargebackAmount)}</span></td>
-                <td>{month.noProtectionCount}<span>{money.format(month.noProtectionAmount)}</span></td>
-              </tr>
-            ))}
-            {!months.length && (
-              <tr><td colSpan={11}>Noch keine Importdaten vorhanden.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {isOpen && (
+        <>
+          <div className="case-summary-grid" aria-label="Import-Historie Gesamtsummen">
+            <article>
+              <span>Dateien gesamt</span>
+              <strong>{rows.length}</strong>
+            </article>
+            <article>
+              <span>Eingereichter Umsatz</span>
+              <strong>{money.format(totalSubmitted)}</strong>
+            </article>
+            <article>
+              <span>Auszahlungsbetrag</span>
+              <strong>{money.format(totalPayout)}</strong>
+            </article>
+            <article>
+              <span>Kosten BFS/EWMA</span>
+              <strong>{money.format(totalCosts)}</strong>
+            </article>
+            <article>
+              <span>Rückgaben/Stornos</span>
+              <strong>{money.format(totalRetained)}</strong>
+            </article>
+          </div>
+          <div className="table-wrap compact-table import-history-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Monat</th>
+                  <th>Standorte</th>
+                  <th>Dateien</th>
+                  <th>Prüfung</th>
+                  <th>Umsatz</th>
+                  <th>Auszahlung</th>
+                  <th>BFS-Gebühr</th>
+                  <th>MwSt</th>
+                  <th>EWMA</th>
+                  <th>Rückgaben/Stornos</th>
+                  <th>Ohne Schutz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {months.map((month) => (
+                  <tr key={month.month}>
+                    <td><strong>{month.label}</strong></td>
+                    <td>{month.locations.join(", ") || "unbekannt"}</td>
+                    <td>{month.rows}</td>
+                    <td>
+                      <StatusBadge status={month.warnings ? `${month.warnings} prüfen` : "OK"} />
+                      <span>{month.importable} importfähig</span>
+                    </td>
+                    <td>{money.format(month.submitted)}</td>
+                    <td>{money.format(month.payout)}</td>
+                    <td>{money.format(month.feeNet)}</td>
+                    <td>{money.format(month.feeVat)}</td>
+                    <td>{money.format(month.ewmaTotal)}</td>
+                    <td>{month.chargebackCount}<span>{money.format(month.chargebackAmount)}</span></td>
+                    <td>{month.noProtectionCount}<span>{money.format(month.noProtectionAmount)}</span></td>
+                  </tr>
+                ))}
+                {!months.length && (
+                  <tr><td colSpan={11}>Noch keine Importdaten vorhanden.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -6812,7 +6848,8 @@ function buildImportHistoryMonths(rows: ImportPreviewRow[]) {
 }
 
 function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(true);
   const reviewRows = rows.filter(importRowNeedsReview);
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
     .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory));
@@ -6836,31 +6873,37 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
               <h2>Grundauswertung aus BFS-Bemerkungen</h2>
               <p>Bekannte Gründe werden gruppiert; neue Wortlaute bleiben als Originalgrund sichtbar und können später als eigene Kategorie übernommen werden.</p>
             </div>
+            <button className="collapse-toggle-button" type="button" aria-expanded={reasonOpen} onClick={() => setReasonOpen((current) => !current)}>
+              <ChevronDown size={16} className={reasonOpen ? "collapse-icon open" : "collapse-icon"} />
+              {reasonOpen ? "Einklappen" : "Ausklappen"}
+            </button>
           </div>
-          <div className="table-wrap compact-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Kategorie</th>
-                  <th>Anzahl</th>
-                  <th>Betrag</th>
-                  <th>Originalgründe</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reasonGroups.map((group) => (
-                  <tr key={group.key}>
-                    <td><strong>{group.label}</strong></td>
-                    <td>{group.count}</td>
-                    <td>{money.format(group.amount)}</td>
-                    <td>{group.examples.join(", ")}</td>
-                    <td><StatusBadge status={group.needsReview ? "neuen Grund prüfen" : "kategorisiert"} /></td>
+          {reasonOpen && (
+            <div className="table-wrap compact-table import-reason-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kategorie</th>
+                    <th>Anzahl</th>
+                    <th>Betrag</th>
+                    <th>Originalgründe</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {reasonGroups.map((group) => (
+                    <tr key={group.key}>
+                      <td><strong>{group.label}</strong></td>
+                      <td>{group.count}</td>
+                      <td>{money.format(group.amount)}</td>
+                      <td>{group.examples.join(", ")}</td>
+                      <td><StatusBadge status={group.needsReview ? "neuen Grund prüfen" : "kategorisiert"} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
       <section className="panel import-detail-panel">
@@ -6873,107 +6916,93 @@ function ImportPreview({ rows }: { rows: ImportPreviewRow[] }) {
             <button className="secondary-button" disabled={!rows.length} onClick={() => printImportIssueReport(rows)}>
               <Printer size={16} /> Fehlerbericht als PDF
             </button>
-            <button className="primary-button" onClick={() => setConfirmOpen(true)}>
-              <CheckCircle2 size={16} /> Import bestätigen
+            <button className="collapse-toggle-button" type="button" aria-expanded={detailOpen} onClick={() => setDetailOpen((current) => !current)}>
+              <ChevronDown size={16} className={detailOpen ? "collapse-icon open" : "collapse-icon"} />
+              {detailOpen ? "Einklappen" : "Ausklappen"}
             </button>
           </div>
         </div>
-        {!!rows.length && (
-          <div className="import-review-summary">
-            <AlertTriangle size={16} />
-            <span>{reviewRows.length} von {rows.length} Importzeilen brauchen Prüfung. Der PDF-Bericht enthält alle Hinweise und vollständige Dateipfade.</span>
-          </div>
-        )}
-        <div className="table-wrap import-detail-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>AbrechnungsNr.</th>
-                <th>Standort</th>
-                <th>Mandant-Nr.</th>
-                <th>Datum</th>
-                <th>Forderungen</th>
-                <th>Summe</th>
-                <th>Kontoauszug</th>
-                <th>Status</th>
-                <th>Hinweise</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const rowReasons = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
-                return (
-                  <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
-                    <td>
-                      <strong>{formatStatementReference(row.statementNo, row.file)}</strong>
-                      <span>{row.practice}</span>
-                      {!!row.parsedClaims?.length && (
-                        <small>{row.parsedClaims.length} Patientenpositionen · {rowNoProtectionCount(row)} ohne Ausfallschutz</small>
-                      )}
-                    </td>
-                    <td>{row.location}</td>
-                    <td>{row.mandantNo}</td>
-                    <td>{row.date}</td>
-                    <td>{row.claimsHeader} / {row.claimsExtracted}</td>
-                    <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
-                    <td>
-                      {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
-                      {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
-                      {!!rowFeeAmount(row) && (
-                        <>
-                          <span>BFS-Gebühr netto {money.format(rowFeeNetAmount(row))}</span>
-                          <span>MwSt {money.format(rowFeeVatAmount(row))}</span>
-                          <span>Gesamtkosten {money.format(rowFeeAmount(row))}</span>
-                        </>
-                      )}
-                      {!!rowEwmaAmount(row) && (
-                        <span>EWMA {money.format(rowEwmaAmount(row))} inkl. MwSt</span>
-                      )}
-                      {!!rowReasons.length && (
-                        <>
-                          <span>{rowReasons.length} Storno-/Rückgabegründe</span>
-                          {rowReasons.slice(0, 3).map((movement) => (
-                            <small key={`${movement.rawText}-${movement.bfsNo ?? ""}`}>
-                              {formatMovementReason(movement)}
-                            </small>
-                          ))}
-                        </>
-                      )}
-                    </td>
-                    <td><StatusBadge status={row.status} /></td>
-                    <td>
-                      <div className="note-list">
-                        {(row.parseNotes ?? ["Keine Hinweise hinterlegt."]).slice(0, 3).map((note) => (
-                          <span key={note}><AlertTriangle size={13} /> {note}</span>
-                        ))}
-                      </div>
-                    </td>
+        {detailOpen && (
+          <>
+            {!!rows.length && (
+              <div className="import-review-summary">
+                <AlertTriangle size={16} />
+                <span>{reviewRows.length} von {rows.length} Importzeilen brauchen Prüfung. Der PDF-Bericht enthält alle Hinweise und vollständige Dateipfade.</span>
+              </div>
+            )}
+            <div className="table-wrap import-detail-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>AbrechnungsNr.</th>
+                    <th>Standort</th>
+                    <th>Mandant-Nr.</th>
+                    <th>Datum</th>
+                    <th>Forderungen</th>
+                    <th>Summe</th>
+                    <th>Kontoauszug</th>
+                    <th>Status</th>
+                    <th>Hinweise</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      {confirmOpen && (
-        <div className="confirmation-overlay" role="dialog" aria-modal="true" aria-label="Import bestätigt">
-          <button className="confirmation-backdrop" aria-label="Dialog schließen" onClick={() => setConfirmOpen(false)} />
-          <section className="confirmation-dialog">
-            <div className="confirmation-icon">
-              <CheckCircle2 size={24} />
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const rowReasons = row.parsedMovements?.filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory)) ?? [];
+                    return (
+                      <tr key={`${row.file}-${row.fileHash ?? row.statementNo}`}>
+                        <td>
+                          <strong>{formatStatementReference(row.statementNo, row.file)}</strong>
+                          <span>{row.practice}</span>
+                          {!!row.parsedClaims?.length && (
+                            <small>{row.parsedClaims.length} Patientenpositionen · {rowNoProtectionCount(row)} ohne Ausfallschutz</small>
+                          )}
+                        </td>
+                        <td>{row.location}</td>
+                        <td>{row.mandantNo}</td>
+                        <td>{row.date}</td>
+                        <td>{row.claimsHeader} / {row.claimsExtracted}</td>
+                        <td>{money.format(row.sumHeader)} / {money.format(row.sumExtracted)}</td>
+                        <td>
+                          {row.hasLedger ? `${row.movements} Bewegungen` : "fehlt"}
+                          {!!row.payout && <span>Auszahlung {money.format(row.payout)}</span>}
+                          {!!rowFeeAmount(row) && (
+                            <>
+                              <span>BFS-Gebühr netto {money.format(rowFeeNetAmount(row))}</span>
+                              <span>MwSt {money.format(rowFeeVatAmount(row))}</span>
+                              <span>Gesamtkosten {money.format(rowFeeAmount(row))}</span>
+                            </>
+                          )}
+                          {!!rowEwmaAmount(row) && (
+                            <span>EWMA {money.format(rowEwmaAmount(row))} inkl. MwSt</span>
+                          )}
+                          {!!rowReasons.length && (
+                            <>
+                              <span>{rowReasons.length} Storno-/Rückgabegründe</span>
+                              {rowReasons.slice(0, 3).map((movement) => (
+                                <small key={`${movement.rawText}-${movement.bfsNo ?? ""}`}>
+                                  {formatMovementReason(movement)}
+                                </small>
+                              ))}
+                            </>
+                          )}
+                        </td>
+                        <td><StatusBadge status={row.status} /></td>
+                        <td>
+                          <div className="note-list">
+                            {(row.parseNotes ?? ["Keine Hinweise hinterlegt."]).slice(0, 3).map((note) => (
+                              <span key={note}><AlertTriangle size={13} /> {note}</span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <h2>Import bestätigt</h2>
-            <p>Die Import-Vorschau wurde übernommen. Die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
-            <dl>
-              <div><dt>Dateien</dt><dd>{rows.length}</dd></div>
-              <div><dt>Importfähig</dt><dd>{rows.filter((row) => row.status === "OK").length}</dd></div>
-              <div><dt>Rückgaben/Stornos</dt><dd>{relevantMovements.length}</dd></div>
-              <div><dt>Einbehalten</dt><dd>{money.format(retainedAmount)}</dd></div>
-            </dl>
-            <button className="primary-button" onClick={() => setConfirmOpen(false)}>Verstanden</button>
-          </section>
-        </div>
-      )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

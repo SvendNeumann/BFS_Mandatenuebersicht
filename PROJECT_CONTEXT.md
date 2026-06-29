@@ -12,6 +12,7 @@ Letzte Aenderung/Pruefung:
 - Die SVG-Hoehe der Verlaufsgrafik ist responsiv gedeckelt (`clamp(230px, 28vw, 360px)`), damit breite Bildschirme die Grafik nicht mehr riesig leer aufziehen.
 - Aufgeraeumt: zwei ungenutzte Variablen/Props in `components/monitor-app.tsx` entfernt.
 - Pruefung am 29.06.2026: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `git diff --check` alle erfolgreich. Browser-Sichtpruefung geschuetzter Dashboard-Grafiken war ohne eingeloggte Sitzung nicht moeglich; lokale Route leitete korrekt auf `/login?next=/dashboard` weiter.
+- Nachkorrektur Standortsteuerung: Die feste Standort-Tab-Leiste wurde vollstaendig aus dem Renderpfad entfernt. Standortwechsel laufen im Admin-Modus wieder ueber eigene Filter je Tab. Das Standort-Management-Cockpit hat jetzt einen eigenen Filter `Standort Management Cockpit` mit `Alle Standorte` und Einzelstandorten. Schnellantworten, Forderungsqualitaet, Geldfluss/Fallarbeit, Zahlung/Grund pruefen, Ohne-Schutz/Risiko, Patientenklassifizierung, Matching/Neueinreichung, Outcomes und Reports behalten bzw. nutzen ihre tab-eigenen Standortfilter. Standortleitungen bleiben auf zugewiesene Standorte begrenzt.
 
 ## Prompt fuer den naechsten Chat
 

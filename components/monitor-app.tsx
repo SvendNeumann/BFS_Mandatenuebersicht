@@ -225,11 +225,10 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     "cases",
     "risks",
     "repeatRisks",
-    "patientClasses",
     "outcomes"
   ];
   const showStandortTabs = viewsWithStandortScope.includes(activeView);
-  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "reports", "locations", "users", "upload", "preview", "history"];
+  const groupLevelViews = ["custom", "benchmark", "claims", "cashflow", "patientClasses", "reports", "locations", "users", "upload", "preview", "history"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -562,7 +561,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "cases" && <CasesView cases={visibleCases} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {activeView === "risks" && <RiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={isGroupScope ? undefined : selectedStandort.id} importRows={privacyScopedImportRows} />}
-            {activeView === "patientClasses" && <PatientClassificationView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
+            {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={isGroupScope ? undefined : selectedStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} cases={appCases} importRows={privacyScopedImportRows} />}
             {activeView === "outcomes" && <OutcomeControlView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
@@ -6962,11 +6961,26 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
 }
 
 function PatientClassificationView({ standort, importRows = [] }: { standort?: Standort; importRows?: ImportPreviewRow[] }) {
-  const profiles = useMemo(() => patientProfilesFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
-  const riskClaims = useMemo(() => riskClaimsFromImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows), [importRows, standort]);
-  const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, importRows), [importRows, standort?.id]);
-  const patientHistory = useMemo(() => patientHistoryFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
-  const locationQuality = useMemo(() => patientQualityByLocation(importRows, standort?.id), [importRows, standort?.id]);
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [selectedStandortFilterId, setSelectedStandortFilterId] = useState(() => standort?.id ?? "alle");
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
+  const relevantStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
+  const selectedStandorte = useMemo(() => {
+    if (standort) return [standort];
+    if (selectedStandortFilterId === "alle") return relevantStandorte;
+    return relevantStandorte.filter((entry) => entry.id === selectedStandortFilterId);
+  }, [relevantStandorte, selectedStandortFilterId, standort]);
+  const singleStandortId = selectedStandorte.length === 1 ? selectedStandorte[0].id : undefined;
+  const scopedRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = selectedStandorte.find((entry) => entry.name === row.location);
+    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
+  }), [importRows, selectedPeriod, selectedStandorte]);
+  const profiles = useMemo(() => patientProfilesFromImportRows(scopedRows, singleStandortId), [scopedRows, singleStandortId]);
+  const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedRows), [scopedRows]);
+  const recurring = useMemo(() => getRecurringRiskProfiles(singleStandortId, scopedRows), [scopedRows, singleStandortId]);
+  const patientHistory = useMemo(() => patientHistoryFromImportRows(scopedRows, singleStandortId), [scopedRows, singleStandortId]);
+  const locationQuality = useMemo(() => patientQualityByLocation(scopedRows, singleStandortId), [scopedRows, singleStandortId]);
   const counts = useMemo(() => ["A", "B", "C", "D"].map((grade) => ({
     grade,
     count: profiles.filter((profile) => profile.grade === grade).length
@@ -6982,6 +6996,29 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
 
   return (
     <div className="content-stack">
+      <section className="panel period-filter deduction-analysis-filter">
+        <label className="select-label">
+          Zeitraum Patientenklassifizierung
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+            {periodOptions.map((period) => (
+              <option key={period.id} value={period.id}>{period.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="select-label">
+          Standort Patientenklassifizierung
+          <select value={selectedStandortFilterId} onChange={(event) => setSelectedStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
+            {!standort && <option value="alle">Alle Standorte</option>}
+            {relevantStandorte.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{selectedStandorte.length === 1 ? selectedStandorte[0].name : "Alle Standorte"}</strong>
+          <span>{selectedPeriod.detail}</span>
+        </div>
+      </section>
       <section className="priority-grid">
         <PriorityCard label="Ohne-Schutz-Anteil" value={formatPercent(noProtectionPatients.length ? (noProtectionPatients.length / total) * 100 : 0)} hint={`${noProtectionPatients.length} Patienten`} tone={noProtectionPatients.length ? "amber" : "green"} />
         <PriorityCard label="Davon auffällig" value={formatPercent(noProtectionPatients.length ? (noProtectionActuallyBad.length / noProtectionPatients.length) * 100 : 0)} hint={`${noProtectionActuallyBad.length} Patienten`} tone={noProtectionActuallyBad.length ? "red" : "green"} />

@@ -5781,7 +5781,7 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
         <div>
           <span className="eyebrow">Prüfkorb</span>
           <h2>Praxis-Aufgaben aus Rechnungsstatus</h2>
-          <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Normale offene BFS-Rechnungen werden nur dann priorisiert, wenn sie kritisch, ohne Schutz, in Mahnung oder nicht sauber zuordenbar sind.</p>
+          <p>Diese Liste entsteht aus Abrechnungsimport plus Saldo-Liste. Sie trennt Praxis-Nachfassfälle von Fällen, die bei BFS geschlossen sind, aber wirtschaftlich noch belegt werden müssen.</p>
         </div>
         <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
           <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
@@ -5795,6 +5795,7 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
             <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
             <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
             <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
+            <article><span>Zahlung/Grund prüfen</span><strong>{integerNumber.format(summary.economicCheck)}</strong></article>
             <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
             <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
           </div>
@@ -5912,7 +5913,7 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
         <div>
           <span className="eyebrow">{isPreview ? "Saldo-Vorschau" : "Saldo-Listen"}</span>
           <h2>Rechnungsstatus nach BFS-Saldo</h2>
-          <p>Die Vorschau zeigt die größten offenen Salden zuerst. Saldo 0,00 € schließt die operative Klärung; Storno-Gründe bleiben separat auswertbar.</p>
+          <p>Die Vorschau zeigt die größten offenen Salden zuerst. Saldo 0,00 € schließt nur den BFS-Saldo; bei Storno/Rückgabe bleibt der wirtschaftliche Grund separat prüfbar.</p>
         </div>
         <button className="collapse-toggle-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
           <ChevronDown size={16} className={isOpen ? "collapse-icon open" : "collapse-icon"} />
@@ -5970,7 +5971,7 @@ function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
   return "offen";
 }
 
-type InvoiceStatusReviewCategory = "critical_open" | "reminder" | "no_protection" | "missing_in_saldo" | "final_cancelled" | "unmappable";
+type InvoiceStatusReviewCategory = "critical_open" | "reminder" | "no_protection" | "missing_in_saldo" | "economic_check" | "final_cancelled" | "unmappable";
 
 type InvoiceStatusReviewRow = {
   id: string;
@@ -6049,6 +6050,25 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
   });
 
   importCases
+    .filter(isNoProtectionReturnCase)
+    .forEach((fall) => {
+      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusRowsByKey.get(key)).find(Boolean);
+      items.push({
+        id: `practice-followup-${fall.id}`,
+        category: "no_protection",
+        categoryLabel: "Praxis nachfassen",
+        locationName: fall.locationName,
+        patientName: fall.patientName,
+        invoiceNo: fall.invoiceNo,
+        bfsNo: fall.bfsNo,
+        amount: fall.amount,
+        detail: `${fall.reason}; ${statusRow ? `${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}` : "kein Saldo-Treffer"}`,
+        source: "Abrechnung + Saldo-Liste",
+        nextStep: "Praxis muss den Betrag selbst klären/eintreiben; Saldo 0 bei BFS ist hier kein Zahlungsnachweis."
+      });
+    });
+
+  importCases
     .filter((fall) => !caseInvoiceMatchKeys(fall).some((key) => statusKeys.has(key)))
     .forEach((fall) => {
       items.push({
@@ -6072,9 +6092,9 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
       const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusRowsByKey.get(key)).find(Boolean);
       if (!statusRow || !isInvoiceStatusAutoResolved(statusRow)) return;
       items.push({
-        id: `saldo-final-cancelled-${fall.id}`,
-        category: "final_cancelled",
-        categoryLabel: "storniert/ausgebucht",
+        id: `saldo-economic-check-${fall.id}`,
+        category: "economic_check",
+        categoryLabel: "Zahlung/Grund prüfen",
         locationName: fall.locationName,
         patientName: fall.patientName,
         invoiceNo: fall.invoiceNo,
@@ -6082,7 +6102,7 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         amount: fall.amount,
         detail: `${fall.reason}; ${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}`,
         source: "Abrechnung + Saldo-Liste",
-        nextStep: "Nicht mehr operativ offen; Betrag als Storno/Teil-Storno in Auswertungen behalten."
+        nextStep: "BFS ist geschlossen; Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegen."
       });
     });
 
@@ -6134,10 +6154,11 @@ function summarizeInvoiceStatusReviewBasket(rows: InvoiceStatusReviewRow[]) {
     if (row.category === "reminder") summary.reminder += 1;
     if (row.category === "no_protection") summary.noProtection += 1;
     if (row.category === "missing_in_saldo") summary.missingInSaldo += 1;
+    if (row.category === "economic_check") summary.economicCheck += 1;
     if (row.category === "final_cancelled") summary.finalCancelled += 1;
     if (row.category === "unmappable") summary.unmappable += 1;
     return summary;
-  }, { criticalOpen: 0, reminder: 0, noProtection: 0, missingInSaldo: 0, finalCancelled: 0, unmappable: 0 });
+  }, { criticalOpen: 0, reminder: 0, noProtection: 0, missingInSaldo: 0, economicCheck: 0, finalCancelled: 0, unmappable: 0 });
 }
 
 function dedupeInvoiceStatusReviewRows(rows: InvoiceStatusReviewRow[]) {
@@ -6156,8 +6177,9 @@ function invoiceStatusReviewPriority(category: InvoiceStatusReviewCategory) {
     reminder: 2,
     critical_open: 3,
     missing_in_saldo: 4,
-    final_cancelled: 5,
-    unmappable: 6
+    economic_check: 5,
+    final_cancelled: 6,
+    unmappable: 7
   };
   return priorities[category];
 }

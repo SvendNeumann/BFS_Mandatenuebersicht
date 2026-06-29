@@ -942,3 +942,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Tooltips wurden kompakter und ruhiger gestaltet: kleinerer Wert, weniger Rahmenkontrast, dezenter Hintergrund, kuerzere Vorjahreszeile.
 - Legenden, Achsenlabels, Delta-Badge, Linienpunkte und aktive Balken-Glows wurden visuell reduziert, damit die Diagramme weniger laut wirken.
 - Lokale Sichtpruefung wurde versucht; `/dashboard` leitet lokal ohne aktive Sitzung auf `/login` weiter. Technische Pruefung bleibt ueber Typecheck/Build.
+
+## Update 2026-06-29: Lage-und-Entwicklung-Panel desktopkompatibel
+
+- Das Panel `Lage & Entwicklung` im Management Cockpit nutzt auf Desktop jetzt die volle Breite statt in einer linken Halbspalte zu stehen.
+- Innerhalb des Panels stehen Text/Einordnung links und die sechs Kennzahlen rechts in einem gleichmaessigen Dreierschema.
+- KPI-Werte im Panel skalieren defensiver und brechen sauber um, damit grosse Eurobetraege nicht aus der Karte laufen.
+- Auf Tablet/Mobile faellt das Panel wieder auf eine einspaltige Darstellung zurueck.

@@ -2829,7 +2829,7 @@ function StornoReviewSection({
         <div>
           <span className="eyebrow">Quercheck</span>
           <h2>Stornierungen gesamt und je Standort</h2>
-          <p>Gezählt werden erkannte Storno-Zeilen als Brutto-Grundmenge. Danach wird getrennt: zurückgeholt durch Neueinreichung, bezahlt, endgültig storniert oder weiter zu prüfen.</p>
+          <p>Gezählt werden erkannte Storno-Zeilen als Brutto-Grundmenge. Danach wird getrennt: bereits geklärt, endgültig storniert oder weiter zu prüfen.</p>
         </div>
       </div>
       {periodOptions && selectedPeriodId && onPeriodChange && selectedStandortId && onStandortChange && standorteOptions && (
@@ -2858,7 +2858,14 @@ function StornoReviewSection({
         </div>
       )}
       <div className="priority-grid compact-priority recovery-priority-grid storno-review-priority">
-        <PriorityCard label="Stornos gesamt" value={String(review.total)} hint={money.format(review.amount)} period={periodLabel} tone={review.total ? "amber" : "green"} />
+        <PriorityCard
+          label="Stornos gesamt"
+          value={String(review.total)}
+          hint={`${formatPercent(review.stornoRate)} von ${integerNumber.format(review.claimCount)} Gesamtfällen · ${money.format(review.amount)}`}
+          period={periodLabel}
+          tone={review.total ? "amber" : "green"}
+          info={`Stornoquote: ${review.total} erkannte Storno-Zeilen geteilt durch ${integerNumber.format(review.claimCount)} eingereichte Gesamtfälle im Filter.`}
+        />
         <PriorityCard label="Bereits geklärt" value={String(review.done)} hint={`${formatPercent(review.doneRate)} der Storno-Grundmenge`} period={periodLabel} tone={review.done ? "green" : "blue"} info="Bereits geklärt meint echte Neueinreichung, belegte Zahlung, Ratenplan laut BFS oder manuelle Zahlungsklärung. Saldo 0 allein reicht dafür nicht." />
         <PriorityCard label="Weiter zu prüfen" value={String(review.open)} hint="nicht zurückgeholt oder storniert" period={periodLabel} tone={review.open ? "red" : "green"} />
       </div>
@@ -2874,9 +2881,10 @@ function StornoReviewSection({
             </div>
             <div className="location-metric-grid">
               <span><b>{entry.total}</b> Stornos gesamt</span>
-              <span><b>{entry.done}</b> zurückgeholt/bezahlt</span>
+              <span><b>{formatPercent(entry.stornoRate)}</b> von Gesamtfällen</span>
+              <span><b>{entry.done}</b> bereits geklärt</span>
               <span><b>{entry.open}</b> prüfen</span>
-              <span><b>{formatPercent(entry.doneRate)}</b> Quote</span>
+              <span><b>{formatPercent(entry.doneRate)}</b> Klärquote</span>
             </div>
           </article>
         ))}
@@ -5193,10 +5201,19 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         };
       });
   });
+  const claimRows = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return [];
+    const claimCount = row.parsedClaims?.length || row.claimsExtracted || row.claimsHeader || 0;
+    return [{ standortId: standort.id, claimCount }];
+  });
   const byLocation = orderedStandorte()
     .filter((standort) => !standortId || standort.id === standortId)
     .map((standort) => {
       const locationRows = stornoRows.filter((row) => row.standortId === standort.id);
+      const claimCount = claimRows
+        .filter((row) => row.standortId === standort.id)
+        .reduce((sum, row) => sum + row.claimCount, 0);
       const done = locationRows.filter((row) => row.done).length;
       const finalCancelled = locationRows.filter((row) => row.finalCancelled).length;
       const total = locationRows.length;
@@ -5208,19 +5225,24 @@ function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: strin
         open: locationRows.filter((row) => row.open).length,
         amount: locationRows.reduce((sum, row) => sum + row.amount, 0),
         doneRate: total ? (done / total) * 100 : 0,
+        claimCount,
+        stornoRate: claimCount ? (total / claimCount) * 100 : 0,
         rows: locationRows
       };
     });
   const done = stornoRows.filter((row) => row.done).length;
   const finalCancelled = stornoRows.filter((row) => row.finalCancelled).length;
   const total = stornoRows.length;
+  const claimCount = claimRows.reduce((sum, row) => sum + row.claimCount, 0);
 
   return {
     total,
+    claimCount,
     done,
     finalCancelled,
     open: stornoRows.filter((row) => row.open).length,
     amount: stornoRows.reduce((sum, row) => sum + row.amount, 0),
+    stornoRate: claimCount ? (total / claimCount) * 100 : 0,
     doneRate: total ? (done / total) * 100 : 0,
     byLocation,
     rows: stornoRows.sort((a, b) => Number(b.open) - Number(a.open) || Number(a.finalCancelled) - Number(b.finalCancelled) || b.amount - a.amount)

@@ -991,3 +991,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Neben `Davon nicht gezahlt` und `Bisher unauffaellig` gibt es eine eigene Kachel `Davon geklaert`.
 - Damit ist die Summe nachvollziehbar: `nicht gezahlt + geklaert + bisher unauffaellig = Ohne-Schutz-Patienten`.
 - Das Grid dieses Blocks nutzt auf breitem Desktop fuenf gleichwertige Spalten.
+
+## Update 2026-06-29: Storno-Quercheck mit Gesamtfallquote
+
+- Die Kachel `Stornos gesamt` im Storno-Quercheck zeigt jetzt zusaetzlich die Quote der Storno-Zeilen an allen eingereichten Gesamtfaellen im gewaehlten Filter.
+- Berechnung: `Stornoquote = erkannte Storno-Zeilen / eingereichte Gesamtfaelle`.
+- Die Standortkarten im Quercheck zeigen ebenfalls diese Stornoquote je Standort.
+- Alte Formulierung `zurueckgeholt/bezahlt` wurde im Quercheck zu `bereits geklaert` vereinheitlicht.

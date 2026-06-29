@@ -133,12 +133,17 @@ const superAdminNavGroups: NavGroup[] = [
     title: "BFS-Rechnungsanalyse",
     sections: [
       {
-        title: "Import & Prüfung",
+        title: "Auswertungen",
         items: [
-          ["invoiceImport", "Import-Center Rechnungen", FolderUp],
           ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
           ["invoiceServices", "Leistungsanalyse", BarChart3],
           ["invoiceLabs", "Laboranalyse", ClipboardList]
+        ]
+      },
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["invoiceImport", "Import-Center Rechnungen", FolderUp]
         ]
       }
     ]
@@ -199,12 +204,17 @@ const leadNavGroups: NavGroup[] = [
     title: "BFS-Rechnungsanalyse",
     sections: [
       {
-        title: "Import & Prüfung",
+        title: "Auswertungen",
         items: [
-          ["invoiceImport", "Import-Center Rechnungen", FolderUp],
           ["invoiceOverview", "Rechnungsübersicht", ReceiptText],
           ["invoiceServices", "Leistungsanalyse", BarChart3],
           ["invoiceLabs", "Laboranalyse", ClipboardList]
+        ]
+      },
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["invoiceImport", "Import-Center Rechnungen", FolderUp]
         ]
       }
     ]

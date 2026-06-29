@@ -6723,6 +6723,7 @@ function matchesCaseSearch(fall: BfsCase, query: string) {
 function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Bereit für Rechnungsimport");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const okRows = invoiceRows.filter((row) => row.status === "OK").length;
@@ -6758,7 +6759,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   }
 
   async function confirmInvoiceImport() {
-    if (!invoiceRows.length || isProcessing || isSaving) return;
+    if (!invoiceRows.length || isProcessing || isSaving || isResetting) return;
     setIsSaving(true);
     setUploadStatus(`${invoiceRows.length} Rechnungen werden dauerhaft gespeichert`);
     try {
@@ -6772,6 +6773,22 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       setUploadStatus(`Rechnungsimport konnte nicht bestätigt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function resetInvoiceUpload() {
+    if (isProcessing || isSaving || isResetting || !invoiceRows.length) return;
+    setIsResetting(true);
+    setUploadStatus("Rechnungsupload wird zurückgesetzt");
+    try {
+      await clearConfirmedInvoiceRows();
+      onRowsChange([]);
+      setSelectedFileCount(0);
+      setUploadStatus("Rechnungsupload zurückgesetzt");
+    } catch (error) {
+      setUploadStatus(`Rechnungsupload konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsResetting(false);
     }
   }
 
@@ -6806,15 +6823,11 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
-          <button className="secondary-button reset-upload-button" disabled={isProcessing || !invoiceRows.length} onClick={() => {
-            onRowsChange([]);
-            setSelectedFileCount(0);
-            setUploadStatus("Rechnungsvorschau zurückgesetzt");
-          }}>
+          <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !invoiceRows.length} onClick={() => void resetInvoiceUpload()}>
             <X size={16} />
-            Vorschau zurücksetzen
+            {isResetting ? "Wird zurückgesetzt..." : "Upload zurücksetzen"}
           </button>
-          <button className="primary-button" disabled={isProcessing || isSaving || !invoiceRows.length} onClick={() => void confirmInvoiceImport()}>
+          <button className="primary-button" disabled={isProcessing || isSaving || isResetting || !invoiceRows.length} onClick={() => void confirmInvoiceImport()}>
             <CheckCircle2 size={16} />
             {isSaving ? "Speichern..." : "Rechnungsimport bestätigen"}
           </button>
@@ -8343,6 +8356,12 @@ async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
     rows: payload?.rows ?? [],
     persistence: payload?.persistence
   };
+}
+
+async function clearConfirmedInvoiceRows() {
+  const response = await fetch("/api/invoices/parse", { method: "DELETE", cache: "no-store" });
+  const payload = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error ?? "Rechnungsupload konnte nicht zurückgesetzt werden.");
 }
 
 async function saveConfirmedInvoiceStatusDocuments(documents: ParsedInvoiceStatusDocument[]) {

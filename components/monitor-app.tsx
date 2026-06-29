@@ -4523,18 +4523,23 @@ function isResubmissionClaimForMovement(
   if (normalizePatientName(claim.patientName) !== patientKey) return false;
   const claimDate = importDateKey(claim.statementDate);
   const movementDate = importDateKey(movement.statementDate);
-  if (claimDate > movementDate) return true;
-  if (claimDate !== movementDate) return false;
+  if (claimDate < movementDate) return false;
 
   const sameInvoice = Boolean(movement.invoiceNo && claim.invoiceNo === movement.invoiceNo);
   const sameAmount = Math.abs(claim.amount - Math.abs(movement.amount ?? 0)) < 0.01;
   const differentBfsNo = Boolean(claim.bfsNo && movement.bfsNo && claim.bfsNo !== movement.bfsNo);
-  if (movement.reasonCategory === "neue_rechnung") return differentBfsNo && (sameInvoice || sameAmount);
-
+  const differentInvoiceNo = Boolean(movement.invoiceNo && claim.invoiceNo && claim.invoiceNo !== movement.invoiceNo);
+  const sameStatementDate = claimDate === movementDate;
   const rawMovement = `${movement.type ?? ""} ${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
   const isFaultyInvoiceStorno = rawMovement.includes("storno-fehlerhafte");
-  const differentInvoiceNo = Boolean(movement.invoiceNo && claim.invoiceNo && claim.invoiceNo !== movement.invoiceNo);
-  return isFaultyInvoiceStorno && differentBfsNo && differentInvoiceNo;
+
+  if (movement.reasonCategory === "neue_rechnung") {
+    return differentBfsNo && (sameInvoice || sameAmount || differentInvoiceNo);
+  }
+
+  if (!isFaultyInvoiceStorno) return false;
+  if (sameStatementDate) return differentBfsNo && differentInvoiceNo;
+  return differentBfsNo && differentInvoiceNo && sameAmount;
 }
 
 function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {

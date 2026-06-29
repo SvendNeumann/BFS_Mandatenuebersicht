@@ -4546,20 +4546,6 @@ function patientClassInfo(grade: string, count: number, total: number) {
   return `${rules[grade] ?? "Patientenklasse aus der bestehenden Klassifizierungslogik."} ${base}`;
 }
 
-function patientQualityByLocation(rows: ImportPreviewRow[], standortId?: string) {
-  const scopedStandorte = standortId ? standorte.filter((standort) => standort.id === standortId) : orderedStandorte();
-  return scopedStandorte.map((standort) => {
-    const profiles = patientProfilesFromImportRows(rows, standort.id);
-    const criticalCount = profiles.filter((profile) => ["C", "D"].includes(profile.grade)).length;
-    return {
-      locationName: standort.name,
-      totalPatients: profiles.length,
-      criticalCount,
-      riskAmount: profiles.reduce((sum, profile) => sum + profile.riskAmount, 0)
-    };
-  }).filter((entry) => entry.totalPatients > 0 || !standortId);
-}
-
 function patientHistoryFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
   const entries = rows.flatMap((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
@@ -6980,7 +6966,6 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
   const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedRows), [scopedRows]);
   const recurring = useMemo(() => getRecurringRiskProfiles(singleStandortId, scopedRows), [scopedRows, singleStandortId]);
   const patientHistory = useMemo(() => patientHistoryFromImportRows(scopedRows, singleStandortId), [scopedRows, singleStandortId]);
-  const locationQuality = useMemo(() => patientQualityByLocation(scopedRows, singleStandortId), [scopedRows, singleStandortId]);
   const counts = useMemo(() => ["A", "B", "C", "D"].map((grade) => ({
     grade,
     count: profiles.filter((profile) => profile.grade === grade).length
@@ -7038,14 +7023,15 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
       <section className="chart-grid">
         <div className="panel mini-chart">
           <h2>Patientenklassen</h2>
-          <InteractiveBars
+          <CaseColumnChart
             title="Patientenqualität"
             values={counts.map(({ grade, count }) => ({ label: `Klasse ${grade}`, value: count }))}
+            valueKind="count"
           />
         </div>
         <div className="panel mini-chart">
           <h2>Ohne-Schutz-Selektion</h2>
-          <InteractiveBars title="Ohne-Schutz-Selektion" values={[
+          <CaseColumnChart title="Ohne-Schutz-Selektion" valueKind="count" values={[
             { label: "ohne Schutz", value: noProtectionPatients.length },
             { label: "auffällig", value: noProtectionActuallyBad.length },
             { label: "erledigt", value: resolvedNoProtection },
@@ -7069,30 +7055,6 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
             <span>Klasse C/D mit hohem Volumen für Vorkasse- oder Sperrprozess prüfen</span>
           </div>
         </article>
-      </section>
-      <section className="chart-grid">
-        <div className="panel mini-chart">
-          <h2>Patientenqualität je Standort</h2>
-          <InteractiveBars
-            title="Auffällige Patienten je Standort"
-            values={locationQuality.map((entry) => ({
-              label: entry.locationName,
-              value: entry.criticalCount,
-              detail: `${entry.totalPatients} Patienten · ${money.format(entry.riskAmount)} Risiko`
-            }))}
-          />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Risikoentwicklung je Patient</h2>
-          <InteractiveBars
-            title="Risikosumme je Patient"
-            values={profiles.slice(0, 8).map((profile) => ({
-              label: profile.patientName,
-              value: Math.round(profile.riskAmount),
-              detail: `${profile.locationName} · Klasse ${profile.grade}`
-            }))}
-          />
-        </div>
       </section>
       <section className="risk-profile-grid">
         {recurring.slice(0, 6).map((profile) => (

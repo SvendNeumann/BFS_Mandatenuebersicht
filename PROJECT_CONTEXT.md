@@ -904,3 +904,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - In der BFS-Rechnungsanalyse wurde die Leistungsnummer-Erkennung verbessert: zweistellige Region-/Zahnangaben wie `36`, `25` oder `37` werden nicht mehr als GOZ-/GOAe-Abrechnungsnummer genutzt, wenn danach eine echte Leistungsnummer wie `2180`, `5070`, `4030` oder `Ae1` folgt.
 - Die Tabelle `Leistungsuebersicht` zeigt damit in `Leistungsnr.` die fachlich relevante Leistungsnummer; Zahn/Region bleibt intern als Region an der Position erhalten.
 - Gegencheck mit 66 PDFs aus `3. Einzel-Rechnungen_BFS`: 0 Parser-Statusfehler und 0 verbliebene auffaellige Faelle, in denen zweistellige Zahn-/Regionnummern vor einer echten Leistungsnummer als Leistungscode gruppiert wurden.
+
+## Update 2026-06-29: Zusammenfassung-Kacheln und Zurueckbutton
+
+- Im Tab `Zusammenfassung` sind die KPI-Kacheln auf Desktop jetzt als 5 Kacheln in der oberen Reihe und 4 Kacheln in der unteren Reihe angeordnet.
+- Bei kleineren Desktop-/Tablet-Breiten fallen die Zusammenfassung-Kacheln kontrolliert auf 3 Spalten zurueck; mobil bleibt die einspaltige Darstellung.
+- Der globale Zurueckbutton oben rechts im App-Header wurde entfernt. Die vorhandene schwebende Zurueck-Navigation unten links bleibt appweit erhalten.
+- Geprueft: `pnpm run typecheck`, `pnpm run build`, `git diff --check`.

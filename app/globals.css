@@ -3556,7 +3556,7 @@ td small {
 
 .custom-kpi-slider {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -4208,6 +4208,11 @@ td small {
   }
 
   .user-admin-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .custom-kpi-slider,
+  .custom-kpi-secondary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

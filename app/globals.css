@@ -1524,6 +1524,10 @@ input {
   margin-top: 16px;
 }
 
+.no-protection-risk-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .quality-priority-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

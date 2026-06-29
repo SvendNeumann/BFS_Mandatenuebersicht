@@ -984,3 +984,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Damit gilt dort dieselbe Formel wie in Zusammenfassung, Benchmark und Schnellantworten: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
 - `Bereits geklaert` wird aus echter Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder manuell belegter Zahlung/Klaerung gebildet; `Saldo 0` allein bleibt kein Zahlungsnachweis.
 - Alte Oberflaechenbegriffe wie `zurueckgeholt`/`Wiedereinholung` wurden im Tab durch `bereits geklaert`/`Klaerung` ersetzt, damit Beschriftung und neue KPI-Logik zusammenpassen.
+
+## Update 2026-06-29: Ohne-Schutz-Patienten-Aufteilung geschlossen
+
+- Im Block `Zahlungsstatus ohne Schutz` wird die Grundgesamtheit der Ohne-Schutz-Patienten jetzt sichtbar vollstaendig aufgeteilt.
+- Neben `Davon nicht gezahlt` und `Bisher unauffaellig` gibt es eine eigene Kachel `Davon geklaert`.
+- Damit ist die Summe nachvollziehbar: `nicht gezahlt + geklaert + bisher unauffaellig = Ohne-Schutz-Patienten`.
+- Das Grid dieses Blocks nutzt auf breitem Desktop fuenf gleichwertige Spalten.

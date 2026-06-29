@@ -2738,7 +2738,7 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
             <span>{noProtectionPeriod.detail}</span>
           </div>
         </div>
-        <section className="priority-grid storno-review-priority">
+        <section className="priority-grid storno-review-priority no-protection-risk-grid">
           <PriorityCard
             label="Ohne-Schutz-Patienten"
             value={String(noProtectionPaymentRisk.totalPatients)}
@@ -2761,6 +2761,14 @@ function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: 
             hint="kritische Patienten ohne Schutz"
             period={noProtectionPeriod.label}
             tone={noProtectionPaymentRisk.unpaidRate >= 10 ? "red" : noProtectionPaymentRisk.unpaidRate ? "amber" : "green"}
+            info={noProtectionPaymentRisk.info}
+          />
+          <PriorityCard
+            label="Davon geklärt"
+            value={String(noProtectionPaymentRisk.resolvedPatients)}
+            hint="Zahlung oder Erledigung erkannt"
+            period={noProtectionPeriod.label}
+            tone={noProtectionPaymentRisk.resolvedPatients ? "green" : "blue"}
             info={noProtectionPaymentRisk.info}
           />
           <PriorityCard
@@ -8815,7 +8823,7 @@ function RiskView({ standortId, importRows = [], periodOverride }: { standortId?
         </div>
         </section>
       )}
-      <section className="priority-grid">
+      <section className="priority-grid no-protection-risk-grid">
         <PriorityCard
           label="Ohne-Schutz-Patienten"
           value={String(paymentRisk.totalPatients)}
@@ -8838,6 +8846,14 @@ function RiskView({ standortId, importRows = [], periodOverride }: { standortId?
           hint="kritische Patienten ohne Schutz"
           period={selectedPeriod.label}
           tone={paymentRisk.unpaidRate >= 10 ? "red" : paymentRisk.unpaidRate ? "amber" : "green"}
+          info={paymentRisk.info}
+        />
+        <PriorityCard
+          label="Davon geklärt"
+          value={String(paymentRisk.resolvedPatients)}
+          hint="Zahlung oder Erledigung erkannt"
+          period={selectedPeriod.label}
+          tone={paymentRisk.resolvedPatients ? "green" : "blue"}
           info={paymentRisk.info}
         />
         <PriorityCard
@@ -8875,7 +8891,7 @@ function summarizeNoProtectionPaymentRisk(rows: RiskClaim[]) {
     `Herleitung: Grundgesamtheit sind ${totalPatients} eindeutige Patient(en), bei denen mindestens eine Forderung ohne Ausfallschutz erkannt wurde.`,
     `Davon zählen ${unpaidPatients} Patient(en) als kritisch, weil zu ihnen eine nicht erledigte Storno-, Rückgabe- oder Rückbelastungsbewegung erkannt wurde.`,
     `Nichtzahlungsquote: ${unpaidPatients} / ${totalPatients || 1} = ${formatPercent(unpaidRate)}.`,
-    `Als nicht kritisch gelten ${cleanPatients} Patient(en) ohne negative Bewegung und ${resolvedPatients} Patient(en) mit erkannter Zahlung/Erledigung. Erkannte kritische Summe: ${money.format(unpaidAmount)}.`
+    `Aufteilung: ${unpaidPatients} kritisch, ${resolvedPatients} geklärt/erledigt und ${cleanPatients} bisher unauffällig. Erkannte kritische Summe: ${money.format(unpaidAmount)}.`
   ].join(" ");
 
   return {

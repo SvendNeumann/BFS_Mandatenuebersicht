@@ -598,7 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
-- `58cc3960 Collapse billing import detail sections`
+- `dc38ebeb Collapse billing import detail sections`
 - `e1983efb Compact BFS import preview sections`
 - `9d556e86 Scope saldo case reconciliation by location`
 - `f804cc44 Add invoice status review basket`

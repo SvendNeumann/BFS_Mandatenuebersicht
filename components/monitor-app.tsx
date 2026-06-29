@@ -7224,6 +7224,14 @@ async function parseInvoiceStatusFiles(
   files: File[],
   onProgress?: (processed: number, total: number, fileName: string) => void
 ) {
+  if (typeof window !== "undefined") {
+    try {
+      return mergeInvoiceStatusDocuments([], await parseInvoiceStatusUploadFiles(files, onProgress));
+    } catch (error) {
+      onProgress?.(0, files.length, `Browser-Lesung fehlgeschlagen, Server-Fallback: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    }
+  }
+
   const chunks = chunkUploadFiles(files);
   const documents: ParsedInvoiceStatusDocument[] = [];
   let processed = 0;

@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 15:45 Uhr
+Stand: 29.06.2026, ca. 15:55 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -29,6 +29,7 @@ Letzte Aenderung/Pruefung:
 - Tab `Forderungsqualitaet` nachgezogen: Der obere Qualitaets-KPI-Block hat jetzt ebenfalls Zeitraum- und Standortfilter inkl. `Alle Standorte`. Die Kacheln wurden fachlich klar getrennt: `Brutto Storno/Rueckgabe` als Qualitaets-Grundmenge aus Rueckgaben/Rueckbelastungen plus Stornos, `Rueckgabe/Rueckbelastung` als Rueckgabe-Untermenge, `Stornoquote` als reine Storno-Untermenge und `Storno-Zeilen erledigt` als Storno-Quercheck. Info-Texte erklaeren explizit, dass der wirtschaftliche `Offener Abzug` weiter appweit in Zusammenfassung/Geldfluss als Brutto-Abzug minus zurueckgeholt/bezahlt hergeleitet wird. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
 - Layout-Nachzug `Forderungsqualitaet`: Die obere KPI-Gruppe nutzt nun ein gleichmaessiges 3-Spalten-Raster statt der alten 2-3-1-Sonderaufteilung. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`, `git diff --check` erfolgreich.
 - Saldo-/Rechnungsstatus-Upload erneut geprueft mit den fuenf echten Saldolisten aus `/Users/svendneumann/Desktop/BFS Uploads/2. Saldolisten`: Direktparser erkennt alle Dateien korrekt (Essen 1.820 Zeilen, Kehl 3.603, Kirchberg 3.864, Krauhausen/Huettenberg 1.442, Ulmet 3.699; insgesamt 14.428 Zeilen und 5/6 aktive Standorte ohne Kassel). Fix: Wenn der Server-Upload nur einen Teil der Dokumente zurueckliefert, liest das Frontend fehlende Dateien lokal nach und merged die Dokumente. Dadurch wird der Fall `5 Dateien ausgewaehlt, 1 Liste gelesen` abgefangen. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
+- Nachkorrektur, weil Live weiterhin nur eine Saldoliste zeigte: Der Saldo-/Rechnungsstatus-Upload liest im Browser jetzt zuerst lokal ueber `parseInvoiceStatusUploadFiles`; der Serverpfad ist nur noch Fallback. Damit haengt die Vorschau nicht mehr an partiellen Server-Antworten. Erwartung fuer die fuenf Saldolisten: 14.428 Statuszeilen und 5/6 Standorte erkannt. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
 
 ## Prompt fuer den naechsten Chat
 

@@ -42,11 +42,12 @@ import {
   liveStatusLabel,
   orderedStandorte
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, ParsedInvoiceDocument, RiskClaim, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, ImportPreviewRow, ParsedInvoiceDocument, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 import { isInvoicePdfUploadFile, parseInvoiceUploadFiles } from "@/lib/invoice-parser";
+import { isInvoiceStatusPdfUploadFile, parseInvoiceStatusUploadFiles } from "@/lib/invoice-status-parser";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
@@ -276,6 +277,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadStoredImportRows());
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
+  const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
@@ -633,7 +635,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} />}
+            {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
             {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
             {activeView === "invoiceOverview" && <InvoiceOverviewView invoiceRows={invoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
@@ -5358,13 +5360,28 @@ function metricExplanation(label: string, value: string, hint: string, period = 
   return `Herleitung: Dieser Wert wird aus den aktuell gefilterten BFS-Daten und dem ausgewählten Zeitraum berechnet. ${base}`;
 }
 
-function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; onRowsChange: (rows: ImportPreviewRow[]) => void }) {
+function UploadView({
+  liveRows,
+  onRowsChange,
+  statusDocuments,
+  onStatusDocumentsChange
+}: {
+  liveRows: ImportPreviewRow[];
+  onRowsChange: (rows: ImportPreviewRow[]) => void;
+  statusDocuments: ParsedInvoiceStatusDocument[];
+  onStatusDocumentsChange: (rows: ParsedInvoiceStatusDocument[]) => void;
+}) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Bereit für Upload");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
+  const [isStatusProcessing, setIsStatusProcessing] = useState(false);
+  const [statusUploadStatus, setStatusUploadStatus] = useState("Bereit für Saldo-Listen");
+  const [selectedStatusFileCount, setSelectedStatusFileCount] = useState(0);
   const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
+  const statusRows = statusDocuments.flatMap((document) => document.rows);
+  const statusSummary = summarizeInvoiceStatusRows(statusRows);
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
     if (!files?.length) return;
@@ -5412,6 +5429,34 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
       setUploadStatus(`Upload konnte nicht vollständig zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  async function handleStatusFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
+    if (!files?.length) return;
+    const importableFiles = [...files].filter(isInvoiceStatusPdfUploadFile);
+    setSelectedStatusFileCount(importableFiles.length);
+    if (!importableFiles.length) {
+      setStatusUploadStatus("Keine PDF-Listen gefunden");
+      return;
+    }
+    setIsStatusProcessing(true);
+    setStatusUploadStatus(`${importableFiles.length} Saldo-Listen werden gelesen`);
+    try {
+      if (mode === "replace") onStatusDocumentsChange([]);
+      const parsedDocuments = await parseInvoiceStatusFiles(importableFiles, (processed, total, fileName) => {
+        const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
+        setStatusUploadStatus(`${processed} von ${total} Listen gelesen (${shortName})`);
+      });
+      const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(statusDocuments, parsedDocuments) : parsedDocuments;
+      onStatusDocumentsChange(nextDocuments);
+      const nextRows = nextDocuments.flatMap((document) => document.rows);
+      setStatusUploadStatus(`${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt`);
+    } catch (error) {
+      if (mode === "replace") onStatusDocumentsChange([]);
+      setStatusUploadStatus(`Saldo-Listen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsStatusProcessing(false);
     }
   }
 
@@ -5479,10 +5524,140 @@ function UploadView({ liveRows, onRowsChange }: { liveRows: ImportPreviewRow[]; 
           </div>
         </section>
       )}
+      <section className="upload-zone">
+        <ClipboardList size={28} />
+        <div>
+          <h2>BFS-Rechnungsstatus- und Saldo-Listen hochladen</h2>
+          <p>Diese monatlichen Übersichtslisten ergänzen die Abrechnungsanalyse um Zahlungsstatus, Saldo, Mahnstufe, Ratenplan und Ausfallschutz je BFS-Nr. Saldo 0,00 € gilt als bezahlt.</p>
+          <div className={isStatusProcessing ? "upload-status processing" : statusRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
+            <RefreshCw size={14} />
+            <span>{isStatusProcessing ? "Wird gelesen" : statusRows.length ? "Fertig" : "Bereit"}</span>
+            <strong>{statusUploadStatus}</strong>
+          </div>
+        </div>
+        <div className="upload-actions">
+          <label className={isStatusProcessing ? "file-upload-button disabled" : "file-upload-button"}>
+            <Upload size={16} />
+            Saldo-Listen
+            <input disabled={isStatusProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleStatusFiles(event.target.files, "replace")} />
+          </label>
+          <label className={isStatusProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
+            <FolderUp size={16} />
+            Ordner inkl. Unterordner
+            <input
+              disabled={isStatusProcessing}
+              type="file"
+              multiple
+              accept=".pdf,application/pdf"
+              onChange={(event) => handleStatusFiles(event.target.files, statusDocuments.length ? "append" : "replace")}
+              {...{ webkitdirectory: "", directory: "" }}
+            />
+          </label>
+          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || !statusDocuments.length} onClick={() => {
+            onStatusDocumentsChange([]);
+            setSelectedStatusFileCount(0);
+            setStatusUploadStatus("Saldo-Vorschau zurückgesetzt");
+          }}>
+            <X size={16} />
+            Saldo-Vorschau zurücksetzen
+          </button>
+        </div>
+      </section>
+      <section className="priority-grid">
+        <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : "Rechnungen aus Saldo-Listen"} tone="blue" />
+        <PriorityCard label="Bezahlt" value={integerNumber.format(statusSummary.paidCount)} hint={money.format(statusSummary.paidAmount)} tone="green" />
+        <PriorityCard label="Offen" value={integerNumber.format(statusSummary.openCount)} hint={money.format(statusSummary.openSaldo)} tone="red" />
+        <PriorityCard label="Ratenzahlung" value={integerNumber.format(statusSummary.installmentCount)} hint="Patient hat Forderung akzeptiert" tone="amber" />
+        <PriorityCard label="Mahnstufen" value={integerNumber.format(statusSummary.reminderCount)} hint="offen mit MS > 0" tone="amber" />
+        <PriorityCard label="Ohne Schutz" value={integerNumber.format(statusSummary.noProtectionCount)} hint="Ausfallschutz nein" tone="red" />
+      </section>
+      <InvoiceStatusPreview rows={statusRows} />
       <ImportHistorySummary rows={previewRows} />
       <ImportPreview rows={previewRows} />
     </div>
   );
+}
+
+function InvoiceStatusPreview({ rows }: { rows: ParsedInvoiceStatusRow[] }) {
+  const previewRows = [...rows].sort((a, b) => Math.abs(b.saldo) - Math.abs(a.saldo)).slice(0, 80);
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">Saldo-Listen</span>
+          <h2>Rechnungsstatus nach BFS-Saldo</h2>
+          <p>Die Vorschau zeigt die größten offenen Salden zuerst. Bezahlt bedeutet Saldo 0,00 €; Ratenplan bedeutet akzeptierte Forderung mit laufender BFS-Zahlung.</p>
+        </div>
+      </div>
+      <div className="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Mandant</th>
+              <th>BFS-Nr.</th>
+              <th>Patient</th>
+              <th>Rechnung</th>
+              <th>Betrag</th>
+              <th>Saldo</th>
+              <th>MS</th>
+              <th>RP</th>
+              <th>Ausfallschutz</th>
+            </tr>
+          </thead>
+          <tbody>
+            {previewRows.length ? previewRows.map((row) => (
+              <tr key={`${row.bfsNo}-${row.file}-${row.page}`}>
+                <td><StatusBadge status={invoiceStatusLabel(row)} /></td>
+                <td>{row.mandantNo}</td>
+                <td><strong>{row.bfsNo}</strong></td>
+                <td><strong>{row.patientName}</strong><small>Pat.-Nr. {row.externalPatientNo}</small></td>
+                <td><strong>{row.invoiceNo}</strong><small>{row.invoiceDate}</small></td>
+                <td>{money.format(row.amount)}</td>
+                <td>{money.format(row.saldo)}</td>
+                <td>{row.reminderLevel || "-"}</td>
+                <td>{row.installmentPlan ? `ja${row.installmentMonths ? ` (${row.installmentMonths})` : ""}` : "-"}</td>
+                <td>{row.protection ? "ja" : "nein"}</td>
+              </tr>
+            )) : <EmptyTableRow colSpan={10} label="Noch keine Saldo-Listen eingelesen." />}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
+  if (row.paymentStatus === "bezahlt") return "bezahlt";
+  if (row.paymentStatus === "ratenzahlung") return row.installmentMonths ? `Ratenplan ${row.installmentMonths} Monate` : "Ratenplan";
+  if (row.paymentStatus === "teilbezahlt") return "teilbezahlt";
+  if (row.reminderLevel > 0) return `offen MS ${row.reminderLevel}`;
+  return "offen";
+}
+
+function summarizeInvoiceStatusRows(rows: ParsedInvoiceStatusRow[]) {
+  return rows.reduce((summary, row) => {
+    if (row.paymentStatus === "bezahlt") {
+      summary.paidCount += 1;
+      summary.paidAmount += row.amount;
+    }
+    if (row.saldo < -0.005) {
+      summary.openCount += 1;
+      summary.openSaldo += Math.abs(row.saldo);
+    }
+    if (row.installmentPlan) summary.installmentCount += 1;
+    if (row.reminderLevel > 0) summary.reminderCount += 1;
+    if (!row.protection) summary.noProtectionCount += 1;
+    return summary;
+  }, {
+    paidCount: 0,
+    paidAmount: 0,
+    openCount: 0,
+    openSaldo: 0,
+    installmentCount: 0,
+    reminderCount: 0,
+    noProtectionCount: 0
+  });
 }
 
 function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {
@@ -5866,6 +6041,66 @@ async function parseInvoiceFileChunk(
 
   const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
   throw new Error(errorPayload?.error ?? "Serverseitiger Rechnungsimport fehlgeschlagen.");
+}
+
+async function parseInvoiceStatusFiles(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const chunks = chunkUploadFiles(files);
+  const documents: ParsedInvoiceStatusDocument[] = [];
+  let processed = 0;
+
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    const chunkDocuments = await parseInvoiceStatusFileChunk(chunk, (chunkProcessed, _chunkTotal, fileName) => {
+      onProgress?.(processed + chunkProcessed, files.length, `Paket ${chunkIndex + 1}/${chunks.length}: ${fileName}`);
+    });
+    documents.push(...chunkDocuments);
+    processed += chunk.length;
+    onProgress?.(processed, files.length, `Paket ${chunkIndex + 1}/${chunks.length} abgeschlossen`);
+  }
+
+  return mergeInvoiceStatusDocuments([], documents);
+}
+
+async function parseInvoiceStatusFileChunk(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    const filePath = uploadFilePath(file);
+    formData.append("files", file, filePath);
+    formData.append("paths", filePath);
+  });
+
+  const response = await fetch("/api/invoice-status/parse", {
+    method: "POST",
+    body: formData,
+    cache: "no-store"
+  });
+
+  if (response.ok) {
+    const payload = await response.json() as { documents: ParsedInvoiceStatusDocument[] };
+    payload.documents.forEach((document, index) => onProgress?.(index + 1, files.length, document.file));
+    return payload.documents;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return parseInvoiceStatusUploadFiles(files, onProgress);
+  }
+
+  const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
+  throw new Error(errorPayload?.error ?? "Serverseitiger Rechnungsstatus-Import fehlgeschlagen.");
+}
+
+function mergeInvoiceStatusDocuments(currentDocuments: ParsedInvoiceStatusDocument[], nextDocuments: ParsedInvoiceStatusDocument[]) {
+  const byKey = new Map<string, ParsedInvoiceStatusDocument>();
+  [...currentDocuments, ...nextDocuments].forEach((document) => {
+    const key = document.fileHash ?? document.file;
+    byKey.set(key, document);
+  });
+  return [...byKey.values()];
 }
 
 async function parseImportFiles(

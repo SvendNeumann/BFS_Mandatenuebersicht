@@ -179,3 +179,33 @@ export type ParsedInvoiceDocument = {
   status: "OK" | "Zu prüfen";
   parseNotes: string[];
 };
+
+export type ParsedInvoiceStatusRow = {
+  file: string;
+  page: number;
+  mandantNo: string;
+  bfsNo: string;
+  patientName: string;
+  externalPatientNo: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  reminderLevel: number;
+  installmentPlan: boolean;
+  installmentMonths?: number;
+  prefinancing?: boolean;
+  protection: boolean;
+  amount: number;
+  saldo: number;
+  paymentStatus: "bezahlt" | "offen" | "teilbezahlt" | "ratenzahlung";
+  riskFlags: string[];
+};
+
+export type ParsedInvoiceStatusDocument = {
+  file: string;
+  fileSizeBytes: number;
+  fileHash?: string;
+  pageCount: number;
+  rows: ParsedInvoiceStatusRow[];
+  status: "OK" | "Zu prüfen";
+  parseNotes: string[];
+};

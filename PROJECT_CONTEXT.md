@@ -877,3 +877,12 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
   - Import-Center-Vorschau und Import-Bestaetigungszahlen,
   - Grund-/Bewegungsaggregation in Tabellen und Reports.
 - Direktzahlungen bleiben wirtschaftlich relevante Bewegungen, werden aber nicht als offene Praxis-Nachfassaufgabe gefuehrt.
+
+## Update 2026-06-29: Zahlung/Grund pruefen als echte Arbeitsliste
+
+- Der Tab `Zahlung / Grund pruefen` ist nicht mehr nur eine Anzeige.
+- Jede Zeile kann jetzt direkt abgeschlossen werden:
+  - `Erledigt / bezahlt` fuer wirtschaftlich belegte Zahlung oder geklaerten Grund.
+  - `Endgueltig storniert` fuer bewusst als Verlust/Endstorno entschiedene Faelle.
+- Die Zeilen nutzen dieselbe persistente Fallentscheidungslogik wie `Praxis nachfassen` und `Neueinreichung Matching`.
+- Bereits entschiedene Zahlung/Grund-Zeilen werden aus dem Prueftopf ausgeblendet und fliessen in die bestehenden Rueckhol-/Endstorno-Auswertungen.

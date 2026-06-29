@@ -651,6 +651,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 rows={invoiceStatusRows}
                 importRows={privacyScopedImportRows}
                 standort={tabFilterStandort}
+                manualCaseResolutions={manualCaseResolutions}
+                onResolvePaid={resolveCaseAsPaid}
+                onCancelFinal={cancelCaseFinally}
               />
             )}
             {activeView === "risks" && <RiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
@@ -6266,12 +6269,31 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
   );
 }
 
-function EconomicCheckView({ rows, importRows, standort }: { rows: ParsedInvoiceStatusRow[]; importRows: ImportPreviewRow[]; standort?: Standort }) {
+function EconomicCheckView({
+  rows,
+  importRows,
+  standort,
+  manualCaseResolutions = [],
+  onResolvePaid,
+  onCancelFinal
+}: {
+  rows: ParsedInvoiceStatusRow[];
+  importRows: ImportPreviewRow[];
+  standort?: Standort;
+  manualCaseResolutions?: ManualCaseResolution[];
+  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
+  onCancelFinal?: (fall: BfsCase) => void | Promise<void>;
+}) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [standortFilter, setStandortFilter] = useState(standort?.id ?? "alle");
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const period = useMemo(() => periodOptions.find((entry) => entry.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
-  const reviewRows = useMemo(() => buildInvoiceStatusReviewBasket(rows, importRows).filter((row) => row.category === "economic_check"), [rows, importRows]);
+  const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const reviewRows = useMemo(() => buildInvoiceStatusReviewBasket(rows, importRows)
+    .filter((row) => row.category === "economic_check")
+    .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => closedKeys.has(key))),
+    [rows, importRows, closedKeys]
+  );
   const availableStandorte = useMemo(() => orderedStandorte().filter((entry) => reviewRows.some((row) => row.standortId === entry.id)), [reviewRows]);
   const filteredRows = useMemo(() => {
     const effectiveStandortId = standort?.id ?? standortFilter;
@@ -6359,20 +6381,40 @@ function EconomicCheckView({ rows, importRows, standort }: { rows: ParsedInvoice
               <th>Betrag</th>
               <th>Grund / Status</th>
               <th>Nächster Schritt</th>
+              {(onResolvePaid || onCancelFinal) && <th>Aktion</th>}
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length ? filteredRows.map((row) => (
-              <tr key={row.id}>
-                <td><StatusBadge status={row.categoryLabel} /></td>
-                <td>{row.locationName}</td>
-                <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
-                <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
-                <td>{money.format(row.amount)}</td>
-                <td>{row.detail}</td>
-                <td>{row.nextStep}</td>
-              </tr>
-            )) : <EmptyTableRow colSpan={7} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
+            {filteredRows.length ? filteredRows.map((row) => {
+              const fall = invoiceStatusReviewRowToCase(row);
+              return (
+                <tr key={row.id}>
+                  <td><StatusBadge status={row.categoryLabel} /></td>
+                  <td>{row.locationName}</td>
+                  <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
+                  <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
+                  <td>{money.format(row.amount)}</td>
+                  <td>{row.detail}</td>
+                  <td>{row.nextStep}</td>
+                  {(onResolvePaid || onCancelFinal) && (
+                    <td>
+                      <div className="case-action-stack">
+                        {onResolvePaid && (
+                          <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
+                            <CheckCircle2 size={15} /> Erledigt / bezahlt
+                          </button>
+                        )}
+                        {onCancelFinal && (
+                          <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
+                            <X size={15} /> Endgültig storniert
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 8 : 7} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
           </tbody>
         </table>
       </div>
@@ -6535,6 +6577,33 @@ type InvoiceStatusReviewRow = {
   sourceDate?: string;
   nextStep: string;
 };
+
+function invoiceStatusReviewRowToCase(row: InvoiceStatusReviewRow): BfsCase {
+  return {
+    id: `economic-check-${row.id}`,
+    resolutionKey: caseResolutionKeyFromParts({
+      standortId: row.standortId ?? row.locationName,
+      patientName: row.patientName,
+      invoiceNo: row.invoiceNo,
+      bfsNo: row.bfsNo,
+      amount: row.amount,
+      reason: row.detail
+    }),
+    standortId: row.standortId ?? row.locationName,
+    locationName: row.locationName,
+    patientName: row.patientName,
+    invoiceNo: row.invoiceNo,
+    bfsNo: row.bfsNo,
+    amount: row.amount,
+    reason: row.detail,
+    sourceDate: row.sourceDate,
+    ageDays: row.sourceDate ? ageFromShortDate(row.sourceDate) : 0,
+    traffic: "orange",
+    status: "zahlung_grund_pruefen",
+    dueDate: "-",
+    lastComment: row.nextStep
+  };
+}
 
 function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
   const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);

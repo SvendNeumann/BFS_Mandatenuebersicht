@@ -892,3 +892,5 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die operativen Reiter `Praxis nachfassen`, `Zahlung / Grund pruefen` und `Neueinreichung / Matching` haben jetzt konsistente Standort-, Zeitraum- und Suchfilter.
 - Die Suchfelder sind nicht mehr nur optisch: Patient, Standort, Rechnungsnummer, BFS-Nr., Betrag, Grund/Status und relevante Abrechnungs-/Datumsfelder filtern die jeweilige Tabelle wirklich.
 - Kacheln, Tab-Auswertung, Summen, Charts und PDF-Export im operativen Bereich basieren auf den gefilterten Zeilen.
+- Operative Beträge werden in Arbeitslisten, Entscheidungsdialogen und Exporten centgenau angezeigt. Management-Kacheln bleiben fuer schnelle Uebersicht weiterhin grob lesbar.
+- Alle drei operativen Tabs haben einen filtergebundenen PDF-/Druckexport im A4-Querformat mit kompakter Zusammenfassung und druckbarer Arbeitsliste.

@@ -56,6 +56,12 @@ const money = new Intl.NumberFormat("de-DE", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0
 });
+const exactMoney = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 const integerNumber = new Intl.NumberFormat("de-DE", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0
@@ -686,7 +692,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             </p>
             <dl>
               <div><dt>Standort</dt><dd>{caseToResolve.locationName}</dd></div>
-              <div><dt>Betrag</dt><dd>{money.format(caseToResolve.amount)}</dd></div>
+              <div><dt>Betrag</dt><dd>{exactMoney.format(caseToResolve.amount)}</dd></div>
               <div><dt>Grund</dt><dd>{caseToResolve.reason}</dd></div>
               <div><dt>Re.-Nr.</dt><dd>{caseToResolve.invoiceNo}</dd></div>
             </dl>
@@ -1842,7 +1848,7 @@ function InteractiveBars({ title, values }: { title: string; values: { label: st
 
 function CaseColumnChart({ title, values, valueKind }: { title: string; values: { label: string; value: number; detailLabel?: string }[]; valueKind: "money" | "count" }) {
   const maxValue = Math.max(...values.map((value) => value.value), 1);
-  const format = (value: number) => valueKind === "money" ? money.format(value) : integerNumber.format(value);
+  const format = (value: number) => valueKind === "money" ? exactMoney.format(value) : integerNumber.format(value);
   return (
     <div className="case-column-chart" role="img" aria-label={title}>
       <div className="case-column-plot">
@@ -6320,6 +6326,9 @@ function EconomicCheckView({
           <p>BFS-Saldo ist geschlossen, aber die wirtschaftliche Ursache muss belegt werden: Zahlung, echte Neueinreichung oder nachvollziehbarer Storno-Grund.</p>
         </div>
         <div className="case-list-actions">
+          <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printEconomicCheckReport(filteredRows, period.label)}>
+            <Printer size={16} /> PDF Export
+          </button>
           <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
@@ -6353,13 +6362,13 @@ function EconomicCheckView({
         </label>
         <div>
           <span>Tab-Auswertung</span>
-          <strong>{integerNumber.format(filteredRows.length)} Fälle / {money.format(totalAmount)}</strong>
+          <strong>{integerNumber.format(filteredRows.length)} Fälle / {exactMoney.format(totalAmount)}</strong>
         </div>
       </div>
       <div className="case-summary-grid" aria-label="Zahlung und Grund prüfen">
         <article>
           <span>Prüfbetrag gesamt</span>
-          <strong>{money.format(totalAmount)}</strong>
+          <strong>{exactMoney.format(totalAmount)}</strong>
         </article>
         <article>
           <span>Prüffälle</span>
@@ -6371,7 +6380,7 @@ function EconomicCheckView({
         </article>
         <article>
           <span>Höchste Einzelposition</span>
-          <strong>{money.format(highestRow?.amount ?? 0)}</strong>
+          <strong>{exactMoney.format(highestRow?.amount ?? 0)}</strong>
         </article>
       </div>
       <div className="table-wrap case-table-scroll">
@@ -6397,7 +6406,7 @@ function EconomicCheckView({
                   <td>{row.locationName}</td>
                   <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
                   <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
-                  <td>{money.format(row.amount)}</td>
+                  <td>{exactMoney.format(row.amount)}</td>
                   <td>{row.detail}</td>
                   <td>{row.nextStep}</td>
                   {(onResolvePaid || onCancelFinal) && (
@@ -8332,6 +8341,176 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+function printOperationalHtmlReport({
+  title,
+  description,
+  meta,
+  summary,
+  tableHead,
+  tableBody,
+  emptyColSpan,
+  emptyLabel,
+  footer,
+  filename
+}: {
+  title: string;
+  description: string;
+  meta: string;
+  summary: { label: string; value: string }[];
+  tableHead: string;
+  tableBody: string;
+  emptyColSpan: number;
+  emptyLabel: string;
+  footer: string;
+  filename: string;
+}) {
+  const html = `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)} - Orisus BFS Monitor</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 9px; margin-bottom: 10px; }
+    h1 { margin: 0 0 4px; font-size: 21px; line-height: 1.1; }
+    h2 { margin: 13px 0 7px; font-size: 14px; }
+    p { margin: 0; color: #48606c; line-height: 1.35; }
+    .meta { text-align: right; color: #48606c; min-width: 210px; }
+    .summary { display: grid; grid-template-columns: repeat(${Math.min(Math.max(summary.length, 1), 5)}, minmax(0, 1fr)); gap: 7px; margin: 9px 0 11px; }
+    .summary div { border: 1px solid #c8d7dc; border-radius: 6px; padding: 7px; min-height: 46px; }
+    .summary span { display: block; color: #607783; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+    .summary strong { display: block; margin-top: 4px; font-size: 15px; line-height: 1.15; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    th, td { border: 1px solid #d7e3e7; padding: 4px 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+    th { background: #eaf7f6; color: #0f5360; font-size: 8.5px; text-transform: uppercase; }
+    tr:nth-child(even) td { background: #f8fbfc; }
+    td strong { display: block; }
+    td span { display: block; color: #607783; margin-top: 2px; }
+    .amount { text-align: right; white-space: nowrap; }
+    .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 6px; font-weight: 700; }
+    .traffic { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; background: #30d5c8; }
+    .traffic-red { background: #f04438; }
+    .traffic-amber { background: #f59e0b; }
+    .traffic-green { background: #12b76a; }
+    footer { margin-top: 10px; color: #607783; font-size: 8.5px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(description)}</p>
+    </div>
+    <div class="meta">
+      <strong>${escapeHtml(new Date().toLocaleString("de-DE"))}</strong><br />
+      ${escapeHtml(meta)}
+    </div>
+  </header>
+  <section class="summary">
+    ${summary.map((entry) => `<div><span>${escapeHtml(entry.label)}</span><strong>${escapeHtml(entry.value)}</strong></div>`).join("")}
+  </section>
+  <h2>Arbeitsliste</h2>
+  <table>
+    <thead>${tableHead}</thead>
+    <tbody>${tableBody || `<tr><td colspan="${emptyColSpan}">${escapeHtml(emptyLabel)}</td></tr>`}</tbody>
+  </table>
+  <footer>${escapeHtml(footer)}</footer>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 150));</script>
+</body>
+</html>`;
+  const reportWindow = window.open("", "_blank", "width=1200,height=900");
+  if (!reportWindow) {
+    downloadTextFile(filename, html);
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+}
+
+function printEconomicCheckReport(rows: InvoiceStatusReviewRow[], periodLabel: string) {
+  const sortedRows = [...rows].sort((a, b) => b.amount - a.amount || a.patientName.localeCompare(b.patientName, "de"));
+  const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+  const locations = [...new Set(rows.map((row) => row.locationName).filter(Boolean))].sort(compareLocationNamesByContractStart);
+  printOperationalHtmlReport({
+    title: "Zahlung / Grund prüfen",
+    description: "Saldogeschlossene Fälle, bei denen Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegt werden muss.",
+    meta: `${locations.join(", ") || "Alle Standorte"} · ${periodLabel}`,
+    summary: [
+      { label: "Prüffälle", value: integerNumber.format(rows.length) },
+      { label: "Prüfbetrag", value: exactMoney.format(totalAmount) },
+      { label: "Standorte", value: integerNumber.format(locations.length) },
+      { label: "Höchste Position", value: exactMoney.format(sortedRows[0]?.amount ?? 0) }
+    ],
+    tableHead: `<tr>
+      <th style="width: 12%;">Kategorie</th>
+      <th style="width: 10%;">Standort</th>
+      <th style="width: 18%;">Patient</th>
+      <th style="width: 15%;">Rechnung / BFS</th>
+      <th style="width: 10%;" class="amount">Betrag</th>
+      <th style="width: 23%;">Grund / Status</th>
+      <th style="width: 12%;">Nächster Schritt</th>
+    </tr>`,
+    tableBody: sortedRows.map((row) => `<tr>
+      <td><span class="status">${escapeHtml(row.categoryLabel)}</span></td>
+      <td>${escapeHtml(row.locationName)}</td>
+      <td><strong>${escapeHtml(row.patientName)}</strong><span>${escapeHtml(row.source)}</span></td>
+      <td><strong>${escapeHtml(row.invoiceNo)}</strong><span>${escapeHtml(row.bfsNo)}</span></td>
+      <td class="amount">${escapeHtml(exactMoney.format(row.amount))}</td>
+      <td>${escapeHtml(row.detail)}</td>
+      <td>${escapeHtml(row.nextStep)}</td>
+    </tr>`).join(""),
+    emptyColSpan: 7,
+    emptyLabel: "Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter.",
+    footer: "Hinweis: Der Export bildet exakt die aktuell gefilterte operative Arbeitsliste ab. Entscheidungen werden in der App gepflegt.",
+    filename: "orisus-bfs-zahlung-grund-pruefen.html"
+  });
+}
+
+function printResubmissionReport(candidates: ResubmissionCandidate[], scopeLabel: string, periodLabel: string) {
+  const totals = matchingCandidateTotals(candidates);
+  const sortedCandidates = [...candidates].sort((a, b) => b.originalAmount - a.originalAmount || a.patientName.localeCompare(b.patientName, "de"));
+  const patientCount = new Set(candidates.map((candidate) => candidate.patientName)).size;
+  printOperationalHtmlReport({
+    title: "Neueinreichung / Matching",
+    description: "Automatisch erkannte Folgeeinreichungen nach Storno oder Rückgabe, zur Prüfung und Entscheidung.",
+    meta: `${scopeLabel} · ${periodLabel}`,
+    summary: [
+      { label: "Vorschläge", value: integerNumber.format(candidates.length) },
+      { label: "Patienten", value: integerNumber.format(patientCount) },
+      { label: "Urspr. Abzug", value: exactMoney.format(totals.originalAmount) },
+      { label: "Neue Forderung", value: exactMoney.format(totals.newAmount) },
+      { label: "Angerechnet", value: exactMoney.format(totals.creditedAmount) }
+    ],
+    tableHead: `<tr>
+      <th style="width: 18%;">Patient</th>
+      <th style="width: 15%;">Ursprung</th>
+      <th style="width: 20%;">Grund</th>
+      <th style="width: 16%;">Neue Einreichung</th>
+      <th style="width: 11%;" class="amount">Ursprung</th>
+      <th style="width: 11%;" class="amount">Neu</th>
+      <th style="width: 9%;">Abrechnung</th>
+    </tr>`,
+    tableBody: sortedCandidates.map((candidate) => `<tr>
+      <td><strong>${escapeHtml(candidate.patientName)}</strong><span>${escapeHtml(candidate.locationName)}</span></td>
+      <td><strong>${escapeHtml(candidate.originalDate)}</strong><span>${escapeHtml(candidate.invoiceNo)} / ${escapeHtml(candidate.bfsNo)}</span></td>
+      <td>${escapeHtml(candidate.reason)}</td>
+      <td><strong>${escapeHtml(candidate.newDate)}</strong><span>${escapeHtml(candidate.newInvoiceNo)} / ${escapeHtml(candidate.newBfsNo)}</span></td>
+      <td class="amount">${escapeHtml(exactMoney.format(candidate.originalAmount))}</td>
+      <td class="amount">${escapeHtml(exactMoney.format(candidate.newAmount))}</td>
+      <td>${escapeHtml(formatStatementReference(candidate.newStatementNo, candidate.newFile))}</td>
+    </tr>`).join(""),
+    emptyColSpan: 7,
+    emptyLabel: "Keine Neueinreichungsvorschläge im aktuellen Filter.",
+    footer: "Hinweis: Der Export bildet exakt die aktuell gefilterten Matching-Vorschläge ab. Die Entscheidung Stimmt/Abgelehnt erfolgt in der App.",
+    filename: "orisus-bfs-neueinreichung-matching.html"
+  });
+}
+
 function formatMovementReason(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
   const patient = movement.patientName ?? "Patient noch nicht gematcht";
   const reason = movement.reason ?? movement.reasonCategory ?? "Grund offen";
@@ -8657,7 +8836,7 @@ function CasesView({
         </div>
         <div className="case-list-actions">
           <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
-            <Printer size={16} /> PDF für Standortleitung
+            <Printer size={16} /> PDF Export
           </button>
           <div className="search-box"><Search size={16} /><input value={caseSearchTerm} onChange={(event) => setCaseSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
@@ -8683,14 +8862,14 @@ function CasesView({
           </label>
           <div>
             <span>Tab-Auswertung</span>
-            <strong>{integerNumber.format(filteredRows.length)} Fälle / {money.format(totalAmount)}</strong>
+            <strong>{integerNumber.format(filteredRows.length)} Fälle / {exactMoney.format(totalAmount)}</strong>
           </div>
         </div>
       )}
       <div className="case-summary-grid" aria-label="Gesamtüberblick offene Fälle">
         <article>
           <span>Offener Betrag gesamt</span>
-          <strong>{money.format(totalAmount)}</strong>
+          <strong>{exactMoney.format(totalAmount)}</strong>
         </article>
         <article>
           <span>Offene Fälle</span>
@@ -8702,7 +8881,7 @@ function CasesView({
         </article>
         <article>
           <span>Höchste Einzelposition</span>
-          <strong>{money.format(highestCase?.amount ?? 0)}</strong>
+          <strong>{exactMoney.format(highestCase?.amount ?? 0)}</strong>
         </article>
       </div>
       <section className="chart-grid visual-first-grid case-chart-grid">
@@ -8739,7 +8918,7 @@ function CasesView({
                 <td><strong>{fall.patientName}</strong><span>{fall.locationName}</span></td>
                 <td>{fall.invoiceNo}</td>
                 <td>{fall.bfsNo}</td>
-                <td>{money.format(fall.amount)}</td>
+                <td>{exactMoney.format(fall.amount)}</td>
                 <td>{fall.reason}</td>
                 <td>{fall.ageDays} Tage</td>
                 <td><StatusBadge status={fall.status} /></td>
@@ -8831,7 +9010,7 @@ function printCasesReport(rows: BfsCase[], title: string) {
   </header>
   <section class="summary">
     <div><span>Offene Fälle</span><strong>${rows.length}</strong></div>
-    <div><span>Offener Betrag</span><strong>${escapeHtml(money.format(totalAmount))}</strong></div>
+    <div><span>Offener Betrag</span><strong>${escapeHtml(exactMoney.format(totalAmount))}</strong></div>
     <div><span>Ältester Fall</span><strong>${oldestAge} Tage</strong></div>
     <div><span>Standorte</span><strong>${locations.length || "-"}</strong></div>
   </section>
@@ -8916,7 +9095,7 @@ function caseReportRowHtml(fall: BfsCase) {
     <td><strong>${escapeHtml(fall.patientName)}</strong><br />${escapeHtml(fall.locationName)}</td>
     <td>${escapeHtml(fall.invoiceNo)}</td>
     <td>${escapeHtml(fall.bfsNo)}</td>
-    <td>${escapeHtml(money.format(fall.amount))}</td>
+    <td>${escapeHtml(exactMoney.format(fall.amount))}</td>
     <td>${escapeHtml(fall.reason)}</td>
     <td>${fall.ageDays} Tage</td>
     <td><span class="status">${escapeHtml(fall.status)}</span></td>
@@ -9640,9 +9819,9 @@ function MatchesView({
       <section className="priority-grid">
         <PriorityCard label="Neueinreichungen" value={String(filteredCandidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
-        <PriorityCard label="Urspr. Abzugsbetrag" value={money.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
-        <PriorityCard label="Neue Forderungssumme" value={money.format(matchTotals.newAmount)} hint={`Differenz ${money.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
-        <PriorityCard label="Angerechnete Erledigung" value={money.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} />
+        <PriorityCard label="Urspr. Abzugsbetrag" value={exactMoney.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
+        <PriorityCard label="Neue Forderungssumme" value={exactMoney.format(matchTotals.newAmount)} hint={`Differenz ${exactMoney.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
+        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -9651,6 +9830,9 @@ function MatchesView({
             <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
           </div>
           <div className="case-list-actions">
+            <button className="secondary-button" disabled={!filteredCandidates.length} onClick={() => printResubmissionReport(filteredCandidates, scopeLabel, selectedPeriod.label)}>
+              <Printer size={16} /> PDF Export
+            </button>
             <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
           </div>
         </div>
@@ -9680,7 +9862,7 @@ function MatchesView({
                     <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
                     <td>{candidate.reason}</td>
                     <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
-                    <td>{money.format(candidate.originalAmount)}<span>neu {money.format(candidate.newAmount)}</span></td>
+                    <td>{exactMoney.format(candidate.originalAmount)}<span>neu {exactMoney.format(candidate.newAmount)}</span></td>
                     <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
                     <td>
                       <div className="case-action-stack">

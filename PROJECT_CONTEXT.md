@@ -886,3 +886,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
   - `Endgueltig storniert` fuer bewusst als Verlust/Endstorno entschiedene Faelle.
 - Die Zeilen nutzen dieselbe persistente Fallentscheidungslogik wie `Praxis nachfassen` und `Neueinreichung Matching`.
 - Bereits entschiedene Zahlung/Grund-Zeilen werden aus dem Prueftopf ausgeblendet und fliessen in die bestehenden Rueckhol-/Endstorno-Auswertungen.
+
+## Update 2026-06-29: Filter in operativer Fallarbeit
+
+- Die operativen Reiter `Praxis nachfassen`, `Zahlung / Grund pruefen` und `Neueinreichung / Matching` haben jetzt konsistente Standort-, Zeitraum- und Suchfilter.
+- Die Suchfelder sind nicht mehr nur optisch: Patient, Standort, Rechnungsnummer, BFS-Nr., Betrag, Grund/Status und relevante Abrechnungs-/Datumsfelder filtern die jeweilige Tabelle wirklich.
+- Kacheln, Tab-Auswertung, Summen, Charts und PDF-Export im operativen Bereich basieren auf den gefilterten Zeilen.

@@ -6287,6 +6287,7 @@ function EconomicCheckView({
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [standortFilter, setStandortFilter] = useState(standort?.id ?? "alle");
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [searchTerm, setSearchTerm] = useState("");
   const period = useMemo(() => periodOptions.find((entry) => entry.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
   const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const reviewRows = useMemo(() => buildInvoiceStatusReviewBasket(rows, importRows)
@@ -6297,13 +6298,16 @@ function EconomicCheckView({
   const availableStandorte = useMemo(() => orderedStandorte().filter((entry) => reviewRows.some((row) => row.standortId === entry.id)), [reviewRows]);
   const filteredRows = useMemo(() => {
     const effectiveStandortId = standort?.id ?? standortFilter;
-    return reviewRows.filter((row) => {
+    const query = normalizeSearchQuery(searchTerm);
+    const baseRows = reviewRows.filter((row) => {
       const rowStandort = row.standortId ? standorte.find((entry) => entry.id === row.standortId) : undefined;
       const matchesStandort = effectiveStandortId === "alle" || row.standortId === effectiveStandortId;
       const matchesPeriod = rowStandort ? shortDateInPeriod(row.sourceDate, period, rowStandort) : true;
       return matchesStandort && matchesPeriod;
     });
-  }, [reviewRows, standort?.id, standortFilter, period]);
+    if (!query) return baseRows;
+    return baseRows.filter((row) => matchesInvoiceStatusReviewSearch(row, query));
+  }, [reviewRows, standort?.id, standortFilter, period, searchTerm]);
   const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => sum + row.amount, 0), [filteredRows]);
   const highestRow = useMemo(() => filteredRows.reduce<InvoiceStatusReviewRow | undefined>((max, row) => !max || row.amount > max.amount ? row : max, undefined), [filteredRows]);
   const locationCount = useMemo(() => new Set(filteredRows.map((row) => row.standortId ?? row.locationName)).size, [filteredRows]);
@@ -6316,7 +6320,7 @@ function EconomicCheckView({
           <p>BFS-Saldo ist geschlossen, aber die wirtschaftliche Ursache muss belegt werden: Zahlung, echte Neueinreichung oder nachvollziehbarer Storno-Grund.</p>
         </div>
         <div className="case-list-actions">
-          <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+          <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
       <div className="period-filter case-table-filter">
@@ -6910,6 +6914,63 @@ function standortFromMandantNo(mandantNo: string) {
 
 function normalizeMatchKey(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeSearchQuery(value: string) {
+  return normalizeMatchKey(value);
+}
+
+function searchHaystack(...values: Array<string | number | undefined | null>) {
+  return normalizeSearchQuery(values.filter((value) => value !== undefined && value !== null).join(" "));
+}
+
+function matchesCaseSearch(fall: BfsCase, query: string) {
+  return searchHaystack(
+    fall.patientName,
+    fall.locationName,
+    fall.invoiceNo,
+    fall.bfsNo,
+    fall.amount,
+    fall.reason,
+    fall.status,
+    fall.dueDate,
+    fall.lastComment,
+    fall.sourceDate
+  ).includes(query);
+}
+
+function matchesInvoiceStatusReviewSearch(row: InvoiceStatusReviewRow, query: string) {
+  return searchHaystack(
+    row.categoryLabel,
+    row.locationName,
+    row.patientName,
+    row.invoiceNo,
+    row.bfsNo,
+    row.amount,
+    row.detail,
+    row.source,
+    row.sourceDate,
+    row.nextStep
+  ).includes(query);
+}
+
+function matchesResubmissionCandidateSearch(candidate: ResubmissionCandidate, query: string) {
+  return searchHaystack(
+    candidate.patientName,
+    candidate.locationName,
+    candidate.originalDate,
+    candidate.originalStatementNo,
+    candidate.invoiceNo,
+    candidate.bfsNo,
+    candidate.reason,
+    candidate.originalAmount,
+    candidate.newDate,
+    candidate.newStatementNo,
+    candidate.newInvoiceNo,
+    candidate.newBfsNo,
+    candidate.newAmount,
+    candidate.newFile
+  ).includes(query);
 }
 
 function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedInvoiceDocument[]; onRowsChange: (rows: ParsedInvoiceDocument[]) => void }) {
@@ -8568,17 +8629,20 @@ function CasesView({
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [caseStandortFilter, setCaseStandortFilter] = useState("alle");
   const [casePeriodId, setCasePeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [caseSearchTerm, setCaseSearchTerm] = useState("");
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
   const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);
   const filteredRows = useMemo(() => {
-    if (compact && !enableFilters) return rows;
-    return rows.filter((fall) => {
+    const query = normalizeSearchQuery(caseSearchTerm);
+    const baseRows = compact && !enableFilters ? rows : rows.filter((fall) => {
       const rowStandort = standorte.find((entry) => entry.id === fall.standortId);
       const matchesStandort = caseStandortFilter === "alle" || fall.standortId === caseStandortFilter;
       const matchesPeriod = rowStandort ? shortDateInPeriod(fall.sourceDate, casePeriod, rowStandort) : true;
       return matchesStandort && matchesPeriod;
     });
-  }, [compact, enableFilters, rows, caseStandortFilter, casePeriod]);
+    if (!query) return baseRows;
+    return baseRows.filter((fall) => matchesCaseSearch(fall, query));
+  }, [compact, enableFilters, rows, caseStandortFilter, casePeriod, caseSearchTerm]);
   const totalAmount = useMemo(() => filteredRows.reduce((sum, fall) => sum + fall.amount, 0), [filteredRows]);
   const oldestAge = useMemo(() => filteredRows.reduce((max, fall) => Math.max(max, fall.ageDays), 0), [filteredRows]);
   const highestCase = useMemo(() => filteredRows.reduce<BfsCase | undefined>((max, fall) => !max || fall.amount > max.amount ? fall : max, undefined), [filteredRows]);
@@ -8595,7 +8659,7 @@ function CasesView({
           <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printCasesReport(filteredRows, reportTitle)}>
             <Printer size={16} /> PDF für Standortleitung
           </button>
-          <div className="search-box"><Search size={16} /><input placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
+          <div className="search-box"><Search size={16} /><input value={caseSearchTerm} onChange={(event) => setCaseSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
         </div>
       </div>
       {(!compact || enableFilters) && (
@@ -9511,6 +9575,7 @@ function MatchesView({
   const [selectedStandortFilterId, setSelectedStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [savingCandidateKey, setSavingCandidateKey] = useState("");
   const [matchActionError, setMatchActionError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
   const filteredStandorte = useMemo(() => {
@@ -9525,9 +9590,14 @@ function MatchesView({
   const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
     .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => closedKeys.has(key))), [closedKeys, scopedImportRows]);
+  const filteredCandidates = useMemo(() => {
+    const query = normalizeSearchQuery(searchTerm);
+    if (!query) return candidates;
+    return candidates.filter((candidate) => matchesResubmissionCandidateSearch(candidate, query));
+  }, [candidates, searchTerm]);
   const scopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
-  const matchTotals = useMemo(() => matchingCandidateTotals(candidates), [candidates]);
-  const patientCount = new Set(candidates.map((candidate) => candidate.patientName)).size;
+  const matchTotals = useMemo(() => matchingCandidateTotals(filteredCandidates), [filteredCandidates]);
+  const patientCount = new Set(filteredCandidates.map((candidate) => candidate.patientName)).size;
   async function handleCandidateAction(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
     if (!onResolveCandidate) return;
     const key = `${resubmissionResolutionKey(candidate)}:${status}`;
@@ -9568,7 +9638,7 @@ function MatchesView({
         </div>
       </section>
       <section className="priority-grid">
-        <PriorityCard label="Neueinreichungen" value={String(candidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
+        <PriorityCard label="Neueinreichungen" value={String(filteredCandidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Urspr. Abzugsbetrag" value={money.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
         <PriorityCard label="Neue Forderungssumme" value={money.format(matchTotals.newAmount)} hint={`Differenz ${money.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
@@ -9579,6 +9649,9 @@ function MatchesView({
           <div>
             <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
             <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht.</p>
+          </div>
+          <div className="case-list-actions">
+            <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
           </div>
         </div>
         {matchActionError && <p className="form-error">{matchActionError}</p>}
@@ -9596,7 +9669,7 @@ function MatchesView({
               </tr>
             </thead>
             <tbody>
-              {candidates.map((candidate) => {
+              {filteredCandidates.map((candidate) => {
                 const baseKey = resubmissionResolutionKey(candidate);
                 const acceptKey = `${baseKey}:paid_manual`;
                 const rejectKey = `${baseKey}:cancelled_manual`;
@@ -9622,7 +9695,7 @@ function MatchesView({
                   </tr>
                 );
               })}
-              {!candidates.length && (
+              {!filteredCandidates.length && (
                 <tr>
                   <td colSpan={7}>Keine Neueinreichungsvorschläge für den gewählten Zeitraum und Standort.</td>
                 </tr>

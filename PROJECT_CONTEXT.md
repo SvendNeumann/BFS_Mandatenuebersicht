@@ -919,3 +919,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Einzelrechnungen wie `Rechnung_5-18504-73794150.pdf` enthalten BEMA/Festzuschuss und Eigenlabor, aber keine GOZ-Faktorpositionen.
 - Der Rechnungsparser akzeptiert solche Rechnungen jetzt als sauber erkannte Belege, sobald Kopf, Betrag und BEMA/Labor-Bestandteile erkannt sind. Sie werden nicht mehr nur wegen fehlender GOZ-Faktorpositionen auf `Zu pruefen` gesetzt.
 - Die Importvorschau zeigt bei diesen Belegen `BEMA`, `Labor` oder `BEMA + Labor` statt irrefuehrend `0` Positionen. Die eigentliche Leistungsuebersicht/Potenzialanalyse bleibt davon getrennt und wertet weiterhin nur echte Faktorpositionen aus.
+
+## Update 2026-06-29: Prueflisten-Export fuer Praxisausdruck
+
+- PDF-/Druckexport und CSV der offenen Pruefliste enthalten am Ende keine technischen Spalten `Wiedervorlage` und `AbrechnungsNr` mehr.
+- Stattdessen gibt es zwei manuelle Bearbeitungsspalten: `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.

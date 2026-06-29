@@ -1,7 +1,7 @@
 import type { BfsCase } from "./types";
 
 export function createCasesCsv(cases: BfsCase[]) {
-  const header = ["Standort", "Patient", "Rechnungsnummer", "BFS-Nr.", "Betrag", "Grund", "Alter Tage", "Status", "Wiedervorlage", "Kommentar"];
+  const header = ["Standort", "Patient", "Rechnungsnummer", "BFS-Nr.", "Betrag", "Grund", "Alter Tage", "Status", "Kommentar", "Wenn storniert: in der Praxissoftware ausgebucht?"];
   const rows = cases.map((fall) => [
     fall.locationName,
     fall.patientName,
@@ -11,8 +11,8 @@ export function createCasesCsv(cases: BfsCase[]) {
     fall.reason,
     String(fall.ageDays),
     fall.status,
-    fall.dueDate,
-    fall.lastComment
+    "",
+    ""
   ]);
   return [header, ...rows].map((row) => row.map(escapeCsv).join(";")).join("\n");
 }

@@ -8670,9 +8670,10 @@ function printCasesReport(rows: BfsCase[], title: string) {
     th, td { border: 1px solid #d7e3e7; padding: 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
     th { background: #eaf7f6; color: #0f5360; font-size: 9px; text-transform: uppercase; }
     tr:nth-child(even) td { background: #f8fbfc; }
-    .patient { width: 17%; }
-    .reason { width: 20%; }
-    .comment { width: 18%; }
+    .patient { width: 16%; }
+    .reason { width: 18%; }
+    .comment { width: 16%; }
+    .practice-check { width: 15%; }
     .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 6px; font-weight: 700; }
     .traffic { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; background: #30d5c8; }
     .traffic-red { background: #f04438; }
@@ -8710,8 +8711,8 @@ function printCasesReport(rows: BfsCase[], title: string) {
         <th class="reason">Grund</th>
         <th>Alter</th>
         <th>Status</th>
-        <th>Wiedervorlage</th>
-        <th class="comment">AbrechnungsNr</th>
+        <th class="comment">Kommentar</th>
+        <th class="practice-check">Wenn storniert: in der Praxissoftware ausgebucht?</th>
       </tr>
     </thead>
     <tbody>
@@ -8783,8 +8784,8 @@ function caseReportRowHtml(fall: BfsCase) {
     <td>${escapeHtml(fall.reason)}</td>
     <td>${fall.ageDays} Tage</td>
     <td><span class="status">${escapeHtml(fall.status)}</span></td>
-    <td>${escapeHtml(fall.dueDate)}</td>
-    <td>${escapeHtml(formatCaseAbrechnungReference(fall.lastComment))}</td>
+    <td></td>
+    <td></td>
   </tr>`;
 }
 

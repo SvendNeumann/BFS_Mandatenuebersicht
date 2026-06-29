@@ -919,6 +919,11 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
+  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
+  const practiceFollowupCases = useMemo(() => applyInvoiceStatusToCases(
+    casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))),
+    invoiceStatusRows
+  ).filter(isPracticeFollowupCase), [closedCaseKeys, invoiceStatusRows, scopedRows]);
   const economicCheckRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, scopedRows)
     .filter((row) => row.category === "economic_check"), [invoiceStatusRows, scopedRows]);
   const economicCheckAmount = useMemo(() => economicCheckRows.reduce((sum, row) => sum + row.amount, 0), [economicCheckRows]);
@@ -933,6 +938,10 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   }, 0), [scopedRows]);
   const averageClaimValue = invoiceCount ? metrics.submitted / invoiceCount : 0;
   const grossDeductionAmount = metrics.returnAmount + metrics.cancellationAmount;
+  const recoveredStornoAmount = stornoReview.rows.filter((row) => row.done).reduce((sum, row) => sum + row.amount, 0);
+  const openStornoAmount = stornoReview.rows.filter((row) => row.open).reduce((sum, row) => sum + row.amount, 0);
+  const practiceFollowupAmount = practiceFollowupCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const finalCashflowAmount = Math.max(metrics.submitted - metrics.feeNet - metrics.feeVat - metrics.ewmaTotal - grossDeductionAmount + recoveredStornoAmount, 0);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
   const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
   const printLocationExport = () => {
@@ -1004,6 +1013,33 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           info="Summe der erkannten BFS-Gebühren im gewählten Zeitraum; die Quote bezieht sich auf den eingereichten Umsatz."
         />
         <PriorityCard
+          label="BFS-Gebühr netto"
+          value={money.format(metrics.feeNet)}
+          hint="ohne MwSt"
+          period={selectedPeriod.label}
+          tone={metrics.feeNet ? "amber" : "green"}
+          trend={customKpiTrend("feeNet", kpiTrendPoints, true)}
+          info={`Netto-Gebühr aus dem BFS-Abrechnungsimport im gewählten Zeitraum für ${scopeHint}. Diese Kachel ist Teil der CashFlow-Herleitung vom eingereichten Umsatz zur Auszahlung.`}
+        />
+        <PriorityCard
+          label="MwSt"
+          value={money.format(metrics.feeVat + metrics.ewmaVat)}
+          hint={`BFS ${money.format(metrics.feeVat)} · EWMA ${money.format(metrics.ewmaVat)}`}
+          period={selectedPeriod.label}
+          tone={metrics.feeVat + metrics.ewmaVat ? "amber" : "green"}
+          trend={customKpiTrend("tax", kpiTrendPoints, true)}
+          info="Separat erkannte Steueranteile auf BFS-Gebühren und EWMA/Adressprüfung. Wird in der CashFlow-Herleitung getrennt von Netto-Gebühren geführt."
+        />
+        <PriorityCard
+          label="EWMA / Adressprüfung"
+          value={money.format(metrics.ewmaTotal)}
+          hint={`netto ${money.format(metrics.ewmaNet)}`}
+          period={selectedPeriod.label}
+          tone={metrics.ewmaTotal ? "amber" : "green"}
+          trend={customKpiTrend("ewma", kpiTrendPoints, true)}
+          info="Zusatzkosten für Meldeamt/Adressprüfung aus dem Import. Diese Kosten reduzieren den wirtschaftlich verbleibenden Betrag zusätzlich zur BFS-Gebühr."
+        />
+        <PriorityCard
           label="Ausgezahlter Umsatz"
           value={money.format(metrics.payout)}
           hint="nach BFS-Abrechnung"
@@ -1036,11 +1072,20 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
         <PriorityCard
           label="Davon zurückgeholt"
           value={integerNumber.format(stornoReview.done)}
-          hint={`${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
+          hint={`${money.format(recoveredStornoAmount)} · ${formatPercent(stornoReview.doneRate)} von ${integerNumber.format(stornoReview.total)} Stornos`}
           period={selectedPeriod.label}
           tone={stornoReview.done ? "green" : stornoReview.total ? "amber" : "blue"}
           trend={customKpiTrend("recoveredStornos", kpiTrendPoints)}
           info="Lesart: Von der Storno-Grundmenge links wurden diese Fälle über eine echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung geklärt. Saldo 0 allein zählt hier nicht als Zahlung."
+        />
+        <PriorityCard
+          label="Offener Abzug"
+          value={money.format(openStornoAmount)}
+          hint={`${integerNumber.format(stornoReview.open)} Stornos offen`}
+          period={selectedPeriod.label}
+          tone={openStornoAmount ? "amber" : "green"}
+          trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)}
+          info="Noch nicht zurückgeholter Storno-Betrag aus der Storno-Grundmenge. Dieser Rest muss weiter eingeordnet werden: Zahlung/Grund prüfen, Praxis nachfassen oder endgültig storniert."
         />
         <PriorityCard
           label="Zahlung/Grund prüfen"
@@ -1049,6 +1094,24 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           period={selectedPeriod.label}
           tone={economicCheckRows.length ? "amber" : "green"}
           info={`Diese Fälle sind laut Saldo-Liste bei BFS geschlossen, aber wirtschaftlich noch nicht erklärt. Es muss belegt werden, ob Zahlung, echte Neueinreichung oder korrekter Storno-Grund vorliegt. Saldo 0 allein ist kein Zahlungsnachweis.`}
+        />
+        <PriorityCard
+          label="Praxis nachfassen"
+          value={integerNumber.format(practiceFollowupCases.length)}
+          hint={money.format(practiceFollowupAmount)}
+          period={selectedPeriod.label}
+          tone={practiceFollowupCases.length ? "amber" : "green"}
+          trend={customKpiTrend("practiceFollowupAmount", kpiTrendPoints, true)}
+          info="Echte operative Praxis-Aufgaben, vor allem Rückgaben ohne Ausfallschutz. Diese Fälle sind nicht nur saldobereinigt, sondern müssen durch die Praxis nachgehalten werden."
+        />
+        <PriorityCard
+          label="Wirtschaftlich verbleibend"
+          value={money.format(finalCashflowAmount)}
+          hint="eingereicht minus Kosten/Abzug plus zurückgeholt"
+          period={selectedPeriod.label}
+          tone="green"
+          trend={customKpiTrend("finalCashflow", kpiTrendPoints)}
+          info={`CashFlow-Herleitung: ${money.format(metrics.submitted)} eingereicht minus BFS-Gebühr netto, MwSt, EWMA und Brutto Storno/Rückgabe plus ${money.format(recoveredStornoAmount)} zurückgeholt/bezahlt.`}
         />
         <PriorityCard
           label="Eingereichte Rechnungen"
@@ -1297,10 +1360,15 @@ type CustomChartPoint = {
   submitted: number;
   payout: number;
   fees: number;
+  feeNet: number;
+  tax: number;
+  ewma: number;
   claims: number;
   cancellations: number;
   recoveredStornos: number;
   openStornoAmount: number;
+  practiceFollowupAmount: number;
+  finalCashflow: number;
   protectedClaims: number;
   noProtectionClaims: number;
 };
@@ -1508,16 +1576,21 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
     submitted: 0,
     payout: 0,
     fees: 0,
+    feeNet: 0,
+    tax: 0,
+    ewma: 0,
     claims: 0,
     cancellations: 0,
     recoveredStornos: 0,
     openStornoAmount: 0,
+    practiceFollowupAmount: 0,
+    finalCashflow: 0,
     protectedClaims: 0,
     noProtectionClaims: 0
   };
 }
 
-type CustomKpiTrendMetric = "submitted" | "fees" | "payout" | "cancellations" | "recoveredStornos" | "openStornoAmount" | "claims" | "averageClaim";
+type CustomKpiTrendMetric = "submitted" | "fees" | "feeNet" | "tax" | "ewma" | "payout" | "cancellations" | "recoveredStornos" | "openStornoAmount" | "practiceFollowupAmount" | "finalCashflow" | "claims" | "averageClaim";
 
 function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[], lowerIsBetter = false): AnswerSparklineTrend {
   const values = points.map((point) => customKpiTrendValue(metric, point)).slice(-12);
@@ -4113,9 +4186,16 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
     const month = importRowMonth(row);
     if (!month) return;
     const point = ensurePoint(month);
-    point.submitted += rowSubmittedAmount(row);
+    const submitted = rowSubmittedAmount(row);
+    const feeNet = rowFeeNetAmount(row);
+    const feeVat = rowFeeVatAmount(row);
+    const ewma = rowEwmaAmount(row);
+    point.submitted += submitted;
     point.payout += row.payout ?? 0;
     point.fees += rowFeeAmount(row);
+    point.feeNet += feeNet;
+    point.tax += feeVat + rowEwmaVatAmount(row);
+    point.ewma += ewma;
     const parsedClaims = row.parsedClaims ?? [];
     const claimCount = parsedClaims.length || row.claimsExtracted || row.claimsHeader || 0;
     point.claims += claimCount;
@@ -4126,11 +4206,18 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
       point.protectedClaims += Math.max(0, claimCount - rowNoProtectionCount(row));
       point.noProtectionClaims += rowNoProtectionCount(row);
     }
-    (row.parsedMovements ?? []).filter((movement) => isStornoMovement(movement)).forEach((movement) => {
+    let monthDeductionAmount = 0;
+    (row.parsedMovements ?? [])
+      .filter((movement) => isStornoMovement(movement) || movement.type.includes("rueckgabe") || movement.type.includes("rueckbelastung"))
+      .forEach((movement) => {
       const movementMonth = monthKeyFromGermanDate(movement.date ?? row.date);
       const cancellationPoint = movementMonth ? ensurePoint(movementMonth) : point;
-      cancellationPoint.cancellations += 1;
+      if (isStornoMovement(movement)) cancellationPoint.cancellations += 1;
+      const amount = Math.abs(movement.amount ?? 0);
+      cancellationPoint.practiceFollowupAmount += movement.reasonCategory === "rueckgabe_ohne_ausfallschutz" ? amount : 0;
+      monthDeductionAmount += movementMonth === month || !movementMonth ? amount : 0;
     });
+    point.finalCashflow += Math.max(submitted - feeNet - feeVat - ewma - monthDeductionAmount, 0);
   });
 
   stornoRows.forEach((row) => {
@@ -4138,7 +4225,9 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], stornoRows: ReturnTy
     if (!month) return;
     if (row.open) ensurePoint(month).openStornoAmount += row.amount;
     if (!row.done) return;
-    ensurePoint(month).recoveredStornos += 1;
+    const point = ensurePoint(month);
+    point.recoveredStornos += 1;
+    point.finalCashflow += row.amount;
   });
 
   return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));

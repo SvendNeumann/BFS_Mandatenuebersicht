@@ -279,6 +279,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
+  const [invoiceStatusLoaded, setInvoiceStatusLoaded] = useState(false);
   const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
   const [caseResolutionMode, setCaseResolutionMode] = useState<ManualCaseResolution["status"]>("paid_manual");
@@ -291,6 +292,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
   const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
+  const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
   const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceOverview", "invoiceServices", "invoiceLabs", "locations", "users", "settings"];
   const viewsWithStandortScope = [
     "quality",
@@ -307,8 +309,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const appCases = useMemo(() => {
     const resolvedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
-    return casesFromImportRows(privacyScopedImportRows).filter((fall) => !caseResolutionKeys(fall).some((key) => resolvedKeys.has(key)));
-  }, [privacyScopedImportRows, manualCaseResolutions]);
+    return applyInvoiceStatusToCases(
+      casesFromImportRows(privacyScopedImportRows).filter((fall) => !caseResolutionKeys(fall).some((key) => resolvedKeys.has(key))),
+      invoiceStatusRows
+    );
+  }, [privacyScopedImportRows, manualCaseResolutions, invoiceStatusRows]);
   const visibleCases = useMemo(
     () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [appCases, isGroupScope, selectedStandort.id]
@@ -365,6 +370,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       .finally(() => {
         if (active) setCaseResolutionsLoaded(true);
       });
+    loadConfirmedInvoiceStatusDocuments()
+      .then((documents) => {
+        if (active) setInvoiceStatusDocuments(documents);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setInvoiceStatusLoaded(true);
+      });
     return () => {
       active = false;
       window.clearTimeout(fallbackTimer);
@@ -405,8 +418,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
   }
 
-  if (!appDataLoaded || !caseResolutionsLoaded) {
-    return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände und Standortfilter werden synchronisiert." />;
+  if (!appDataLoaded || !caseResolutionsLoaded || !invoiceStatusLoaded) {
+    return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Fallstände, Saldo-Status und Standortfilter werden synchronisiert." />;
   }
 
   function selectStandortTab(nextStandortId: string) {
@@ -610,14 +623,15 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </div>
 
         {showStandortTabs && (
-          <StandortTabs
-            role={role}
-            standorte={permittedStandorte}
-            selectedStandortId={selectedStandortId}
-            onSelect={selectStandortTab}
-            importRows={privacyScopedImportRows}
-            manualCaseResolutions={manualCaseResolutions}
-          />
+        <StandortTabs
+          role={role}
+          standorte={permittedStandorte}
+          selectedStandortId={selectedStandortId}
+          onSelect={selectStandortTab}
+          importRows={privacyScopedImportRows}
+          manualCaseResolutions={manualCaseResolutions}
+          invoiceStatusRows={invoiceStatusRows}
+        />
         )}
 
         {showNoUploadData ? (
@@ -626,13 +640,13 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />
+                ? <GroupDashboard onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
                 : <LocationDashboard standort={selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} />
             )}
             {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "answers" && <AnswerCockpit scope={isGroupScope ? "group" : "location"} standort={isGroupScope ? undefined : selectedStandort} cases={visibleCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
+            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "quality" && <QualityView standort={isGroupScope ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={role === "super_admin" ? undefined : selectedStandort} cases={role === "super_admin" ? appCases : visibleCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
@@ -697,7 +711,8 @@ function StandortTabs({
   selectedStandortId,
   onSelect,
   importRows,
-  manualCaseResolutions = []
+  manualCaseResolutions = [],
+  invoiceStatusRows = []
 }: {
   role: AppRole;
   standorte: Standort[];
@@ -705,8 +720,9 @@ function StandortTabs({
   onSelect: (standortId: string) => void;
   importRows: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
+  invoiceStatusRows?: ParsedInvoiceStatusRow[];
 }) {
-  const openCasesByStandort = countOpenCasesByStandort(importRows, manualCaseResolutions);
+  const openCasesByStandort = countOpenCasesByStandort(importRows, manualCaseResolutions, invoiceStatusRows);
   return (
     <section className="standort-tabs" aria-label="Standorte">
       {role === "super_admin" && (
@@ -1610,7 +1626,7 @@ function customBenchmarkSignal(stornoRate: number, recoveredRate: number, noProt
   return "ok";
 }
 
-function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], invoiceStatusRows = [] }: { onNavigate: (view: string) => void; importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [cockpitPeriodId, setCockpitPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -1630,7 +1646,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [] }: 
   const chartScopeLabel = chartStandorte.length === 1 ? chartStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
   const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const dashboardCases = useMemo(() => casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [importRows, closedCaseKeys]);
+  const dashboardCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows), [importRows, closedCaseKeys, invoiceStatusRows]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => {
     if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
@@ -2453,7 +2469,7 @@ function buildBenchmarkSignals(snapshots: LocationSnapshot[], scopedRows: Import
   ];
 }
 
-function BenchmarkView({ importRows, manualCaseResolutions = [] }: { importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRows = [] }: { importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [comparisonPeriodId, setComparisonPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -2465,20 +2481,20 @@ function BenchmarkView({ importRows, manualCaseResolutions = [] }: { importRows:
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
-  const openCases = useMemo(() => casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [scopedRows, closedCaseKeys]);
+  const openCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows), [scopedRows, closedCaseKeys, invoiceStatusRows]);
   const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, scopedRows, openCases), [orderedLocations, selectedPeriod, scopedRows, openCases]);
   const comparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, comparisonPeriod, rowStandort) : false;
   }), [comparisonPeriod, importRows]);
-  const comparisonOpenCases = useMemo(() => casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [closedCaseKeys, comparisonRows]);
+  const comparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows), [closedCaseKeys, comparisonRows, invoiceStatusRows]);
   const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, comparisonRows, comparisonOpenCases), [comparisonOpenCases, comparisonPeriod, comparisonRows, orderedLocations]);
   const previousComparisonPeriod = useMemo(() => previousYearPeriod(comparisonPeriod), [comparisonPeriod]);
   const previousComparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, previousComparisonPeriod, rowStandort) : false;
   }), [importRows, previousComparisonPeriod]);
-  const previousComparisonOpenCases = useMemo(() => casesFromImportRows(previousComparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), [closedCaseKeys, previousComparisonRows]);
+  const previousComparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(previousComparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows), [closedCaseKeys, previousComparisonRows, invoiceStatusRows]);
   const previousComparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, previousComparisonPeriod, previousComparisonRows, previousComparisonOpenCases), [orderedLocations, previousComparisonOpenCases, previousComparisonPeriod, previousComparisonRows]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
@@ -2539,7 +2555,7 @@ function BenchmarkView({ importRows, manualCaseResolutions = [] }: { importRows:
   );
 }
 
-function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
+function QualityView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [noProtectionPeriodId, setNoProtectionPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -4216,15 +4232,71 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
   });
 }
 
+function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedInvoiceStatusRow[]) {
+  if (!invoiceStatusRows.length) return cases;
+  const statusByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusByKey.set(key, row)));
+
+  return cases
+    .flatMap((fall) => {
+      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusByKey.get(key)).find(Boolean);
+      if (!statusRow) {
+        return [{
+          ...fall,
+          reason: fall.reason.startsWith("Nicht in Saldo-Liste") ? fall.reason : `Nicht in Saldo-Liste gefunden: ${fall.reason}`,
+          status: "nicht_in_saldo_liste",
+          traffic: fall.traffic === "red" ? "red" : "orange",
+          lastComment: "Kein Treffer in bestätigter BFS-Saldo-Liste"
+        } satisfies BfsCase];
+      }
+      if (isInvoiceStatusAutoResolved(statusRow)) return [];
+
+      const criticalOpen = statusRow.saldo < -0.005 && !statusRow.installmentPlan;
+      const noProtection = criticalOpen && !statusRow.protection;
+      const reminder = statusRow.reminderLevel > 0 && !statusRow.installmentPlan;
+      if (!criticalOpen && !reminder && !noProtection) return [fall];
+
+      const labels = [
+        noProtection ? "ohne Ausfallschutz offen" : "",
+        reminder ? `Mahnstufe ${statusRow.reminderLevel}` : "",
+        criticalOpen ? "kritisch offen ohne RP" : ""
+      ].filter(Boolean);
+
+      return [{
+        ...fall,
+        amount: Math.max(fall.amount, Math.abs(statusRow.saldo)),
+        reason: `${labels.join(" · ")}: ${fall.reason}`,
+        status: noProtection ? "ohne_schutz_offen" : reminder ? "mahnstufe_kritisch" : "kritisch_offen",
+        traffic: noProtection || reminder ? "red" : "orange",
+        lastComment: `Bestätigter BFS-Saldo: ${money.format(statusRow.saldo)} · ${invoiceStatusLabel(statusRow)}`
+      } satisfies BfsCase];
+    })
+    .sort(compareOperationalCases);
+}
+
+function compareOperationalCases(a: BfsCase, b: BfsCase) {
+  return operationalCasePriority(a) - operationalCasePriority(b) || b.amount - a.amount || b.ageDays - a.ageDays;
+}
+
+function operationalCasePriority(fall: BfsCase) {
+  if (fall.status === "ohne_schutz_offen") return 1;
+  if (fall.status === "mahnstufe_kritisch") return 2;
+  if (fall.status === "kritisch_offen") return 3;
+  if (fall.status === "nicht_in_saldo_liste") return 4;
+  return 5;
+}
+
 function caseResolutionKey(fall: BfsCase) {
   return fall.resolutionKey ?? caseResolutionKeyFromParts(fall);
 }
 
-function countOpenCasesByStandort(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
+function countOpenCasesByStandort(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
   const counts = new Map<string, number>();
   const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
-  casesFromImportRows(rows)
-    .filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedKeys.has(key)))
+  applyInvoiceStatusToCases(
+    casesFromImportRows(rows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedKeys.has(key))),
+    invoiceStatusRows
+  )
     .forEach((fall) => counts.set(fall.standortId, (counts.get(fall.standortId) ?? 0) + 1));
   return counts;
 }
@@ -5378,6 +5450,7 @@ function UploadView({
   const [statusUploadStatus, setStatusUploadStatus] = useState("Bereit für Saldo-Listen");
   const [selectedStatusFileCount, setSelectedStatusFileCount] = useState(0);
   const [pendingStatusDocuments, setPendingStatusDocuments] = useState<ParsedInvoiceStatusDocument[] | null>(null);
+  const [isStatusConfirming, setIsStatusConfirming] = useState(false);
   const previewRows = liveRows;
   const okRows = previewRows.filter((row) => row.status === "OK").length;
   const warningRows = previewRows.length - okRows;
@@ -5464,23 +5537,40 @@ function UploadView({
     }
   }
 
-  function confirmStatusImport() {
+  async function confirmStatusImport() {
     if (!pendingStatusDocuments) return;
-    onStatusDocumentsChange(pendingStatusDocuments);
-    const confirmedRows = pendingStatusDocuments.flatMap((document) => document.rows);
-    setPendingStatusDocuments(null);
-    setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen`);
+    setIsStatusConfirming(true);
+    setStatusUploadStatus("Saldo-Import wird bestätigt und gespeichert");
+    try {
+      const savedDocuments = await saveConfirmedInvoiceStatusDocuments(pendingStatusDocuments);
+      onStatusDocumentsChange(savedDocuments);
+      const confirmedRows = savedDocuments.flatMap((document) => document.rows);
+      setPendingStatusDocuments(null);
+      setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen`);
+    } catch (error) {
+      setStatusUploadStatus(`Saldo-Import konnte nicht bestätigt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsStatusConfirming(false);
+    }
   }
 
-  function resetStatusImport() {
+  async function resetStatusImport() {
     if (hasPendingStatusImport) {
       setPendingStatusDocuments(null);
       setStatusUploadStatus("Saldo-Vorschau verworfen");
+      setSelectedStatusFileCount(0);
     } else {
-      onStatusDocumentsChange([]);
-      setStatusUploadStatus("Saldo-Import zurückgesetzt");
+      setIsStatusConfirming(true);
+      try {
+        await clearConfirmedInvoiceStatusDocuments();
+        onStatusDocumentsChange([]);
+        setStatusUploadStatus("Saldo-Import zurückgesetzt");
+      } catch (error) {
+        setStatusUploadStatus(`Saldo-Import konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+      } finally {
+        setIsStatusConfirming(false);
+      }
     }
-    setSelectedStatusFileCount(0);
   }
 
   return (
@@ -5556,7 +5646,7 @@ function UploadView({
           <p>Diese monatlichen Übersichtslisten ergänzen die Abrechnungsanalyse um Zahlungsstatus, Saldo, Mahnstufe, Ratenplan und Ausfallschutz je BFS-Nr. Saldo 0,00 € gilt als bezahlt.</p>
           <div className={isStatusProcessing ? "upload-status processing" : statusRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
             <RefreshCw size={14} />
-            <span>{isStatusProcessing ? "Wird gelesen" : hasPendingStatusImport ? "Vorschau" : statusRows.length ? "Bestätigt" : "Bereit"}</span>
+            <span>{isStatusProcessing ? "Wird gelesen" : isStatusConfirming ? "Speichert" : hasPendingStatusImport ? "Vorschau" : statusRows.length ? "Bestätigt" : "Bereit"}</span>
             <strong>{statusUploadStatus}</strong>
           </div>
         </div>
@@ -5564,13 +5654,13 @@ function UploadView({
           <label className={isStatusProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
             Saldo-Listen
-            <input disabled={isStatusProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleStatusFiles(event.target.files, "replace")} />
+            <input disabled={isStatusProcessing || isStatusConfirming} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleStatusFiles(event.target.files, "replace")} />
           </label>
           <label className={isStatusProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
             Ordner inkl. Unterordner
             <input
-              disabled={isStatusProcessing}
+              disabled={isStatusProcessing || isStatusConfirming}
               type="file"
               multiple
               accept=".pdf,application/pdf"
@@ -5578,11 +5668,11 @@ function UploadView({
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
-          <button className="primary-button" disabled={isStatusProcessing || !hasPendingStatusImport} onClick={confirmStatusImport}>
+          <button className="primary-button" disabled={isStatusProcessing || isStatusConfirming || !hasPendingStatusImport} onClick={() => void confirmStatusImport()}>
             <CheckCircle2 size={16} />
-            Saldo-Import bestätigen
+            {isStatusConfirming ? "Wird gespeichert" : "Saldo-Import bestätigen"}
           </button>
-          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || (!displayedStatusDocuments.length && !hasPendingStatusImport)} onClick={resetStatusImport}>
+          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || isStatusConfirming || (!displayedStatusDocuments.length && !hasPendingStatusImport)} onClick={() => void resetStatusImport()}>
             <X size={16} />
             {hasPendingStatusImport ? "Saldo-Vorschau verwerfen" : "Saldo-Import zurücksetzen"}
           </button>
@@ -7228,6 +7318,32 @@ async function loadManualCaseResolutions() {
   if (!response.ok) throw new Error("Manuelle Erledigungen konnten nicht geladen werden.");
   const payload = await response.json() as { resolutions?: ManualCaseResolution[] };
   return payload.resolutions ?? [];
+}
+
+async function loadConfirmedInvoiceStatusDocuments() {
+  if (typeof window === "undefined") return [];
+  const response = await fetch("/api/invoice-status/parse", { method: "GET", cache: "no-store" });
+  if (!response.ok) throw new Error("Bestätigter Rechnungsstatus konnte nicht geladen werden.");
+  const payload = await response.json() as { documents?: ParsedInvoiceStatusDocument[] };
+  return payload.documents ?? [];
+}
+
+async function saveConfirmedInvoiceStatusDocuments(documents: ParsedInvoiceStatusDocument[]) {
+  const response = await fetch("/api/invoice-status/parse", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ documents })
+  });
+  const payload = await response.json().catch(() => null) as { documents?: ParsedInvoiceStatusDocument[]; error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error ?? "Bestätigter Rechnungsstatus konnte nicht gespeichert werden.");
+  return payload?.documents ?? documents;
+}
+
+async function clearConfirmedInvoiceStatusDocuments() {
+  const response = await fetch("/api/invoice-status/parse", { method: "DELETE", cache: "no-store" });
+  const payload = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error ?? "Bestätigter Rechnungsstatus konnte nicht zurückgesetzt werden.");
 }
 
 async function saveManualCaseResolution(fall: BfsCase, status: ManualCaseResolution["status"] = "paid_manual") {

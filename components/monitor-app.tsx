@@ -5510,6 +5510,12 @@ function shortDateInPeriod(value: string | undefined, period: PeriodOption, stan
   return true;
 }
 
+function economicCheckRowInPeriod(row: InvoiceStatusReviewRow, period: PeriodOption, standort: Standort) {
+  const month = monthKeyFromShortDate(row.sourceDate);
+  if (!month) return !period.start && !period.end;
+  return shortDateInPeriod(row.sourceDate, period, standort);
+}
+
 function monthKeyFromShortDate(value: string | undefined) {
   const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return match ? `${match[3]}-${match[2]}` : "";
@@ -6309,7 +6315,7 @@ function EconomicCheckView({
     const baseRows = reviewRows.filter((row) => {
       const rowStandort = row.standortId ? standorte.find((entry) => entry.id === row.standortId) : undefined;
       const matchesStandort = effectiveStandortId === "alle" || row.standortId === effectiveStandortId;
-      const matchesPeriod = rowStandort ? shortDateInPeriod(row.sourceDate, period, rowStandort) : true;
+      const matchesPeriod = rowStandort ? economicCheckRowInPeriod(row, period, rowStandort) : false;
       return matchesStandort && matchesPeriod;
     });
     if (!query) return baseRows;
@@ -6390,6 +6396,7 @@ function EconomicCheckView({
             <tr>
               <th>Kategorie</th>
               <th>Standort</th>
+              <th>Datum</th>
               <th>Patient</th>
               <th>Rechnung</th>
               <th>Betrag</th>
@@ -6405,6 +6412,7 @@ function EconomicCheckView({
                 <tr key={row.id}>
                   <td><StatusBadge status={row.categoryLabel} /></td>
                   <td>{row.locationName}</td>
+                  <td>{row.sourceDate ?? "-"}</td>
                   <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
                   <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
                   <td>{exactMoney.format(row.amount)}</td>
@@ -6428,7 +6436,7 @@ function EconomicCheckView({
                   )}
                 </tr>
               );
-            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 8 : 7} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
+            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 9 : 8} label="Keine Fälle für Zahlung/Grund prüfen im aktuellen Filter." />}
           </tbody>
         </table>
       </div>

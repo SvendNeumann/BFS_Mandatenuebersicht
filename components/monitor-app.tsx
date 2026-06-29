@@ -2481,11 +2481,14 @@ function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = f
 function LocationMetricTile({ label, value, current, previous, format, bare = false }: { label: string; value: string; current: number; previous: number; format: (value: number) => string; bare?: boolean }) {
   const delta = previous ? ((current - previous) / previous) * 100 : current ? 100 : 0;
   const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+  const comparisonLabel = previous
+    ? `Vorjahr ${format(previous)} · ${formatDelta(delta)}`
+    : `Vorjahr ${format(previous)} · Vergleich startet`;
   const content = (
     <>
       <b>{value}</b>
       {label}
-      <small className={deltaClass}>Vorjahr {format(previous)} · {formatDelta(delta)}</small>
+      <small className={previous ? deltaClass : "neutral"}>{comparisonLabel}</small>
     </>
   );
   return bare ? content : <span>{content}</span>;
@@ -5698,7 +5701,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Gebührenquote je Standort = Gesamtkosten BFS geteilt durch eingereichten Umsatz. Angezeigt wird der Standort mit der höchsten Quote. ${base}`;
   }
   if (normalized.includes("auffälligster standort")) {
-    return `Herleitung: Der Standort wird nach Brutto-Storno/Rückgabe, Ohne-Ausfallschutz-Risiko, offener Prüfliste und Volumen priorisiert. Die Kennzahl ist ein Steuerungshinweis, keine zusätzliche Buchung. ${base}`;
+    return `Herleitung: Der Standort wird nach Brutto-Storno/Rückgabe, offener Prüfsumme, Ohne-Ausfallschutz-Risiko, Prüflistenalter und Volumen priorisiert. Die Kennzahl ist ein Steuerungshinweis, keine zusätzliche Buchung. ${base}`;
   }
   if (normalized.includes("standorte ohne werte")) {
     return `Herleitung: Gezählt werden Standorte, die im gewählten Zeitraum aktiv oder geplant sind, für die aber keine Importzeilen im Datenstand liegen. ${base}`;

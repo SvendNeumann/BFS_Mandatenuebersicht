@@ -949,3 +949,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Innerhalb des Panels stehen Text/Einordnung links und die sechs Kennzahlen rechts in einem gleichmaessigen Dreierschema.
 - KPI-Werte im Panel skalieren defensiver und brechen sauber um, damit grosse Eurobetraege nicht aus der Karte laufen.
 - Auf Tablet/Mobile faellt das Panel wieder auf eine einspaltige Darstellung zurueck.
+
+## Update 2026-06-29: Standortkarten-Vorjahrsvergleich korrigiert
+
+- Die Standort-Benchmark-Karten waren fachlich bereits auf die neue Logik umgestellt: `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`, `Pruefliste`.
+- Korrigiert wurde die Vorjahrszeile: Wenn der Vorjahreswert 0 ist, wird nicht mehr irrefuehrend `+100,0 %` angezeigt, sondern `Vergleich startet`.
+- Der Infotext fuer `Auffaelligster Standort` nennt jetzt ausdruecklich offene Pruefsumme, Ohne-Ausfallschutz-Risiko, Prueflistenalter und Volumen statt alter offener-Prueflisten-Sprache.

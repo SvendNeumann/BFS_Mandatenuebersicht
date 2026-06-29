@@ -808,3 +808,17 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Erledigt braucht keinen eigenen Haupttab. Erledigungen bleiben Status/Filter/Historie.
 - Navigation wurde entsprechend angepasst; die alte interne `cases`-Route bleibt nur als Rueckwaertskompatibilitaet und zeigt fachlich `Praxis nachfassen`.
 - `Zahlung / Grund pruefen` wird aus dem Saldo-Pruefkorb gespeist und hat eigene Standort-/Zeitraumfilter sowie Summen, damit wirtschaftlich offene Belegfaelle sichtbar bleiben.
+
+## Update 2026-06-29: Logik durch BFS-Abrechnungen gezogen
+
+- Der Hauptbereich `BFS-Abrechnungen` wurde auf die neue Logikstrecke umgestellt. `BFS-Rechnungsanalyse` bleibt fachlich getrennt und wurde nicht in die Storno-/Saldo-Logik hineingezogen.
+- Sichtbare Kacheln und Fallback-Infotexte nutzen jetzt die neue Sprache:
+  - `Brutto Storno/Rueckgabe` = Ausgangsmenge aus Rueckgaben, Ruecklaeufern und Stornos.
+  - `Davon zurueckgeholt` = echte Neueinreichung/Ersatzrechnung oder wirtschaftlich belegte Zahlung.
+  - `Bezahlt` = belegte Zahlung/manuelle Zahlungsklaerung, nicht automatisch Saldo 0.
+  - `Zahlung / Grund pruefen` = BFS geschlossen, wirtschaftlicher Beleg fehlt.
+  - `Praxis nachfassen` = echte Praxis-Aufgabe, vor allem Rueckgabe ohne Ausfallschutz.
+- Management Cockpit, Standort-Dashboard, Zusammenfassung, Standort-Benchmark, Forderungen/Geldfluss, Forderungsqualitaet, Massnahmenkontrolle, Report-Center, Standort-Navigation und Startseite wurden sprachlich/logisch angepasst.
+- Standort- und Report-Zaehler fuer offene operative Arbeit zaehlen jetzt nur noch Praxis-Nachfassfaelle. Saldogeschlossene Belegfaelle laufen separat in `Zahlung / Grund pruefen`.
+- Saldo-Import-Kacheln wurden umbenannt: `BFS geschlossen` und `Status BFS geschlossen` zeigen nur BFS-Status, nicht automatisch wirtschaftliche Zahlung. `Zahlung/Grund pruefen` weist saldobereinigte Storno-/Rueckgabefaelle separat aus.
+- Generische `i`-Infotexte erklaeren jetzt die Unterscheidung zwischen Brutto-Abzug, zurueckgeholt/bezahlt, wirtschaftlich pruefen und Praxis-Nachfassen.

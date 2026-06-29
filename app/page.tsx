@@ -21,12 +21,12 @@ const featureCards = [
   },
   {
     title: "Rückbelastungen",
-    text: "Rückgaben, Stornos und offene Klärfälle werden getrennt von normalen Kosten ausgewertet.",
+    text: "Rückgaben und Stornos werden als Brutto-Abzug erkannt und danach fachlich eingeordnet.",
     icon: AlertTriangle
   },
   {
     title: "Ausfallschutz",
-    text: "Forderungen ohne Ausfallschutz bleiben sichtbar, ohne echte Klärfälle zu vermischen.",
+    text: "Forderungen ohne Ausfallschutz bleiben als Praxis-Nachfassfälle sichtbar, wenn die Praxis handeln muss.",
     icon: ShieldCheck
   },
   {
@@ -41,7 +41,7 @@ const previewMetrics = [
   { label: "Auszahlung BFS", value: "498 Tsd. EUR", trend: "nach Gebühren & Steuer" },
   { label: "BFS-Gebühr netto", value: "12,4 Tsd. EUR", trend: "inkl. Importkontrolle" },
   { label: "MwSt auf Gebühr", value: "2,36 Tsd. EUR", trend: "separat ausgewiesen" },
-  { label: "Offene Klärfälle", value: "5", trend: "Rückgaben & Stornos" },
+  { label: "Praxis nachfassen", value: "5", trend: "ohne Ausfallschutz" },
   { label: "Ohne Ausfallschutz", value: "315,90 EUR", trend: "Risikohinweis" },
   { label: "Neueinreichungen", value: "2", trend: "Matching-Vorschläge" },
   { label: "Aktive Standorte", value: "6", trend: "inkl. Kassel vorbereitet" }
@@ -62,7 +62,7 @@ export default function LandingPage() {
 
           <div className="landing-headline">
             <span className="eyebrow">BFS-Abrechnungen fuer Orisus</span>
-            <h1>Die zentrale Plattform fuer BFS-Importe, Standortanalyse und offene Klaerfaelle.</h1>
+            <h1>Die zentrale Plattform fuer BFS-Importe, Standortanalyse und operative Fallarbeit.</h1>
             <p>
               Abrechnungsnachweise werden importiert, eindeutig zugeordnet und in Kennzahlen, Risiken,
               Rueckbelastungen, Neueinreichungen und Reports uebersetzt.

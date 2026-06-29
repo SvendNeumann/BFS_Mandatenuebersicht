@@ -93,7 +93,8 @@ const superAdminNav: NavSection[] = [
       ["benchmark", "Standorte", Building2],
       ["claims", "Standortdetails", ReceiptText],
       ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
-      ["quality", "Forderungsqualität", ShieldCheck]
+      ["quality", "Forderungsqualität", ShieldCheck],
+      ["patientClasses", "Patientenklassifizierung", Users]
     ]
   },
   {
@@ -141,7 +142,8 @@ const leadNav: NavSection[] = [
     items: [
       ["claims", "Standortdetails", ReceiptText],
       ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
-      ["quality", "Forderungsqualität", ShieldCheck]
+      ["quality", "Forderungsqualität", ShieldCheck],
+      ["patientClasses", "Patientenklassifizierung", Users]
     ]
   },
   {
@@ -4545,6 +4547,62 @@ function patientClassInfo(grade: string, count: number, total: number) {
   return `${rules[grade] ?? "Patientenklasse aus der bestehenden Klassifizierungslogik."} ${base}`;
 }
 
+function patientQualityByLocation(rows: ImportPreviewRow[], standortId?: string) {
+  const scopedStandorte = standortId ? standorte.filter((standort) => standort.id === standortId) : orderedStandorte();
+  return scopedStandorte.map((standort) => {
+    const profiles = patientProfilesFromImportRows(rows, standort.id);
+    const criticalCount = profiles.filter((profile) => ["C", "D"].includes(profile.grade)).length;
+    return {
+      locationName: standort.name,
+      totalPatients: profiles.length,
+      criticalCount,
+      riskAmount: profiles.reduce((sum, profile) => sum + profile.riskAmount, 0)
+    };
+  }).filter((entry) => entry.totalPatients > 0 || !standortId);
+}
+
+function patientHistoryFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
+  const entries = rows.flatMap((row) => {
+    const standort = standorte.find((entry) => entry.name === row.location);
+    if (!standort || (standortId && standort.id !== standortId)) return [];
+
+    const claims = (row.parsedClaims ?? []).map((claim) => ({
+      date: row.date,
+      dateKey: importDateKey(row.date),
+      patientName: claim.patientName,
+      locationName: row.location,
+      type: claim.protectionStatus === "ohne_ausfallschutz" ? "Einreichung ohne Schutz" : "Einreichung",
+      invoiceNo: claim.invoiceNo,
+      bfsNo: claim.bfsNo,
+      amount: claim.amount,
+      note: compactPatientHistoryNote(claim.markerReason || claim.markerCategory || claim.protectionStatus.replaceAll("_", " "))
+    }));
+
+    const movements = (row.parsedMovements ?? [])
+      .filter((movement) => movement.reasonCategory && !["regulierung", "abrechnungsumsatz"].includes(movement.reasonCategory))
+      .map((movement) => ({
+        date: movement.date || row.date,
+        dateKey: importDateKey(row.date),
+        patientName: movement.patientName ?? "Patient noch nicht gematcht",
+        locationName: row.location,
+        type: movement.reason || movement.reasonCategory || movement.type,
+        invoiceNo: movement.invoiceNo ?? "-",
+        bfsNo: movement.bfsNo ?? "-",
+        amount: Math.abs(movement.amount ?? 0),
+        note: compactPatientHistoryNote(movement.matchStatus === "matched_claim" ? "mit Forderung gematcht" : movement.rawText)
+      }));
+
+    return [...claims, ...movements];
+  });
+
+  return entries.sort((a, b) => b.dateKey.localeCompare(a.dateKey) || b.amount - a.amount);
+}
+
+function compactPatientHistoryNote(value: string) {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  return cleaned.length > 90 ? `${cleaned.slice(0, 87)}...` : cleaned;
+}
+
 function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
@@ -6907,6 +6965,8 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
   const profiles = useMemo(() => patientProfilesFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
   const riskClaims = useMemo(() => riskClaimsFromImportRows(standort ? importRows.filter((row) => row.location === standort.name) : importRows), [importRows, standort]);
   const recurring = useMemo(() => getRecurringRiskProfiles(standort?.id, importRows), [importRows, standort?.id]);
+  const patientHistory = useMemo(() => patientHistoryFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
+  const locationQuality = useMemo(() => patientQualityByLocation(importRows, standort?.id), [importRows, standort?.id]);
   const counts = useMemo(() => ["A", "B", "C", "D"].map((grade) => ({
     grade,
     count: profiles.filter((profile) => profile.grade === grade).length
@@ -6918,6 +6978,7 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
   const highRiskHighVolume = profiles.filter((profile) => ["C", "D"].includes(profile.grade) && profile.riskAmount >= 1000);
   const resolvedNoProtection = riskClaims.filter((claim) => claim.assessment === "erledigt").length;
   const suspiciousNoProtection = riskClaims.filter((claim) => claim.assessment === "auffaellig").length;
+  const criticalPatients = profiles.filter((profile) => ["C", "D"].includes(profile.grade));
 
   return (
     <div className="content-stack">
@@ -6972,14 +7033,60 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
           </div>
         </article>
       </section>
+      <section className="chart-grid">
+        <div className="panel mini-chart">
+          <h2>Patientenqualität je Standort</h2>
+          <InteractiveBars
+            title="Auffällige Patienten je Standort"
+            values={locationQuality.map((entry) => ({
+              label: entry.locationName,
+              value: entry.criticalCount,
+              detail: `${entry.totalPatients} Patienten · ${money.format(entry.riskAmount)} Risiko`
+            }))}
+          />
+        </div>
+        <div className="panel mini-chart">
+          <h2>Risikoentwicklung je Patient</h2>
+          <InteractiveBars
+            title="Risikosumme je Patient"
+            values={profiles.slice(0, 8).map((profile) => ({
+              label: profile.patientName,
+              value: Math.round(profile.riskAmount),
+              detail: `${profile.locationName} · Klasse ${profile.grade}`
+            }))}
+          />
+        </div>
+      </section>
+      <section className="risk-profile-grid">
+        {recurring.slice(0, 6).map((profile) => (
+          <article className={`risk-profile-card ${profile.tone}`} key={`classification-${profile.id}`}>
+            <div>
+              <span>{profile.standortName}</span>
+              <strong>{profile.patientName}</strong>
+            </div>
+            <dl>
+              <div><dt>Einreichungen</dt><dd>{profile.count}</dd></div>
+              <div><dt>Risikosumme</dt><dd>{money.format(profile.total)}</dd></div>
+              <div><dt>Auffälligkeiten</dt><dd>{profile.eventCount}</dd></div>
+              <div><dt>zuletzt</dt><dd>{profile.lastDate}</dd></div>
+            </dl>
+            <StatusBadge status={profile.recommendation} />
+          </article>
+        ))}
+        {!recurring.length && (
+          <section className="panel">
+            <p className="empty-state">Keine Wiederholer ohne Ausfallschutz im aktuellen Datenstand.</p>
+          </section>
+        )}
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
             <h2>{standort ? `Patientenklassifizierung ${standort.name}` : "Patientenklassifizierung Gruppe"}</h2>
-            <p>Patienten werden je Standort anhand von Zahlungsverhalten, Stornos/Rückgaben, Ausfallschutz und Wiederholungen klassifiziert.</p>
+            <p>Patienten werden je Standort anhand von Zahlungsverhalten, Stornos/Rückgaben, Ausfallschutz und Wiederholungen klassifiziert. Kritisch aktuell: {criticalPatients.length} Patient(en).</p>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap case-table-scroll">
           <table>
             <thead>
               <tr>
@@ -7010,6 +7117,47 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
               ))}
               {!profiles.length && (
                 <tr><td colSpan={9}>Keine Patientenklassifizierung im aktuellen Datenstand.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Historie pro Patient</h2>
+            <p>Chronologische Sicht auf erkannte Einreichungen, Stornos, Rückgaben, Rückbelastungen und Ohne-Ausfallschutz-Marker.</p>
+          </div>
+        </div>
+        <div className="table-wrap case-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Patient</th>
+                <th>Standort</th>
+                <th>Ereignis</th>
+                <th>Re.-Nr.</th>
+                <th>BFS-Nr.</th>
+                <th>Betrag</th>
+                <th>Hinweis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {patientHistory.slice(0, 200).map((entry) => (
+                <tr key={`${entry.date}-${entry.locationName}-${entry.patientName}-${entry.invoiceNo}-${entry.type}-${entry.amount}`}>
+                  <td>{entry.date}</td>
+                  <td><strong>{entry.patientName}</strong></td>
+                  <td>{entry.locationName}</td>
+                  <td><StatusBadge status={entry.type} /></td>
+                  <td>{entry.invoiceNo}</td>
+                  <td>{entry.bfsNo}</td>
+                  <td>{money.format(entry.amount)}</td>
+                  <td>{entry.note}</td>
+                </tr>
+              ))}
+              {!patientHistory.length && (
+                <tr><td colSpan={8}>Keine Patientenhistorie im aktuellen Datenstand.</td></tr>
               )}
             </tbody>
           </table>

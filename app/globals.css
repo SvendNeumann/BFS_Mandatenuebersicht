@@ -487,6 +487,12 @@ nav {
   justify-content: flex-end;
 }
 
+.desktop-back-button {
+  min-height: 40px;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
 .standort-tabs {
   display: flex;
   gap: 8px;

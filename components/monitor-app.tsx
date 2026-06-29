@@ -616,6 +616,14 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             <span className="eyebrow">{pageScopeLabel}</span>
             <h1>{titleFor(activeView)}</h1>
           </div>
+          <div className="topbar-actions desktop-page-actions">
+            {viewHistory.length > 0 && (
+              <button type="button" className="secondary-button desktop-back-button" onClick={goBackInApp}>
+                <ArrowLeft size={16} />
+                Zurück
+              </button>
+            )}
+          </div>
         </header>
         <div className="mobile-page-heading">
           <div>

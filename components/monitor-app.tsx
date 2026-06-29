@@ -42,7 +42,7 @@ import {
   liveStatusLabel,
   orderedStandorte
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, ParsedInvoiceDocument, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
@@ -4482,7 +4482,7 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
     const patientKey = normalizePatientName(movement.patientName ?? "");
     if (!patientKey) return [];
     return claims
-      .filter((claim) => normalizePatientName(claim.patientName) === patientKey && importDateKey(claim.statementDate) > importDateKey(movement.statementDate))
+      .filter((claim) => isResubmissionClaimForMovement(claim, movement, patientKey))
       .slice(0, 3)
       .map((claim) => ({
         patientName: claim.patientName,
@@ -4504,6 +4504,23 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
 }
 
 type ResubmissionCandidate = ReturnType<typeof resubmissionCandidatesFromImportRows>[number];
+
+function isResubmissionClaimForMovement(
+  claim: ParsedImportClaim & { statementDate: string; statementNo: string },
+  movement: ParsedImportMovement & { statementDate: string; statementNo: string },
+  patientKey: string
+) {
+  if (normalizePatientName(claim.patientName) !== patientKey) return false;
+  const claimDate = importDateKey(claim.statementDate);
+  const movementDate = importDateKey(movement.statementDate);
+  if (claimDate > movementDate) return true;
+  if (claimDate !== movementDate || movement.reasonCategory !== "neue_rechnung") return false;
+
+  const sameInvoice = Boolean(movement.invoiceNo && claim.invoiceNo === movement.invoiceNo);
+  const sameAmount = Math.abs(claim.amount - Math.abs(movement.amount ?? 0)) < 0.01;
+  const differentBfsNo = Boolean(claim.bfsNo && movement.bfsNo && claim.bfsNo !== movement.bfsNo);
+  return differentBfsNo && (sameInvoice || sameAmount);
+}
 
 function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {
   const byKey = new Map<string, ResubmissionCandidate>();

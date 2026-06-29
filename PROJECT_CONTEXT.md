@@ -598,6 +598,7 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- Offene Korrektur aus aktuellem Ulmet-Gegencheck: Matching/Neueinreichungen erkennt jetzt auch `neue Rechnung` innerhalb derselben Abrechnung, wenn Patient passt, die BFS-Nr. neu ist und Rechnungsnummer oder Betrag zum Storno passen. Beispiel Ulmet Abrechnung 76: alte BFS-Nrn. `5-19260-69083361/62` wurden als fehlerhafte Rechnung storniert; neue BFS-Nrn. `5-19260-71405495/71405530` stehen in derselben Abrechnung auf der Forderungsseite.
 - Offene Korrektur aus aktuellem Filter-Bug: Der Tab `Klaerfaelle` bekommt fuer Super-Admins jetzt die komplette `appCases`-Fallmenge statt der bereits auf den aktuell selektierten Standort eingeschraenkten `visibleCases`. Dadurch kann der lokale Standortfilter wieder alle Standorte auswerten; die Seite wird im Header als `Alle Standorte` gefuehrt.
 - Offene Aenderung aus aktueller Klarstellung: Die Standort-/Zeitraumfilter im Tab `Klaerfaelle` stehen oben im Panel als Tab-Auswertung und steuern den gesamten Tab-Inhalt darunter: KPI-Zeile, beide Charts und Tabelle. `Alle Standorte` bleibt als echte Auswertungsoption erhalten.
 - Offene Aenderung aus aktuellem UI-Wunsch: Die obere Standort-Taskleiste wurde im Tab `Klaerfaelle` wieder entfernt. Die direkt an die Klaerfallansicht gekoppelten Standort-/Zeitraumfilter bleiben erhalten und steuern KPI-Zeile, Charts und Tabelle.

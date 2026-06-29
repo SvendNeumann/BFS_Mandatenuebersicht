@@ -645,8 +645,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "quality" && <QualityView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} cases={operativeCases} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} onResolvePaid={resolveCaseAsPaid} onCancelFinal={cancelCaseFinally} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
             {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} />}
@@ -3721,7 +3721,9 @@ function ClaimsFlowView({
   cases: rows,
   importRows = [],
   manualCaseResolutions = [],
-  invoiceStatusRows = []
+  invoiceStatusRows = [],
+  onResolvePaid,
+  onCancelFinal
 }: {
   mode?: "details" | "cashflow";
   standort?: Standort;
@@ -3729,6 +3731,8 @@ function ClaimsFlowView({
   importRows?: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
   invoiceStatusRows?: ParsedInvoiceStatusRow[];
+  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
+  onCancelFinal?: (fall: BfsCase) => void | Promise<void>;
 }) {
   const rowsStandorte = useMemo(() => standort ? [standort] : standorte, [standort]);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
@@ -3814,6 +3818,59 @@ function ClaimsFlowView({
     manualCaseResolutions
   ), [manualCaseResolutions, recoveryScopedImportRows, recoveryStandorte]);
   const recoveryFinalCancelledAmount = useMemo(() => recoveryStornoReview.rows.filter((row) => row.finalCancelled).reduce((sum, row) => sum + row.amount, 0), [recoveryStornoReview.rows]);
+  const recoveryOpenEconomicCheckKeys = useMemo(() => new Set(recoveryOpenEconomicCheckRows.flatMap((row) => caseResolutionKeys(invoiceStatusReviewRowToCase(row)))), [recoveryOpenEconomicCheckRows]);
+  const recoveryPracticeFollowupKeys = useMemo(() => new Set(recoveryPracticeFollowupCases.flatMap((fall) => caseResolutionKeys(fall))), [recoveryPracticeFollowupCases]);
+  const recoveryFinalCancelledKeys = useMemo(() => new Set(recoveryStornoReview.rows
+    .filter((row) => row.finalCancelled)
+    .flatMap((row) => caseResolutionKeys({
+      standortId: row.standortId,
+      patientName: row.patientName,
+      invoiceNo: row.invoiceNo,
+      bfsNo: row.bfsNo,
+      amount: row.amount,
+      reason: row.reason
+    }))), [recoveryStornoReview.rows]);
+  const recoveryUnassignedCases = useMemo(() => openUnresolvedMovementsFromImportRows(
+    recoveryScopedImportRows,
+    recoveryStandorte.length === 1 ? recoveryStandorte[0].id : undefined
+  )
+    .map((row, index) => {
+      const rowStandort = standorte.find((entry) => entry.name === row.locationName);
+      const reason = row.reason || "Noch nicht zugeordnet";
+      return {
+        id: `unassigned-${row.statementNo}-${row.bfsNo}-${row.invoiceNo}-${index}`,
+        resolutionKey: caseResolutionKeyFromParts({
+          standortId: rowStandort?.id ?? row.locationName,
+          patientName: row.patientName,
+          invoiceNo: row.invoiceNo,
+          bfsNo: row.bfsNo,
+          amount: row.amount,
+          reason
+        }),
+        standortId: rowStandort?.id ?? row.locationName,
+        locationName: row.locationName,
+        patientName: row.patientName,
+        invoiceNo: row.invoiceNo,
+        bfsNo: row.bfsNo,
+        amount: row.amount,
+        reason,
+        sourceDate: row.date,
+        ageDays: row.date ? ageFromShortDate(row.date) : 0,
+        traffic: "orange",
+        status: "noch_nicht_zugeordnet",
+        dueDate: "-",
+        lastComment: `Abrechnung ${row.statementNo}`
+      } satisfies BfsCase;
+    })
+    .filter((fall) => {
+      const keys = caseResolutionKeys(fall);
+      return !keys.some((key) => recoveryClosedKeys.has(key))
+        && !keys.some((key) => recoveryOpenEconomicCheckKeys.has(key))
+        && !keys.some((key) => recoveryPracticeFollowupKeys.has(key))
+        && !keys.some((key) => recoveryFinalCancelledKeys.has(key));
+    })
+    .sort(compareOperationalCases), [recoveryClosedKeys, recoveryFinalCancelledKeys, recoveryOpenEconomicCheckKeys, recoveryPracticeFollowupKeys, recoveryScopedImportRows, recoveryStandorte]);
+  const recoveryUnassignedCaseAmount = useMemo(() => recoveryUnassignedCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryUnassignedCases]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
   const analysisRecoveredAmount = deductionRecoverySummary.recoveredAmount;
@@ -3822,7 +3879,7 @@ function ClaimsFlowView({
   const recoveredAmount = recoveryDeductionSummary.recoveredAmount;
   const stillOpenAmount = recoveryDeductionSummary.openAmount;
   const recoveryOperationalExplainedAmount = recoveryOpenEconomicCheckAmount + recoveryPracticeFollowupAmount + recoveryFinalCancelledAmount;
-  const recoveryUnassignedOpenAmount = Math.max(stillOpenAmount - recoveryOperationalExplainedAmount, 0);
+  const recoveryUnassignedOpenAmount = Math.max(stillOpenAmount - recoveryOperationalExplainedAmount, recoveryUnassignedCaseAmount, 0);
   const recoveryOperationalControlAmount = recoveryOperationalExplainedAmount + recoveryUnassignedOpenAmount;
   const recoveryOperationalDifference = stillOpenAmount - recoveryOperationalControlAmount;
   const waterfallDeductionAmount = waterfallDeductionSummary.grossDeductionAmount;
@@ -4092,6 +4149,63 @@ function ClaimsFlowView({
           <PriorityCard label="Endgültig storniert" value={integerNumber.format(recoveryStornoReview.finalCancelled)} hint={money.format(recoveryFinalCancelledAmount)} period={recoveryPeriod.label} tone={recoveryStornoReview.finalCancelled ? "red" : "green"} info="Manuell als endgültig storniert markierte Fälle. Sie bleiben in der Brutto-Storno-Grundmenge enthalten, sind aber nicht mehr offene Fallarbeit." />
           <PriorityCard label="Noch nicht zugeordnet" value={money.format(recoveryUnassignedOpenAmount)} hint="Rest bis zur Kontrollsumme" period={recoveryPeriod.label} tone={recoveryUnassignedOpenAmount ? "red" : "green"} info="Offener Abzug, der noch in keinem operativen Arbeitskorb steckt. Diese Restkategorie zeigt, ob die Fallarbeit den offenen Abzug vollständig erklärt." />
           <PriorityCard label="Kontrollsumme Operativ" value={money.format(recoveryOperationalControlAmount)} hint={`Differenz ${money.format(recoveryOperationalDifference)}`} period={recoveryPeriod.label} tone={Math.abs(recoveryOperationalDifference) < 0.01 ? "green" : "red"} info="Zahlung/Grund prüfen plus Praxis nachfassen plus endgültig storniert plus noch nicht zugeordnet. Diese Summe muss dem offenen Abzug entsprechen." />
+        </div>
+        <div className="panel-subsection">
+          <div className="panel-heading compact-heading">
+            <div>
+              <h3>Noch nicht zugeordnete offene Abzüge</h3>
+              <p>Diese Liste ist der Restkorb der Kontrollsumme. Hier sortierst du Fälle in bezahlt/geflossen oder endgültig storniert; echte Praxisfälle und saldogeschlossene Belegprüfungen liegen bereits in ihren eigenen Tabs.</p>
+            </div>
+            <div className="tab-evaluation">
+              <span>Restkorb</span>
+              <strong>{integerNumber.format(recoveryUnassignedCases.length)} Fälle / {exactMoney.format(recoveryUnassignedCaseAmount)}</strong>
+            </div>
+          </div>
+          <div className="table-wrap case-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Standort</th>
+                  <th>Datum</th>
+                  <th>Patient</th>
+                  <th>Rechnung</th>
+                  <th>Betrag</th>
+                  <th>Grund</th>
+                  <th>Abrechnung</th>
+                  {(onResolvePaid || onCancelFinal) && <th>Aktion</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {recoveryUnassignedCases.length ? recoveryUnassignedCases.map((fall) => (
+                  <tr key={caseResolutionKey(fall)}>
+                    <td>{fall.locationName}</td>
+                    <td>{fall.sourceDate ?? "-"}</td>
+                    <td><strong>{fall.patientName}</strong></td>
+                    <td><strong>{fall.invoiceNo}</strong><span>{fall.bfsNo}</span></td>
+                    <td>{exactMoney.format(fall.amount)}</td>
+                    <td>{fall.reason}</td>
+                    <td>{fall.lastComment}</td>
+                    {(onResolvePaid || onCancelFinal) && (
+                      <td>
+                        <div className="case-action-stack">
+                          {onResolvePaid && (
+                            <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
+                              <CheckCircle2 size={15} /> Erledigt / bezahlt
+                            </button>
+                          )}
+                          {onCancelFinal && (
+                            <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
+                              <X size={15} /> Endgültig storniert
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                )) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 8 : 7} label="Kein Rest im offenen Abzug. Die operative Fallarbeit erklärt den offenen Abzug vollständig." />}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
       <section className="dashboard-grid">

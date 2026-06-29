@@ -911,3 +911,12 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Bei kleineren Desktop-/Tablet-Breiten fallen die Zusammenfassung-Kacheln kontrolliert auf 3 Spalten zurueck; mobil bleibt die einspaltige Darstellung.
 - Der globale Zurueckbutton oben rechts im App-Header wurde entfernt. Die vorhandene schwebende Zurueck-Navigation unten links bleibt appweit erhalten.
 - Geprueft: `pnpm run typecheck`, `pnpm run build`, `git diff --check`.
+
+## Update 2026-06-29: Zusammenfassung-Diagramme auf neue KPI-Logik umgestellt
+
+- Die alten Diagramme `Forderungen vs. Stornierungen` und `Stornierungen vs. zurueckgeholt` waren fachlich nicht mehr fuehrend, weil sie noch stark mit Fallanzahlen/Storno-Zaehlern arbeiteten.
+- Sie wurden im Tab `Zusammenfassung` durch Diagramme nach neuer KPI-Logik ersetzt:
+  - `Eingereicht vs. Brutto Storno/Rueckgabe`
+  - `Brutto-Abzug vs. bereits geklaert`
+- Die Monatsdaten fuehren jetzt zusaetzlich `grossDeductionAmount`, `recoveredAmount` und `finalLostAmount`, damit Diagramme und Sparklines mit Betragslogik statt alter Stueckzahl-Logik arbeiten.
+- Die Kachel-Sparklines fuer `Brutto Storno/Rueckgabe` und `Bereits geklaert` nutzen jetzt die passenden Betragsfelder.

@@ -1021,8 +1021,8 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
       </section>
 
       <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung offene Prüfsumme">
-        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info={`Grundmenge: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}.`} />
-        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredStornos", kpiTrendPoints)} info={`Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. ${recoveryBreakdownText(deductionRecovery)}`} />
+        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} trend={customKpiTrend("grossDeductionAmount", kpiTrendPoints, true)} info={`Grundmenge: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}.`} />
+        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredAmount", kpiTrendPoints)} info={`Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. ${recoveryBreakdownText(deductionRecovery)}`} />
         <PriorityCard label="Offene Prüfsumme" value={money.format(openStornoAmount)} hint="Brutto-Abzug minus bereits geklärt" period={selectedPeriod.label} tone={openStornoAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info="Das ist die Summe, die in der operativen Prüfliste abgearbeitet wird." />
         <PriorityCard label="Endgültig verloren" value={money.format(finalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={finalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
       </section>
@@ -1062,14 +1062,14 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           format={money.format}
         />
         <CustomDualAxisChart
-          title="Forderungen vs. Stornierungen"
+          title="Eingereicht vs. Brutto Storno/Rückgabe"
           values={chartPoints}
-          barKey="claims"
-          lineKey="cancellations"
-          barLabel="Forderungen"
-          lineLabel="Stornierungen"
-          formatBar={integerNumber.format}
-          formatLine={integerNumber.format}
+          barKey="submitted"
+          lineKey="grossDeductionAmount"
+          barLabel="eingereicht"
+          lineLabel="Brutto-Abzug"
+          formatBar={money.format}
+          formatLine={money.format}
         />
         <CustomDonutChart
           title="Patienten mit Ausfallschutz"
@@ -1077,14 +1077,14 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           unprotectedCount={chartPoints.reduce((sum, point) => sum + point.noProtectionClaims, 0)}
         />
         <CustomDualAxisChart
-          title="Stornierungen vs. zurückgeholt"
+          title="Brutto-Abzug vs. bereits geklärt"
           values={chartPoints}
-          barKey="cancellations"
-          lineKey="recoveredStornos"
-          barLabel="Stornierungen"
-          lineLabel="zurückgeholt"
-          formatBar={integerNumber.format}
-          formatLine={integerNumber.format}
+          barKey="grossDeductionAmount"
+          lineKey="recoveredAmount"
+          barLabel="Brutto-Abzug"
+          lineLabel="bereits geklärt"
+          formatBar={money.format}
+          formatLine={money.format}
         />
       </section>
 
@@ -1259,8 +1259,11 @@ type CustomChartPoint = {
   ewma: number;
   claims: number;
   cancellations: number;
+  grossDeductionAmount: number;
+  recoveredAmount: number;
   recoveredStornos: number;
   openStornoAmount: number;
+  finalLostAmount: number;
   practiceFollowupAmount: number;
   finalCashflow: number;
   protectedClaims: number;
@@ -1358,8 +1361,8 @@ function CustomDualAxisChart({
 }: {
   title: string;
   values: CustomChartPoint[];
-  barKey: keyof Pick<CustomChartPoint, "claims" | "cancellations" | "recoveredStornos">;
-  lineKey: keyof Pick<CustomChartPoint, "claims" | "cancellations" | "recoveredStornos">;
+  barKey: keyof Pick<CustomChartPoint, "submitted" | "claims" | "cancellations" | "grossDeductionAmount" | "recoveredAmount" | "recoveredStornos" | "openStornoAmount">;
+  lineKey: keyof Pick<CustomChartPoint, "submitted" | "claims" | "cancellations" | "grossDeductionAmount" | "recoveredAmount" | "recoveredStornos" | "openStornoAmount">;
   barLabel: string;
   lineLabel: string;
   formatBar: (value: number) => string;
@@ -1475,8 +1478,11 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
     ewma: 0,
     claims: 0,
     cancellations: 0,
+    grossDeductionAmount: 0,
+    recoveredAmount: 0,
     recoveredStornos: 0,
     openStornoAmount: 0,
+    finalLostAmount: 0,
     practiceFollowupAmount: 0,
     finalCashflow: 0,
     protectedClaims: 0,
@@ -1484,7 +1490,7 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
   };
 }
 
-type CustomKpiTrendMetric = "submitted" | "fees" | "feeNet" | "tax" | "ewma" | "payout" | "cancellations" | "recoveredStornos" | "openStornoAmount" | "practiceFollowupAmount" | "finalCashflow" | "claims" | "averageClaim";
+type CustomKpiTrendMetric = "submitted" | "fees" | "feeNet" | "tax" | "ewma" | "payout" | "cancellations" | "grossDeductionAmount" | "recoveredAmount" | "recoveredStornos" | "openStornoAmount" | "practiceFollowupAmount" | "finalCashflow" | "claims" | "averageClaim";
 
 function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[], lowerIsBetter = false): AnswerSparklineTrend {
   const values = points.map((point) => customKpiTrendValue(metric, point)).slice(-12);
@@ -4165,6 +4171,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
       if (isStornoMovement(movement)) cancellationPoint.cancellations += 1;
       const amount = Math.abs(movement.amount ?? 0);
       cancellationPoint.practiceFollowupAmount += movement.reasonCategory === "rueckgabe_ohne_ausfallschutz" ? amount : 0;
+      cancellationPoint.grossDeductionAmount += amount;
       cancellationPoint.openStornoAmount += amount;
       monthDeductionAmount += movementMonth === month || !movementMonth ? amount : 0;
     });
@@ -4179,6 +4186,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
     const point = ensurePoint(month);
     const recoveredAmount = Math.min(candidate.originalAmount, candidate.newAmount);
     point.openStornoAmount = Math.max(point.openStornoAmount - recoveredAmount, 0);
+    point.recoveredAmount += recoveredAmount;
     point.recoveredStornos += 1;
     point.finalCashflow += recoveredAmount;
   });
@@ -4191,6 +4199,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
       if (!month) return;
       const point = ensurePoint(month);
       point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+      point.recoveredAmount += fall.amount;
       point.recoveredStornos += 1;
       point.finalCashflow += fall.amount;
   });
@@ -4202,6 +4211,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
     if (!month) return;
     const point = ensurePoint(month);
     point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+    point.recoveredAmount += fall.amount;
     point.recoveredStornos += 1;
     point.finalCashflow += fall.amount;
   });
@@ -4214,6 +4224,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
       if (!month) return;
       const point = ensurePoint(month);
       point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+      point.finalLostAmount += fall.amount;
     });
 
   return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));

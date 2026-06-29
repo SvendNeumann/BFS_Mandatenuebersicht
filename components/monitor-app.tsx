@@ -859,12 +859,12 @@ function caseResolutionDialogTitle(status: ManualCaseResolution["status"]) {
 
 function caseResolutionDialogText(status: ManualCaseResolution["status"], patientName: string) {
   if (status === "cancelled_manual") {
-    return `${patientName} wird als endgültig storniert gespeichert. Der Vorgang wird danach aus Praxis-Nachfassen und Neueinreichungsprüfung ausgeblendet, bleibt aber als Brutto-Storno in den Storno-Auswertungen enthalten.`;
+    return `${patientName} wird als endgültig storniert gespeichert. Der Vorgang verschwindet aus der Prüfliste, bleibt in der Brutto-Storno-/Rückgabe-Grundmenge enthalten und erhöht endgültig verlorenen Umsatz.`;
   }
   if (status === "open_manual") {
-    return `${patientName} wird als geprüft, aber weiterhin offen gespeichert. Der Vorgang bleibt als Praxis-Nachfassfall sichtbar, wenn die Praxis noch Zahlung oder Klärung nachhalten muss.`;
+    return `${patientName} wird als geprüft, aber weiterhin offen gespeichert. Der Vorgang bleibt in der Prüfliste sichtbar, wenn Zahlung oder Klärung weiter nachgehalten werden muss.`;
   }
-  return `${patientName} wird als wirtschaftlich geklärt/bezahlt gespeichert. Der Vorgang wird danach aus Praxis-Nachfassen ausgeblendet und als bezahlt in den Auswertungen berücksichtigt.`;
+  return `${patientName} wird als wirtschaftlich geklärt/bezahlt gespeichert. Der Vorgang verschwindet aus der Prüfliste und wird als bereits geklärt in den Auswertungen berücksichtigt.`;
 }
 
 function caseResolutionDialogAction(status: ManualCaseResolution["status"]) {
@@ -920,8 +920,8 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
   const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
   const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
-  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions), [manualCaseResolutions, scopedRows]);
-  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions), [chartRows, manualCaseResolutions]);
+  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions, invoiceStatusRows), [invoiceStatusRows, manualCaseResolutions, scopedRows]);
+  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions, invoiceStatusRows), [chartRows, invoiceStatusRows, manualCaseResolutions]);
   const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions), [importRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
   const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
@@ -1586,10 +1586,9 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     : standorte.filter((standort) => standort.id === chartStandortFilter), [chartStandortFilter]);
   const chartScopeLabel = chartStandorte.length === 1 ? chartStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
-  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const dashboardCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(importRows).filter((fall) => !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows), [importRows, closedCaseKeys, invoiceStatusRows]);
+  const dashboardCases = useMemo(() => buildUnifiedOperationalReviewCases(importRows, invoiceStatusRows, manualCaseResolutions), [importRows, invoiceStatusRows, manualCaseResolutions]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => {
-    if (fall.status.includes("erledigt") || !isPracticeFollowupCase(fall) || !filteredStandortIds.has(fall.standortId)) return false;
+    if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, cockpitPeriod, fallStandort) : false;
   }), [cockpitPeriod, dashboardCases, filteredStandortIds, filteredStandorte]);
@@ -1598,7 +1597,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     return rowStandort ? importRowInPeriod(row, benchmarkPeriod, rowStandort) : false;
   }), [importRows, filteredStandorte, benchmarkPeriod]);
   const benchmarkOpenCases = useMemo(() => dashboardCases.filter((fall) => {
-    if (fall.status.includes("erledigt") || !isPracticeFollowupCase(fall) || !filteredStandortIds.has(fall.standortId)) return false;
+    if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, benchmarkPeriod, fallStandort) : false;
   }), [dashboardCases, filteredStandortIds, filteredStandorte, benchmarkPeriod]);
@@ -1606,7 +1605,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
   const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
   const benchmarkSnapshots = useMemo(() => buildLocationSnapshots(filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows), [filteredStandorte, benchmarkPeriod, benchmarkImportRows, benchmarkOpenCases, manualCaseResolutions, invoiceStatusRows]);
   const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
-  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions };
+  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions, invoiceStatusRows };
   const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
   const groupKpis: KpiCardTuple[] = [
     ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
@@ -1616,7 +1615,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     ["Auszahlung", money.format(managementComparison.currentMetrics.payout), "laut BFS-Abrechnung", undefined, groupSparkline("payout")],
     ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, "Grundmenge aller Rückgaben, Rückbelastungen und Stornos.", groupSparkline("deductionAmount")],
     ["Bereits geklärt", money.format(managementComparison.recoveredAmount), `${formatPercent(managementComparison.recoveryRate)} vom Brutto-Abzug`, `Nicht mehr offene Prüfsumme: ${money.format(managementComparison.recoveredByResubmissionAmount)} Neueinreichung/Ersatzrechnung, ${money.format(managementComparison.paidByInvoiceStatusAmount)} Ratenplan laut BFS, ${money.format(managementComparison.manuallyPaidAmount)} manuell bezahlt/geklärt. Saldo 0 allein zählt nicht.`, groupSparkline("recoveryRate")],
-    ["Offene Prüfsumme", money.format(Math.max(managementComparison.deductionAmount - managementComparison.recoveredAmount, 0)), "geht in die Prüfliste", "Diese Summe wird operativ abgearbeitet.", groupSparkline("deductionAmount")],
+    ["Offene Prüfsumme", money.format(managementComparison.openDeductionAmount), "geht in die Prüfliste", "Diese Summe wird operativ abgearbeitet.", groupSparkline("openAmount")],
     ["Endgültig verloren", money.format(managementComparison.finalLostAmount), "manuell endgültig storniert", "Betrag, der nach Prüfung nicht weiterverfolgt wird.", groupSparkline("deductionAmount")]
   ];
   return (
@@ -2280,7 +2279,8 @@ function buildManagementComparison(importRows: ImportPreviewRow[], relevantStand
     paidByInvoiceStatusAmount: deductionRecovery.paidByInvoiceStatusAmount,
     manuallyPaidAmount: deductionRecovery.manuallyPaidAmount,
     rawRecoveredAmount: deductionRecovery.rawRecoveredAmount,
-    finalLostAmount: manualCancelledAmountFromRows(currentRows, manualCaseResolutions),
+    finalLostAmount: deductionRecovery.finalLostAmount,
+    openDeductionAmount: deductionRecovery.openAmount,
     recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
     chargebackRate: currentMetrics.submitted ? (deductionAmount / currentMetrics.submitted) * 100 : 0,
     noProtectionShare: currentMetrics.submitted ? (currentMetrics.noProtectionAmount / currentMetrics.submitted) * 100 : 0,
@@ -2384,7 +2384,6 @@ function buildLocationSnapshots(
   manualCaseResolutions: ManualCaseResolution[] = [],
   invoiceStatusRows: ParsedInvoiceStatusRow[] = []
 ) {
-  const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
   return rowsStandorte.map((standort) => {
     const locationRows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort));
     const summary = summarizeImportRows(locationRows);
@@ -2400,10 +2399,6 @@ function buildLocationSnapshots(
     const claimCount = locationRows.reduce((sum, row) => sum + (row.parsedClaims?.length ?? 0), 0);
     const noProtectionClaimCount = locationRows.reduce((sum, row) => sum + rowNoProtectionClaims(row).length, 0);
     const noProtectionCaseRate = claimCount ? (noProtectionClaimCount / claimCount) * 100 : 0;
-    const economicCheckRows = buildInvoiceStatusReviewBasket(invoiceStatusRows, locationRows)
-      .filter((row) => row.category === "economic_check")
-      .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => closedKeys.has(key)));
-    const economicCheckAmount = economicCheckRows.reduce((sum, row) => sum + row.amount, 0);
     const riskClaims = riskClaimsFromImportRows(locationRows);
     const suspiciousNoProtectionAmount = riskClaims
       .filter((claim) => claim.assessment === "auffaellig")
@@ -2412,7 +2407,6 @@ function buildLocationSnapshots(
     const suspiciousNoProtectionShare = suspiciousNoProtectionAmount / Math.max(metrics.submitted, 1);
     const riskScore = deductionRate * 2
       + Math.min(35, (openDeductionAmount / Math.max(metrics.submitted, 1)) * 150)
-      + Math.min(18, (economicCheckAmount / Math.max(metrics.submitted, 1)) * 100)
       + Math.min(10, cleanNoProtectionShare * 100)
       + Math.min(35, suspiciousNoProtectionShare * 150)
       + (oldest > 30 ? 20 : oldest > 14 ? 10 : 0);
@@ -2428,11 +2422,11 @@ function buildLocationSnapshots(
       deductionAmount,
       recoveredAmount,
       openDeductionAmount,
-      finalLostAmount: manualCancelledAmountFromRows(locationRows, manualCaseResolutions),
+      finalLostAmount: deductionRecovery.finalLostAmount,
       recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
       deductionRate,
-      economicCheckCount: economicCheckRows.length,
-      economicCheckAmount,
+      economicCheckCount: 0,
+      economicCheckAmount: 0,
       chargebackRate: deductionRate,
       claimCount,
       noProtectionClaimCount,
@@ -2557,26 +2551,25 @@ function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRo
   const [comparisonPeriodId, setComparisonPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const comparisonPeriod = useMemo(() => periodOptions.find((period) => period.id === comparisonPeriodId) ?? periodOptions[0], [comparisonPeriodId, periodOptions]);
-  const closedCaseKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
   const orderedLocations = useMemo(() => orderedStandorte(), []);
   const scopedRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, selectedPeriod]);
-  const openCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(scopedRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [scopedRows, closedCaseKeys, invoiceStatusRows]);
+  const openCases = useMemo(() => buildUnifiedOperationalReviewCases(scopedRows, invoiceStatusRows, manualCaseResolutions), [scopedRows, invoiceStatusRows, manualCaseResolutions]);
   const snapshots = useMemo(() => buildLocationSnapshots(orderedLocations, selectedPeriod, importRows, openCases, manualCaseResolutions, invoiceStatusRows), [orderedLocations, selectedPeriod, importRows, openCases, manualCaseResolutions, invoiceStatusRows]);
   const comparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, comparisonPeriod, rowStandort) : false;
   }), [comparisonPeriod, importRows]);
-  const comparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(comparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [closedCaseKeys, comparisonRows, invoiceStatusRows]);
+  const comparisonOpenCases = useMemo(() => buildUnifiedOperationalReviewCases(comparisonRows, invoiceStatusRows, manualCaseResolutions), [comparisonRows, invoiceStatusRows, manualCaseResolutions]);
   const comparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, comparisonPeriod, importRows, comparisonOpenCases, manualCaseResolutions, invoiceStatusRows), [comparisonOpenCases, comparisonPeriod, importRows, manualCaseResolutions, invoiceStatusRows, orderedLocations]);
   const previousComparisonPeriod = useMemo(() => previousYearPeriod(comparisonPeriod), [comparisonPeriod]);
   const previousComparisonRows = useMemo(() => importRows.filter((row) => {
     const rowStandort = standorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, previousComparisonPeriod, rowStandort) : false;
   }), [importRows, previousComparisonPeriod]);
-  const previousComparisonOpenCases = useMemo(() => applyInvoiceStatusToCases(casesFromImportRows(previousComparisonRows).filter((fall) => !fall.status.includes("erledigt") && !caseResolutionKeys(fall).some((key) => closedCaseKeys.has(key))), invoiceStatusRows).filter(isPracticeFollowupCase), [closedCaseKeys, previousComparisonRows, invoiceStatusRows]);
+  const previousComparisonOpenCases = useMemo(() => buildUnifiedOperationalReviewCases(previousComparisonRows, invoiceStatusRows, manualCaseResolutions), [previousComparisonRows, invoiceStatusRows, manualCaseResolutions]);
   const previousComparisonSnapshots = useMemo(() => buildLocationSnapshots(orderedLocations, previousComparisonPeriod, importRows, previousComparisonOpenCases, manualCaseResolutions, invoiceStatusRows), [orderedLocations, previousComparisonOpenCases, previousComparisonPeriod, importRows, manualCaseResolutions, invoiceStatusRows]);
   const highestVolume = useMemo(() => [...snapshots].sort((a, b) => b.metrics.submitted - a.metrics.submitted)[0], [snapshots]);
   const highestFees = useMemo(() => [...snapshots].sort((a, b) => b.metrics.feeRate - a.metrics.feeRate)[0], [snapshots]);
@@ -2597,7 +2590,7 @@ function BenchmarkView({ importRows, manualCaseResolutions = [], invoiceStatusRo
       <section className="priority-grid benchmark-priority-grid">
         <PriorityCard label="Höchstes Volumen" value={highestVolume?.standort.name ?? "-"} hint={money.format(highestVolume?.metrics.submitted ?? 0)} period={selectedPeriod.label} tone="blue" />
         <PriorityCard label="Höchste Gebührenquote" value={highestFees?.standort.name ?? "-"} hint={formatFeeRate(highestFees?.metrics.feeRate ?? 0)} period={selectedPeriod.label} tone={(highestFees?.metrics.feeRate ?? 0) ? "amber" : "green"} />
-        <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} Praxis-Nachfassfälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} info="Risikoscore aus Brutto-Storno/Rückgabe, Ohne-Ausfallschutz-Anteil und echten Praxis-Nachfassfällen. Zahlung/Grund-prüfen-Fälle werden separat geführt." />
+        <PriorityCard label="Auffälligster Standort" value={highestRisk?.standort.name ?? "-"} hint={`${highestRisk?.openCases ?? 0} Prüffälle`} period={selectedPeriod.label} tone={(highestRisk?.riskScore ?? 0) >= 35 ? "red" : "amber"} info="Risikoscore aus Brutto-Storno/Rückgabe, Ohne-Ausfallschutz-Anteil und offener Prüfliste. Eine separate Belegprüf-Liste gibt es nicht mehr." />
       </section>
       <section className="insight-grid benchmark-signal-grid">
         {benchmarkSignals.map((signal) => (
@@ -3032,7 +3025,7 @@ function LocationDashboard({
   const managementComparison = useMemo(() => buildManagementComparison(importRows, [standort], openCases, undefined, manualCaseResolutions, invoiceStatusRows), [importRows, openCases, standort, manualCaseResolutions, invoiceStatusRows]);
   const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
-  const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod };
+  const locationSparklineContext = { importRows, relevantStandorte: [standort], period: selectedPeriod, manualCaseResolutions, invoiceStatusRows };
   const groupChargebackRate = peerAverage.chargebackRate;
   const groupNoProtectionShare = peerAverage.noProtectionShare;
   const locationKpis: KpiCardTuple[] = [
@@ -3130,7 +3123,7 @@ function LocationDashboard({
           <div>
             <span className="eyebrow">Prüfung & Fallarbeit</span>
             <h2>Operative Schnellantworten {standort.name}</h2>
-            <p>Konkrete Patienten, Praxis-Nachfassfälle, Zahlung/Grund-Prüfungen und Reports werden hier weiterbearbeitet.</p>
+            <p>Konkrete Patienten, offene Prüffälle und Reports werden hier weiterbearbeitet.</p>
           </div>
         </div>
         <AnswerCockpit scope="location" standort={standort} cases={openCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
@@ -3220,8 +3213,10 @@ function AnswerCockpit({
   const answerSparklineContext = useMemo(() => ({
     importRows,
     relevantStandorte,
-    period: effectivePeriod
-  }), [effectivePeriod, importRows, relevantStandorte]);
+    period: effectivePeriod,
+    manualCaseResolutions,
+    invoiceStatusRows
+  }), [effectivePeriod, importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte]);
   const submittedTrend = useMemo(() => buildAnswerSparkline("submitted", answerSparklineContext), [answerSparklineContext]);
   const payoutTrend = useMemo(() => buildAnswerSparkline("payout", answerSparklineContext), [answerSparklineContext]);
   const noProtectionTrend = useMemo(() => buildAnswerSparkline("noProtection", answerSparklineContext), [answerSparklineContext]);
@@ -3335,7 +3330,7 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
     stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
     stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder wirtschaftlich geklärt. Dazu zählen echte spätere Neueinreichung/Ersatzrechnung oder belegte Zahlung. Saldo 0 allein ist kein Zahlungsnachweis. Quote: ${formatPercent(stornoReview.doneRate)}.`,
     stornoOpen: `Herleitung: Summe der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: ${periodLabel}. Aktuell: ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Diese Fälle werden einzeln als bezahlt/geklärt oder endgültig storniert entschieden.`,
-    oldest: `Herleitung: Höchstes Alter unter allen Praxis-Nachfassfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
+    oldest: `Herleitung: Höchstes Alter unter allen Fällen der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
 
@@ -3365,6 +3360,7 @@ type AnswerSparklineContext = {
   relevantStandorte: Standort[];
   period: PeriodOption;
   manualCaseResolutions?: ManualCaseResolution[];
+  invoiceStatusRows?: ParsedInvoiceStatusRow[];
 };
 
 function AnswerSparkline({ trend }: { trend: AnswerSparklineTrend }) {
@@ -3396,9 +3392,9 @@ function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSpar
   const comparisonPeriod = comparableCurrentPeriod(context.period);
   const currentComparisonRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, comparisonPeriod);
   const previousRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, previousYearPeriod(comparisonPeriod));
-  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte, context.manualCaseResolutions);
-  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte, context.manualCaseResolutions);
-  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte, context.manualCaseResolutions);
+  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
+  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
+  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
   const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
   const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "deductionAmount", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
   const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
@@ -3548,15 +3544,15 @@ function previousYearPeriod(period: PeriodOption): PeriodOption {
   };
 }
 
-function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = []) {
+function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
   const monthKeys = [...new Set(rows.map((row) => importRowMonth(row)).filter(Boolean))].sort();
   return monthKeys.map((month) => {
     const monthRows = rows.filter((row) => importRowMonth(row) === month);
-    return valueForAnswerMetric(metric, monthRows, relevantStandorte, manualCaseResolutions);
+    return valueForAnswerMetric(metric, monthRows, relevantStandorte, manualCaseResolutions, invoiceStatusRows);
   }).slice(-12);
 }
 
-function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = []) {
+function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
   const summary = summarizeImportRows(rows);
   const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
   if (metric === "submitted") return metrics.submitted;
@@ -3567,21 +3563,13 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
   if (metric === "feeRate") return metrics.feeRate;
   if (metric === "deductionAmount") return metrics.returnAmount + metrics.cancellationAmount;
   if (metric === "recoveryRate") {
-    const deductionAmount = metrics.returnAmount + metrics.cancellationAmount;
-    const recoveredByResubmission = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows));
-    const recoveredByResubmissionKeys = new Set(recoveredByResubmission.flatMap((candidate) => resubmissionResolutionKeys(candidate)));
-    const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
-    const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
-    const manuallyPaidAmount = casesFromImportRows(rows)
-      .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key)))
-      .reduce((sum, fall) => sum + fall.amount, 0);
-    const recoveredAmount = Math.min(deductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
-    return deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
+    const recovery = buildDeductionRecovery(rows, relevantStandorte, { id: "sparkline-scope", label: "Sparkline", detail: "Monat" }, manualCaseResolutions, invoiceStatusRows);
+    return recovery.grossDeductionAmount ? Math.min(100, (recovery.recoveredAmount / recovery.grossDeductionAmount) * 100) : 0;
   }
   if (metric === "chargebackRate") return metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
   if (metric === "noProtection") return metrics.noProtectionAmount;
 
-  const cases = casesFromImportRows(rows).filter((fall) => relevantStandorte.some((entry) => entry.id === fall.standortId) && !fall.status.includes("erledigt"));
+  const cases = buildUnifiedOperationalReviewCases(rows, invoiceStatusRows, manualCaseResolutions).filter((fall) => relevantStandorte.some((entry) => entry.id === fall.standortId) && !fall.status.includes("erledigt"));
   if (metric === "openAmount") return cases.reduce((sum, fall) => sum + fall.amount, 0);
   if (metric === "openCount") return cases.length;
   if (metric === "chargebacks") {
@@ -3849,7 +3837,7 @@ function ClaimsFlowView({
           periodLabel={waterfallPeriod.label}
           scopeLabel={waterfallScopeLabel}
           payout={waterfallMetrics.payout}
-          openDeduction={Math.max(waterfallDeductionAmount - waterfallRecoveredAmount, 0)}
+          openDeduction={waterfallDeductionSummary.openAmount}
           recoveredCount={waterfallDeductionSummary.recoveredCount}
         />
       </section>
@@ -4140,7 +4128,7 @@ function buildCustomChartPeriods(): PeriodOption[] {
   return [...basePeriods, ...monthPeriods];
 }
 
-function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []): CustomChartPoint[] {
+function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []): CustomChartPoint[] {
   const byMonth = new Map<string, CustomChartPoint>();
   const ensurePoint = (month: string) => {
     const current = byMonth.get(month);
@@ -4214,6 +4202,27 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
       point.recoveredStornos += 1;
       point.finalCashflow += fall.amount;
   });
+
+  const paidByInvoiceStatus = paidCasesFromInvoiceStatus(rows, invoiceStatusRows)
+    .filter((fall) => !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key) || manualPaidKeys.has(key)));
+  paidByInvoiceStatus.forEach((fall) => {
+    const month = monthKeyFromGermanDate(fall.sourceDate ?? "");
+    if (!month) return;
+    const point = ensurePoint(month);
+    point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+    point.recoveredStornos += 1;
+    point.finalCashflow += fall.amount;
+  });
+
+  const cancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
+  casesFromImportRows(rows)
+    .filter((fall) => caseResolutionKeys(fall).some((key) => cancelledKeys.has(key)))
+    .forEach((fall) => {
+      const month = monthKeyFromGermanDate(fall.sourceDate ?? "");
+      if (!month) return;
+      const point = ensurePoint(month);
+      point.openStornoAmount = Math.max(point.openStornoAmount - fall.amount, 0);
+    });
 
   return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
 }
@@ -4541,59 +4550,6 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
         } satisfies BfsCase;
       });
   });
-}
-
-function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedInvoiceStatusRow[]) {
-  if (!invoiceStatusRows.length) return cases;
-  const coveredStandortIds = invoiceStatusCoveredStandortIds(invoiceStatusRows);
-  const statusByKey = new Map<string, ParsedInvoiceStatusRow>();
-  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusByKey.set(key, row)));
-
-  return cases
-    .flatMap((fall) => {
-      if (!coveredStandortIds.has(fall.standortId)) return [fall];
-      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusByKey.get(key)).find(Boolean);
-      if (!statusRow) {
-        return [{
-          ...fall,
-          reason: fall.reason.startsWith("Nicht in Saldo-Liste") ? fall.reason : `Nicht in Saldo-Liste gefunden: ${fall.reason}`,
-          status: "nicht_in_saldo_liste",
-          traffic: fall.traffic === "red" ? "red" : "orange",
-          lastComment: "Kein Treffer in bestätigter BFS-Saldo-Liste"
-        } satisfies BfsCase];
-      }
-      if (isNoProtectionReturnCase(fall)) {
-        return [{
-          ...fall,
-          reason: fall.reason.startsWith("Rückgabe ohne Ausfallschutz") ? fall.reason : `Rückgabe ohne Ausfallschutz: ${fall.reason}`,
-          status: "ohne_schutz_offen",
-          traffic: "red",
-          lastComment: `BFS-Saldo: ${money.format(statusRow.saldo)} · Rückgabe ohne Ausfallschutz bleibt Nachfassfall der Praxis`
-        } satisfies BfsCase];
-      }
-      if (isInvoiceStatusAutoResolved(statusRow)) return [];
-
-      const criticalOpen = statusRow.saldo < -0.005 && !statusRow.installmentPlan;
-      const noProtection = criticalOpen && !statusRow.protection;
-      const reminder = statusRow.reminderLevel > 0 && !statusRow.installmentPlan;
-      if (!criticalOpen && !reminder && !noProtection) return [fall];
-
-      const labels = [
-        noProtection ? "ohne Ausfallschutz offen" : "",
-        reminder ? `Mahnstufe ${statusRow.reminderLevel}` : "",
-        criticalOpen ? "kritisch offen ohne RP" : ""
-      ].filter(Boolean);
-
-      return [{
-        ...fall,
-        amount: Math.max(fall.amount, Math.abs(statusRow.saldo)),
-        reason: `${labels.join(" · ")}: ${fall.reason}`,
-        status: noProtection ? "ohne_schutz_offen" : reminder ? "mahnstufe_kritisch" : "kritisch_offen",
-        traffic: noProtection || reminder ? "red" : "orange",
-        lastComment: `Bestätigter BFS-Saldo: ${money.format(statusRow.saldo)} · ${invoiceStatusLabel(statusRow)}`
-      } satisfies BfsCase];
-    })
-    .sort(compareOperationalCases);
 }
 
 function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
@@ -5617,7 +5573,7 @@ function buildKpiDerivationInfo(metrics: BfsMetrics, periodLabel: string) {
     feeNet: `Herleitung: Netto-BFS-Gebühren ohne Steuer im Zeitraum ${periodLabel}: ${money.format(metrics.feeNet)}. Weitere Zusatzkosten ohne Steuer, insbesondere EWMA/Meldeamtabfragen, betragen ${money.format(metrics.ewmaNet)}. Storno-/Rückgabe-Umsatzverlust separat: ${money.format(stornoLoss)}.`,
     tax: `Herleitung: Steueranteil auf BFS-Gebühren und Zusatzkosten im Zeitraum ${periodLabel}. BFS-MwSt: ${money.format(metrics.feeVat)}, EWMA-/Zusatzkosten-MwSt: ${money.format(metrics.ewmaVat)}, zusammen ${money.format(taxTotal)}. Steuer wird getrennt von Netto-Zusatzkosten und Stornos betrachtet.`,
     noProtection: `Datenquelle: Forderungslisten und Kontoauszug-Bewegungen aus dem Import. Berechnung: Summe aller Positionen, die ohne Ausfallschutz markiert sind oder als Rückgabe ohne Ausfallschutz erkannt wurden. Zeitraum: ${periodLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}.`,
-    openCases: `Datenquelle: aktuell erkannte Import- und Saldo-Falllogik. Berechnung: gezählt werden echte Praxis-Nachfassfälle, vor allem Rückgaben ohne Ausfallschutz. Zahlung/Grund-prüfen-Fälle sind saldogeschlossene Belegfälle und werden getrennt geführt. Zeitraum: aktueller Datenstand. Aktueller Wert: 0.`,
+    openCases: `Datenquelle: aktuell erkannte Import- und Saldo-Falllogik. Berechnung: gezählt werden alle Fälle der gemeinsamen Prüfliste, nachdem Neueinreichungen, Ratenpläne und manuelle Entscheidungen gegengerechnet wurden. Zeitraum: aktueller Datenstand.`,
     locations: `Datenquelle: Standortstammdaten der App. Berechnung: zuerst aktive Standorte bis heute, danach geplante Standorte mit künftigem Vertragsstart. Zeitraum: aktueller Datenstand.`
   };
 }
@@ -5731,7 +5687,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Gebührenquote je Standort = Gesamtkosten BFS geteilt durch eingereichten Umsatz. Angezeigt wird der Standort mit der höchsten Quote. ${base}`;
   }
   if (normalized.includes("auffälligster standort")) {
-    return `Herleitung: Der Standort wird nach Brutto-Storno/Rückgabe, Ohne-Ausfallschutz-Risiko, echten Praxis-Nachfassfällen und Volumen priorisiert. Zahlung/Grund-prüfen-Fälle werden separat geführt. Die Kennzahl ist ein Steuerungshinweis, keine zusätzliche Buchung. ${base}`;
+    return `Herleitung: Der Standort wird nach Brutto-Storno/Rückgabe, Ohne-Ausfallschutz-Risiko, offener Prüfliste und Volumen priorisiert. Die Kennzahl ist ein Steuerungshinweis, keine zusätzliche Buchung. ${base}`;
   }
   if (normalized.includes("standorte ohne werte")) {
     return `Herleitung: Gezählt werden Standorte, die im gewählten Zeitraum aktiv oder geplant sind, für die aber keine Importzeilen im Datenstand liegen. ${base}`;
@@ -5755,10 +5711,10 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Bewegungen ohne sicheren Match auf eine Forderung oder spätere Einreichung im vorhandenen Datenstand. Häufig fehlt dafür eine ältere Abrechnung im Import. ${base}`;
   }
   if (normalized.includes("sofort prüfen")) {
-    return `Herleitung: Praxis-Nachfassfälle mit einem Alter über 30 Tagen. Alter wird aus dem erkannten Bewegungsdatum berechnet; saldogeschlossene Zahlung/Grund-Prüfungen zählen hier nicht mit. ${base}`;
+    return `Herleitung: Prüflistenfälle mit einem Alter über 30 Tagen. Alter wird aus dem erkannten Bewegungsdatum berechnet. ${base}`;
   }
   if (normalized.includes("diese woche")) {
-    return `Herleitung: Praxis-Nachfassfälle mit einem Alter zwischen 8 und 30 Tagen. Diese Kategorie priorisiert laufende Fälle unterhalb der Eskalationsschwelle. ${base}`;
+    return `Herleitung: Prüflistenfälle mit einem Alter zwischen 8 und 30 Tagen. Diese Kategorie priorisiert laufende Fälle unterhalb der Eskalationsschwelle. ${base}`;
   }
   if (normalized.includes("wiedervorlage")) {
     return `Herleitung: Fälle mit Status Wiedervorlage oder hinterlegtem Fälligkeitsdatum. Sie bleiben offen, bis sie erledigt oder bezahlt markiert werden. ${base}`;
@@ -5794,7 +5750,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Neueste Abrechnung oder Bewegung innerhalb der aktuell gefilterten Risikoliste. Sie zeigt, wie aktuell der jüngste Treffer ist. ${base}`;
   }
   if (normalized.includes("reportfälle")) {
-    return `Herleitung: Praxis-Nachfassfälle, die im Report-Center für den Standortbericht berücksichtigt werden. Zahlung/Grund-Prüfungen sind saldogeschlossene Belegfälle und werden getrennt betrachtet. ${base}`;
+    return `Herleitung: Fälle der gemeinsamen Prüfliste, die im Report-Center für den Standortbericht berücksichtigt werden. ${base}`;
   }
   if (normalized.includes("eingereicht") || normalized.includes("forderungen")) {
     return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. ${base}`;
@@ -6184,7 +6140,7 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
             <article><span>Mahnstufe vorhanden</span><strong>{integerNumber.format(summary.reminder)}</strong></article>
             <article><span>Ohne Ausfallschutz offen</span><strong>{integerNumber.format(summary.noProtection)}</strong></article>
             <article><span>Nicht in Saldo-Liste</span><strong>{integerNumber.format(summary.missingInSaldo)}</strong></article>
-            <article><span>BFS geschlossen, Beleg offen</span><strong>{integerNumber.format(summary.economicCheck)}</strong></article>
+            <article><span>Saldo 0, Beleg offen</span><strong>{integerNumber.format(summary.economicCheck)}</strong></article>
             <article><span>Storniert/Ausgebucht</span><strong>{integerNumber.format(summary.finalCancelled)}</strong></article>
             <article><span>Nr. nicht zuordenbar</span><strong>{integerNumber.format(summary.unmappable)}</strong></article>
           </div>
@@ -6378,33 +6334,6 @@ type InvoiceStatusReviewRow = {
   nextStep: string;
 };
 
-function invoiceStatusReviewRowToCase(row: InvoiceStatusReviewRow): BfsCase {
-  return {
-    id: `economic-check-${row.id}`,
-    resolutionKey: caseResolutionKeyFromParts({
-      standortId: row.standortId ?? row.locationName,
-      patientName: row.patientName,
-      invoiceNo: row.invoiceNo,
-      bfsNo: row.bfsNo,
-      amount: row.amount,
-      reason: row.detail
-    }),
-    standortId: row.standortId ?? row.locationName,
-    locationName: row.locationName,
-    patientName: row.patientName,
-    invoiceNo: row.invoiceNo,
-    bfsNo: row.bfsNo,
-    amount: row.amount,
-    reason: row.detail,
-    sourceDate: row.sourceDate,
-    ageDays: row.sourceDate ? ageFromShortDate(row.sourceDate) : 0,
-    traffic: "orange",
-    status: "zahlung_grund_pruefen",
-    dueDate: "-",
-    lastComment: row.nextStep
-  };
-}
-
 function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRows: ImportPreviewRow[]) {
   const coveredStandortIds = invoiceStatusCoveredStandortIds(rows);
   const importCases = casesFromImportRows(importRows).filter((fall) => coveredStandortIds.has(fall.standortId));
@@ -6558,10 +6487,6 @@ function finalCancelledImportRows(importRows: ImportPreviewRow[]) {
         nextStep: "Grund und Betrag dokumentieren; prüfen, ob Praxis aktiv storniert/ausgebucht hat."
       }));
   });
-}
-
-function isPracticeFollowupCase(fall: BfsCase) {
-  return fall.status === "ohne_schutz_offen" || isNoProtectionReturnCase(fall);
 }
 
 function isFinalCancellationMovement(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
@@ -8700,7 +8625,7 @@ function CasesView({
             ))}
             {!filteredRows.length && (
               <tr>
-                <td colSpan={onResolvePaid || onKeepOpen || onCancelFinal ? 12 : 11}>Keine Praxis-Nachfassfälle für den aktuellen Datenstand.</td>
+                <td colSpan={onResolvePaid || onKeepOpen || onCancelFinal ? 12 : 11}>Keine Prüflistenfälle für den aktuellen Datenstand.</td>
               </tr>
             )}
           </tbody>

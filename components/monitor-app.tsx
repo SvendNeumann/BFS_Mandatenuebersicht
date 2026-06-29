@@ -5961,13 +5961,19 @@ function UploadView({
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setStatusUploadStatus(`${processed} von ${total} Listen gelesen (${shortName})`);
       });
+      const completeParsedDocuments = await ensureInvoiceStatusDocumentsForFiles(importableFiles, parsedDocuments, (processed, total, fileName) => {
+        const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
+        setStatusUploadStatus(`${processed} von ${total} Listen vollständig geprüft (${shortName})`);
+      });
       const baseDocuments = pendingStatusDocuments ?? statusDocuments;
-      const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, parsedDocuments) : parsedDocuments;
+      const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, completeParsedDocuments) : completeParsedDocuments;
       setPendingStatusDocuments(nextDocuments);
       const nextRows = nextDocuments.flatMap((document) => document.rows);
       const coverage = summarizeInvoiceStatusCoverage(nextRows);
       const coverageNote = `${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt${coverage.unknownMandantCount ? `, ${integerNumber.format(coverage.unknownMandantCount)} Zeilen ohne Standort` : ""}`;
-      setStatusUploadStatus(`${importableFiles.length} Datei(en) ausgewählt, ${parsedDocuments.length} Liste(n) gelesen, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt, ${coverageNote}. Bitte bestätigen.`);
+      const readableDocuments = completeParsedDocuments.filter((document) => document.rows.length);
+      const failedDocuments = completeParsedDocuments.length - readableDocuments.length;
+      setStatusUploadStatus(`${importableFiles.length} Datei(en) ausgewählt, ${readableDocuments.length} Liste(n) gelesen${failedDocuments ? `, ${failedDocuments} Datei(en) zu prüfen` : ""}, ${integerNumber.format(nextRows.length)} Rechnungsstatus-Zeilen erkannt, ${coverageNote}. Bitte bestätigen.`);
     } catch (error) {
       if (mode === "replace") setPendingStatusDocuments(null);
       setStatusUploadStatus(`Saldo-Listen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
@@ -7264,6 +7270,36 @@ function unreadableInvoiceStatusDocument(file: File, message: string): ParsedInv
     status: "Zu prüfen",
     parseNotes: [message]
   };
+}
+
+async function ensureInvoiceStatusDocumentsForFiles(
+  files: File[],
+  documents: ParsedInvoiceStatusDocument[],
+  onProgress?: (processed: number, total: number, fileName: string) => void
+) {
+  const byFile = new Map(documents.map((document) => [document.file, document]));
+  for (const [index, file] of files.entries()) {
+    const filePath = uploadFilePath(file);
+    if (!byFile.has(filePath)) {
+      try {
+        const parsed = await parseInvoiceStatusUploadFiles([file]);
+        byFile.set(filePath, parsed[0] ?? unreadableInvoiceStatusDocument(file, "Keine Rechnungsstatus-Liste erkannt."));
+      } catch (browserError) {
+        try {
+          const fallback = await parseInvoiceStatusFileChunk([file]);
+          byFile.set(filePath, fallback[0] ?? unreadableInvoiceStatusDocument(file, "Server-Fallback hat keine Liste zurückgegeben."));
+        } catch (serverError) {
+          const message = [
+            browserError instanceof Error ? browserError.message : "Browser-Lesung fehlgeschlagen",
+            serverError instanceof Error ? serverError.message : "Server-Lesung fehlgeschlagen"
+          ].join(" / ");
+          byFile.set(filePath, unreadableInvoiceStatusDocument(file, message));
+        }
+      }
+    }
+    onProgress?.(index + 1, files.length, filePath);
+  }
+  return files.map((file) => byFile.get(uploadFilePath(file)) ?? unreadableInvoiceStatusDocument(file, "Datei wurde nicht verarbeitet."));
 }
 
 async function parseInvoiceStatusFileChunk(

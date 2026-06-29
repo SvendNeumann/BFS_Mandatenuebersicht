@@ -4515,12 +4515,17 @@ function isResubmissionClaimForMovement(
   const claimDate = importDateKey(claim.statementDate);
   const movementDate = importDateKey(movement.statementDate);
   if (claimDate > movementDate) return true;
-  if (claimDate !== movementDate || movement.reasonCategory !== "neue_rechnung") return false;
+  if (claimDate !== movementDate) return false;
 
   const sameInvoice = Boolean(movement.invoiceNo && claim.invoiceNo === movement.invoiceNo);
   const sameAmount = Math.abs(claim.amount - Math.abs(movement.amount ?? 0)) < 0.01;
   const differentBfsNo = Boolean(claim.bfsNo && movement.bfsNo && claim.bfsNo !== movement.bfsNo);
-  return differentBfsNo && (sameInvoice || sameAmount);
+  if (movement.reasonCategory === "neue_rechnung") return differentBfsNo && (sameInvoice || sameAmount);
+
+  const rawMovement = `${movement.type ?? ""} ${movement.reason ?? ""} ${movement.rawText ?? ""}`.toLowerCase();
+  const isFaultyInvoiceStorno = rawMovement.includes("storno-fehlerhafte");
+  const differentInvoiceNo = Boolean(movement.invoiceNo && claim.invoiceNo && claim.invoiceNo !== movement.invoiceNo);
+  return isFaultyInvoiceStorno && differentBfsNo && differentInvoiceNo;
 }
 
 function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {

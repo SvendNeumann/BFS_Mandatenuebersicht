@@ -305,18 +305,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     ? "Alle Standorte"
     : selectedStandort.name;
   const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
-  const appCases = useMemo(() => {
-    const resolvedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
-    return applyInvoiceStatusToCases(
-      casesFromImportRows(privacyScopedImportRows).filter((fall) => !caseResolutionKeys(fall).some((key) => resolvedKeys.has(key))),
-      invoiceStatusRows
-    );
-  }, [privacyScopedImportRows, manualCaseResolutions, invoiceStatusRows]);
   const operationalReviewCases = useMemo(() => buildUnifiedOperationalReviewCases(privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions), [privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions]);
-  const visibleCases = useMemo(
-    () => appCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
-    [appCases, isGroupScope, selectedStandort.id]
-  );
   const visibleOperationalReviewCases = useMemo(
     () => operationalReviewCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id),
     [isGroupScope, operationalReviewCases, selectedStandort.id]
@@ -528,7 +517,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }
 
   const tabFilterStandort = role === "super_admin" ? undefined : selectedStandort;
-  const operativeCases = (role === "super_admin" ? appCases : visibleCases).filter(isPracticeFollowupCase);
+  const operativeCases = role === "super_admin" ? operationalReviewCases : visibleOperationalReviewCases;
 
   return (
     <main className={mobileNavOpen ? "app-shell nav-open" : "app-shell"}>
@@ -3195,13 +3184,12 @@ function AnswerCockpit({
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
   }), [importRows, relevantStandorte, selectedPeriod]);
   const scopedRows = useMemo(() => importRows.length
-    ? casesFromImportRows(scopedImportRows)
-    : rows.filter((fall) => relevantStandortIds.has(fall.standortId)), [importRows.length, scopedImportRows, rows, relevantStandortIds]);
+    ? buildUnifiedOperationalReviewCases(scopedImportRows, invoiceStatusRows, manualCaseResolutions)
+    : rows.filter((fall) => relevantStandortIds.has(fall.standortId)), [importRows.length, invoiceStatusRows, manualCaseResolutions, scopedImportRows, rows, relevantStandortIds]);
   const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
   const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics(), [importSummary, periodMetrics]);
-  const openCases = useMemo(() => scopedRows.filter((fall) => !fall.status.includes("erledigt") && isPracticeFollowupCase(fall)), [scopedRows]);
-  const economicCheckRows = useMemo(() => buildInvoiceStatusReviewBasket(invoiceStatusRows, scopedImportRows)
-    .filter((row) => row.category === "economic_check"), [invoiceStatusRows, scopedImportRows]);
+  const openCases = useMemo(() => scopedRows.filter((fall) => !fall.status.includes("erledigt")), [scopedRows]);
+  const openCaseAmount = useMemo(() => openCases.reduce((sum, fall) => sum + fall.amount, 0), [openCases]);
   const chargebacks = useMemo(() => openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung")), [openCases]);
   const recurringRisks = useMemo(() => getRecurringRiskProfiles(
     relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
@@ -3251,8 +3239,8 @@ function AnswerCockpit({
     recurringRisks,
     oldest,
     stornoReview,
-    economicCheckCount: economicCheckRows.length
-  }), [chargebacks, economicCheckRows.length, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel, stornoReview]);
+    openCaseAmount
+  }), [chargebacks, openCaseAmount, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel, stornoReview]);
 
   useEffect(() => {
     if (previousAnswerScope.current !== scope) {
@@ -3298,7 +3286,7 @@ function AnswerCockpit({
         <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
         <AnswerMetricCard title="Brutto Storno/Rückgabe" value={integerNumber.format(stornoReview.total)} hint={money.format(stornoReview.amount)} trend={stornoTotalTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
         <AnswerMetricCard title="Bereits geklärt" value={integerNumber.format(stornoReview.done)} hint={`${formatPercent(stornoReview.doneRate)} geklärt`} trend={stornoDoneTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
-        <AnswerMetricCard title="Offene Prüfsumme" value={integerNumber.format(stornoReview.open)} hint="in Prüfliste abarbeiten" trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
+        <AnswerMetricCard title="Offene Prüfsumme" value={money.format(openCaseAmount)} hint={`${integerNumber.format(openCases.length)} Fälle in der Prüfliste`} trend={stornoOpenTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
         <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
       </div>
     </section>
@@ -3320,7 +3308,7 @@ function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClic
   );
 }
 
-function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, stornoReview, economicCheckCount }: {
+function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, stornoReview, openCaseAmount }: {
   periodLabel: string;
   scopeLabel: string;
   metrics: BfsMetrics;
@@ -3329,9 +3317,9 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   recurringRisks: ReturnType<typeof getRecurringRiskProfiles>;
   oldest: number;
   stornoReview: ReturnType<typeof stornoReviewFromImportRows>;
-  economicCheckCount: number;
+  openCaseAmount: number;
 }) {
-  const openAmount = openCases.reduce((sum, fall) => sum + fall.amount, 0);
+  const openAmount = openCaseAmount;
   const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
   const feeTotal = metrics.fees;
   const feeNet = metrics.feeNet || feeTotal;
@@ -3346,7 +3334,7 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
     fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
     stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
     stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder wirtschaftlich geklärt. Dazu zählen echte spätere Neueinreichung/Ersatzrechnung oder belegte Zahlung. Saldo 0 allein ist kein Zahlungsnachweis. Quote: ${formatPercent(stornoReview.doneRate)}.`,
-    stornoOpen: `Herleitung: Noch offene Storno-/Rückgabe-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen weder geklärt noch endgültig storniert. Offene saldogeschlossene Belegfälle laufen ebenfalls in die gemeinsame Prüfliste. Aktuell erkannt: ${economicCheckCount}.`,
+    stornoOpen: `Herleitung: Summe der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: ${periodLabel}. Aktuell: ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Diese Fälle werden einzeln als bezahlt/geklärt oder endgültig storniert entschieden.`,
     oldest: `Herleitung: Höchstes Alter unter allen Praxis-Nachfassfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
@@ -3506,12 +3494,14 @@ function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandort
   const paidByInvoiceStatusAmount = paidByInvoiceStatusCases.reduce((sum, fall) => sum + fall.amount, 0);
   const rawRecoveredAmount = recoveredByResubmissionAmount + manuallyPaidAmount + paidByInvoiceStatusAmount;
   const recoveredAmount = Math.min(grossDeductionAmount, rawRecoveredAmount);
+  const finalLostAmount = manualCancelledAmountFromRows(scopedRows, manualCaseResolutions);
   return {
     scopedRows,
     metrics,
     grossDeductionAmount,
     recoveredAmount,
-    openAmount: Math.max(grossDeductionAmount - recoveredAmount, 0),
+    finalLostAmount,
+    openAmount: Math.max(grossDeductionAmount - recoveredAmount - finalLostAmount, 0),
     recoveryRate: grossDeductionAmount ? Math.min(100, (recoveredAmount / grossDeductionAmount) * 100) : 0,
     recoveredByResubmission,
     manuallyPaidCases,
@@ -4608,7 +4598,7 @@ function applyInvoiceStatusToCases(cases: BfsCase[], invoiceStatusRows: ParsedIn
 
 function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const closedKeys = buildClosedResolutionKeySet(manualCaseResolutions);
-  const recoveredKeys = new Set(uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(importRows)).flatMap((candidate) => resubmissionResolutionKeys(candidate)));
+  const recoveredAmountByKey = recoveredAmountByResolutionKey(uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(importRows)));
   const coveredStandortIds = invoiceStatusCoveredStandortIds(invoiceStatusRows);
   const statusByKey = new Map<string, ParsedInvoiceStatusRow>();
   invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusByKey.set(key, row)));
@@ -4616,61 +4606,86 @@ function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invo
   return casesFromImportRows(importRows)
     .flatMap((fall) => {
       const keys = caseResolutionKeys(fall);
-      if (keys.some((key) => closedKeys.has(key) || recoveredKeys.has(key))) return [];
+      if (keys.some((key) => closedKeys.has(key))) return [];
+      const recoveredAmount = recoveredAmountForCase(fall, recoveredAmountByKey);
+      if (recoveredAmount >= fall.amount - 0.005) return [];
+      const reviewFall = recoveredAmount > 0.005
+        ? {
+          ...fall,
+          amount: Math.max(fall.amount - recoveredAmount, 0),
+          reason: `Restbetrag nach Neueinreichung: ${fall.reason}`,
+          lastComment: `${money.format(recoveredAmount)} durch Neueinreichung/Ersatzrechnung erklärt`
+        } satisfies BfsCase
+        : fall;
 
-      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusByKey.get(key)).find(Boolean);
+      const statusRow = caseInvoiceMatchKeys(reviewFall).map((key) => statusByKey.get(key)).find(Boolean);
       if (statusRow && isInvoiceStatusPaidOrSecured(statusRow)) return [];
 
-      if (isNoProtectionReturnCase(fall)) {
+      if (isNoProtectionReturnCase(reviewFall)) {
         return [{
-          ...fall,
+          ...reviewFall,
           status: "praxis_nachfassen",
           traffic: "red",
-          reason: fall.reason.startsWith("Rückgabe ohne Ausfallschutz") ? fall.reason : `Rückgabe ohne Ausfallschutz: ${fall.reason}`,
+          reason: reviewFall.reason.startsWith("Rückgabe ohne Ausfallschutz") ? reviewFall.reason : `Rückgabe ohne Ausfallschutz: ${reviewFall.reason}`,
           lastComment: statusRow ? `Saldo-Status: ${invoiceStatusLabel(statusRow)}` : "Praxis muss Zahlung selbst nachhalten"
         } satisfies BfsCase];
       }
 
       if (statusRow?.paymentStatus === "storniert") {
         return [{
-          ...fall,
-          amount: Math.max(fall.amount, Math.abs(statusRow.cancelledAmount ?? 0)),
+          ...reviewFall,
+          amount: Math.max(reviewFall.amount, Math.abs(statusRow.cancelledAmount ?? 0)),
           status: "storno_laut_bfs_pruefen",
           traffic: "orange",
-          reason: `Storno laut BFS prüfen: ${fall.reason}`,
+          reason: `Storno laut BFS prüfen: ${reviewFall.reason}`,
           lastComment: `BFS storniert ${money.format(statusRow.cancelledAmount ?? 0)} · Saldo ${money.format(statusRow.saldo)}`
         } satisfies BfsCase];
       }
 
       if (statusRow && statusRow.saldo < -0.005 && !statusRow.installmentPlan) {
         return [{
-          ...fall,
-          amount: Math.max(fall.amount, Math.abs(statusRow.saldo)),
+          ...reviewFall,
+          amount: Math.max(reviewFall.amount, Math.abs(statusRow.saldo)),
           status: statusRow.reminderLevel > 0 ? "bfs_offen_mahnstufe" : "bfs_offen_pruefen",
           traffic: statusRow.reminderLevel > 0 || !statusRow.protection ? "red" : "orange",
-          reason: `BFS offen prüfen: ${fall.reason}`,
+          reason: `BFS offen prüfen: ${reviewFall.reason}`,
           lastComment: `${invoiceStatusLabel(statusRow)} · Saldo ${money.format(statusRow.saldo)}`
         } satisfies BfsCase];
       }
 
-      if (invoiceStatusRows.length && coveredStandortIds.has(fall.standortId) && !statusRow) {
+      if (invoiceStatusRows.length && coveredStandortIds.has(reviewFall.standortId) && !statusRow) {
         return [{
-          ...fall,
+          ...reviewFall,
           status: "nicht_in_saldo_liste",
-          traffic: fall.traffic === "red" ? "red" : "orange",
-          reason: `Nicht in Saldo-Liste gefunden: ${fall.reason}`,
+          traffic: reviewFall.traffic === "red" ? "red" : "orange",
+          reason: `Nicht in Saldo-Liste gefunden: ${reviewFall.reason}`,
           lastComment: "Keine eindeutige Zuordnung in bestätigter BFS-Saldo-Liste"
         } satisfies BfsCase];
       }
 
       return [{
-        ...fall,
+        ...reviewFall,
         status: "offen_pruefen",
-        traffic: fall.traffic === "green" ? "orange" : fall.traffic,
+        traffic: reviewFall.traffic === "green" ? "orange" : reviewFall.traffic,
         lastComment: statusRow ? `Saldo-Status: ${invoiceStatusLabel(statusRow)}` : "Aus Abrechnung als offener Prüffall übernommen"
       } satisfies BfsCase];
     })
     .sort(compareOperationalCases);
+}
+
+function recoveredAmountByResolutionKey(candidates: ResubmissionCandidate[]) {
+  const recoveredByKey = new Map<string, number>();
+  candidates.forEach((candidate) => {
+    const amount = Math.min(candidate.originalAmount, candidate.newAmount);
+    resubmissionResolutionKeys(candidate).forEach((key) => {
+      recoveredByKey.set(key, Math.max(recoveredByKey.get(key) ?? 0, amount));
+    });
+  });
+  return recoveredByKey;
+}
+
+function recoveredAmountForCase(fall: BfsCase, recoveredByKey: Map<string, number>) {
+  return caseResolutionKeys(fall).reduce((max, key) => Math.max(max, recoveredByKey.get(key) ?? 0), 0);
 }
 
 function manualCancelledAmountFromRows(importRows: ImportPreviewRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
@@ -8535,7 +8550,7 @@ function CasesView({
 }) {
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [caseStandortFilter, setCaseStandortFilter] = useState("alle");
-  const [casePeriodId, setCasePeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [casePeriodId, setCasePeriodId] = useState("since-start");
   const [caseSearchTerm, setCaseSearchTerm] = useState("");
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
   const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);

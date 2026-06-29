@@ -300,7 +300,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const hasUploadData = privacyScopedImportRows.length > 0;
   const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
   const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoicePotential", "invoiceLocations", "locations", "users", "settings"];
-  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "economicCheck", "matches", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoicePotential", "invoiceLocations"];
+  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoicePotential", "invoiceLocations"];
   const pageScopeLabel = role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
@@ -516,11 +516,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     }
   }
 
-  async function resolveResubmissionCandidate(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
-    const resolution = await saveManualCaseResolution(resubmissionCandidateToCase(candidate), status);
-    setManualCaseResolutions((current) => [resolution, ...current.filter((entry) => entry.caseKey !== resolution.caseKey)]);
-  }
-
   function closeResolveCaseDialog() {
     if (caseResolveSaving) return;
     setCaseToResolve(null);
@@ -664,20 +659,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 tableScrollable
               />
             )}
-            {activeView === "economicCheck" && (
-              <EconomicCheckView
-                rows={invoiceStatusRows}
-                importRows={privacyScopedImportRows}
-                standort={tabFilterStandort}
-                manualCaseResolutions={manualCaseResolutions}
-                onResolvePaid={resolveCaseAsPaid}
-                onCancelFinal={cancelCaseFinally}
-              />
-            )}
             {activeView === "risks" && <RiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
-            {activeView === "matches" && <MatchesView importRows={privacyScopedImportRows} standort={tabFilterStandort} manualCaseResolutions={manualCaseResolutions} onResolveCandidate={resolveResubmissionCandidate} />}
             {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "outcomes" && <OutcomeControlView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
             {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />)}
@@ -865,11 +849,9 @@ function titleFor(view: string) {
     invoiceLocations: "Standortvergleich",
     cases: "Prüfliste",
     practiceFollowup: "Prüfliste",
-    economicCheck: "Zahlung / Grund prüfen",
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     patientClasses: "Patientenklassifizierung",
-    matches: "Neueinreichung / Matching",
     reports: "Report-Center",
     outcomes: "Maßnahmenkontrolle",
     groupReports: "Gruppenreports",
@@ -1059,7 +1041,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
 
       <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung offene Prüfsumme">
         <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info={`Grundmenge: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}.`} />
-        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredStornos", kpiTrendPoints)} info="Bereits geklärt heißt: Neueinreichung, belegte Zahlung, manuell bezahlt oder Ratenplan laut BFS." />
+        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredStornos", kpiTrendPoints)} info={`Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. ${recoveryBreakdownText(deductionRecovery)}`} />
         <PriorityCard label="Offene Prüfsumme" value={money.format(openStornoAmount)} hint="Brutto-Abzug minus bereits geklärt" period={selectedPeriod.label} tone={openStornoAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info="Das ist die Summe, die in der operativen Prüfliste abgearbeitet wird." />
         <PriorityCard label="Endgültig verloren" value={money.format(finalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={finalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
       </section>
@@ -1644,7 +1626,7 @@ function GroupDashboard({ onNavigate, importRows, manualCaseResolutions = [], in
     ["Adressprüfung", money.format(managementComparison.currentMetrics.ewmaTotal), "EWMA", undefined, groupSparkline("fees")],
     ["Auszahlung", money.format(managementComparison.currentMetrics.payout), "laut BFS-Abrechnung", undefined, groupSparkline("payout")],
     ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, "Grundmenge aller Rückgaben, Rückbelastungen und Stornos.", groupSparkline("deductionAmount")],
-    ["Bereits geklärt", money.format(managementComparison.recoveredAmount), `${formatPercent(managementComparison.recoveryRate)} vom Brutto-Abzug`, "Neueinreichung, Zahlung, manuell bezahlt oder Ratenplan laut BFS.", groupSparkline("recoveryRate")],
+    ["Bereits geklärt", money.format(managementComparison.recoveredAmount), `${formatPercent(managementComparison.recoveryRate)} vom Brutto-Abzug`, `Nicht mehr offene Prüfsumme: ${money.format(managementComparison.recoveredByResubmissionAmount)} Neueinreichung/Ersatzrechnung, ${money.format(managementComparison.paidByInvoiceStatusAmount)} Ratenplan laut BFS, ${money.format(managementComparison.manuallyPaidAmount)} manuell bezahlt/geklärt. Saldo 0 allein zählt nicht.`, groupSparkline("recoveryRate")],
     ["Offene Prüfsumme", money.format(Math.max(managementComparison.deductionAmount - managementComparison.recoveredAmount, 0)), "geht in die Prüfliste", "Diese Summe wird operativ abgearbeitet.", groupSparkline("deductionAmount")],
     ["Endgültig verloren", money.format(managementComparison.finalLostAmount), "manuell endgültig storniert", "Betrag, der nach Prüfung nicht weiterverfolgt wird.", groupSparkline("deductionAmount")]
   ];
@@ -2305,6 +2287,10 @@ function buildManagementComparison(importRows: ImportPreviewRow[], relevantStand
     submittedDeltaRate,
     deductionAmount,
     recoveredAmount,
+    recoveredByResubmissionAmount: deductionRecovery.recoveredByResubmissionAmount,
+    paidByInvoiceStatusAmount: deductionRecovery.paidByInvoiceStatusAmount,
+    manuallyPaidAmount: deductionRecovery.manuallyPaidAmount,
+    rawRecoveredAmount: deductionRecovery.rawRecoveredAmount,
     finalLostAmount: manualCancelledAmountFromRows(currentRows, manualCaseResolutions),
     recoveryRate: deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0,
     chargebackRate: currentMetrics.submitted ? (deductionAmount / currentMetrics.submitted) * 100 : 0,
@@ -3353,14 +3339,14 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   return {
     submitted: `Herleitung: Summe aller erkannten Forderungen im Zeitraum ${periodLabel} für ${scopeLabel}. Verwendet werden die importierten BFS-Forderungsbeträge je Abrechnung. Aktueller Wert: ${money.format(metrics.submitted)}. Die Sparkline zeigt die Monatsentwicklung im gewählten Zeitraum und der VJ-Wert vergleicht denselben Zeitraum mit dem Vorjahr.`,
     payout: `Herleitung: Summe der erkannten Auszahlungsbeträge im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.payout)}. Die Differenz zum eingereichten Umsatz entsteht aus BFS-Kosten, Steuern, EWMA/Meldeamtabfragen sowie Rückgaben oder Stornos, sofern diese im Import erkannt wurden.`,
-    open: `Herleitung: Summe echter Praxis-Nachfassfälle im aktuellen Standortfilter ${scopeLabel}. Zeitraum: ${periodLabel}. Gezählt werden ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Das sind vor allem Rückgaben ohne Ausfallschutz. Fälle mit BFS-Saldo 0, deren wirtschaftlicher Grund noch unklar ist, liegen separat unter Zahlung / Grund prüfen.`,
+    open: `Herleitung: Summe der Fälle in der gemeinsamen Prüfliste im aktuellen Standortfilter ${scopeLabel}. Zeitraum: ${periodLabel}. Gezählt werden ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Je Fall wird nur noch entschieden: bezahlt/geklärt oder endgültig storniert.`,
     chargebacks: `Herleitung: Gezählt werden offene Fälle mit Rückgabe oder Rückbelastung im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${chargebacks.length} Rückläufer mit ${money.format(chargebackAmount)} offenem Betrag. Stornos werden in den separaten Qualitäts- und Geldflussansichten ausgewertet.`,
     noProtection: `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
     recurring: `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${recurringRisks.length} Wiederholer. Diese Kachel zeigt Patientenselektion und Standortprozess, nicht einzelne Buchungssummen.`,
     fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
     stornoTotal: `Herleitung: Grundmenge aller erkannten Storno-Zeilen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${stornoReview.total} Storno-Zeilen mit zusammen ${money.format(stornoReview.amount)}.`,
     stornoDone: `Herleitung: Von ${stornoReview.total} erkannten Storno-Zeilen gelten ${stornoReview.done} als zurückgeholt oder wirtschaftlich geklärt. Dazu zählen echte spätere Neueinreichung/Ersatzrechnung oder belegte Zahlung. Saldo 0 allein ist kein Zahlungsnachweis. Quote: ${formatPercent(stornoReview.doneRate)}.`,
-    stornoOpen: `Herleitung: Noch offene Storno-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen weder zurückgeholt noch endgültig storniert. Zusätzlich gibt es ${economicCheckCount} saldogeschlossene Fälle, deren Zahlung/Grund wirtschaftlich geprüft werden muss.`,
+    stornoOpen: `Herleitung: Noch offene Storno-/Rückgabe-Zeilen aus derselben Grundmenge. Aktuell sind ${stornoReview.open} von ${stornoReview.total} Storno-Zeilen weder geklärt noch endgültig storniert. Offene saldogeschlossene Belegfälle laufen ebenfalls in die gemeinsame Prüfliste. Aktuell erkannt: ${economicCheckCount}.`,
     oldest: `Herleitung: Höchstes Alter unter allen Praxis-Nachfassfällen im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
@@ -3512,13 +3498,14 @@ function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandort
   const recoveredByResubmissionKeys = new Set(recoveredByResubmission.flatMap((candidate) => resubmissionResolutionKeys(candidate)));
   const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   const manuallyPaidCases = casesFromImportRows(scopedRows)
-    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)));
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key)));
   const paidByInvoiceStatusCases = paidCasesFromInvoiceStatus(scopedRows, invoiceStatusRows)
     .filter((fall) => !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key) || manualPaidKeys.has(key)));
   const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
   const manuallyPaidAmount = manuallyPaidCases.reduce((sum, fall) => sum + fall.amount, 0);
   const paidByInvoiceStatusAmount = paidByInvoiceStatusCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const recoveredAmount = Math.min(grossDeductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount + paidByInvoiceStatusAmount);
+  const rawRecoveredAmount = recoveredByResubmissionAmount + manuallyPaidAmount + paidByInvoiceStatusAmount;
+  const recoveredAmount = Math.min(grossDeductionAmount, rawRecoveredAmount);
   return {
     scopedRows,
     metrics,
@@ -3529,9 +3516,20 @@ function buildDeductionRecovery(importRows: ImportPreviewRow[], relevantStandort
     recoveredByResubmission,
     manuallyPaidCases,
     paidByInvoiceStatusCases,
+    recoveredByResubmissionAmount,
+    manuallyPaidAmount,
+    paidByInvoiceStatusAmount,
+    rawRecoveredAmount,
     recoveredCount: recoveredByResubmission.length + manuallyPaidCases.length + paidByInvoiceStatusCases.length,
     matchedNewSubmissionAmount: recoveredByResubmission.reduce((sum, candidate) => sum + candidate.newAmount, 0)
   };
+}
+
+function recoveryBreakdownText(recovery: ReturnType<typeof buildDeductionRecovery>) {
+  const capNote = recovery.rawRecoveredAmount > recovery.recoveredAmount + 0.01
+    ? ` Angerechnet werden maximal ${money.format(recovery.recoveredAmount)}, damit der geklärte Betrag den Brutto-Abzug nicht übersteigt.`
+    : "";
+  return `Aufschlüsselung bereits geklärt: ${money.format(recovery.recoveredByResubmissionAmount)} durch Neueinreichung/Ersatzrechnung, ${money.format(recovery.paidByInvoiceStatusAmount)} durch Ratenplan laut BFS, ${money.format(recovery.manuallyPaidAmount)} manuell bezahlt/geklärt.${capNote}`;
 }
 
 function paidCasesFromInvoiceStatus(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[]) {
@@ -3545,7 +3543,7 @@ function paidCasesFromInvoiceStatus(importRows: ImportPreviewRow[], invoiceStatu
 }
 
 function isInvoiceStatusPaidOrSecured(row: ParsedInvoiceStatusRow) {
-  return row.paymentStatus === "bezahlt" || row.installmentPlan || row.paymentStatus === "ratenzahlung";
+  return row.installmentPlan || row.paymentStatus === "ratenzahlung";
 }
 
 function previousYearPeriod(period: PeriodOption): PeriodOption {
@@ -3581,11 +3579,11 @@ function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreview
   if (metric === "recoveryRate") {
     const deductionAmount = metrics.returnAmount + metrics.cancellationAmount;
     const recoveredByResubmission = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows));
-    const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+    const recoveredByResubmissionKeys = new Set(recoveredByResubmission.flatMap((candidate) => resubmissionResolutionKeys(candidate)));
     const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
     const recoveredByResubmissionAmount = recoveredByResubmission.reduce((sum, candidate) => sum + Math.min(candidate.originalAmount, candidate.newAmount), 0);
     const manuallyPaidAmount = casesFromImportRows(rows)
-      .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)))
+      .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key)))
       .reduce((sum, fall) => sum + fall.amount, 0);
     const recoveredAmount = Math.min(deductionAmount, recoveredByResubmissionAmount + manuallyPaidAmount);
     return deductionAmount ? Math.min(100, (recoveredAmount / deductionAmount) * 100) : 0;
@@ -3958,7 +3956,7 @@ function ClaimsFlowView({
         <div className="priority-grid compact-priority recovery-priority-grid">
           <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(recoveryDeductionAmount)} hint="Rückläufer, Rückgaben und Stornos" period={recoveryPeriod.label} tone={recoveryDeductionAmount ? "red" : "green"} info="Grundmenge vor Folgeentscheidung: Rückläufer, Rückgaben und Stornos aus den BFS-Kontoauszug-Bewegungen." />
           <PriorityCard label="Abzugsquote" value={formatPercent(recoveryDeductionRate)} hint="Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={recoveryDeductionRate ? "red" : "green"} />
-	          <PriorityCard label="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Klärungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info="Angerechnet werden echte Neueinreichungen, belegte Zahlungen, manuell bezahlte Fälle und Ratenpläne laut BFS bis maximal zur Höhe des ursprünglichen Abzugs." />
+	          <PriorityCard label="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${recoveryDeductionSummary.recoveredCount} Klärungen · brutto neu ${money.format(matchedNewSubmissionAmount)}`} period={recoveryPeriod.label} tone={recoveredAmount ? "green" : "amber"} info={`Angerechnet werden echte Neueinreichungen, manuell bezahlte Fälle und Ratenpläne laut BFS bis maximal zur Höhe des ursprünglichen Abzugs. Saldo 0 allein zählt nicht. ${recoveryBreakdownText(recoveryDeductionSummary)}`} />
 	          <PriorityCard label="Offene Prüfsumme" value={money.format(stillOpenAmount)} hint="Brutto-Abzug minus bereits geklärt" period={recoveryPeriod.label} tone={stillOpenAmount ? "amber" : "green"} info="Diese Summe muss in der operativen Prüfliste abgearbeitet und als bezahlt/geklärt oder endgültig storniert markiert werden." />
 	          <PriorityCard label="Offene Abzugsquote" value={formatPercent(notRecoveredRate)} hint="offener Abzug vom eingereichten Umsatz" period={recoveryPeriod.label} tone={notRecoveredRate ? "amber" : "green"} />
 	          <PriorityCard label="Erledigungsquote Abzug" value={formatPercent(recoveryRate)} hint="angerechnete Erledigung bezogen auf Abzug" period={recoveryPeriod.label} tone={recoveryRate >= 80 ? "green" : recoveryRate ? "amber" : "blue"} />
@@ -4204,7 +4202,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
   });
 
   const recoveredByResubmission = uniqueRecoveryCandidates(resubmissionCandidatesFromImportRows(rows));
-  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.map((candidate) => resubmissionResolutionKey(candidate)));
+  const recoveredByResubmissionKeys = new Set(recoveredByResubmission.flatMap((candidate) => resubmissionResolutionKeys(candidate)));
   recoveredByResubmission.forEach((candidate) => {
     const month = monthKeyFromGermanDate(candidate.originalDate);
     if (!month) return;
@@ -4217,7 +4215,7 @@ function customMonthlyChartPoints(rows: ImportPreviewRow[], manualCaseResolution
 
   const manualPaidKeys = buildPaidResolutionKeySet(manualCaseResolutions);
   casesFromImportRows(rows)
-    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !recoveredByResubmissionKeys.has(caseResolutionKey(fall)))
+    .filter((fall) => caseResolutionKeys(fall).some((key) => manualPaidKeys.has(key)) && !caseResolutionKeys(fall).some((key) => recoveredByResubmissionKeys.has(key)))
     .forEach((fall) => {
       const month = monthKeyFromGermanDate(fall.sourceDate ?? "");
       if (!month) return;
@@ -4947,47 +4945,6 @@ function uniqueRecoveryCandidates(candidates: ResubmissionCandidate[]) {
   return [...byKey.values()];
 }
 
-function matchingCandidateTotals(candidates: ResubmissionCandidate[]) {
-  const originals = new Map<string, { originalAmount: number; newClaims: Map<string, number> }>();
-  candidates.forEach((candidate) => {
-    const originalKey = resubmissionResolutionKey(candidate);
-    const current = originals.get(originalKey) ?? { originalAmount: candidate.originalAmount, newClaims: new Map<string, number>() };
-    current.originalAmount = Math.max(current.originalAmount, candidate.originalAmount);
-    current.newClaims.set(matchingNewClaimKey(candidate), candidate.newAmount);
-    originals.set(originalKey, current);
-  });
-
-  const rows = [...originals.values()].map((entry) => {
-    const newAmount = [...entry.newClaims.values()].reduce((sum, amount) => sum + amount, 0);
-    return {
-      originalAmount: entry.originalAmount,
-      newAmount,
-      creditedAmount: Math.min(entry.originalAmount, newAmount)
-    };
-  });
-
-  const originalAmount = rows.reduce((sum, row) => sum + row.originalAmount, 0);
-  const newAmount = rows.reduce((sum, row) => sum + row.newAmount, 0);
-  const creditedAmount = rows.reduce((sum, row) => sum + row.creditedAmount, 0);
-  return {
-    originalAmount,
-    newAmount,
-    creditedAmount,
-    difference: newAmount - originalAmount
-  };
-}
-
-function matchingNewClaimKey(candidate: ResubmissionCandidate) {
-  return [
-    resubmissionResolutionKey(candidate),
-    candidate.newDate,
-    candidate.newStatementNo,
-    candidate.newInvoiceNo,
-    candidate.newBfsNo,
-    Math.round(candidate.newAmount * 100)
-  ].join("|");
-}
-
 function resubmissionResolutionKey(candidate: ResubmissionCandidate) {
   return resubmissionResolutionKeys(candidate)[0];
 }
@@ -5002,27 +4959,6 @@ function resubmissionResolutionKeys(candidate: ResubmissionCandidate) {
     amount: candidate.originalAmount,
     reason: candidate.reason
   });
-}
-
-function resubmissionCandidateToCase(candidate: ResubmissionCandidate): BfsCase {
-  const standort = standorte.find((entry) => entry.name === candidate.locationName);
-  return {
-    id: `resubmission-${resubmissionResolutionKey(candidate)}`,
-    resolutionKey: resubmissionResolutionKey(candidate),
-    standortId: standort?.id ?? candidate.locationName,
-    locationName: candidate.locationName,
-    patientName: candidate.patientName,
-    invoiceNo: candidate.invoiceNo,
-    bfsNo: candidate.bfsNo,
-    amount: candidate.originalAmount,
-    reason: candidate.reason,
-    sourceDate: candidate.originalDate,
-    ageDays: 0,
-    traffic: "green",
-    status: "neueinreichung_match",
-    dueDate: "-",
-    lastComment: candidate.originalStatementNo
-  };
 }
 
 function patientProfilesFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
@@ -5503,12 +5439,6 @@ function shortDateInPeriod(value: string | undefined, period: PeriodOption, stan
   if (period.start && metricDate < new Date(period.start.getFullYear(), period.start.getMonth(), 1)) return false;
   if (period.end && metricDate > new Date(period.end.getFullYear(), period.end.getMonth(), 1)) return false;
   return true;
-}
-
-function economicCheckRowInPeriod(row: InvoiceStatusReviewRow, period: PeriodOption, standort: Standort) {
-  const month = monthKeyFromShortDate(row.sourceDate);
-  if (!month) return !period.start && !period.end;
-  return shortDateInPeriod(row.sourceDate, period, standort);
 }
 
 function caseInSelectedPeriod(fall: BfsCase, period: PeriodOption, standort: Standort) {
@@ -6199,9 +6129,9 @@ function UploadView({
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : hasPendingStatusImport ? "Vorschau aus Saldo-Listen" : "bestätigte Saldo-Listen"} tone="blue" />
         <PriorityCard label="Standorte erkannt" value={`${statusSummary.coveredStandortCount}/${standorte.length}`} hint={statusSummary.unknownMandantCount ? `${integerNumber.format(statusSummary.unknownMandantCount)} Zeilen ohne Standort` : "über Mandant-Nr. zugeordnet"} tone={statusSummary.coveredStandortCount === standorte.length && !statusSummary.unknownMandantCount ? "green" : "amber"} />
         <PriorityCard label="Brutto-Prüfbasis" value={integerNumber.format(statusSummary.importCaseCount)} hint="Storno/Rückgabe aus Abrechnung" tone="amber" info="Grundmenge aus dem Abrechnungsimport. Die Saldo-Liste hilft zu erkennen, was bereits geregelt ist und was in die offene Prüfliste wandert." />
-        <PriorityCard label="BFS geschlossen" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="Saldo 0 oder RP-Treffer" tone="green" info="Saldo 0 oder Ratenplan heißt: Bei BFS ist der Fall geschlossen oder geregelt. Das ist noch kein Zahlungsnachweis für die Praxis." />
-        <PriorityCard label="BFS geschlossen, Beleg prüfen" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="Saldo 0 mit Storno-/Rückgabegrund" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} info="Diese Fälle sind bei BFS saldobereinigt, aber wirtschaftlich muss noch belegt werden, ob Zahlung, echte Neueinreichung oder korrekter Storno-Grund vorliegt." />
-        <PriorityCard label="Status BFS geschlossen" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="bezahlt, storniert oder RP laut Saldo" tone="green" info="Reiner BFS-Zahlungsstatus aus der Saldo-Liste. Diese Kachel bedeutet nicht automatisch: Geld ist bei der Praxis angekommen." />
+        <PriorityCard label="Ratenplan erkannt" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="RP-Treffer in Prüffällen" tone="green" info="Nur Ratenplan gilt in der offenen Abzugslogik automatisch als geregelt. Saldo 0 allein ist kein Zahlungsnachweis." />
+        <PriorityCard label="Ratenplan mit Storno-Bezug" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="RP bei Storno-/Rückgabefall" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} info="Diese Storno-/Rückgabefälle haben einen Ratenplan und gelten daher als wirtschaftlich geregelt. Saldo 0 ohne Ratenplan bleibt prüfpflichtig." />
+        <PriorityCard label="Ratenplan-Status" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="RP laut Saldo-Liste" tone="green" info="Reiner BFS-Status aus der Saldo-Liste: Ratenplan ist geregelt. Saldo 0 wird hier nicht als bezahlt gezählt." />
         <PriorityCard label="BFS kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" info="Saldo in der BFS-Liste ist negativ und es gibt keinen Ratenplan. Das bleibt ein offenes BFS-Zahlungsrisiko." />
         <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
         <PriorityCard label="Ohne Schutz bei BFS offen" value={integerNumber.format(statusSummary.noProtectionOpenCount)} hint="negativer Saldo ohne RP" tone="red" info="BFS-Saldo ist noch offen und die Rechnung hat keinen Ausfallschutz. Das ist ein besonders priorisierter Risikofall." />
@@ -6273,168 +6203,6 @@ function InvoiceStatusReviewBasket({ rows, importRows }: { rows: ParsedInvoiceSt
           </div>
         </>
       )}
-    </section>
-  );
-}
-
-function EconomicCheckView({
-  rows,
-  importRows,
-  standort,
-  manualCaseResolutions = [],
-  onResolvePaid,
-  onCancelFinal
-}: {
-  rows: ParsedInvoiceStatusRow[];
-  importRows: ImportPreviewRow[];
-  standort?: Standort;
-  manualCaseResolutions?: ManualCaseResolution[];
-  onResolvePaid?: (fall: BfsCase) => void | Promise<void>;
-  onCancelFinal?: (fall: BfsCase) => void | Promise<void>;
-}) {
-  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [standortFilter, setStandortFilter] = useState(standort?.id ?? "alle");
-  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const [searchTerm, setSearchTerm] = useState("");
-  const period = useMemo(() => periodOptions.find((entry) => entry.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
-  const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const reviewRows = useMemo(() => buildInvoiceStatusReviewBasket(rows, importRows)
-    .filter((row) => row.category === "economic_check")
-    .filter((row) => !caseResolutionKeys(invoiceStatusReviewRowToCase(row)).some((key) => closedKeys.has(key))),
-    [rows, importRows, closedKeys]
-  );
-  const availableStandorte = useMemo(() => orderedStandorte().filter((entry) => reviewRows.some((row) => row.standortId === entry.id)), [reviewRows]);
-  const filteredRows = useMemo(() => {
-    const effectiveStandortId = standort?.id ?? standortFilter;
-    const query = normalizeSearchQuery(searchTerm);
-    const baseRows = reviewRows.filter((row) => {
-      const rowStandort = row.standortId ? standorte.find((entry) => entry.id === row.standortId) : undefined;
-      const matchesStandort = effectiveStandortId === "alle" || row.standortId === effectiveStandortId;
-      const matchesPeriod = rowStandort ? economicCheckRowInPeriod(row, period, rowStandort) : false;
-      return matchesStandort && matchesPeriod;
-    });
-    if (!query) return baseRows;
-    return baseRows.filter((row) => matchesInvoiceStatusReviewSearch(row, query));
-  }, [reviewRows, standort?.id, standortFilter, period, searchTerm]);
-  const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => sum + row.amount, 0), [filteredRows]);
-  const highestRow = useMemo(() => filteredRows.reduce<InvoiceStatusReviewRow | undefined>((max, row) => !max || row.amount > max.amount ? row : max, undefined), [filteredRows]);
-  const locationCount = useMemo(() => new Set(filteredRows.map((row) => row.standortId ?? row.locationName)).size, [filteredRows]);
-
-  return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h2>Zahlung / Grund prüfen</h2>
-          <p>BFS-Saldo ist geschlossen, aber die wirtschaftliche Ursache muss belegt werden: Zahlung, echte Neueinreichung oder nachvollziehbarer Storno-Grund.</p>
-        </div>
-        <div className="case-list-actions">
-          <button className="secondary-button" disabled={!filteredRows.length} onClick={() => printEconomicCheckReport(filteredRows, period.label)}>
-            <Printer size={16} /> PDF Export
-          </button>
-          <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
-        </div>
-      </div>
-      <div className="period-filter case-table-filter">
-        {!standort && (
-          <label className="select-label">
-            Standort
-            <select value={standortFilter} onChange={(event) => setStandortFilter(event.target.value)}>
-              <option value="alle">Alle Standorte</option>
-              {availableStandorte.map((entry) => (
-                <option key={entry.id} value={entry.id}>{entry.name}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        {standort && (
-          <label className="select-label">
-            Standort
-            <select value={standort.id} disabled>
-              <option value={standort.id}>{standort.name}</option>
-            </select>
-          </label>
-        )}
-        <label className="select-label">
-          Zeitraum
-          <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
-            {periodOptions.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.label}</option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span>Tab-Auswertung</span>
-          <strong>{integerNumber.format(filteredRows.length)} Fälle / {exactMoney.format(totalAmount)}</strong>
-        </div>
-      </div>
-      <div className="case-summary-grid" aria-label="Zahlung und Grund prüfen">
-        <article>
-          <span>Prüfbetrag gesamt</span>
-          <strong>{exactMoney.format(totalAmount)}</strong>
-        </article>
-        <article>
-          <span>Prüffälle</span>
-          <strong>{integerNumber.format(filteredRows.length)}</strong>
-        </article>
-        <article>
-          <span>Betroffene Standorte</span>
-          <strong>{integerNumber.format(locationCount)}</strong>
-        </article>
-        <article>
-          <span>Höchste Einzelposition</span>
-          <strong>{exactMoney.format(highestRow?.amount ?? 0)}</strong>
-        </article>
-      </div>
-      <div className="table-wrap case-table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Kategorie</th>
-              <th>Standort</th>
-              <th>Datum</th>
-              <th>Patient</th>
-              <th>Rechnung</th>
-              <th>Betrag</th>
-              <th>Grund / Status</th>
-              <th>Nächster Schritt</th>
-              {(onResolvePaid || onCancelFinal) && <th>Aktion</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.length ? filteredRows.map((row) => {
-              const fall = invoiceStatusReviewRowToCase(row);
-              return (
-                <tr key={row.id}>
-                  <td><StatusBadge status={row.categoryLabel} /></td>
-                  <td>{row.locationName}</td>
-                  <td>{row.sourceDate ?? "-"}</td>
-                  <td><strong>{row.patientName}</strong><span>{row.source}</span></td>
-                  <td><strong>{row.invoiceNo}</strong><span>{row.bfsNo}</span></td>
-                  <td>{exactMoney.format(row.amount)}</td>
-                  <td>{row.detail}</td>
-                  <td>{row.nextStep}</td>
-                  {(onResolvePaid || onCancelFinal) && (
-                    <td>
-                      <div className="case-action-stack">
-                        {onResolvePaid && (
-                          <button className="secondary-button resolve-case-button" onClick={() => void onResolvePaid(fall)}>
-                            <CheckCircle2 size={15} /> Erledigt / bezahlt
-                          </button>
-                        )}
-                        {onCancelFinal && (
-                          <button className="secondary-button resolve-case-button" onClick={() => void onCancelFinal(fall)}>
-                            <X size={15} /> Endgültig storniert
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            }) : <EmptyTableRow colSpan={onResolvePaid || onCancelFinal ? 9 : 8} label="Keine Belegprüfungen im aktuellen Filter." />}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }
@@ -6570,7 +6338,7 @@ function InvoiceStatusPreview({ rows, isPreview }: { rows: ParsedInvoiceStatusRo
 
 function invoiceStatusLabel(row: ParsedInvoiceStatusRow) {
   if (row.paymentStatus === "storniert") return "storniert";
-  if (row.paymentStatus === "bezahlt") return "bezahlt";
+  if (row.paymentStatus === "bezahlt") return "Saldo 0";
   if (row.paymentStatus === "ratenzahlung") return row.installmentMonths ? `Ratenplan ${row.installmentMonths} Monate` : "Ratenplan";
   if (row.paymentStatus === "teilbezahlt") return "teilbezahlt";
   if (row.reminderLevel > 0) return `offen MS ${row.reminderLevel}`;
@@ -6893,7 +6661,7 @@ function summarizeInvoiceStatusCoverage(rows: ParsedInvoiceStatusRow[]) {
 }
 
 function isInvoiceStatusAutoResolved(row: ParsedInvoiceStatusRow) {
-  return row.paymentStatus === "bezahlt" || row.paymentStatus === "storniert" || row.installmentPlan;
+  return row.installmentPlan || row.paymentStatus === "ratenzahlung";
 }
 
 function invoiceStatusCoveredStandortIds(rows: ParsedInvoiceStatusRow[]) {
@@ -6949,40 +6717,6 @@ function matchesCaseSearch(fall: BfsCase, query: string) {
     fall.dueDate,
     fall.lastComment,
     fall.sourceDate
-  ).includes(query);
-}
-
-function matchesInvoiceStatusReviewSearch(row: InvoiceStatusReviewRow, query: string) {
-  return searchHaystack(
-    row.categoryLabel,
-    row.locationName,
-    row.patientName,
-    row.invoiceNo,
-    row.bfsNo,
-    row.amount,
-    row.detail,
-    row.source,
-    row.sourceDate,
-    row.nextStep
-  ).includes(query);
-}
-
-function matchesResubmissionCandidateSearch(candidate: ResubmissionCandidate, query: string) {
-  return searchHaystack(
-    candidate.patientName,
-    candidate.locationName,
-    candidate.originalDate,
-    candidate.originalStatementNo,
-    candidate.invoiceNo,
-    candidate.bfsNo,
-    candidate.reason,
-    candidate.originalAmount,
-    candidate.newDate,
-    candidate.newStatementNo,
-    candidate.newInvoiceNo,
-    candidate.newBfsNo,
-    candidate.newAmount,
-    candidate.newFile
   ).includes(query);
 }
 
@@ -8486,176 +8220,6 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-function printOperationalHtmlReport({
-  title,
-  description,
-  meta,
-  summary,
-  tableHead,
-  tableBody,
-  emptyColSpan,
-  emptyLabel,
-  footer,
-  filename
-}: {
-  title: string;
-  description: string;
-  meta: string;
-  summary: { label: string; value: string }[];
-  tableHead: string;
-  tableBody: string;
-  emptyColSpan: number;
-  emptyLabel: string;
-  footer: string;
-  filename: string;
-}) {
-  const html = `<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title)} - Orisus BFS Monitor</title>
-  <style>
-    @page { size: A4 landscape; margin: 10mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; }
-    header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 9px; margin-bottom: 10px; }
-    h1 { margin: 0 0 4px; font-size: 21px; line-height: 1.1; }
-    h2 { margin: 13px 0 7px; font-size: 14px; }
-    p { margin: 0; color: #48606c; line-height: 1.35; }
-    .meta { text-align: right; color: #48606c; min-width: 210px; }
-    .summary { display: grid; grid-template-columns: repeat(${Math.min(Math.max(summary.length, 1), 5)}, minmax(0, 1fr)); gap: 7px; margin: 9px 0 11px; }
-    .summary div { border: 1px solid #c8d7dc; border-radius: 6px; padding: 7px; min-height: 46px; }
-    .summary span { display: block; color: #607783; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
-    .summary strong { display: block; margin-top: 4px; font-size: 15px; line-height: 1.15; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; page-break-inside: auto; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; page-break-after: auto; }
-    th, td { border: 1px solid #d7e3e7; padding: 4px 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
-    th { background: #eaf7f6; color: #0f5360; font-size: 8.5px; text-transform: uppercase; }
-    tr:nth-child(even) td { background: #f8fbfc; }
-    td strong { display: block; }
-    td span { display: block; color: #607783; margin-top: 2px; }
-    .amount { text-align: right; white-space: nowrap; }
-    .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 6px; font-weight: 700; }
-    .traffic { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; background: #30d5c8; }
-    .traffic-red { background: #f04438; }
-    .traffic-amber { background: #f59e0b; }
-    .traffic-green { background: #12b76a; }
-    footer { margin-top: 10px; color: #607783; font-size: 8.5px; }
-  </style>
-</head>
-<body>
-  <header>
-    <div>
-      <h1>${escapeHtml(title)}</h1>
-      <p>${escapeHtml(description)}</p>
-    </div>
-    <div class="meta">
-      <strong>${escapeHtml(new Date().toLocaleString("de-DE"))}</strong><br />
-      ${escapeHtml(meta)}
-    </div>
-  </header>
-  <section class="summary">
-    ${summary.map((entry) => `<div><span>${escapeHtml(entry.label)}</span><strong>${escapeHtml(entry.value)}</strong></div>`).join("")}
-  </section>
-  <h2>Arbeitsliste</h2>
-  <table>
-    <thead>${tableHead}</thead>
-    <tbody>${tableBody || `<tr><td colspan="${emptyColSpan}">${escapeHtml(emptyLabel)}</td></tr>`}</tbody>
-  </table>
-  <footer>${escapeHtml(footer)}</footer>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 150));</script>
-</body>
-</html>`;
-  const reportWindow = window.open("", "_blank", "width=1200,height=900");
-  if (!reportWindow) {
-    downloadTextFile(filename, html);
-    return;
-  }
-  reportWindow.document.open();
-  reportWindow.document.write(html);
-  reportWindow.document.close();
-}
-
-function printEconomicCheckReport(rows: InvoiceStatusReviewRow[], periodLabel: string) {
-  const sortedRows = [...rows].sort((a, b) => b.amount - a.amount || a.patientName.localeCompare(b.patientName, "de"));
-  const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
-  const locations = [...new Set(rows.map((row) => row.locationName).filter(Boolean))].sort(compareLocationNamesByContractStart);
-  printOperationalHtmlReport({
-    title: "Zahlung / Grund prüfen",
-    description: "Saldogeschlossene Fälle, bei denen Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegt werden muss.",
-    meta: `${locations.join(", ") || "Alle Standorte"} · ${periodLabel}`,
-    summary: [
-      { label: "Prüffälle", value: integerNumber.format(rows.length) },
-      { label: "Prüfbetrag", value: exactMoney.format(totalAmount) },
-      { label: "Standorte", value: integerNumber.format(locations.length) },
-      { label: "Höchste Position", value: exactMoney.format(sortedRows[0]?.amount ?? 0) }
-    ],
-    tableHead: `<tr>
-      <th style="width: 12%;">Kategorie</th>
-      <th style="width: 10%;">Standort</th>
-      <th style="width: 18%;">Patient</th>
-      <th style="width: 15%;">Rechnung / BFS</th>
-      <th style="width: 10%;" class="amount">Betrag</th>
-      <th style="width: 23%;">Grund / Status</th>
-      <th style="width: 12%;">Nächster Schritt</th>
-    </tr>`,
-    tableBody: sortedRows.map((row) => `<tr>
-      <td><span class="status">${escapeHtml(row.categoryLabel)}</span></td>
-      <td>${escapeHtml(row.locationName)}</td>
-      <td><strong>${escapeHtml(row.patientName)}</strong><span>${escapeHtml(row.source)}</span></td>
-      <td><strong>${escapeHtml(row.invoiceNo)}</strong><span>${escapeHtml(row.bfsNo)}</span></td>
-      <td class="amount">${escapeHtml(exactMoney.format(row.amount))}</td>
-      <td>${escapeHtml(row.detail)}</td>
-      <td>${escapeHtml(row.nextStep)}</td>
-    </tr>`).join(""),
-    emptyColSpan: 7,
-    emptyLabel: "Keine Belegprüfungen im aktuellen Filter.",
-    footer: "Hinweis: Der Export bildet exakt die aktuell gefilterte operative Arbeitsliste ab. Entscheidungen werden in der App gepflegt.",
-    filename: "orisus-bfs-zahlung-grund-pruefen.html"
-  });
-}
-
-function printResubmissionReport(candidates: ResubmissionCandidate[], scopeLabel: string, periodLabel: string) {
-  const totals = matchingCandidateTotals(candidates);
-  const sortedCandidates = [...candidates].sort((a, b) => b.originalAmount - a.originalAmount || a.patientName.localeCompare(b.patientName, "de"));
-  const patientCount = new Set(candidates.map((candidate) => candidate.patientName)).size;
-  printOperationalHtmlReport({
-    title: "Neueinreichung / Matching",
-    description: "Automatisch erkannte Folgeeinreichungen nach Storno oder Rückgabe, zur Prüfung und Entscheidung.",
-    meta: `${scopeLabel} · ${periodLabel}`,
-    summary: [
-      { label: "Vorschläge", value: integerNumber.format(candidates.length) },
-      { label: "Patienten", value: integerNumber.format(patientCount) },
-      { label: "Urspr. Abzug", value: exactMoney.format(totals.originalAmount) },
-      { label: "Neue Forderung", value: exactMoney.format(totals.newAmount) },
-      { label: "Angerechnet", value: exactMoney.format(totals.creditedAmount) }
-    ],
-    tableHead: `<tr>
-      <th style="width: 18%;">Patient</th>
-      <th style="width: 15%;">Ursprung</th>
-      <th style="width: 20%;">Grund</th>
-      <th style="width: 16%;">Neue Einreichung</th>
-      <th style="width: 11%;" class="amount">Ursprung</th>
-      <th style="width: 11%;" class="amount">Neu</th>
-      <th style="width: 9%;">Abrechnung</th>
-    </tr>`,
-    tableBody: sortedCandidates.map((candidate) => `<tr>
-      <td><strong>${escapeHtml(candidate.patientName)}</strong><span>${escapeHtml(candidate.locationName)}</span></td>
-      <td><strong>${escapeHtml(candidate.originalDate)}</strong><span>${escapeHtml(candidate.invoiceNo)} / ${escapeHtml(candidate.bfsNo)}</span></td>
-      <td>${escapeHtml(candidate.reason)}</td>
-      <td><strong>${escapeHtml(candidate.newDate)}</strong><span>${escapeHtml(candidate.newInvoiceNo)} / ${escapeHtml(candidate.newBfsNo)}</span></td>
-      <td class="amount">${escapeHtml(exactMoney.format(candidate.originalAmount))}</td>
-      <td class="amount">${escapeHtml(exactMoney.format(candidate.newAmount))}</td>
-      <td>${escapeHtml(formatStatementReference(candidate.newStatementNo, candidate.newFile))}</td>
-    </tr>`).join(""),
-    emptyColSpan: 7,
-    emptyLabel: "Keine Neueinreichungsvorschläge im aktuellen Filter.",
-    footer: "Hinweis: Der Export bildet exakt die aktuell gefilterten Matching-Vorschläge ab. Die Entscheidung Stimmt/Abgelehnt erfolgt in der App.",
-    filename: "orisus-bfs-neueinreichung-matching.html"
-  });
-}
-
 function formatMovementReason(movement: NonNullable<ImportPreviewRow["parsedMovements"]>[number]) {
   const patient = movement.patientName ?? "Patient noch nicht gematcht";
   const reason = movement.reason ?? movement.reasonCategory ?? "Grund offen";
@@ -9889,158 +9453,6 @@ function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFro
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([label, value]) => ({ label, value }));
-}
-
-function MatchesView({
-  importRows = [],
-  standort,
-  manualCaseResolutions = [],
-  onResolveCandidate
-}: {
-  importRows?: ImportPreviewRow[];
-  standort?: Standort;
-  manualCaseResolutions?: ManualCaseResolution[];
-  onResolveCandidate?: (candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") => Promise<void>;
-}) {
-  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const [selectedStandortFilterId, setSelectedStandortFilterId] = useState(() => standort?.id ?? "alle");
-  const [savingCandidateKey, setSavingCandidateKey] = useState("");
-  const [matchActionError, setMatchActionError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
-  const selectableStandorte = useMemo(() => standort ? [standort] : orderedStandorte(), [standort]);
-  const filteredStandorte = useMemo(() => {
-    if (standort) return [standort];
-    if (selectedStandortFilterId === "alle") return selectableStandorte;
-    return selectableStandorte.filter((entry) => entry.id === selectedStandortFilterId);
-  }, [selectableStandorte, selectedStandortFilterId, standort]);
-  const scopedImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = filteredStandorte.find((entry) => entry.name === row.location);
-    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [filteredStandorte, importRows, selectedPeriod]);
-  const closedKeys = useMemo(() => buildClosedResolutionKeySet(manualCaseResolutions), [manualCaseResolutions]);
-  const candidates = useMemo(() => resubmissionCandidatesFromImportRows(scopedImportRows)
-    .filter((candidate) => !resubmissionResolutionKeys(candidate).some((key) => closedKeys.has(key))), [closedKeys, scopedImportRows]);
-  const filteredCandidates = useMemo(() => {
-    const query = normalizeSearchQuery(searchTerm);
-    if (!query) return candidates;
-    return candidates.filter((candidate) => matchesResubmissionCandidateSearch(candidate, query));
-  }, [candidates, searchTerm]);
-  const scopeLabel = filteredStandorte.length === 1 ? filteredStandorte[0].name : "Alle Standorte";
-  const matchTotals = useMemo(() => matchingCandidateTotals(filteredCandidates), [filteredCandidates]);
-  const patientCount = new Set(filteredCandidates.map((candidate) => candidate.patientName)).size;
-  async function handleCandidateAction(candidate: ResubmissionCandidate, status: "paid_manual" | "cancelled_manual") {
-    if (!onResolveCandidate) return;
-    const key = `${resubmissionResolutionKey(candidate)}:${status}`;
-    setSavingCandidateKey(key);
-    setMatchActionError("");
-    try {
-      await onResolveCandidate(candidate, status);
-    } catch (error) {
-      setMatchActionError(error instanceof Error ? error.message : "Neueinreichung konnte nicht gespeichert werden.");
-    } finally {
-      setSavingCandidateKey("");
-    }
-  }
-
-  return (
-    <div className="content-stack">
-      <section className="panel period-filter deduction-analysis-filter">
-        <label className="select-label">
-          Zeitraum
-          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            {periodOptions.map((period) => (
-              <option key={period.id} value={period.id}>{period.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="select-label">
-          Standort
-          <select value={standort ? standort.id : selectedStandortFilterId} onChange={(event) => setSelectedStandortFilterId(event.target.value)} disabled={Boolean(standort)}>
-            {!standort && <option value="alle">Alle Standorte</option>}
-            {selectableStandorte.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.name}</option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <strong>{scopeLabel}</strong>
-          <span>{selectedPeriod.detail}</span>
-        </div>
-      </section>
-      <section className="priority-grid">
-        <PriorityCard label="Neueinreichungen" value={String(filteredCandidates.length)} hint="nach Storno/Rückgabe erkannt" period={selectedPeriod.label} tone="blue" />
-        <PriorityCard label="Betroffene Patienten" value={String(patientCount)} hint="im gewählten Filter" period={selectedPeriod.label} tone="amber" />
-        <PriorityCard label="Urspr. Abzugsbetrag" value={exactMoney.format(matchTotals.originalAmount)} hint="ursprünglich negativ belastet" period={selectedPeriod.label} tone={matchTotals.originalAmount ? "red" : "green"} />
-        <PriorityCard label="Neue Forderungssumme" value={exactMoney.format(matchTotals.newAmount)} hint={`Differenz ${exactMoney.format(matchTotals.difference)}`} period={selectedPeriod.label} tone={matchTotals.newAmount ? "green" : "blue"} />
-        <PriorityCard label="Angerechnete Erledigung" value={exactMoney.format(matchTotals.creditedAmount)} hint="maximal bis Ursprungsbetrag" period={selectedPeriod.label} tone={matchTotals.creditedAmount ? "green" : "blue"} info="Diese Treffer können im Geldfluss bereits als geklärt angerechnet sein. Sie werden deshalb nicht zusätzlich zur offenen Prüfsumme addiert, sondern erklären die Kachel Bereits geklärt." />
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Neueinreichungen nach Storno/Rückgabe {scopeLabel}</h2>
-            <p>Automatisch erkannte Fälle im gewählten Zeitraum und Standortumfang, bei denen ein Patient nach einer Storno- oder Rückgabe-Bewegung später wieder in einer Forderungsliste auftaucht. Diese Treffer erklären die Rückholung und werden nicht zusätzlich zur offenen Kontrollsumme addiert.</p>
-          </div>
-          <div className="case-list-actions">
-            <button className="secondary-button" disabled={!filteredCandidates.length} onClick={() => printResubmissionReport(filteredCandidates, scopeLabel, selectedPeriod.label)}>
-              <Printer size={16} /> PDF Export
-            </button>
-            <div className="search-box"><Search size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Re.-Nr. oder BFS-Nr." /></div>
-          </div>
-        </div>
-        {matchActionError && <p className="form-error">{matchActionError}</p>}
-        <div className="table-wrap case-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Ursprung</th>
-                <th>Grund</th>
-                <th>Neue Einreichung</th>
-                <th>Beträge</th>
-                <th>AbrechnungsNr.</th>
-                <th>Entscheidung</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCandidates.map((candidate) => {
-                const baseKey = resubmissionResolutionKey(candidate);
-                const acceptKey = `${baseKey}:paid_manual`;
-                const rejectKey = `${baseKey}:cancelled_manual`;
-                const isSaving = savingCandidateKey === acceptKey || savingCandidateKey === rejectKey;
-                return (
-                  <tr key={`${candidate.patientName}-${candidate.bfsNo}-${candidate.newInvoiceNo}-${candidate.newDate}`}>
-                    <td><strong>{candidate.patientName}</strong><span>{candidate.locationName}</span></td>
-                    <td>{candidate.originalDate}<span>{candidate.invoiceNo} / {candidate.bfsNo}</span></td>
-                    <td>{candidate.reason}</td>
-                    <td>{candidate.newDate}<span>{candidate.newInvoiceNo} / {candidate.newBfsNo}</span></td>
-                    <td>{exactMoney.format(candidate.originalAmount)}<span>neu {exactMoney.format(candidate.newAmount)}</span></td>
-                    <td>{formatStatementReference(candidate.newStatementNo, candidate.newFile)}</td>
-                    <td>
-                      <div className="case-action-stack">
-                        <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "paid_manual")}>
-                          <CheckCircle2 size={15} /> Stimmt
-                        </button>
-                        <button className="secondary-button resolve-case-button" disabled={isSaving || !onResolveCandidate} onClick={() => void handleCandidateAction(candidate, "cancelled_manual")}>
-                          <X size={15} /> Abgelehnt
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!filteredCandidates.length && (
-                <tr>
-                  <td colSpan={7}>Keine Neueinreichungsvorschläge für den gewählten Zeitraum und Standort.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
 }
 
 function ReportsView({ role, standort, importRows = [], invoiceStatusRows = [], manualCaseResolutions = [] }: { role: AppRole; standort: Standort; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {

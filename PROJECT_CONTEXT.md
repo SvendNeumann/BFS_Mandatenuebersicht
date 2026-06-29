@@ -7,13 +7,14 @@ GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`
 Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit und BFS-Rechnungsanalyse. BFS-Abrechnungen wurden auf eine klare Geldfluss-Herleitung plus eine gemeinsame operative Pruefliste umgestellt; BFS-Rechnungsanalyse bleibt davon fachlich getrennt.
 
 Letzte Aenderung/Pruefung:
-- Hauptreiter `BFS-Abrechnungen` fachlich vereinfacht und alte Mehrkorb-Herleitung aus den sichtbaren Haupttabs entfernt. Neue Leitlogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS` als Geldflussblock; separat `Brutto Storno/Rueckgabe - Bereits geklaert = Offene Pruefsumme`. `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, belegte Zahlung, manuell bezahlt und Ratenplan laut BFS. `Endgueltig verloren` ist eine eigene Kachel fuer manuell endgueltig stornierte Faelle.
+- Hauptreiter `BFS-Abrechnungen` fachlich vereinfacht und alte Mehrkorb-Herleitung aus den sichtbaren Haupttabs entfernt. Neue Leitlogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS` als Geldflussblock; separat `Brutto Storno/Rueckgabe - Bereits geklaert = Offene Pruefsumme`. `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, manuell bezahlt/geklärt und Ratenplan laut BFS. Wichtig: `Saldo 0` ohne Ratenplan zaehlt nicht als bezahlt/geklart, sondern bleibt bei Storno/Rueckgabe pruefpflichtig. `Endgueltig verloren` ist eine eigene Kachel fuer manuell endgueltig stornierte Faelle.
 - Operative Fallarbeit wurde auf eine gemeinsame `Pruefliste` reduziert. Die alten sichtbaren Reiter/Kachellogiken `Praxis nachfassen`, `Zahlung/Grund pruefen`, `Noch nicht zugeordnet` und `Kontrollsumme Operativ` sind aus Navigation, Management-/Zusammenfassungs-Kacheln, Standortkarten, Geldfluss und Reports entfernt bzw. in technische Herkunftshinweise umbenannt. In der Pruefliste entscheidet die Praxis je Fall nur noch `Erledigt / bezahlt` oder `Endgueltig storniert`; dadurch reduziert sich die offene Pruefsumme bzw. waechst `Endgueltig verloren`.
 - `Forderungen und Geldfluss` zeigt jetzt Geldfluss und Storno/Rueckgabe-Herleitung, aber keine zweite Abarbeitungsliste mehr. Standortkarten zeigen `Umsatz eingereicht`, `Auszahlungsbetrag`, `BFS-Gebuehr netto`, `MwSt`, `EWMA/Adresspruefung`, `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`. Der fruehere Restkorb unter `Storno/Rueckgabe & Wiedereinholung` wurde entfernt.
 - `Zusammenfassung`, `Management Cockpit`, Standortdetails, Schnellantworten und Reports verwenden dieselbe Sprache: `Brutto Storno/Rueckgabe`, `Bereits geklaert`, `Offene Pruefsumme`, `Endgueltig verloren`, `Pruefliste`. Reports bauen die Fallliste jetzt aus der neuen `buildUnifiedOperationalReviewCases`-Logik statt aus alten Nachfass-/Belegkoerben.
-- Technisch neu in `components/monitor-app.tsx`: `buildUnifiedOperationalReviewCases` erzeugt die gemeinsame Pruefliste aus Abrechnungsimport, Saldo-/Statuslisten und manuellen Entscheidungen. Bezahlt/Ratenplan per BFS-Saldoliste fliegt aus der aktiven Pruefliste; Storno laut BFS bleibt pruefpflichtig, bis manuell geklaert/endgueltig storniert.
+- Technisch neu in `components/monitor-app.tsx`: `buildUnifiedOperationalReviewCases` erzeugt die gemeinsame Pruefliste aus Abrechnungsimport, Saldo-/Statuslisten und manuellen Entscheidungen. Nur Ratenplan per BFS-Saldoliste fliegt automatisch aus der aktiven Pruefliste; `Saldo 0` und Storno laut BFS bleiben pruefpflichtig, bis manuell geklaert/endgueltig storniert oder durch echte Neueinreichung/Ersatzrechnung erklaert.
 - Pruefung nach Vereinfachung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` erfolgreich.
-- Fachliche Klarstellung Hauptreiter `BFS-Abrechnungen`: Ein bei BFS hinterlegter Ratenplan gilt fuer die offene Abzugslogik als bezahlt/gesichert. Die Recovery-Logik `buildDeductionRecovery` rechnet jetzt neben Neueinreichungen und manuell bezahlten Faellen auch per Saldoliste als bezahlt oder Ratenplan erkannte Abzugsfaelle in `Zurueckgeholt / bezahlt` an. Storniert laut Saldoliste bleibt dagegen kein automatischer Geldfluss, sondern muss fachlich geprueft/ggf. endgueltig storniert werden. Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`.
+- Fachliche Klarstellung Hauptreiter `BFS-Abrechnungen`: Ein bei BFS hinterlegter Ratenplan gilt fuer die offene Abzugslogik als bezahlt/gesichert. Die Recovery-Logik `buildDeductionRecovery` rechnet neben Neueinreichungen und manuell bezahlten Faellen nur Ratenplan aus der Saldoliste automatisch in `Bereits geklaert` an. `Saldo 0` allein bleibt kein automatischer Geldfluss, sondern muss fachlich geprueft/ggf. manuell als bezahlt oder endgueltig storniert entschieden werden.
+- Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten. Neue Logik ergibt ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert (14.766,72 EUR Neueinreichung/Ersatzrechnung + 312,59 EUR Ratenplan) und rechnerisch 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen. Die alte Anzeige von ca. 72.390 EUR `Bereits geklaert` war falsch, weil `Saldo 0` als bezahlt mitgerechnet wurde.
 - Hauptreiter `BFS-Abrechnungen` / `Forderungen und Geldfluss`: Zur operativen Kontrollsumme wurde eine echte Arbeitsliste `Noch nicht zugeordnete offene Abzuege` ergaenzt. Sie sitzt direkt unter `Storno/Rueckgabe & Wiedereinholung` und listet den Restkorb der offenen Abzugsbewegungen, die noch nicht in `Zahlung/Grund pruefen`, `Praxis nachfassen`, `Endgueltig storniert` oder manuell erledigt liegen. In dieser Liste koennen Faelle direkt als `Erledigt / bezahlt` oder `Endgueltig storniert` markiert werden. Damit ist der Weg fuer den Nutzer klar: Offener Abzug wird ueber die operativen Koerbe abgearbeitet; Neueinreichungen erklaeren nur `Zurueckgeholt / bezahlt` und werden nicht zusaetzlich zum offenen Abzug addiert. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
 - Hauptreiter `BFS-Abrechnungen` / `Forderungen und Geldfluss` fachlich nachgezogen: Im Block `Storno/Rueckgabe & Wiedereinholung` gibt es jetzt eine klare operative Kontrollsumme. `Noch ungeklaert` bleibt `Brutto Storno/Rueckgabe minus Zurueckgeholt/bezahlt`. Die operative Ueberleitung lautet jetzt: aktive `Zahlung/Grund pruefen` + `Praxis nachfassen` + `Endgueltig storniert` + `Noch nicht zugeordnet` = `Noch ungeklaert`. Dadurch ist sofort sichtbar, ob der offene Abzug komplett in Arbeitskoerbe/Restkategorie uebergeleitet ist. `Zahlung/Grund pruefen` in dieser Kontrollsicht zaehlt nur noch aktive, nicht manuell erledigte Prueffaelle. `Matching/Neueinreichungen` wurde textlich geklaert: Diese Treffer erklaeren die Kachel `Zurueckgeholt / bezahlt` und duerfen nicht zusaetzlich zum offenen Abzug addiert werden. Pruefung: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build`, `git diff --check` erfolgreich.
 - Standortvergleich-Karten auf neue Logik umgestellt: Die Kacheln zeigen jetzt `Umsatz`, `Auszahlung`, `Gebuehr`, `Brutto Storno/Rueckgabe`, `Zurueckgeholt / bezahlt`, `Offener Abzug`, `Zahlung/Grund pruefen` und `Praxis nachfassen`. Die Risiko-Faerbung nutzt Brutto-Abzug, offenen Abzug, Zahlung/Grund-Pruefvolumen, Ohne-Schutz-Anteil und echte Praxis-Nachfassfaelle statt der alten Rueckbelastungs-/Ohne-Schutz-Kachellogik.
@@ -368,7 +369,7 @@ Parser liest pro Zeile:
 - Zahlungsstatus
 
 Fachliche Regeln:
-- `Saldo 0,00 EUR` = bezahlt / erledigt.
+- `Saldo 0,00 EUR` = BFS-Saldo geschlossen, aber ohne Ratenplan kein Zahlungsnachweis und bei Storno/Rueckgabe weiter pruefpflichtig.
 - `RP` = Ratenplan; fuer Orisus operativ wie erledigt behandeln, weil BFS die Ratenzahlung fuehrt.
 - `MS` = Mahnstufe; zeigt, wie viele Mahnstufen der Patient durchlaufen hat, wertvoll fuer Zahlungsmoral/Risikopriorisierung.
 - `Offen` bedeutet: Rechnung wurde gestellt/versendet, aber bei BFS ist noch kein vollstaendiger Zahlungseingang verbucht.
@@ -393,8 +394,8 @@ Import-Flow:
 Aktuelle Kacheln im Saldo-Import:
 - `Statuszeilen`: Zeilen aus den hochgeladenen Saldo-Listen.
 - `Storno-Basis`: offene Faelle aus dem bestehenden Abrechnungsimport.
-- `Durch Saldo korrigiert`: Storno-/Klaerfaelle, die per Saldo 0 oder RP als erledigt erkannt werden.
-- `Automatisch erledigt`: alle Statuslisten-Zeilen mit Saldo 0 oder RP.
+- `Durch Saldo korrigiert`/alte Notiz ueberholt: Saldo 0 allein korrigiert keinen Storno-/Klaerfall mehr automatisch.
+- `Automatisch erledigt`: nur noch Ratenplan/echte Neueinreichung/manuelle Zahlungsklaerung, nicht Saldo 0 allein.
 - `Kritisch offen`: negativer Saldo ohne RP.
 - `Mahnstufen kritisch`: MS > 0 ohne RP.
 - `Ohne Schutz offen`: negativer Saldo ohne RP und ohne Ausfallschutz.
@@ -427,8 +428,8 @@ Tabelle:
 - Kategorie-Badges zeigen die Art der Aufgabe.
 
 Fachliche Bedeutung fuer operative Fallarbeit:
-- `Saldo 0` = Fall kann aus operativer Fallarbeit raus, weil bezahlt/erledigt.
-- `Ratenplan` = fuer Orisus ebenfalls raus aus aktiver Klaerung, weil BFS das fuehrt.
+- `Saldo 0` = Fall kann bei Storno/Rueckgabe nicht automatisch aus operativer Fallarbeit raus; Zahlungs-/Storno-Grund bleibt zu pruefen.
+- `Ratenplan` = fuer Orisus raus aus aktiver Klaerung, weil BFS das fuehrt.
 - `Kritisch offen ohne RP` = beobachten/priorisieren; noch nicht automatisch Praxisfehler.
 - `Mahnstufe vorhanden` = hoeher priorisieren, weil Ruecklauf-/Stornorisiko steigt.
 - `Ohne Ausfallschutz offen` = echte Praxis-Risikoaufgabe.
@@ -720,7 +721,7 @@ Damit ist zuletzt erledigt:
 - Rechnungsparser liest Leistungspositionen, Faktoren, Betraege, Eigenlabor/Fremdlabor und Standortzuordnung.
 - Saldo-/Statuslistenparser liest BFS-Zahlungsstatus, Saldo, Mahnstufen, Ratenplan und Ausfallschutz.
 - Saldo-Import hat Vorschau + explizite Bestaetigung.
-- Saldo-Import-Kacheln unterscheiden Statuszeilen, Storno-Basis, durch Saldo korrigiert, automatisch erledigt, kritisch offen, Mahnstufen kritisch, ohne Schutz offen und nicht zuordenbar.
+- Saldo-Import-Kacheln unterscheiden Statuszeilen, Brutto-Pruefbasis, Ratenplan erkannt, Ratenplan mit Storno-Bezug, Ratenplan-Status, kritisch offen, Mahnstufen kritisch, ohne Schutz offen und nicht zuordenbar.
 - Neuer `Pruefkorb Rechnungsstatus` unter dem Saldo-Upload mit sechs Kategorien fuer Praxis-Aufgaben.
 - Saldo-Tabelle und Pruefkorb-Tabelle sind Scrolltabellen.
 - `Matching & Neueinreichungen` steht vor `Klaerfaelle`.
@@ -791,7 +792,7 @@ Prioritaet 1: Saldo-Status persistent machen
 
 Prioritaet 2: Operative Fallarbeit automatisch beeinflussen
 - Klaerfaelle gegen bestaetigte Saldo-Statusdaten pruefen.
-- Saldo 0 und RP als erledigt/aus operativer Arbeitsliste raus.
+- Nur RP als erledigt/aus operativer Arbeitsliste raus; Saldo 0 ohne RP bleibt bei Storno/Rueckgabe pruefpflichtig.
 - Kritisch offen, Mahnstufe, ohne Schutz offen und nicht in Saldo-Liste gefunden in `Klaerfaelle` priorisieren.
 - Pruefkorb soll Quelle/Begruendung der operativen Aufgabe bleiben.
 

@@ -1,6 +1,6 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 10:00 Uhr
+Stand: 29.06.2026, ca. 10:15 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
@@ -12,6 +12,8 @@ Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/op
 Bitte lies zuerst `/Users/svendneumann/Documents/BFS_Mandantenportal/PROJECT_CONTEXT.md` vollstaendig ein und arbeite danach im Projekt `/Users/svendneumann/Documents/BFS_Mandantenportal` weiter.
 
 Antworte auf Deutsch. Nutze die bestehende App-Struktur. Wenn du Code aenderst: zuerst relevante Dateien lesen, dann gezielt patchen, danach mindestens `pnpm run typecheck`, `pnpm run build` und `git diff --check` ausfuehren, committen und auf `origin/main` pushen.
+
+Wichtig: Diese Kontextdatei muss nach jedem abgeschlossenen Arbeitsauftrag/Befehl mitgeschrieben werden. Wenn fachliche Logik, UI-Struktur, Importlogik, offene Punkte, Commits oder Pruefergebnisse dazukommen, `PROJECT_CONTEXT.md` am Ende aktualisieren, damit ein neuer Chat nahtlos fortsetzen kann.
 
 Wichtige Dateien:
 - `components/monitor-app.tsx`
@@ -33,6 +35,16 @@ Wichtige Dateien:
 
 App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen und BFS-Patientenrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als Management-/Operativ-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark, Rechnungspositionen/Faktoren/Laboranteile, BFS-Zahlungsstatus, Mahnstufen, Ratenplaene, Saldo-Pruefung und Reports.
 ```
+
+## Permanente Arbeitsregel Kontextdatei
+
+`PROJECT_CONTEXT.md` ist die zentrale Uebergabedatei fuer neue Chats und muss aktiv gepflegt werden.
+
+Regel:
+- Nach jedem abgeschlossenen Nutzerauftrag pruefen, ob neue fachliche Entscheidungen, technische Aenderungen, UI-Aenderungen, Import-/Datenlogik, offene Punkte, Pruefergebnisse oder Commits entstanden sind.
+- Falls ja: `PROJECT_CONTEXT.md` im selben Arbeitsgang aktualisieren.
+- Die Datei soll nicht mit Kleinigkeiten zugemuellt werden, aber alle entscheidungsrelevanten Projektstaende, naechsten Schritte und Warnhinweise enthalten.
+- Neue Chats sollen zuerst diese Datei lesen und danach direkt weiterarbeiten koennen.
 
 ## Sinn der App
 
@@ -321,6 +333,12 @@ Import-Flow:
 - Erst nach Klick auf `Saldo-Import bestaetigen` gilt der Datenstand als uebernommen.
 - Vorschau kann verworfen werden.
 - Aktuell ist der bestaetigte Statusdatenstand im Frontend-State, noch nicht dauerhaft als Monatsstatus in Supabase persistiert.
+- Im Abrechnungsimport sitzt `Import bestaetigen` jetzt oben direkt im Uploadkopf neben Dateiauswahl, Ordnerupload und Reset. Die Bestaetigung ist nicht mehr unten in der Detailvorschau versteckt.
+- Die Auswertungsbereiche nach dem Abrechnungsupload sind einklappbar:
+  - `Import-Status & Historie`
+  - `Grundauswertung aus BFS-Bemerkungen`
+  - `Pruefung & Detailvorschau`
+- Die Tabellen in diesen Bereichen sind bewusst kurz gehalten und intern scrollbar. Grundauswertungen und Detailvorschau sollen nicht mehr die ganze Seite verlaengern; ca. fuenf Zeilen sichtbar reichen, der Rest wird innerhalb der Tabelle gescrollt.
 
 Aktuelle Kacheln im Saldo-Import:
 - `Statuszeilen`: Zeilen aus den hochgeladenen Saldo-Listen.
@@ -577,6 +595,8 @@ Weitere aktuelle Seitenentscheidungen:
 ## Zuletzt umgesetzte wichtige Aenderungen
 
 Aktuelle letzte Commits/Aenderungen:
+- `e1983efb Compact BFS import preview sections`
+- `9d556e86 Scope saldo case reconciliation by location`
 - `f804cc44 Add invoice status review basket`
 - `a06a46fe Require confirmation for saldo imports`
 - `cf8a4392 Clarify saldo reconciliation cards`
@@ -641,6 +661,7 @@ Damit ist zuletzt erledigt:
 - `Patientenklassifizierung` wurde als eigener Tab angelegt.
 - Linke Desktop-Navigation bleibt beim Scrollen sichtbar.
 - Endgueltig stornierte Klaerfaelle koennen manuell geklaert werden und verschwinden aus offenen Arbeitslisten/Neueinreichungsvorschlaegen.
+- Abrechnungsimport-Vorschau wurde kompakter gemacht: `Import bestaetigen` sitzt oben im Uploadbereich, Import-Historie/Grundauswertung/Detailvorschau sind einklappbar und die Tabellen scrollen intern nach wenigen Zeilen.
 - Appweite Typografie-Skala vereinheitlicht.
 - Doppelte Wertzeile unter Zusammenfassung-Diagrammtiteln entfernt; Werte stehen nur noch im Diagramm-Tooltip.
 - Chart-Tooltips fuer Zusammenfassung-Kombi-/Dual-Axis-Charts.
@@ -662,12 +683,14 @@ Zuletzt bei Code-Aenderungen verwendet:
 
 ```bash
 PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm run typecheck
+PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm run lint
 PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm run build
+PATH="/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/Users/svendneumann/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin:$PATH" pnpm test
 git diff --check
 ```
 
 Wichtige offene technische Punkte:
-- Automatisierte Tests fehlen weiterhin.
+- Basis-Tests sind vorhanden (`pnpm test`) und pruefen zentrale Kernlogik wie Import-Business-Identity, Dubletten und stabile Klaerfall-Schluessel. Die Abdeckung ist aber noch klein; echte End-to-End-/UI-/Importtests fehlen weiterhin.
 - Besonders testwuerdig:
   - BFS-Rechnungsstatus-/Saldo-Listen gegen weitere echte Monatslisten
   - Pruefkorb Rechnungsstatus gegen mehrere Standorte und Monatswechsel

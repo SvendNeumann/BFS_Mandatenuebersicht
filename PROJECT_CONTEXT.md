@@ -16,6 +16,7 @@ Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/op
 - Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten, ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert und 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen.
 - `BFS-Rechnungsanalyse` ist fachlich getrennt von der Storno-/Saldo-Logik. Tabs: `Leistungsuebersicht`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`.
 - Einzelrechnungen: BEMA/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-Potenzialanalyse eingerechnet.
+- Praxissoftware-Sammeldrucke koennen als alternative Quelle fuer die Rechnungsanalyse relevant werden. Beispiel Kallweit-Sammeldruck: 756 A4-Seiten, bildbasiert ohne eingebetteten PDF-Text; normale PDF-Textextraktion liefert 0 Zeichen. Inhaltlich sind Rechnungsnummer, Patient, Rechnungsdatum, Betrag und Leistungszeilen visuell klar vorhanden, technisch braucht dieser Import aber OCR oder besser einen echten strukturierten Praxissoftware-Export.
 - Leistungsnummern: Zahn-/Regionangaben wie `36` werden nicht als Leistungsnummer gruppiert, wenn danach eine echte Leistungsnummer wie `2180` folgt. Die Tabelle zeigt `Leistungsnr.`.
 - Prueflisten-Export: PDF/Druck und CSV enden mit den manuellen Spalten `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.
 
@@ -1049,3 +1050,29 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Zusaetzlich gibt es eine kompakte Sortierauswahl fuer Name, Standort, Datum, Betrag und Alter auf-/absteigend.
 - Auf Mobilgeraeten wird die breite Tabelle durch lesbare Fallkarten mit denselben operativen Aktionen ersetzt.
 - Oberhalb der Arbeitsliste stehen drei KPI-Kacheln: Anzahl Prueffaelle, Wert Prueffaelle und Standort mit den meisten Prueffaellen.
+
+## Update 2026-06-30: Kallweit Praxissoftware-Sammeldruck geprueft
+
+- Datei geprueft: `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS/1. Rechnung_Kallweit/Kallweit_Rechnungsexport.pdf`.
+- PDF-Metadaten: 756 A4-Seiten, DynaPDF, ca. 35,9 MB, nicht verschluesselt.
+- Normale Textextraktion mit `pdfplumber` liefert 0 Zeichen auf den ersten Seiten. Der Sammeldruck ist damit fuer die App praktisch ein Bild-PDF, nicht wie die bisherigen BFS-Rechnungen ein direkt textlesbarer Beleg.
+- Visuelle Stichproben zeigen zwei relevante Layoutvarianten:
+  - klassische Patientenrechnung mit Kopf, Rechnungsnummer, Patient, Rechnungsdatum, Betrag, Leistungszeilen und Fusszeile `Seite x von y`;
+  - technische Praxissoftware-Ansicht `Privatrechnung (ohne Anlagen)` mit Rechnungsempfaenger, Patientennummer, Versicherungsdaten, Rechnungsdaten, Leistungsdaten, Rechnungstexte und Betrag.
+- Mehrseiten-Rechnungen sind erkennbar ueber `Seite 1 von 2`, `Seite 2 von 2` usw. Der Import darf deshalb nicht jede PDF-Seite als eigene Rechnung behandeln, sondern muss Seiten zu einem Rechnungsbeleg gruppieren.
+- Inhaltlich bleibt die Rechnungsanalyse gleich: Standort/Praxis, Rechnungsnummer, Patient, Datum, Betrag, Leistungsnummer, Bezeichnung, Region/Zahn, Faktor, Anzahl und Positionsbetrag.
+- Technisch braucht dieser Importpfad entweder OCR fuer Bild-PDFs oder, falls aus der Praxissoftware moeglich, einen strukturierten Export statt Sammeldruck. Ohne OCR kann die bestehende PDF-Textparserlogik diese Datei nicht automatisch auslesen.
+
+## Update 2026-06-30: Praxissoftware-PDF-Importpfad vorbereitet
+
+- Im `Import-Center Rechnungen` gibt es zusaetzlich zum BFS-Rechnungsupload einen zweiten Uploadbereich `Praxissoftware-Sammel-PDF einreichen`.
+- Vor dem Praxissoftware-Upload wird die Praxis/der Standort explizit ausgewaehlt. Dadurch koennen PDF-Exporte ohne BFS-Mandantennummer fachlich korrekt zugeordnet werden.
+- Der API-Endpunkt `/api/invoices/parse` unterscheidet jetzt `bfs_invoice_pdf` und `practice_software_pdf`.
+- Neuer Parserpfad `parsePracticeSoftwareInvoicePdfBytes`:
+  - versucht zuerst normalen eingebetteten PDF-Text zu lesen;
+  - erkennt Bild-PDFs ohne Text und erzeugt einen sauberen Vorschau-Eintrag mit `ocrStatus: required`;
+  - markiert Quelle, Seitenzahl, Praxis und Hinweis `OCR erforderlich`, statt falsche Rechnungspositionen zu erzeugen;
+  - kann bei textlesbaren Praxissoftware-PDFs einfache Rechnungsdaten-/Leistungsdaten-Bloecke auslesen und Faktoren mit 3 oder 4 Nachkommastellen erkennen.
+- Solange Praxissoftware-Bild-PDFs `OCR erforderlich` sind, ist `Rechnungsimport bestaetigen` gesperrt. Diese Dateien duerfen erst nach echter OCR-Aufteilung in Rechnungen/Positionen in den dauerhaften Rechnungsbestand laufen.
+- Persistenz wurde vorbereitet: Fuer echte, ausgelesene Praxissoftware-Rechnungen ohne BFS-Nr. wird intern ein stabiler Schluessel `PRACTICE-{standortId}-{invoiceNo}` genutzt; in der UI bleibt die BFS-Nr. bei Praxissoftware-Belegen sichtbar getrennt.
+- Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `git diff --check`.

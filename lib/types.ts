@@ -149,6 +149,10 @@ export type ParsedInvoiceDocument = {
   file: string;
   fileSizeBytes: number;
   fileHash?: string;
+  importSource?: "bfs_invoice_pdf" | "practice_software_pdf";
+  ocrStatus?: "not_needed" | "required" | "completed";
+  sourcePageStart?: number;
+  sourcePageEnd?: number;
   bfsNo: string;
   mandantNo: string;
   standortId?: string;

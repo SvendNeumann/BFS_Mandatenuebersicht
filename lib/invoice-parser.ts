@@ -32,6 +32,33 @@ export async function parseInvoicePdfBytes(bytes: ArrayBuffer, meta: { file?: st
   });
 }
 
+export async function parsePracticeSoftwareInvoicePdfBytes(bytes: ArrayBuffer, meta: { file?: string; fileSizeBytes?: number; standortId?: string } = {}) {
+  const fileHash = await sha256(bytes);
+  const extracted = await extractPdfText(bytes);
+  const file = meta.file ?? "Praxissoftware-Rechnungsexport.pdf";
+  const fileSizeBytes = meta.fileSizeBytes ?? bytes.byteLength;
+  const text = normalizeText(extracted.text);
+  const selectedStandort = meta.standortId ? standorte.find((standort) => standort.id === meta.standortId) : undefined;
+
+  if (!text.trim()) {
+    return [practiceOcrRequiredDocument({
+      file,
+      fileSizeBytes,
+      fileHash,
+      pageCount: extracted.pageCount,
+      standort: selectedStandort ?? detectStandort("-", "", file)
+    })];
+  }
+
+  return parsePracticeSoftwareInvoiceText(text, {
+    file,
+    fileSizeBytes,
+    fileHash,
+    pageCount: extracted.pageCount,
+    standort: selectedStandort
+  });
+}
+
 export function parseInvoiceText(rawText: string, meta: { file: string; fileSizeBytes: number; pageCount: number; fileHash?: string }): ParsedInvoiceDocument {
   const text = normalizeText(rawText);
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -76,6 +103,8 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     file: meta.file,
     fileSizeBytes: meta.fileSizeBytes,
     fileHash: meta.fileHash,
+    importSource: "bfs_invoice_pdf",
+    ocrStatus: "not_needed",
     bfsNo,
     mandantNo,
     standortId: standort?.id,
@@ -105,6 +134,153 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     pageCount: meta.pageCount,
     status: notes.length ? "Zu prüfen" : "OK",
     parseNotes: notes.length ? notes : ["Rechnung wurde ausgelesen und einem Standort zugeordnet."]
+  };
+}
+
+function parsePracticeSoftwareInvoiceText(
+  text: string,
+  meta: { file: string; fileSizeBytes: number; pageCount: number; fileHash?: string; standort?: Standort }
+) {
+  const blocks = splitPracticeInvoiceBlocks(text);
+  const standort = meta.standort ?? detectStandort("-", text, meta.file);
+  const rows = blocks.map((block, index) => parsePracticeInvoiceBlock(block, {
+    file: meta.file,
+    fileSizeBytes: meta.fileSizeBytes,
+    fileHash: `${meta.fileHash ?? meta.file}:${index + 1}`,
+    pageCount: meta.pageCount,
+    standort,
+    sourcePageStart: undefined,
+    sourcePageEnd: undefined
+  }));
+  return dedupeInvoices(rows);
+}
+
+function splitPracticeInvoiceBlocks(text: string) {
+  const markers = [...text.matchAll(/(?=Rechnungsdaten:\s*[\s\S]*?Rechnungsnr\.:|(?=Rechnung\s*\n[\s\S]{0,260}?Rechnungsnummer:))/gi)]
+    .map((match) => match.index ?? 0)
+    .filter((index, position, all) => index === 0 || index !== all[position - 1]);
+  if (markers.length <= 1) return [text];
+  return markers.map((start, index) => text.slice(start, markers[index + 1] ?? text.length).trim()).filter(Boolean);
+}
+
+function parsePracticeInvoiceBlock(
+  text: string,
+  meta: { file: string; fileSizeBytes: number; fileHash?: string; pageCount: number; standort?: Standort; sourcePageStart?: number; sourcePageEnd?: number }
+): ParsedInvoiceDocument {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const invoiceNo = text.match(/Rechnungsnr\.:\s*(\S+)/i)?.[1]
+    ?? text.match(/Rechnungsnummer:\s*(\S+)/i)?.[1]
+    ?? "-";
+  const invoiceDate = text.match(/Rechnungsdatum:?\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1]
+    ?? "-";
+  const patientName = text.match(/Patient:\s*(?:\(Patientennummer:\s*\d+\s*\)\s*)?([^,\n]+)/i)?.[1]?.trim()
+    ?? findValueLine(lines, /^Behandelte Person:\s*(.+)$/i)
+    ?? "-";
+  const birthDate = text.match(/Geburtsdatum:?\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1]
+    ?? text.match(/Geburtsdatum:?\s*(\d{2}\.\d{2}\.\d{2})/i)?.[1];
+  const totalAmount = firstAmount(text, /(?:Zahlbetrag|Rechnungsbetrag):?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)
+    || firstAmount(text, /EUR\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const openAmount = firstAmount(text, /Offener Betrag:?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const treatmentPeriod = text.match(/Behandlung vom\s*([^\n]+)/i)?.[1]?.trim();
+  const serviceLines = parsePracticeServiceLines(lines);
+  const notes: string[] = [];
+
+  if (!meta.standort) notes.push("Praxis/Standort wurde nicht sicher erkannt.");
+  if (invoiceNo === "-") notes.push("Rechnungsnummer nicht erkannt.");
+  if (invoiceDate === "-") notes.push("Rechnungsdatum nicht erkannt.");
+  if (patientName === "-") notes.push("Patient nicht erkannt.");
+  if (!serviceLines.length) notes.push("Keine Leistungspositionen erkannt.");
+
+  return {
+    file: meta.file,
+    fileSizeBytes: meta.fileSizeBytes,
+    fileHash: meta.fileHash,
+    importSource: "practice_software_pdf",
+    ocrStatus: "not_needed",
+    sourcePageStart: meta.sourcePageStart,
+    sourcePageEnd: meta.sourcePageEnd,
+    bfsNo: "-",
+    mandantNo: meta.standort?.mandantNo ?? "-",
+    standortId: meta.standort?.id,
+    standortName: meta.standort?.name ?? "Unbekannt",
+    practiceName: meta.standort?.praxisname,
+    invoiceNo,
+    invoiceDate,
+    patientName,
+    treatedPerson: findValueLine(lines, /^Behandelte Person:\s*(.+)$/i),
+    birthDate,
+    treatmentPeriod,
+    totalAmount,
+    openAmount,
+    subsidyAmount: 0,
+    honorarBema: 0,
+    honorarGoz: totalAmount,
+    eigenlaborTotal: 0,
+    fremdlaborNet: 0,
+    fremdlaborGross: 0,
+    materialAuslagen: 0,
+    hasEigenlabor: /Eigenlabor/i.test(text),
+    hasFremdlabor: /Fremdlabor|Zahntechnik/i.test(text),
+    labProviders: [],
+    serviceLines,
+    labLines: [],
+    pageCount: meta.pageCount,
+    status: notes.length ? "Zu prüfen" : "OK",
+    parseNotes: notes.length ? notes : ["Praxissoftware-Rechnung wurde aus lesbarem PDF-Text ausgelesen."]
+  };
+}
+
+function parsePracticeServiceLines(lines: string[]) {
+  const tableStart = lines.findIndex((line) => /(?:Leistungsdaten:|Datum\s+Region\s+Nr\.|Datum\s+Zähne\s+Geb\.-Nr\.)/i.test(line));
+  const sourceLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
+  const mainLines = sourceLines.slice(0, firstIndex(sourceLines, /(?:Zwischensumme Honorar|Rechnungstexte:|Begründungen:|Bankverbindung:)/i));
+  return mainLines.flatMap((line) => parseFactorLine(line, "leistung", "Praxissoftware-Rechnung"));
+}
+
+function practiceOcrRequiredDocument(meta: {
+  file: string;
+  fileSizeBytes: number;
+  fileHash?: string;
+  pageCount: number;
+  standort?: Standort;
+}): ParsedInvoiceDocument {
+  return {
+    file: meta.file,
+    fileSizeBytes: meta.fileSizeBytes,
+    fileHash: meta.fileHash,
+    importSource: "practice_software_pdf",
+    ocrStatus: "required",
+    sourcePageStart: 1,
+    sourcePageEnd: meta.pageCount,
+    bfsNo: "-",
+    mandantNo: meta.standort?.mandantNo ?? "-",
+    standortId: meta.standort?.id,
+    standortName: meta.standort?.name ?? "Unbekannt",
+    practiceName: meta.standort?.praxisname,
+    invoiceNo: "-",
+    invoiceDate: "-",
+    patientName: "-",
+    totalAmount: 0,
+    openAmount: 0,
+    subsidyAmount: 0,
+    honorarBema: 0,
+    honorarGoz: 0,
+    eigenlaborTotal: 0,
+    fremdlaborNet: 0,
+    fremdlaborGross: 0,
+    materialAuslagen: 0,
+    hasEigenlabor: false,
+    hasFremdlabor: false,
+    labProviders: [],
+    serviceLines: [],
+    labLines: [],
+    pageCount: meta.pageCount,
+    status: "Zu prüfen",
+    parseNotes: [
+      "Praxissoftware-Sammel-PDF erkannt.",
+      "Das PDF enthält keinen eingebetteten Text; OCR ist für den Import erforderlich.",
+      "Die Datei wurde noch nicht in Rechnungspositionen aufgeteilt."
+    ]
   };
 }
 
@@ -151,7 +327,7 @@ function isRecognizedNonFactorInvoice(invoice: { honorarBema: number; eigenlabor
 
 function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], sourceSection: string): ParsedInvoiceLine[] {
   const amounts = [...line.matchAll(new RegExp(amountPattern, "g"))];
-  const factorMatch = [...line.matchAll(/\b\d,\d{3}\b/g)].at(-1);
+  const factorMatch = [...line.matchAll(/\b\d,\d{3,4}\b/g)].at(-1);
   if (!amounts.length || !factorMatch) return [];
   const amount = parseAmount(amounts.at(-1)?.[0] ?? "0,00");
   const beforeFactor = line.slice(0, factorMatch.index).trim();

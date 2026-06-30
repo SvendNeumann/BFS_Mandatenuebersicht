@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
-import { parseInvoicePdfBytes } from "@/lib/invoice-parser";
+import { parseInvoicePdfBytes, parsePracticeSoftwareInvoicePdfBytes } from "@/lib/invoice-parser";
 import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
 import type { ParsedInvoiceDocument, ParsedInvoiceLine } from "@/lib/types";
 
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const files = formData.getAll("files").filter((entry): entry is File => entry instanceof File);
   const paths = formData.getAll("paths").map((entry) => String(entry));
+  const importSource = String(formData.get("importSource") ?? "bfs_invoice_pdf");
+  const standortId = String(formData.get("standortId") ?? "");
 
   if (!files.length) {
     return NextResponse.json({ error: "Keine Rechnungs-PDFs im Upload gefunden." }, { status: 400 });
@@ -74,10 +76,18 @@ export async function POST(request: NextRequest) {
     const filePath = paths[index] || file.name;
     try {
       const bytes = await file.arrayBuffer();
-      rows.push(await parseInvoicePdfBytes(bytes, {
-        file: filePath,
-        fileSizeBytes: file.size
-      }));
+      if (importSource === "practice_software_pdf") {
+        rows.push(...await parsePracticeSoftwareInvoicePdfBytes(bytes, {
+          file: filePath,
+          fileSizeBytes: file.size,
+          standortId
+        }));
+      } else {
+        rows.push(await parseInvoicePdfBytes(bytes, {
+          file: filePath,
+          fileSizeBytes: file.size
+        }));
+      }
     } catch (error) {
       errors.push({
         file: filePath,
@@ -171,7 +181,8 @@ async function persistInvoiceRows(
       const standort = resolveDbStandort(row, maps);
       if (!standort) throw new Error("Standort konnte nicht eindeutig zugeordnet werden.");
       if (!row.fileHash) throw new Error("Datei-Hash fehlt.");
-      if (row.bfsNo === "-") throw new Error("BFS-Nr. fehlt.");
+      if (row.ocrStatus === "required") throw new Error("OCR fehlt noch; Praxissoftware-Bild-PDF kann noch nicht bestätigt werden.");
+      if (invoicePersistenceKey(row) === "-") throw new Error("BFS-Nr. oder Praxissoftware-Rechnungsschlüssel fehlt.");
 
       const existingId = await findExistingInvoiceId(supabase, row);
       if (existingId) {
@@ -223,7 +234,7 @@ function invoiceInsertPayload(batchId: string, standortId: string, row: ParsedIn
     file_hash: row.fileHash,
     file_size_bytes: row.fileSizeBytes,
     storage_path: null,
-    bfs_nr: row.bfsNo,
+    bfs_nr: invoicePersistenceKey(row),
     mandant_nr: row.mandantNo,
     praxisname: row.practiceName,
     rechnungsnummer: row.invoiceNo,
@@ -291,9 +302,17 @@ async function findExistingInvoiceId(supabase: SupabaseDbClient, row: ParsedInvo
   const { data: byBfsNo } = await supabase
     .from("bfs_patient_invoices")
     .select("id")
-    .eq("bfs_nr", row.bfsNo)
+    .eq("bfs_nr", invoicePersistenceKey(row))
     .maybeSingle();
   return byBfsNo?.id ? String(byBfsNo.id) : null;
+}
+
+function invoicePersistenceKey(row: ParsedInvoiceDocument) {
+  if (row.bfsNo !== "-") return row.bfsNo;
+  if (row.importSource === "practice_software_pdf" && row.standortId && row.invoiceNo !== "-") {
+    return `PRACTICE-${row.standortId}-${row.invoiceNo}`;
+  }
+  return "-";
 }
 
 async function fetchPersistedInvoiceRows(supabase: SupabaseDbClient, allowedStandortIds?: Set<string>) {
@@ -352,7 +371,11 @@ function invoiceRowFromDb(invoice: Record<string, unknown>, lines: Array<Record<
     file: stringValue(invoice.original_filename) || extracted?.file || "-",
     fileSizeBytes: numberValue(invoice.file_size_bytes) || extracted?.fileSizeBytes || 0,
     fileHash: stringValue(invoice.file_hash) || extracted?.fileHash,
-    bfsNo: stringValue(invoice.bfs_nr) || extracted?.bfsNo || "-",
+    importSource: extracted?.importSource,
+    ocrStatus: extracted?.ocrStatus,
+    sourcePageStart: extracted?.sourcePageStart,
+    sourcePageEnd: extracted?.sourcePageEnd,
+    bfsNo: extracted?.importSource === "practice_software_pdf" ? extracted?.bfsNo ?? "-" : stringValue(invoice.bfs_nr) || extracted?.bfsNo || "-",
     mandantNo: stringValue(invoice.mandant_nr) || extracted?.mandantNo || "-",
     standortId: appStandort?.id ?? extracted?.standortId,
     standortName: appStandort?.name ?? extracted?.standortName ?? "Unbekannt",

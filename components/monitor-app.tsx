@@ -6781,6 +6781,33 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
     }
   }
 
+  async function confirmPracticeInvoiceImport(standortId: string) {
+    const standort = practiceImportStandorte.find((entry) => entry.id === standortId);
+    const practiceRows = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === standortId);
+    if (!practiceRows.length || isProcessing || isSaving || isResetting) return;
+    if (practiceRows.some((row) => row.ocrStatus === "required")) {
+      setUploadStatus(`${standort?.name ?? "Praxis"}-Upload kann erst nach OCR gespeichert werden.`);
+      return;
+    }
+    setIsSaving(true);
+    setActiveUploadSource("practice_software_pdf");
+    setPracticeStandortId(standortId);
+    setUploadStatus(`${practiceRows.length} ${standort?.name ?? "Praxis"}-Rechnungen werden gespeichert`);
+    try {
+      const result = await saveConfirmedInvoiceRows(practiceRows);
+      const remainingPreviewRows = invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId));
+      onRowsChange(mergeInvoiceRows(result.rows, remainingPreviewRows));
+      const detail = result.persistence
+        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} Dubletten übersprungen, ${result.persistence.failed} fehlgeschlagen`
+        : `${practiceRows.length} Rechnungen gespeichert`;
+      setUploadStatus(`${standort?.name ?? "Praxis"}-Upload gespeichert: ${detail}`);
+    } catch (error) {
+      setUploadStatus(`${standort?.name ?? "Praxis"}-Upload konnte nicht gespeichert werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function resetInvoiceUpload() {
     if (isProcessing || isSaving || isResetting || !invoiceRows.length) return;
     setIsResetting(true);
@@ -6873,14 +6900,16 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
           <div className="practice-import-grid">
             {practiceImportStandorte.map((standort) => {
               const profile = practiceSoftwareImportProfile(standort);
-              const practiceRowsForStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === standort.id).length;
+              const practiceRowsForStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === standort.id);
+              const practiceRowsForStandortCount = practiceRowsForStandort.length;
+              const practiceHasOcrRequired = practiceRowsForStandort.some((row) => row.ocrStatus === "required");
               const isActivePractice = activeUploadSource === "practice_software_pdf" && practiceStandortId === standort.id;
               return (
                 <article className={isActivePractice ? "practice-import-card active" : "practice-import-card"} key={standort.id}>
                   <div>
                     <span>{standort.name}</span>
                     <strong>{standort.praxisname}</strong>
-                    <small>{profile.label} · {practiceRowsForStandort ? `${integerNumber.format(practiceRowsForStandort)} Rechnungen im Import` : "kein Praxisupload geladen"}</small>
+                    <small>{profile.label} · {practiceRowsForStandortCount ? `${integerNumber.format(practiceRowsForStandortCount)} Rechnungen im Import` : "kein Praxisupload geladen"}</small>
                   </div>
                   <p>{profile.hint}</p>
                   <div className="practice-import-actions">
@@ -6901,7 +6930,11 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
                         {...{ webkitdirectory: "", directory: "" }}
                       />
                     </label>
-                    <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForStandort} onClick={() => void resetPracticeInvoiceUpload(standort.id)}>
+                    <button className="primary-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForStandortCount || practiceHasOcrRequired} onClick={() => void confirmPracticeInvoiceImport(standort.id)}>
+                      <CheckCircle2 size={16} />
+                      {isSaving && isActivePractice ? "Speichern..." : "Speichern"}
+                    </button>
+                    <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForStandortCount} onClick={() => void resetPracticeInvoiceUpload(standort.id)}>
                       <X size={16} />
                       Zurücksetzen
                     </button>

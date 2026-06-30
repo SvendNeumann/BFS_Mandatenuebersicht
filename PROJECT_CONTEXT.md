@@ -1180,3 +1180,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Jede Praxis hat eigene Buttons fuer `Sammel-PDF`, `Praxisordner` und einen eigenen Reset fuer genau diesen Standort.
 - Kallweit/Kirchberg bleibt als geprueftes Formatprofil markiert; andere Praxen sind als eigene Uploadplaetze vorbereitet und bleiben bis zur Formatpruefung markiert.
 - Die Importlogik wird weiterhin je Standort mit `practice_software_pdf` und `standortId` aufgerufen, sodass spaeter eigene Formatprofile je Praxis ergaenzt werden koennen.
+
+## Update 2026-06-30: Praxissoftware-Upload je Praxis speicherbar
+
+- Jede Praxis-Uploadkarte hat jetzt einen eigenen `Speichern`-Button.
+- Der Button bestaetigt nur die Praxissoftware-Rechnungen des jeweiligen Standortes; BFS-Rechnungen und andere Praxisuploads werden nicht automatisch mitgespeichert.
+- Nach dem Speichern bleiben andere noch nicht bestaetigte Vorschauzeilen in der Ansicht erhalten.

@@ -1119,3 +1119,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Der Datenfluss wurde geprueft: `InvoiceImportView` schreibt die importierten `ParsedInvoiceDocument`-Zeilen in `invoiceRows`; `InvoiceServicesView`, `InvoicePotentialView` und `InvoiceLocationsView` lesen genau diese `invoiceRows`. Nach `Rechnungsimport bestaetigen` werden die persistenten Zeilen ueber `/api/invoices/parse` geladen und enthalten die gespeicherten Leistungszeilen aus `bfs_patient_invoice_lines`.
 - Die Auswertungstabs filtern OCR-offene und noch nicht validierte Praxissoftware-Formatprofile aus. Dadurch koennen neue Praxisformate in der Vorschau gesammelt werden, ohne ungeprueft in Leistungsuebersicht, Potenzialanalyse oder Standortvergleich zu laufen.
 - Bedeutung fuer Kallweit: Erkannte Leistungspositionen laufen in Leistungsuebersicht und Standortvergleich. Die Potenzialanalyse zeigt fuer Kallweit erst belastbare Euro-Potenziale, wenn mindestens ein weiterer Standort mit vergleichbaren Leistungsnummern als Benchmark importiert ist.
+
+## Update 2026-06-30: Leistungsuebersicht als PDF exportierbar
+
+- In der Rechnungsanalyse-Ansicht `Leistungsuebersicht` gibt es jetzt einen `PDF Export` fuer den aktuell gewaehlten Zeitraum und Standortfilter.
+- Der Export nutzt dieselbe gefilterte Leistungsnummern-Tabelle wie die Ansicht und dient damit auch zur Fehlersuche/Optimierung des Praxissoftware-Imports.
+- Fuer den Druckmodus wird der Scrollbereich der Leistungsuebersicht aufgehoben, damit alle Tabellenzeilen im PDF landen und nicht nur der sichtbare Ausschnitt.

@@ -6924,18 +6924,20 @@ function practiceSoftwareImportProfile(standort?: Standort) {
 }
 
 function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortId, setStandortId] = useState("gruppe");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
-  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => row.standortId === standort.id || row.standortName === standort.name)), [invoiceRows]);
+  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
   const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
-  const scopedRows = useMemo(() => invoiceRows.filter((row) => invoiceInPeriod(row, selectedPeriod) && (!selectedStandort || row.standortId === selectedStandort.id || row.standortName === selectedStandort.name)), [invoiceRows, selectedPeriod, selectedStandort]);
+  const scopedRows = useMemo(() => invoiceRows.filter((row) => invoiceReadyForAnalysis(row) && invoiceInPeriod(row, selectedPeriod) && (!selectedStandort || row.standortId === selectedStandort.id || row.standortName === selectedStandort.name)), [invoiceRows, selectedPeriod, selectedStandort]);
   const rows = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
   const kpis = useMemo(() => invoiceServicesKpis(invoiceRows, selectedPeriod, selectedStandort, rows), [invoiceRows, rows, selectedPeriod, selectedStandort]);
   const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
+  const exportScopeLabel = selectedStandort?.name ?? "Alle Standorte";
   return (
-    <div className="content-stack">
+    <div className="content-stack" ref={exportRef}>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -6963,6 +6965,14 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
             </select>
           </label>
           <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
+          <button
+            className="secondary-button custom-export-action"
+            type="button"
+            onClick={() => printCustomTabPdf(exportRef.current, `Leistungsübersicht · ${exportScopeLabel} · ${selectedPeriod.label}`)}
+            disabled={!rows.length}
+          >
+            <Printer size={16} /> PDF Export
+          </button>
         </div>
         <section className="priority-grid invoice-service-kpi-grid">
           <PriorityCard label="Häufigste Position" value={kpis.mostFrequent?.code ?? "-"} hint={kpis.mostFrequent ? `${integerNumber.format(kpis.mostFrequent.count)}x · Ø Faktor ${feeRateNumber.format(kpis.mostFrequent.avgFactor)}` : "keine Leistungsdaten"} tone="blue" info={kpis.mostFrequent ? kpis.mostFrequent.description : undefined} />
@@ -8198,7 +8208,19 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
     .panel-heading { margin-bottom: 10px !important; }
     .panel-heading h2 { font-size: 18px !important; }
     .panel-heading p { font-size: 12px !important; }
-    .table-wrap { overflow: visible !important; }
+    .table-wrap, .invoice-services-scroll, .invoice-services-table-wrap { overflow: visible !important; max-height: none !important; border-radius: 6px !important; }
+    .invoice-services-table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+    .invoice-services-table th:nth-child(1), .invoice-services-table td:nth-child(1) { width: 8% !important; }
+    .invoice-services-table th:nth-child(2), .invoice-services-table td:nth-child(2) { width: 28% !important; }
+    .invoice-services-table th:nth-child(3), .invoice-services-table td:nth-child(3) { width: 9% !important; }
+    .invoice-services-table th:nth-child(4), .invoice-services-table td:nth-child(4) { width: 8% !important; }
+    .invoice-services-table th:nth-child(5), .invoice-services-table td:nth-child(5) { width: 10% !important; }
+    .invoice-services-table th:nth-child(6), .invoice-services-table td:nth-child(6) { width: 8% !important; }
+    .invoice-services-table th:nth-child(7), .invoice-services-table td:nth-child(7) { width: 9% !important; }
+    .invoice-services-table th:nth-child(8), .invoice-services-table td:nth-child(8) { width: 9% !important; }
+    .invoice-services-table th:nth-child(9), .invoice-services-table td:nth-child(9) { width: 11% !important; }
+    .invoice-services-table th, .invoice-services-table td { white-space: normal !important; overflow-wrap: anywhere !important; hyphens: auto !important; }
+    .invoice-services-scroll thead th { position: static !important; }
     .custom-benchmark-table { min-width: 0 !important; table-layout: fixed; }
     th, td { padding: 6px !important; font-size: 10px !important; line-height: 1.25 !important; }
     .status { padding: 3px 6px !important; font-size: 9px !important; }

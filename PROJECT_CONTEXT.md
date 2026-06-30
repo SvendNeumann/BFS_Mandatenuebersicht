@@ -1157,3 +1157,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Der Praxissoftware-PDF-Uploadblock hat jetzt ebenfalls einen `Upload zuruecksetzen`-Button.
 - Der Button nutzt dieselbe Reset-Logik wie der BFS-Rechnungsupload und leert den gemeinsamen Rechnungsimport-/Vorschaubestand.
+
+## Update 2026-06-30: Praxissoftware-Auswahlfeld verbreitert
+
+- Der Praxissoftware-Upload nutzt fuer Praxis/Zuordnung jetzt ein eigenes Filterlayout.
+- Das Auswahlfeld ist breiter und nutzt die verfuegbare Spalte voll aus, damit Standort- und Praxisname nicht mehr eingequetscht wirken.

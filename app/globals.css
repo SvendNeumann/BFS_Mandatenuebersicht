@@ -3785,6 +3785,20 @@ td small {
   margin-bottom: 0;
 }
 
+.practice-import-profile-filter {
+  grid-template-columns: minmax(320px, 0.42fr) minmax(260px, 1fr);
+  align-items: end;
+  margin-bottom: 0;
+}
+
+.practice-import-profile-filter .select-label {
+  min-width: 0;
+}
+
+.practice-import-profile-filter select {
+  width: 100%;
+}
+
 .custom-export-action {
   align-self: end;
   min-height: 42px;

@@ -6840,8 +6840,8 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         <div>
           <h2>Praxissoftware-PDF je Praxis prüfen</h2>
           <p>Die Praxis-Auswahl ordnet die Datei nur fachlich zu. Das Rechnungsformat wird je Praxis separat validiert, weil Sammeldrucke je Software und Einstellung anders aussehen können.</p>
-          <div className="period-filter custom-kpi-period">
-            <label>
+          <div className="period-filter practice-import-profile-filter">
+            <label className="select-label">
               Praxis / Zuordnung
               <select value={practiceStandortId} disabled={isProcessing} onChange={(event) => setPracticeStandortId(event.target.value)}>
                 {orderedStandorte().map((standort) => (

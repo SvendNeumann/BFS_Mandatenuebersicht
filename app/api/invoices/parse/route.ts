@@ -114,12 +114,12 @@ export async function PUT(request: NextRequest) {
     const supabase = createServiceClient();
     if (!supabase) return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
 
-    const body = await request.json() as { rows?: unknown[] };
+    const body = await request.json() as { rows?: unknown[]; returnRows?: boolean };
     const rows = Array.isArray(body.rows) ? body.rows.filter(isParsedInvoiceDocument) : [];
     if (!rows.length) return NextResponse.json({ error: "Keine gültigen Rechnungen zur Bestätigung gefunden." }, { status: 400 });
 
     const persistence = await persistInvoiceRows(supabase, auth.profile.id, rows);
-    const persistedRows = await fetchPersistedInvoiceRows(supabase);
+    const persistedRows = body.returnRows === false ? [] : await fetchPersistedInvoiceRows(supabase);
     return NextResponse.json({ rows: persistedRows, persistence }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(

@@ -4337,6 +4337,10 @@ type ImportPersistenceSummary = {
 
 const uploadChunkMaxFiles = 6;
 const uploadChunkMaxBytes = 3.5 * 1024 * 1024;
+const invoiceUploadChunkMaxFiles = 40;
+const invoiceUploadChunkMaxBytes = 24 * 1024 * 1024;
+const invoiceSaveChunkMaxRows = 75;
+const invoiceSaveChunkMaxBytes = 2.8 * 1024 * 1024;
 
 function summarizeImportRows(rows: ImportPreviewRow[]) {
   const relevantMovements = rows.flatMap((row) => row.parsedMovements ?? [])
@@ -7601,12 +7605,15 @@ async function parseInvoiceFiles(
   onProgress?: (processed: number, total: number, fileName: string) => void,
   options: { importSource?: ParsedInvoiceDocument["importSource"]; standortId?: string } = {}
 ) {
-  const chunks = chunkUploadFiles(files);
+  const chunks = chunkUploadFiles(files, {
+    maxFiles: invoiceUploadChunkMaxFiles,
+    maxBytes: invoiceUploadChunkMaxBytes
+  });
   const rows: ParsedInvoiceDocument[] = [];
   let processed = 0;
 
   for (const [chunkIndex, chunk] of chunks.entries()) {
-    const chunkRows = await parseInvoiceFileChunk(chunk, (chunkProcessed, _chunkTotal, fileName) => {
+    const chunkRows = await parseInvoiceFileChunkWithRetry(chunk, (chunkProcessed, _chunkTotal, fileName) => {
       onProgress?.(processed + chunkProcessed, files.length, `Paket ${chunkIndex + 1}/${chunks.length}: ${fileName}`);
     }, options);
     rows.push(...chunkRows);
@@ -7615,6 +7622,22 @@ async function parseInvoiceFiles(
   }
 
   return mergeInvoiceRows([], rows);
+}
+
+async function parseInvoiceFileChunkWithRetry(
+  files: File[],
+  onProgress?: (processed: number, total: number, fileName: string) => void,
+  options: { importSource?: ParsedInvoiceDocument["importSource"]; standortId?: string } = {}
+): Promise<ParsedInvoiceDocument[]> {
+  try {
+    return await parseInvoiceFileChunk(files, onProgress, options);
+  } catch (error) {
+    if (files.length <= 1) throw error;
+    const midpoint = Math.ceil(files.length / 2);
+    const left = await parseInvoiceFileChunkWithRetry(files.slice(0, midpoint), onProgress, options);
+    const right = await parseInvoiceFileChunkWithRetry(files.slice(midpoint), onProgress, options);
+    return [...left, ...right];
+  }
 }
 
 async function parseInvoiceFileChunk(
@@ -7877,14 +7900,16 @@ function uploadFilePath(file: File) {
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
-function chunkUploadFiles(files: File[]) {
+function chunkUploadFiles(files: File[], options: { maxFiles?: number; maxBytes?: number } = {}) {
+  const maxFiles = options.maxFiles ?? uploadChunkMaxFiles;
+  const maxBytes = options.maxBytes ?? uploadChunkMaxBytes;
   const chunks: File[][] = [];
   let current: File[] = [];
   let currentBytes = 0;
 
   files.forEach((file) => {
-    const wouldExceedSize = current.length > 0 && currentBytes + file.size > uploadChunkMaxBytes;
-    const wouldExceedCount = current.length >= uploadChunkMaxFiles;
+    const wouldExceedSize = current.length > 0 && currentBytes + file.size > maxBytes;
+    const wouldExceedCount = current.length >= maxFiles;
     if (wouldExceedSize || wouldExceedCount) {
       chunks.push(current);
       current = [];
@@ -8655,10 +8680,31 @@ async function loadConfirmedInvoiceRows() {
 }
 
 async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
+  const chunks = chunkInvoiceRowsForSave(rows);
+  if (chunks.length > 1) {
+    const persistence: NonNullable<Awaited<ReturnType<typeof saveConfirmedInvoiceRowsChunk>>["persistence"]> = { imported: 0, duplicates: 0, failed: 0, errors: [] };
+    for (const chunk of chunks) {
+      const result = await saveConfirmedInvoiceRowsChunk(chunk, false);
+      if (result.persistence) {
+        persistence.imported += result.persistence.imported;
+        persistence.duplicates += result.persistence.duplicates;
+        persistence.failed += result.persistence.failed;
+        persistence.errors = [...(persistence.errors ?? []), ...(result.persistence.errors ?? [])];
+      }
+    }
+    return {
+      rows: await loadConfirmedInvoiceRows(),
+      persistence
+    };
+  }
+  return saveConfirmedInvoiceRowsChunk(rows, true);
+}
+
+async function saveConfirmedInvoiceRowsChunk(rows: ParsedInvoiceDocument[], returnRows: boolean) {
   const response = await fetch("/api/invoices/parse", {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ rows }),
+    body: JSON.stringify({ rows, returnRows }),
     cache: "no-store"
   });
   const payload = await response.json().catch(() => null) as {
@@ -8671,6 +8717,30 @@ async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
     rows: payload?.rows ?? [],
     persistence: payload?.persistence
   };
+}
+
+function chunkInvoiceRowsForSave(rows: ParsedInvoiceDocument[]) {
+  const chunks: ParsedInvoiceDocument[][] = [];
+  let current: ParsedInvoiceDocument[] = [];
+  let currentBytes = 0;
+  rows.forEach((row) => {
+    const rowBytes = estimateJsonBytes(row);
+    const wouldExceedRows = current.length >= invoiceSaveChunkMaxRows;
+    const wouldExceedBytes = current.length > 0 && currentBytes + rowBytes > invoiceSaveChunkMaxBytes;
+    if (wouldExceedRows || wouldExceedBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(row);
+    currentBytes += rowBytes;
+  });
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
+function estimateJsonBytes(value: unknown) {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
 async function clearConfirmedInvoiceRows(options?: { source?: ParsedInvoiceDocument["importSource"]; standortId?: string }) {

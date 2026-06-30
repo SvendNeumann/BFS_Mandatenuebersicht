@@ -1061,6 +1061,13 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Saldo-/Rechnungsstatus-Listen folgen derselben Regel: neue Listen ergaenzen den bestaetigten Bestand, gleiche Listen ersetzen die vorhandene Version ueber Datei-Hash/Dateiidentitaet; `Saldo-Import zuruecksetzen` ist die einzige Loeschaktion.
 - Die Regel gilt appweit fuer Uploads: Upload = ergaenzen/aktualisieren, Reset = loeschen.
 
+## Update 2026-06-30: Einzelrechnungsimport fuer grosse Mengen skaliert
+
+- Der Einzelrechnungsimport nutzt groessere Pakete fuer viele kleine Rechnungs-PDFs: bis 40 Dateien bzw. ca. 24 MB pro Parse-Paket.
+- Wenn ein Paket serverseitig zu gross ist oder scheitert, wird es automatisch halbiert und erneut verarbeitet.
+- Auch das Bestaetigen/Speichern der erkannten Rechnungen wird in kleinere JSON-Pakete zerlegt, damit mehrere tausend Rechnungen nicht an Request-Groessen scheitern.
+- BFS-Monatsabrechnungen behalten die vorsichtigere Paketgroesse, weil diese PDFs deutlich groesser und parserlastiger sein koennen.
+
 ## Update 2026-06-30: Kallweit Praxissoftware-Sammeldruck geprueft
 
 - Datei geprueft: `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS/1. Rechnung_Kallweit/Kallweit_Rechnungsexport.pdf`.

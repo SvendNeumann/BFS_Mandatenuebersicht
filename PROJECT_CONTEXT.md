@@ -1162,3 +1162,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Der Praxissoftware-Upload nutzt fuer Praxis/Zuordnung jetzt ein eigenes Filterlayout.
 - Das Auswahlfeld ist breiter und nutzt die verfuegbare Spalte voll aus, damit Standort- und Praxisname nicht mehr eingequetscht wirken.
+
+## Update 2026-06-30: Import-Hinweiskacheln fachlich neutralisiert
+
+- Die drei Hinweiskacheln unter dem Rechnungsimport unterscheiden jetzt sauber zwischen BFS-PDFs und Praxissoftware-PDFs.
+- Standortzuordnung nennt nicht mehr nur feste BFS-Mandanten, sondern erklaert: BFS ueber Mandant/Anschrift, Praxissoftware ueber Vorauswahl, neue Formate bleiben zur Pruefung markiert.

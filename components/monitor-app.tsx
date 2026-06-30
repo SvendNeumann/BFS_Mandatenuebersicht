@@ -6893,9 +6893,9 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         <PriorityCard label="OCR offen" value={String(ocrRequiredRows)} hint="Praxissoftware-Bild-PDFs" tone={ocrRequiredRows ? "amber" : "green"} />
       </section>
       <section className="insight-grid">
-        <InsightCard title="Mengenfähig vorbereitet" items={["Dateien werden rekursiv aus Ordnern übernommen", "Dubletten laufen über BFS-Nr. und Hash", "PDF-Speicher kann später separat bereinigt werden"]} />
-        <InsightCard title="Standortzuordnung" items={["Mandant 18504: Kirchberg", "Mandant 18790: Essen", "Mandant 19260: Ulmet"]} />
-        <InsightCard title="Extraktion" items={["Leistungsnummer, Faktor und Betrag", "Eigenlabor und Fremdlabor getrennt", "Behandlungszeitraum für Matching"]} />
+        <InsightCard title="Mengenfähig vorbereitet" items={["Einzeldateien und Ordner werden übernommen", "Sammel-PDFs werden in Rechnungen aufgeteilt", "Dubletten laufen über Rechnungsdaten und Datei-Hash"]} />
+        <InsightCard title="Standortzuordnung" items={["BFS-PDFs: über Mandant und Anschrift", "Praxissoftware-PDFs: über die Vorauswahl", "Neue Praxisformate bleiben zur Prüfung markiert"]} />
+        <InsightCard title="Extraktion" items={["Rechnungskopf, Betrag und Patient", "Leistungsnummer, Faktor, Anzahl und EUR", "Eigenlabor und Fremdlabor getrennt"]} />
       </section>
       <InvoiceImportPreview rows={invoiceRows} />
     </div>

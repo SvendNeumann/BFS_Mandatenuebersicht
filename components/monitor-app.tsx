@@ -6704,6 +6704,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   const labCount = invoiceRows.filter((row) => row.hasEigenlabor || row.hasFremdlabor).length;
   const ocrRequiredRows = invoiceRows.filter((row) => row.ocrStatus === "required").length;
   const canConfirmImport = Boolean(invoiceRows.length) && !ocrRequiredRows;
+  const practiceRowsForSelectedStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === practiceStandortId).length;
 
   async function handleInvoiceFiles(
     files: FileList | null,
@@ -6788,6 +6789,29 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       setUploadStatus("Rechnungsupload zurückgesetzt");
     } catch (error) {
       setUploadStatus(`Rechnungsupload konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
+  async function resetPracticeInvoiceUpload() {
+    if (isProcessing || isSaving || isResetting || !practiceRowsForSelectedStandort) return;
+    setIsResetting(true);
+    setActiveUploadSource("practice_software_pdf");
+    setUploadStatus(`${selectedPracticeStandort?.name ?? "Praxis"}-Upload wird zurückgesetzt`);
+    try {
+      const result = await clearConfirmedInvoiceRows({
+        source: "practice_software_pdf",
+        standortId: practiceStandortId
+      });
+      const remainingRows = result.rows?.length
+        ? result.rows
+        : invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === practiceStandortId));
+      onRowsChange(remainingRows);
+      setSelectedFileCount(0);
+      setUploadStatus(`${selectedPracticeStandort?.name ?? "Praxis"}-Upload zurückgesetzt`);
+    } catch (error) {
+      setUploadStatus(`Praxissoftware-Upload konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsResetting(false);
     }
@@ -6879,9 +6903,9 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
-          <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !invoiceRows.length} onClick={() => void resetInvoiceUpload()}>
+          <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForSelectedStandort} onClick={() => void resetPracticeInvoiceUpload()}>
             <X size={16} />
-            {isResetting ? "Wird zurückgesetzt..." : "Upload zurücksetzen"}
+            {isResetting ? "Wird zurückgesetzt..." : "Praxisupload zurücksetzen"}
           </button>
         </div>
       </section>
@@ -8591,10 +8615,17 @@ async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
   };
 }
 
-async function clearConfirmedInvoiceRows() {
-  const response = await fetch("/api/invoices/parse", { method: "DELETE", cache: "no-store" });
-  const payload = await response.json().catch(() => null) as { error?: string } | null;
+async function clearConfirmedInvoiceRows(options?: { source?: ParsedInvoiceDocument["importSource"]; standortId?: string }) {
+  const params = new URLSearchParams();
+  if (options?.source) params.set("source", options.source);
+  if (options?.standortId) params.set("standortId", options.standortId);
+  const url = params.size ? `/api/invoices/parse?${params.toString()}` : "/api/invoices/parse";
+  const response = await fetch(url, { method: "DELETE", cache: "no-store" });
+  const payload = await response.json().catch(() => null) as { rows?: ParsedInvoiceDocument[]; error?: string } | null;
   if (!response.ok) throw new Error(payload?.error ?? "Rechnungsupload konnte nicht zurückgesetzt werden.");
+  return {
+    rows: payload?.rows
+  };
 }
 
 async function saveConfirmedInvoiceStatusDocuments(documents: ParsedInvoiceStatusDocument[]) {

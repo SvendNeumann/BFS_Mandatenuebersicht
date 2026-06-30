@@ -129,13 +129,39 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
     const auth = await requireSuperAdmin();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
     if (!supabase) return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
+
+    const url = new URL(request.url);
+    const source = url.searchParams.get("source");
+    const standortId = url.searchParams.get("standortId") ?? "";
+    if (source === "practice_software_pdf") {
+      if (!standortId) return NextResponse.json({ error: "Standort für Praxissoftware-Reset fehlt." }, { status: 400 });
+      const maps = await fetchStandortMaps(supabase);
+      const standort = maps.dbByAppId.get(standortId);
+      if (!standort) return NextResponse.json({ error: "Standort für Praxissoftware-Reset wurde nicht gefunden." }, { status: 404 });
+
+      const { data: invoices, error } = await supabase
+        .from("bfs_patient_invoices")
+        .select("id")
+        .eq("standort_id", standort.id)
+        .like("bfs_nr", `PRACTICE-${standortId}-%`);
+      if (error) throw new Error(error.message);
+
+      const invoiceIds = (invoices ?? []).map((invoice) => String(invoice.id)).filter(Boolean);
+      for (const chunk of chunkArray(invoiceIds, 200)) {
+        await throwIfSupabaseError(supabase.from("bfs_patient_invoice_lines").delete().in("invoice_id", chunk));
+        await throwIfSupabaseError(supabase.from("bfs_patient_invoices").delete().in("id", chunk));
+      }
+
+      const rows = await fetchPersistedInvoiceRows(supabase);
+      return NextResponse.json({ rows, reset: true, deleted: invoiceIds.length }, { headers: noStoreHeaders() });
+    }
 
     await throwIfSupabaseError(supabase.from("bfs_patient_invoice_lines").delete().neq("id", "00000000-0000-0000-0000-000000000000"));
     await throwIfSupabaseError(supabase.from("bfs_patient_invoices").delete().neq("id", "00000000-0000-0000-0000-000000000000"));

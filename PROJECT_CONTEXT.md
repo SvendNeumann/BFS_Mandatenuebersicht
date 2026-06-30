@@ -1167,3 +1167,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Die drei Hinweiskacheln unter dem Rechnungsimport unterscheiden jetzt sauber zwischen BFS-PDFs und Praxissoftware-PDFs.
 - Standortzuordnung nennt nicht mehr nur feste BFS-Mandanten, sondern erklaert: BFS ueber Mandant/Anschrift, Praxissoftware ueber Vorauswahl, neue Formate bleiben zur Pruefung markiert.
+
+## Update 2026-06-30: Praxissoftware-Reset loescht nur gewaehlte Praxis
+
+- Der Reset-Button im Praxissoftware-Upload loescht jetzt nur Praxissoftware-Rechnungen des aktuell ausgewaehlten Standortes.
+- BFS-Rechnungen und Praxissoftware-Importe anderer Standorte bleiben dabei erhalten.
+- Der API-Reset unter `/api/invoices/parse` unterstuetzt dafuer `source=practice_software_pdf` und `standortId`.

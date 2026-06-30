@@ -1102,3 +1102,19 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Parser wurde auf OCR-typische Kallweit-Zeilen getestet. Faktoren werden mit 2 bis 4 Nachkommastellen akzeptiert, damit sowohl klassische Rechnungskopien (`3,00`) als auch technische Praxissoftware-Ausgaben (`2,5000`) funktionieren.
 - Neuer Test in `tests/core-logic.test.ts`: `Praxissoftware-OCR-Text liest Rechnungsbetrag und Leistungsposition`.
 - Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `pnpm run lint` (0 Fehler, bestehende Warnung `stornoReview` ungenutzt), lokaler Abruf `http://localhost:3003/login`, OCR-Assets per `curl -I`, `git diff --check`.
+
+## Update 2026-06-30: Praxissoftware-Import als Formatprofile verstanden
+
+- Die Praxisauswahl im Upload ist nur die fachliche Zuordnung der Datei zu einem Standort, kein universeller Parser-Schalter.
+- Grundsatz: Jede Praxissoftware bzw. jeder Sammeldruck kann ein eigenes Layout haben. Kallweit ist nur das erste gepruefte Formatprofil.
+- UI-Text im Praxissoftware-Upload wurde angepasst: `Praxis / Zuordnung` plus separater Hinweis `Formatprofil Kallweit geprueft` oder `Neues Formatprofil`.
+- Browser-OCR laeuft weiterhin fuer alle Praxissoftware-PDFs. Fuer nicht validierte Praxisformate werden die erkannten Rechnungen aber automatisch auf `Zu pruefen` gesetzt und mit dem Hinweis markiert, dass das Layout noch nicht als belastbares Importprofil freigegeben ist.
+- Dadurch koennen Dateien anderer Praxen hochgeladen und gesammelt werden, ohne dass ihre Werte vorschnell in belastbare Praxisvergleiche/Potenzialberechnungen eingehen.
+
+## Update 2026-06-30: Praxissoftware-Fortschritt und Auswertungspfad geprueft
+
+- Die Fortschrittsanzeige im Praxissoftware-Upload zeigt nur noch den Auslesestand, z. B. `Datei.pdf: 37 von 394 Seiten ausgelesen`, und keine technischen OCR-Statusmeldungen mehr.
+- Der Fortschritt wird im aktiven Uploadblock angezeigt. Bei Praxissoftware-Uploads erscheint er im Praxissoftware-Block, nicht mehr im BFS-Uploadblock.
+- Sammel-PDF-Rechnungen bekommen in der Vorschau und beim Mergen einen stabilen Rechnungsschluessel aus BFS-Nr., Datei-Hash bzw. Praxis/Rechnungsdaten. Dadurch kollidieren viele Rechnungen aus derselben Sammeldatei nicht mehr in der Tabellenanzeige.
+- Der Datenfluss wurde geprueft: `InvoiceImportView` schreibt die importierten `ParsedInvoiceDocument`-Zeilen in `invoiceRows`; `InvoiceServicesView`, `InvoicePotentialView` und `InvoiceLocationsView` lesen genau diese `invoiceRows`. Nach `Rechnungsimport bestaetigen` werden die persistenten Zeilen ueber `/api/invoices/parse` geladen und enthalten die gespeicherten Leistungszeilen aus `bfs_patient_invoice_lines`.
+- Bedeutung fuer Kallweit: Erkannte Leistungspositionen laufen in Leistungsuebersicht und Standortvergleich. Die Potenzialanalyse zeigt fuer Kallweit erst belastbare Euro-Potenziale, wenn mindestens ein weiterer Standort mit vergleichbaren Leistungsnummern als Benchmark importiert ist.

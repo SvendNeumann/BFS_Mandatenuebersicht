@@ -70,7 +70,10 @@ async function parsePracticeSoftwareOcrFile(
     await yieldToBrowser();
   }
 
-  return parsePracticeSoftwareInvoiceText(pageTexts.join("\n\n"), {
+  const ocrText = pageTexts.join("\n\n");
+  const isValidatedProfile = isValidatedPracticeSoftwareProfile(standort, ocrText);
+
+  return parsePracticeSoftwareInvoiceText(ocrText, {
     file: uploadFilePath(file),
     fileSizeBytes: file.size,
     fileHash,
@@ -79,10 +82,21 @@ async function parsePracticeSoftwareOcrFile(
   }).map((row) => ({
     ...row,
     ocrStatus: "completed" as const,
-    parseNotes: row.status === "OK"
-      ? ["Praxissoftware-Rechnung per OCR ausgelesen."]
-      : row.parseNotes
+    status: isValidatedProfile ? row.status : "Zu prüfen",
+    parseNotes: isValidatedProfile
+      ? row.status === "OK"
+        ? ["Praxissoftware-Rechnung per OCR ausgelesen."]
+        : row.parseNotes
+      : [
+        "Neues Praxissoftware-Format: OCR wurde ausgeführt, aber dieses Layout ist noch nicht als belastbares Importprofil freigegeben.",
+        ...row.parseNotes
+      ]
   }));
+}
+
+function isValidatedPracticeSoftwareProfile(standort: Standort, text: string) {
+  if (standort.id !== "kirchberg") return false;
+  return /Kallweit|Paroimplantologie|08107\s+Kirchberg/i.test(text);
 }
 
 async function loadPdfJs() {

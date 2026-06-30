@@ -6693,8 +6693,11 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Bereit für Rechnungsimport");
+  const [activeUploadSource, setActiveUploadSource] = useState<ParsedInvoiceDocument["importSource"]>("bfs_invoice_pdf");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const [practiceStandortId, setPracticeStandortId] = useState(() => orderedStandorte()[0]?.id ?? "kirchberg");
+  const selectedPracticeStandort = orderedStandorte().find((standort) => standort.id === practiceStandortId);
+  const practiceProfile = practiceSoftwareImportProfile(selectedPracticeStandort);
   const okRows = invoiceRows.filter((row) => row.status === "OK").length;
   const reviewRows = invoiceRows.length - okRows;
   const serviceCount = invoiceRows.reduce((sum, row) => sum + row.serviceLines.length, 0);
@@ -6710,22 +6713,26 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
     if (!files?.length) return;
     const importableFiles = [...files].filter(isInvoicePdfUploadFile);
     setSelectedFileCount(importableFiles.length);
+    setActiveUploadSource(importSource);
     if (!importableFiles.length) {
       setUploadStatus("Keine Rechnungs-PDFs gefunden");
       return;
     }
     setIsProcessing(true);
     setUploadStatus(importSource === "practice_software_pdf"
-      ? `${importableFiles.length} Praxissoftware-PDFs werden per OCR ausgelesen`
-      : `${importableFiles.length} Rechnungs-PDFs werden ausgelesen`);
+      ? `0 von ${importableFiles.length} Dateien vorbereitet`
+      : `0 von ${importableFiles.length} Dateien ausgelesen`);
     try {
       if (mode === "replace") onRowsChange([]);
       const practiceStandort = orderedStandorte().find((standort) => standort.id === practiceStandortId);
       const parsedRows = importSource === "practice_software_pdf" && practiceStandort
         ? await parsePracticeSoftwareOcrFiles(importableFiles, practiceStandort, (progress) => {
           const shortName = progress.fileName.length > 34 ? `${progress.fileName.slice(0, 31)}...` : progress.fileName;
-          const pageProgress = progress.totalPages ? ` · Seite ${progress.processedPages}/${progress.totalPages}` : "";
-          setUploadStatus(`${shortName}${pageProgress} · ${progress.status}`);
+          if (progress.totalPages) {
+            setUploadStatus(`${shortName}: ${progress.processedPages} von ${progress.totalPages} Seiten ausgelesen`);
+          } else if (typeof progress.progress === "number") {
+            setUploadStatus(`${Math.round(progress.progress * 100)} % vorbereitet`);
+          }
         })
         : await parseInvoiceFiles(importableFiles, (processed, total, fileName) => {
           const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
@@ -6793,11 +6800,12 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         <div>
           <h2>Patientenrechnungen aus dem BFS-Portal einreichen</h2>
           <p>Die App liest Rechnungs-PDFs auch aus Unterordnern, erkennt den Standort über BFS-Mandant und Anschrift und trennt Rechnungskopf, Leistungspositionen, Eigenlabor und Fremdlabor.</p>
-          <div className={isProcessing ? "upload-status processing" : invoiceRows.length ? "upload-status done" : "upload-status"} aria-live="polite">
-            <RefreshCw size={14} />
-            <span>{isProcessing ? "Wird ausgelesen" : invoiceRows.length ? "Fertig" : "Bereit"}</span>
-            <strong>{uploadStatus}</strong>
-          </div>
+          <InvoiceUploadStatus
+            active={activeUploadSource === "bfs_invoice_pdf"}
+            isProcessing={isProcessing}
+            hasRows={Boolean(invoiceRows.length)}
+            status={uploadStatus}
+          />
         </div>
         <div className="upload-actions">
           <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
@@ -6830,18 +6838,28 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       <section className="upload-zone">
         <HardDriveUpload size={28} />
         <div>
-          <h2>Praxissoftware-Sammel-PDF einreichen</h2>
-          <p>Für Praxisexporte ohne BFS-Nr. wird die Praxis vor dem Upload festgelegt. Bild-PDFs werden direkt im Browser per OCR ausgelesen und danach in dieselbe Rechnungsanalyse übernommen.</p>
+          <h2>Praxissoftware-PDF je Praxis prüfen</h2>
+          <p>Die Praxis-Auswahl ordnet die Datei nur fachlich zu. Das Rechnungsformat wird je Praxis separat validiert, weil Sammeldrucke je Software und Einstellung anders aussehen können.</p>
           <div className="period-filter custom-kpi-period">
             <label>
-              Praxis
+              Praxis / Zuordnung
               <select value={practiceStandortId} disabled={isProcessing} onChange={(event) => setPracticeStandortId(event.target.value)}>
                 {orderedStandorte().map((standort) => (
                   <option key={standort.id} value={standort.id}>{standort.name} · {standort.praxisname}</option>
                 ))}
               </select>
             </label>
+            <div>
+              <strong>{practiceProfile.label}</strong>
+              <span>{practiceProfile.hint}</span>
+            </div>
           </div>
+          <InvoiceUploadStatus
+            active={activeUploadSource === "practice_software_pdf"}
+            isProcessing={isProcessing}
+            hasRows={Boolean(invoiceRows.length)}
+            status={uploadStatus}
+          />
         </div>
         <div className="upload-actions">
           <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
@@ -6878,6 +6896,31 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       <InvoiceImportPreview rows={invoiceRows} />
     </div>
   );
+}
+
+function InvoiceUploadStatus({ active, isProcessing, hasRows, status }: { active: boolean; isProcessing: boolean; hasRows: boolean; status: string }) {
+  if (!active && isProcessing) return null;
+  const stateLabel = isProcessing ? "Fortschritt" : hasRows ? "Fertig" : "Bereit";
+  return (
+    <div className={isProcessing ? "upload-status processing" : hasRows ? "upload-status done" : "upload-status"} aria-live="polite">
+      <RefreshCw size={14} />
+      <span>{stateLabel}</span>
+      <strong>{active ? status : "Bereit für diesen Uploadweg"}</strong>
+    </div>
+  );
+}
+
+function practiceSoftwareImportProfile(standort?: Standort) {
+  if (standort?.id === "kirchberg") {
+    return {
+      label: "Formatprofil Kallweit geprüft",
+      hint: "OCR und Positionsauslesung sind für den Kallweit-Sammeldruck getestet; Prüffälle bleiben markiert."
+    };
+  }
+  return {
+    label: "Neues Formatprofil",
+    hint: "Upload wird gelesen und der Praxis zugeordnet, bleibt aber bis zur Layout-Prüfung im Status Zu prüfen."
+  };
 }
 
 function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
@@ -7181,7 +7224,7 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
           </thead>
           <tbody>
             {rows.length ? rows.map((row) => (
-              <tr key={row.bfsNo !== "-" ? row.bfsNo : row.file}>
+              <tr key={invoiceRowKey(row)}>
                 <td><StatusBadge status={row.status} /></td>
                 <td><strong>{row.standortName}</strong><small>Mandant {row.mandantNo}</small></td>
                 <td><strong>{invoiceSourceLabel(row)}</strong><small>{row.ocrStatus === "required" ? "OCR erforderlich" : row.bfsNo}</small></td>
@@ -7203,10 +7246,22 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
 function mergeInvoiceRows(currentRows: ParsedInvoiceDocument[], nextRows: ParsedInvoiceDocument[]) {
   const byKey = new Map<string, ParsedInvoiceDocument>();
   [...currentRows, ...nextRows].forEach((row) => {
-    const key = row.bfsNo !== "-" ? row.bfsNo : row.fileHash ?? row.file;
-    byKey.set(key, row);
+    byKey.set(invoiceRowKey(row), row);
   });
   return [...byKey.values()];
+}
+
+function invoiceRowKey(row: ParsedInvoiceDocument) {
+  if (row.bfsNo !== "-") return row.bfsNo;
+  if (row.fileHash) return row.fileHash;
+  return [
+    row.importSource ?? "invoice",
+    row.standortId ?? row.standortName,
+    row.invoiceNo,
+    row.invoiceDate,
+    row.patientName,
+    row.file
+  ].join("|");
 }
 
 function invoicePreviewPositionLabel(row: ParsedInvoiceDocument) {

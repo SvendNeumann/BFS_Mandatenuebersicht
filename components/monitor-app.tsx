@@ -6924,7 +6924,7 @@ function practiceSoftwareImportProfile(standort?: Standort) {
 }
 
 function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
-  const exportRef = useRef<HTMLDivElement | null>(null);
+  const tableExportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortId, setStandortId] = useState("gruppe");
@@ -6937,7 +6937,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
   const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
   const exportScopeLabel = selectedStandort?.name ?? "Alle Standorte";
   return (
-    <div className="content-stack" ref={exportRef}>
+    <div className="content-stack">
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -6968,7 +6968,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           <button
             className="secondary-button custom-export-action"
             type="button"
-            onClick={() => printCustomTabPdf(exportRef.current, `Leistungsübersicht · ${exportScopeLabel} · ${selectedPeriod.label}`)}
+            onClick={() => printCustomTabPdf(tableExportRef.current, `Leistungsübersicht · ${exportScopeLabel} · ${selectedPeriod.label}`)}
             disabled={!rows.length}
           >
             <Printer size={16} /> PDF Export
@@ -6982,7 +6982,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
           <PriorityCard label="Größte Faktorstreuung" value={kpis.widestFactorRange?.code ?? "-"} hint={kpis.widestFactorRange ? `${feeRateNumber.format(kpis.widestFactorRange.minFactor)} bis ${feeRateNumber.format(kpis.widestFactorRange.maxFactor)}` : "keine Faktorwerte"} tone={kpis.widestFactorRange ? "amber" : "blue"} info={kpis.widestFactorRange ? kpis.widestFactorRange.description : undefined} />
           <PriorityCard label="Leistungsvielfalt" value={integerNumber.format(kpis.serviceCodeCount)} hint={`${integerNumber.format(kpis.serviceLineCount)} Positionen · ${integerNumber.format(kpis.invoiceCount)} Rechnungen`} tone="blue" />
         </section>
-        <div className="table-wrap compact-table invoice-services-scroll invoice-services-table-wrap">
+        <div className="table-wrap compact-table invoice-services-scroll invoice-services-table-wrap" ref={tableExportRef}>
           <table className="invoice-services-table">
             <thead>
               <tr>
@@ -7020,7 +7020,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
 }
 
 function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
-  const exportRef = useRef<HTMLDivElement | null>(null);
+  const tableExportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
@@ -7041,7 +7041,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
   }, [invoiceStandorte, standortId]);
 
   return (
-    <div className="content-stack" ref={exportRef}>
+    <div className="content-stack">
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -7071,7 +7071,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
           <button
             className="secondary-button custom-export-action"
             type="button"
-            onClick={() => printCustomTabPdf(exportRef.current, `Potenzialanalyse · ${selectedStandort?.name ?? "Standort"} · ${selectedPeriod.label}`)}
+            onClick={() => printCustomTabPdf(tableExportRef.current, `Potenzialanalyse · ${selectedStandort?.name ?? "Standort"} · ${selectedPeriod.label}`)}
             disabled={!selectedStandort || !rows.length}
           >
             <Printer size={16} /> PDF Export
@@ -7106,7 +7106,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
             <h2>Leistungen mit größtem Mehrumsatz</h2>
           </div>
         </div>
-        <div className="table-wrap compact-table invoice-services-scroll">
+        <div className="table-wrap compact-table invoice-services-scroll" ref={tableExportRef}>
           <table>
             <thead>
               <tr>

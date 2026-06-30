@@ -1147,3 +1147,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Stattdessen zeigt die KPI bei einem Standort den realen `Ø Standortfaktor`; die Vergleichskarte sagt `Noch offen`, bis mindestens zwei Standorte mit Faktorwerten vorhanden sind.
 - Die KPI `Leistungsvielfalt` und die Zeitraumzeile zaehlen Rechnungen nur noch dann als analysiert, wenn mindestens eine bereinigte Leistungsposition vorhanden ist.
 - Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`.
+
+## Update 2026-06-30: Auswertungstab-Exporte nur mit Tabellen
+
+- Die PDF-Exporte in `Leistungsuebersicht` und `Potenzialanalyse` verwenden jetzt nur noch den jeweiligen Tabellenbereich als Druckquelle.
+- KPI-Kacheln, Filterbereich und Tab-Erklaertexte bleiben in der App sichtbar, werden aber nicht mehr in diese PDF-Arbeitslisten uebernommen.

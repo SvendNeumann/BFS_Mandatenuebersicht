@@ -1140,3 +1140,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Standortvergleich und KPI-Zaehlungen der Rechnungsanalyse nutzen ebenfalls nur analysefaehige Leistungszeilen, damit Positionszahlen und Ø-Faktoren durch OCR-Artefakte nicht kuenstlich steigen.
 - Neuer Test in `tests/core-logic.test.ts`: `Praxissoftware-OCR-Text markiert verdächtige Leistungszeilen zur Prüfung`.
 - Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run lint` (0 Fehler, bestehende Warnung `stornoReview` ungenutzt), `pnpm run build`.
+
+## Update 2026-06-30: Leistungs-KPIs fuer Einzelstandort bereinigt
+
+- In der Leistungsuebersicht wird bei nur einem auswertbaren Standort kein kuenstlicher `Hoechster/Niedrigster Standortfaktor`-Vergleich mehr angezeigt.
+- Stattdessen zeigt die KPI bei einem Standort den realen `Ø Standortfaktor`; die Vergleichskarte sagt `Noch offen`, bis mindestens zwei Standorte mit Faktorwerten vorhanden sind.
+- Die KPI `Leistungsvielfalt` und die Zeitraumzeile zaehlen Rechnungen nur noch dann als analysiert, wenn mindestens eine bereinigte Leistungsposition vorhanden ist.
+- Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`.

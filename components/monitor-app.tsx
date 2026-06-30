@@ -6931,9 +6931,9 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
   const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
   const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
-  const scopedRows = useMemo(() => invoiceRows.filter((row) => invoiceReadyForAnalysis(row) && invoiceInPeriod(row, selectedPeriod) && (!selectedStandort || row.standortId === selectedStandort.id || row.standortName === selectedStandort.name)), [invoiceRows, selectedPeriod, selectedStandort]);
   const rows = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
   const kpis = useMemo(() => invoiceServicesKpis(invoiceRows, selectedPeriod, selectedStandort, rows), [invoiceRows, rows, selectedPeriod, selectedStandort]);
+  const hasLocationFactorComparison = kpis.locationFactorCount > 1;
   const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
   const exportScopeLabel = selectedStandort?.name ?? "Alle Standorte";
   return (
@@ -6964,7 +6964,7 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
               ))}
             </select>
           </label>
-          <span>{selectedPeriod.detail} · {integerNumber.format(scopedRows.length)} Rechnungen · {comparisonLabel}</span>
+          <span>{selectedPeriod.detail} · {integerNumber.format(kpis.invoiceCount)} Rechnungen mit Leistungsdaten · {comparisonLabel}</span>
           <button
             className="secondary-button custom-export-action"
             type="button"
@@ -6976,11 +6976,11 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
         </div>
         <section className="priority-grid invoice-service-kpi-grid">
           <PriorityCard label="Häufigste Position" value={kpis.mostFrequent?.code ?? "-"} hint={kpis.mostFrequent ? `${integerNumber.format(kpis.mostFrequent.count)}x · Ø Faktor ${feeRateNumber.format(kpis.mostFrequent.avgFactor)}` : "keine Leistungsdaten"} tone="blue" info={kpis.mostFrequent ? kpis.mostFrequent.description : undefined} />
-          <PriorityCard label="Höchster Standortfaktor" value={kpis.highestFactorLocation?.standortName ?? "-"} hint={kpis.highestFactorLocation ? `Ø Faktor ${feeRateNumber.format(kpis.highestFactorLocation.avgFactor)} · ${integerNumber.format(kpis.highestFactorLocation.serviceCount)} Positionen` : "keine Faktorwerte"} tone="green" />
-          <PriorityCard label="Niedrigster Standortfaktor" value={kpis.lowestFactorLocation?.standortName ?? "-"} hint={kpis.lowestFactorLocation ? `Ø Faktor ${feeRateNumber.format(kpis.lowestFactorLocation.avgFactor)} · ${integerNumber.format(kpis.lowestFactorLocation.serviceCount)} Positionen` : "keine Faktorwerte"} tone="amber" />
+          <PriorityCard label={hasLocationFactorComparison ? "Höchster Standortfaktor" : "Ø Standortfaktor"} value={(hasLocationFactorComparison ? kpis.highestFactorLocation : kpis.singleFactorLocation)?.standortName ?? "-"} hint={(hasLocationFactorComparison ? kpis.highestFactorLocation : kpis.singleFactorLocation) ? `Ø Faktor ${feeRateNumber.format((hasLocationFactorComparison ? kpis.highestFactorLocation : kpis.singleFactorLocation)?.avgFactor ?? 0)} · ${integerNumber.format((hasLocationFactorComparison ? kpis.highestFactorLocation : kpis.singleFactorLocation)?.serviceCount ?? 0)} Positionen` : "keine Faktorwerte"} tone="green" />
+          <PriorityCard label={hasLocationFactorComparison ? "Niedrigster Standortfaktor" : "Standortvergleich"} value={hasLocationFactorComparison ? kpis.lowestFactorLocation?.standortName ?? "-" : "Noch offen"} hint={hasLocationFactorComparison && kpis.lowestFactorLocation ? `Ø Faktor ${feeRateNumber.format(kpis.lowestFactorLocation.avgFactor)} · ${integerNumber.format(kpis.lowestFactorLocation.serviceCount)} Positionen` : "erst ab 2 Standorten sinnvoll"} tone="amber" />
           <PriorityCard label="Umsatzstärkste Position" value={kpis.topAmount?.code ?? "-"} hint={kpis.topAmount ? `${money.format(kpis.topAmount.amount)} · ${integerNumber.format(kpis.topAmount.count)}x` : "keine Leistungsdaten"} tone="green" info={kpis.topAmount ? kpis.topAmount.description : undefined} />
           <PriorityCard label="Größte Faktorstreuung" value={kpis.widestFactorRange?.code ?? "-"} hint={kpis.widestFactorRange ? `${feeRateNumber.format(kpis.widestFactorRange.minFactor)} bis ${feeRateNumber.format(kpis.widestFactorRange.maxFactor)}` : "keine Faktorwerte"} tone={kpis.widestFactorRange ? "amber" : "blue"} info={kpis.widestFactorRange ? kpis.widestFactorRange.description : undefined} />
-          <PriorityCard label="Leistungsvielfalt" value={integerNumber.format(kpis.serviceCodeCount)} hint={`${integerNumber.format(kpis.serviceLineCount)} Positionen · ${integerNumber.format(scopedRows.length)} Rechnungen`} tone="blue" />
+          <PriorityCard label="Leistungsvielfalt" value={integerNumber.format(kpis.serviceCodeCount)} hint={`${integerNumber.format(kpis.serviceLineCount)} Positionen · ${integerNumber.format(kpis.invoiceCount)} Rechnungen`} tone="blue" />
         </section>
         <div className="table-wrap compact-table invoice-services-scroll invoice-services-table-wrap">
           <table className="invoice-services-table">
@@ -7370,7 +7370,8 @@ function invoiceServicesKpis(
   serviceRows: ReturnType<typeof invoiceServiceSummary>
 ) {
   const scopedInvoices = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (!selectedStandort || invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name));
-  const serviceLineCount = scopedInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.filter(invoiceLineReadyForAnalysis).length, 0);
+  const analysisInvoices = scopedInvoices.filter((invoice) => invoice.serviceLines.some(invoiceLineReadyForAnalysis));
+  const serviceLineCount = analysisInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.filter(invoiceLineReadyForAnalysis).length, 0);
   const serviceCodeCount = serviceRows.length;
   const topAmount = [...serviceRows].sort((a, b) => b.amount - a.amount || b.count - a.count)[0];
   const widestFactorRange = [...serviceRows]
@@ -7397,10 +7398,13 @@ function invoiceServicesKpis(
     mostFrequent: serviceRows[0],
     topAmount,
     widestFactorRange,
+    invoiceCount: analysisInvoices.length,
     serviceLineCount,
     serviceCodeCount,
-    highestFactorLocation: [...visibleLocationFactors].sort((a, b) => b.avgFactor - a.avgFactor || b.serviceCount - a.serviceCount)[0],
-    lowestFactorLocation: [...visibleLocationFactors].sort((a, b) => a.avgFactor - b.avgFactor || b.serviceCount - a.serviceCount)[0]
+    locationFactorCount: visibleLocationFactors.length,
+    singleFactorLocation: visibleLocationFactors[0],
+    highestFactorLocation: visibleLocationFactors.length > 1 ? [...visibleLocationFactors].sort((a, b) => b.avgFactor - a.avgFactor || b.serviceCount - a.serviceCount)[0] : undefined,
+    lowestFactorLocation: visibleLocationFactors.length > 1 ? [...visibleLocationFactors].sort((a, b) => a.avgFactor - b.avgFactor || b.serviceCount - a.serviceCount)[0] : undefined
   };
 }
 

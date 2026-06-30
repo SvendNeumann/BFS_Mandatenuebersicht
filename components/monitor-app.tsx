@@ -7291,7 +7291,7 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
     groupFactorCount: number;
   }>();
 
-  invoiceRows.filter((invoice) => !period || invoiceInPeriod(invoice, period)).forEach((invoice) => {
+  invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && (!period || invoiceInPeriod(invoice, period))).forEach((invoice) => {
     const isSelectedStandort = selectedStandort
       ? invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name
       : true;
@@ -7350,7 +7350,7 @@ function invoiceServicesKpis(
   selectedStandort: Standort | undefined,
   serviceRows: ReturnType<typeof invoiceServiceSummary>
 ) {
-  const scopedInvoices = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (!selectedStandort || invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name));
+  const scopedInvoices = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (!selectedStandort || invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name));
   const serviceLineCount = scopedInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.length, 0);
   const serviceCodeCount = serviceRows.length;
   const topAmount = [...serviceRows].sort((a, b) => b.amount - a.amount || b.count - a.count)[0];
@@ -7359,7 +7359,7 @@ function invoiceServicesKpis(
     .sort((a, b) => (b.maxFactor - b.minFactor) - (a.maxFactor - a.minFactor) || b.count - a.count)[0];
   const locationFactors = orderedStandorte()
     .map((standort) => {
-      const rows = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
+      const rows = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
       const factorLines = rows.flatMap((invoice) => invoice.serviceLines).filter((line) => line.factor);
       if (!factorLines.length) return null;
       return {
@@ -7401,7 +7401,7 @@ function invoicePotentialSummary(invoiceRows: ParsedInvoiceDocument[], period: P
 function invoiceLocationSummary(invoiceRows: ParsedInvoiceDocument[], period: PeriodOption) {
   return orderedStandorte()
     .map((standort) => {
-      const rows = invoiceRows.filter((invoice) => invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
+      const rows = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
       if (!rows.length) return null;
       const amount = rows.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
       const serviceLines = rows.flatMap((invoice) => invoice.serviceLines);
@@ -7429,6 +7429,11 @@ function annualizeInvoicePotential(value: number, period?: PeriodOption) {
   if (!period?.start || !period.end) return value;
   const dayCount = Math.max(1, Math.round((period.end.getTime() - period.start.getTime()) / 86400000) + 1);
   return value * (365 / dayCount);
+}
+
+function invoiceReadyForAnalysis(invoice: ParsedInvoiceDocument) {
+  if (invoice.ocrStatus === "required") return false;
+  return !invoice.parseNotes.some((note) => note.startsWith("Neues Praxissoftware-Format:"));
 }
 
 function invoiceInPeriod(invoice: ParsedInvoiceDocument, period: PeriodOption) {

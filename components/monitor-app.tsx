@@ -5856,7 +5856,7 @@ function UploadView({
   const hasPendingStatusImport = pendingStatusDocuments !== null;
   const statusRows = displayedStatusDocuments.flatMap((document) => document.rows);
   const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
-  const nextStatusUploadMode = displayedStatusDocuments.length ? "append" : "replace";
+  const nextStatusUploadMode = "append";
 
   async function handleFiles(files: FileList | null, mode: "replace" | "append" = "append") {
     if (!files?.length) return;
@@ -5908,7 +5908,7 @@ function UploadView({
     }
   }
 
-  async function handleStatusFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
+  async function handleStatusFiles(files: FileList | null, mode: "replace" | "append" = "append") {
     if (!files?.length) return;
     const importableFiles = [...files].filter(isInvoiceStatusPdfUploadFile);
     setSelectedStatusFileCount(importableFiles.length);
@@ -5920,6 +5920,7 @@ function UploadView({
     setIsStatusProcessing(true);
     setStatusUploadStatus(`${importableFiles.length} Saldo-Listen werden gelesen`);
     try {
+      const existingDocuments = mode === "replace" ? [] : await loadConfirmedInvoiceStatusDocuments().catch(() => statusDocuments);
       if (mode === "replace") setPendingStatusDocuments([]);
       const parsedDocuments = await parseInvoiceStatusFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
@@ -5929,7 +5930,7 @@ function UploadView({
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setStatusUploadStatus(`${processed} von ${total} Listen vollständig geprüft (${shortName})`);
       });
-      const baseDocuments = pendingStatusDocuments ?? statusDocuments;
+      const baseDocuments = pendingStatusDocuments ?? existingDocuments;
       const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, completeParsedDocuments) : completeParsedDocuments;
       setPendingStatusDocuments(nextDocuments);
       const nextRows = nextDocuments.flatMap((document) => document.rows);
@@ -5948,10 +5949,12 @@ function UploadView({
 
   async function confirmStatusImport() {
     if (!pendingStatusDocuments) return;
-    setIsStatusConfirming(true);
-    setStatusUploadStatus("Saldo-Import wird bestätigt und gespeichert");
+      setIsStatusConfirming(true);
+      setStatusUploadStatus("Saldo-Import wird bestätigt und gespeichert");
     try {
-      const savedDocuments = await saveConfirmedInvoiceStatusDocuments(pendingStatusDocuments);
+      const existingDocuments = await loadConfirmedInvoiceStatusDocuments().catch(() => statusDocuments);
+      const documentsToSave = mergeInvoiceStatusDocuments(existingDocuments, pendingStatusDocuments);
+      const savedDocuments = await saveConfirmedInvoiceStatusDocuments(documentsToSave);
       onStatusDocumentsChange(savedDocuments);
       const confirmedRows = savedDocuments.flatMap((document) => document.rows);
       const coverage = summarizeInvoiceStatusCoverage(confirmedRows);

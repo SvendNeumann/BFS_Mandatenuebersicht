@@ -93,7 +93,9 @@ export async function PUT(request: NextRequest) {
     if (!supabase) return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
 
     const body = await request.json() as { documents?: unknown[] };
-    const documents = Array.isArray(body?.documents) ? body.documents.filter(isParsedInvoiceStatusDocument) : [];
+    const incomingDocuments = Array.isArray(body?.documents) ? body.documents.filter(isParsedInvoiceStatusDocument) : [];
+    const currentPayload = await loadLatestInvoiceStatusPayload(supabase);
+    const documents = mergeInvoiceStatusDocuments(currentPayload.documents, incomingDocuments);
     const rowCount = documents.reduce((sum, document) => sum + document.rows.length, 0);
     const payload = {
       documents,
@@ -166,6 +168,37 @@ function parseStoredInvoiceStatusPayload(value: unknown) {
     documents,
     confirmedAt: typeof entry.confirmedAt === "string" ? entry.confirmedAt : ""
   };
+}
+
+async function loadLatestInvoiceStatusPayload(supabase: SupabaseDbClient) {
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select("new_value, created_at")
+    .eq("action", "invoice_status_import_confirmed")
+    .eq("entity_type", "invoice_status_import")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return parseStoredInvoiceStatusPayload(data?.[0]?.new_value);
+}
+
+function mergeInvoiceStatusDocuments(currentDocuments: ParsedInvoiceStatusDocument[], nextDocuments: ParsedInvoiceStatusDocument[]) {
+  const byKey = new Map<string, ParsedInvoiceStatusDocument>();
+  [...currentDocuments, ...nextDocuments].forEach((document) => {
+    byKey.set(invoiceStatusDocumentKey(document), document);
+  });
+  return [...byKey.values()];
+}
+
+function invoiceStatusDocumentKey(document: ParsedInvoiceStatusDocument) {
+  if (document.fileHash) return document.fileHash;
+  return [
+    document.file,
+    document.fileSizeBytes,
+    document.pageCount,
+    document.rows[0]?.mandantNo ?? "-",
+    document.rows[0]?.invoiceDate ?? "-"
+  ].join("|");
 }
 
 function filterInvoiceStatusDocumentsByStandort(documents: ParsedInvoiceStatusDocument[], allowedStandortIds: Set<string>) {

@@ -1058,6 +1058,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Gleiche Abrechnungen werden ueber Hash und fachliche Identitaet erkannt und serverseitig aktualisiert/ersetzt; neue Monate werden on top uebernommen.
 - Komplettes Loeschen erfolgt nur noch ueber `Upload zuruecksetzen`.
 - Im Rechnungsimport wird vor dem Bestaetigen ebenfalls der gespeicherte Bestand geladen und mit der neuen Vorschau zusammengefuehrt; gleiche Rechnungen werden serverseitig ersetzt statt doppelt angelegt.
+- Saldo-/Rechnungsstatus-Listen folgen derselben Regel: neue Listen ergaenzen den bestaetigten Bestand, gleiche Listen ersetzen die vorhandene Version ueber Datei-Hash/Dateiidentitaet; `Saldo-Import zuruecksetzen` ist die einzige Loeschaktion.
+- Die Regel gilt appweit fuer Uploads: Upload = ergaenzen/aktualisieren, Reset = loeschen.
 
 ## Update 2026-06-30: Kallweit Praxissoftware-Sammeldruck geprueft
 

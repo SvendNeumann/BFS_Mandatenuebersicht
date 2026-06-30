@@ -7296,7 +7296,7 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
           <p>Die PDF-Datei dient als Beleg; die ausgelesenen Daten bleiben später getrennt für Auswertungen erhalten.</p>
         </div>
       </div>
-      <div className="table-wrap compact-table">
+      <div className="table-wrap compact-table invoice-preview-scroll">
         <table>
           <thead>
             <tr>

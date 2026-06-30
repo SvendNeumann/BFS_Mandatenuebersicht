@@ -1186,3 +1186,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Jede Praxis-Uploadkarte hat jetzt einen eigenen `Speichern`-Button.
 - Der Button bestaetigt nur die Praxissoftware-Rechnungen des jeweiligen Standortes; BFS-Rechnungen und andere Praxisuploads werden nicht automatisch mitgespeichert.
 - Nach dem Speichern bleiben andere noch nicht bestaetigte Vorschauzeilen in der Ansicht erhalten.
+
+## Update 2026-06-30: Rechnungsvorschau wieder scrollbar
+
+- Die Tabelle `Rechnungsvorschau` hat wieder einen eigenen scrollbaren Listenbereich mit begrenzter Hoehe.
+- Der Tabellenkopf bleibt beim Scrollen sichtbar, damit grosse Importvorschauen leichter pruefbar bleiben.

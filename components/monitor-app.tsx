@@ -5858,7 +5858,7 @@ function UploadView({
   const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
   const nextStatusUploadMode = displayedStatusDocuments.length ? "append" : "replace";
 
-  async function handleFiles(files: FileList | null, mode: "replace" | "append" = "replace") {
+  async function handleFiles(files: FileList | null, mode: "replace" | "append" = "append") {
     if (!files?.length) return;
     const importableFiles = [...files].filter(isImportableUploadFile);
     setSelectedFileCount(importableFiles.length);
@@ -5869,19 +5869,20 @@ function UploadView({
     setIsProcessing(true);
     setUploadStatus(`${importableFiles.length} PDF-Dateien werden serverseitig eingelesen`);
     try {
-      onRowsChange(mode === "replace" ? [] : liveRows);
+      const existingRows = mode === "replace" ? [] : await loadStoredImportRowsFromServer().catch(() => liveRows);
+      onRowsChange(mode === "replace" ? [] : existingRows);
       const result = await parseImportFiles(importableFiles, (processed, total, fileName) => {
         const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
         setUploadStatus(`${processed} von ${total} Dateien eingelesen (${shortName})`);
       });
       const parsedRows = result.rows;
-      const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(liveRows, parsedRows) : parsedRows);
+      const nextRows = reconcileImportRows(mode === "append" ? mergeImportRows(existingRows, parsedRows) : parsedRows);
       onRowsChange(nextRows);
       try {
         await storeImportRows(nextRows);
-        setUploadStatus(importStatusMessage(parsedRows.length, result.persistence));
+        setUploadStatus(importStatusMessage(parsedRows.length, result.persistence, nextRows.length));
       } catch (storageError) {
-        setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence)} Import-Vorschau konnte nicht im Browser gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
+        setUploadStatus(`${importStatusMessage(parsedRows.length, result.persistence, nextRows.length)} Import-Vorschau konnte nicht im Browser gespeichert werden: ${storageError instanceof Error ? storageError.message : "Browser-Speicher voll"}`);
       }
     } catch (error) {
       if (mode === "replace") onRowsChange([]);
@@ -6001,7 +6002,7 @@ function UploadView({
           <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
             Dateien auswählen
-            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleFiles(event.target.files, "replace")} />
+            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleFiles(event.target.files, "append")} />
           </label>
           <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
@@ -6011,7 +6012,7 @@ function UploadView({
               type="file"
               multiple
               accept=".pdf,application/pdf"
-              onChange={(event) => handleFiles(event.target.files, liveRows.length ? "append" : "replace")}
+              onChange={(event) => handleFiles(event.target.files, "append")}
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
@@ -6695,6 +6696,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   const [uploadStatus, setUploadStatus] = useState("Bereit für Rechnungsimport");
   const [activeUploadSource, setActiveUploadSource] = useState<ParsedInvoiceDocument["importSource"]>("bfs_invoice_pdf");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
+  const [pendingInvoiceRows, setPendingInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [practiceStandortId, setPracticeStandortId] = useState(() => orderedStandorte()[0]?.id ?? "kirchberg");
   const practiceImportStandorte = orderedStandorte();
   const okRows = invoiceRows.filter((row) => row.status === "OK").length;
@@ -6706,7 +6708,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
 
   async function handleInvoiceFiles(
     files: FileList | null,
-    mode: "replace" | "append" = "replace",
+    mode: "replace" | "append" = "append",
     importSource: ParsedInvoiceDocument["importSource"] = "bfs_invoice_pdf",
     practiceTargetStandortId?: string
   ) {
@@ -6727,6 +6729,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       ? `0 von ${importableFiles.length} Dateien vorbereitet`
       : `0 von ${importableFiles.length} Dateien ausgelesen`);
     try {
+      const existingRows = mode === "replace" ? [] : await loadConfirmedInvoiceRows().catch(() => invoiceRows);
       if (mode === "replace") onRowsChange([]);
       const practiceStandort = orderedStandorte().find((standort) => standort.id === targetStandortId);
       const parsedRows = importSource === "practice_software_pdf" && practiceStandort
@@ -6745,14 +6748,18 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
           importSource,
           standortId: importSource === "practice_software_pdf" ? targetStandortId : undefined
         });
-      const nextRows = mergeInvoiceRows(mode === "append" ? invoiceRows : [], parsedRows);
+      const nextRows = mergeInvoiceRows(existingRows, parsedRows);
       onRowsChange(nextRows);
+      setPendingInvoiceRows((current) => mergeInvoiceRows(mode === "append" ? current : [], parsedRows));
       const ocrRequired = parsedRows.filter((row) => row.ocrStatus === "required").length;
       setUploadStatus(ocrRequired
-        ? `${ocrRequired} Praxissoftware-PDFs brauchen OCR, ${nextRows.length} Einträge in der Vorschau`
-        : `${parsedRows.length} Rechnungen ausgelesen, ${nextRows.length} eindeutige Rechnungen in der Vorschau`);
+        ? `${ocrRequired} Praxissoftware-PDFs brauchen OCR, ${nextRows.length} Einträge insgesamt in der Vorschau`
+        : `${parsedRows.length} Rechnungen ausgelesen, ${nextRows.length} eindeutige Rechnungen insgesamt in der Vorschau`);
     } catch (error) {
-      if (mode === "replace") onRowsChange([]);
+      if (mode === "replace") {
+        onRowsChange([]);
+        setPendingInvoiceRows([]);
+      }
       setUploadStatus(`Rechnungen konnten nicht vollständig gelesen werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
       setIsProcessing(false);
@@ -6766,12 +6773,14 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       return;
     }
     setIsSaving(true);
-    setUploadStatus(`${invoiceRows.length} Rechnungen werden dauerhaft gespeichert`);
+    setUploadStatus(`${invoiceRows.length} Rechnungen werden mit dem bestehenden Datenstand abgeglichen`);
     try {
-      const result = await saveConfirmedInvoiceRows(invoiceRows);
+      const rowsToSave = pendingInvoiceRows.length ? pendingInvoiceRows : invoiceRows;
+      const result = await saveConfirmedInvoiceRows(rowsToSave);
       onRowsChange(result.rows);
+      setPendingInvoiceRows([]);
       const detail = result.persistence
-        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} Dubletten übersprungen, ${result.persistence.failed} fehlgeschlagen`
+        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} bestehende ersetzt/übersprungen, ${result.persistence.failed} fehlgeschlagen`
         : `${result.rows.length} gespeicherte Rechnungen geladen`;
       setUploadStatus(`Rechnungsimport bestätigt: ${detail}`);
     } catch (error) {
@@ -6797,8 +6806,9 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       const result = await saveConfirmedInvoiceRows(practiceRows);
       const remainingPreviewRows = invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId));
       onRowsChange(mergeInvoiceRows(result.rows, remainingPreviewRows));
+      setPendingInvoiceRows((current) => current.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId)));
       const detail = result.persistence
-        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} Dubletten übersprungen, ${result.persistence.failed} fehlgeschlagen`
+        ? `${result.persistence.imported} neu gespeichert, ${result.persistence.duplicates} bestehende ersetzt/übersprungen, ${result.persistence.failed} fehlgeschlagen`
         : `${practiceRows.length} Rechnungen gespeichert`;
       setUploadStatus(`${standort?.name ?? "Praxis"}-Upload gespeichert: ${detail}`);
     } catch (error) {
@@ -6815,6 +6825,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
     try {
       await clearConfirmedInvoiceRows();
       onRowsChange([]);
+      setPendingInvoiceRows([]);
       setSelectedFileCount(0);
       setUploadStatus("Rechnungsupload zurückgesetzt");
     } catch (error) {
@@ -6841,6 +6852,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         ? result.rows
         : invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId));
       onRowsChange(remainingRows);
+      setPendingInvoiceRows((current) => current.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId)));
       setSelectedFileCount(0);
       setUploadStatus(`${standort?.name ?? "Praxis"}-Upload zurückgesetzt`);
     } catch (error) {
@@ -6868,7 +6880,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
           <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
             <Upload size={16} />
             Rechnungs-PDFs
-            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, "replace")} />
+            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, "append")} />
           </label>
           <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
             <FolderUp size={16} />
@@ -6878,7 +6890,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
               type="file"
               multiple
               accept=".pdf,application/pdf"
-              onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace")}
+              onChange={(event) => handleInvoiceFiles(event.target.files, "append")}
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
@@ -6916,7 +6928,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
                     <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
                       <Upload size={16} />
                       Sammel-PDF
-                      <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf", standort.id)} />
+                      <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, "append", "practice_software_pdf", standort.id)} />
                     </label>
                     <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
                       <FolderUp size={16} />
@@ -6926,7 +6938,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
                         type="file"
                         multiple
                         accept=".pdf,application/pdf"
-                        onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf", standort.id)}
+                        onChange={(event) => handleInvoiceFiles(event.target.files, "append", "practice_software_pdf", standort.id)}
                         {...{ webkitdirectory: "", directory: "" }}
                       />
                     </label>
@@ -7897,9 +7909,10 @@ class ImportChunkError extends Error {
   }
 }
 
-function importStatusMessage(parsedCount: number, persistence?: ImportPersistenceSummary) {
+function importStatusMessage(parsedCount: number, persistence?: ImportPersistenceSummary, totalRows?: number) {
   if (!persistence) return `${parsedCount} PDF-Dateien fertig eingelesen`;
-  const base = `${parsedCount} PDF-Dateien verarbeitet: ${persistence.imported} neu gespeichert, ${persistence.duplicates} Dubletten übersprungen`;
+  const totalNote = typeof totalRows === "number" ? `, ${totalRows} Abrechnungen insgesamt im Datenstand` : "";
+  const base = `${parsedCount} PDF-Dateien verarbeitet: ${persistence.imported} neu gespeichert, ${persistence.duplicates} bestehende aktualisiert/ersetzt${totalNote}`;
   if (!persistence.failed) return `${base}. Kacheln und Auswertungen wurden aktualisiert.`;
   const firstError = persistence.errors?.[0];
   return `${base}, ${persistence.failed} fehlgeschlagen${firstError ? ` (${firstError.file}: ${firstError.message})` : ""}.`;

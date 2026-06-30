@@ -212,6 +212,7 @@ async function persistInvoiceRows(
 
       const existingId = await findExistingInvoiceId(supabase, row);
       if (existingId) {
+        await replaceExistingInvoice(supabase, existingId, batchId, standort.id, row);
         duplicates += 1;
         continue;
       }
@@ -243,7 +244,7 @@ async function persistInvoiceRows(
       notes: [
         "Patientenrechnungen aus BFS-Rechnungsanalyse",
         `${imported} neu importiert`,
-        `${duplicates} Dubletten übersprungen`,
+        `${duplicates} bestehende aktualisiert`,
         `${failed} fehlgeschlagen`
       ].join(" · ")
     })
@@ -296,6 +297,17 @@ async function insertInvoiceLines(supabase: SupabaseDbClient, invoiceId: string,
   if (!lines.length) return;
   const { error } = await supabase.from("bfs_patient_invoice_lines").insert(lines);
   if (error) throw error;
+}
+
+async function replaceExistingInvoice(supabase: SupabaseDbClient, invoiceId: string, batchId: string, standortId: string, row: ParsedInvoiceDocument) {
+  await throwIfSupabaseError(supabase.from("bfs_patient_invoice_lines").delete().eq("invoice_id", invoiceId));
+  await throwIfSupabaseError(
+    supabase
+      .from("bfs_patient_invoices")
+      .update(invoiceInsertPayload(batchId, standortId, row))
+      .eq("id", invoiceId)
+  );
+  await insertInvoiceLines(supabase, invoiceId, row);
 }
 
 function lineInsertPayload(invoiceId: string, lineKind: "service" | "lab", sortOrder: number, line: ParsedInvoiceLine) {

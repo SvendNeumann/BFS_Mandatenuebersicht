@@ -234,11 +234,6 @@ async function persistImport(
     let documentId: string | undefined;
     try {
       const existingDocumentId = await findExistingDocumentId(supabase, standortId, row);
-      if (existingDocumentId) {
-        duplicates += 1;
-        continue;
-      }
-
       const storagePath = `${batchId}/${safeStorageName(row.file)}`;
       const fileBuffer = Buffer.from(await file.arrayBuffer());
       const { error: storageError } = await supabase.storage.from("bfs-documents").upload(storagePath, fileBuffer, {
@@ -246,6 +241,15 @@ async function persistImport(
         upsert: false
       });
       if (storageError) throw storageError;
+
+      if (existingDocumentId) {
+        documentId = await replaceImportedDocument(supabase, existingDocumentId, batchId, standortId, storagePath, file, row);
+        const abrechnungId = await insertAbrechnung(supabase, documentId, standortId, row);
+        await insertForderungen(supabase, documentId, standortId, abrechnungId, row);
+        await insertBewegungenAndCases(supabase, documentId, standortId, abrechnungId, row);
+        duplicates += 1;
+        continue;
+      }
 
       documentId = await insertDocument(supabase, batchId, standortId, storagePath, file, row);
       if (!documentId) throw new Error("Dokument konnte nicht gespeichert werden.");
@@ -275,7 +279,7 @@ async function persistImport(
       notes: [
         "Serverseitiger Import aus Orisus BFS Monitor",
         `${imported} neu importiert`,
-        `${duplicates} Dubletten übersprungen`,
+        `${duplicates} bestehende aktualisiert`,
         `${failed} fehlgeschlagen`
       ].join(" · ")
     })
@@ -352,7 +356,7 @@ async function insertDocument(
     .maybeSingle();
   if (existing?.id) {
     if (isReplaceableExistingDocument(existing)) {
-      return replaceErroredDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
+      return replaceImportedDocument(supabase, existing.id as string, batchId, standortId, storagePath, file, row);
     }
     return existing.id as string;
   }
@@ -370,7 +374,7 @@ async function insertDocument(
     .maybeSingle();
   if (!existingByStatement?.id) return undefined;
   if (isReplaceableExistingDocument(existingByStatement)) {
-    return replaceErroredDocument(supabase, existingByStatement.id as string, batchId, standortId, storagePath, file, row);
+    return replaceImportedDocument(supabase, existingByStatement.id as string, batchId, standortId, storagePath, file, row);
   }
   return existingByStatement.id as string | undefined;
 }
@@ -392,7 +396,7 @@ function isBrokenImportedRow(row: ImportPreviewRow) {
     || row.claimsExtracted <= 0;
 }
 
-async function replaceErroredDocument(
+async function replaceImportedDocument(
   supabase: SupabaseDbClient,
   documentId: string,
   batchId: string,

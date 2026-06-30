@@ -1051,6 +1051,14 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Auf Mobilgeraeten wird die breite Tabelle durch lesbare Fallkarten mit denselben operativen Aktionen ersetzt.
 - Oberhalb der Arbeitsliste stehen drei KPI-Kacheln: Anzahl Prueffaelle, Wert Prueffaelle und Standort mit den meisten Prueffaellen.
 
+## Update 2026-06-30: Import Center ergaenzt Monatsuploads statt Bestand zu ersetzen
+
+- Im BFS-Abrechnungs-Sammelimport ergaenzen `Dateien auswaehlen` und `Ordner inkl. Unterordner` jetzt standardmaessig den bestehenden Datenstand.
+- Beim Upload wird der gespeicherte Bestand vor dem Zusammenfuehren erneut geladen, damit ein neuer Monat nicht versehentlich nur als neuer Einzelbestand gespeichert wird.
+- Gleiche Abrechnungen werden ueber Hash und fachliche Identitaet erkannt und serverseitig aktualisiert/ersetzt; neue Monate werden on top uebernommen.
+- Komplettes Loeschen erfolgt nur noch ueber `Upload zuruecksetzen`.
+- Im Rechnungsimport wird vor dem Bestaetigen ebenfalls der gespeicherte Bestand geladen und mit der neuen Vorschau zusammengefuehrt; gleiche Rechnungen werden serverseitig ersetzt statt doppelt angelegt.
+
 ## Update 2026-06-30: Kallweit Praxissoftware-Sammeldruck geprueft
 
 - Datei geprueft: `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS/1. Rechnung_Kallweit/Kallweit_Rechnungsexport.pdf`.

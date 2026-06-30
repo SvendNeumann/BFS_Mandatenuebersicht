@@ -1125,3 +1125,9 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - In der Rechnungsanalyse-Ansicht `Leistungsuebersicht` gibt es jetzt einen `PDF Export` fuer den aktuell gewaehlten Zeitraum und Standortfilter.
 - Der Export nutzt dieselbe gefilterte Leistungsnummern-Tabelle wie die Ansicht und dient damit auch zur Fehlersuche/Optimierung des Praxissoftware-Imports.
 - Fuer den Druckmodus wird der Scrollbereich der Leistungsuebersicht aufgehoben, damit alle Tabellenzeilen im PDF landen und nicht nur der sichtbare Ausschnitt.
+
+## Update 2026-06-30: Potenzialanalyse als PDF exportierbar
+
+- In der Rechnungsanalyse-Ansicht `Potenzialanalyse` gibt es jetzt ebenfalls einen `PDF Export` fuer den aktuell gewaehlten Zeitraum und Standort.
+- Exportiert werden die KPI-Kacheln und die Top-Hebel-Tabelle der gefilterten Potenzialanalyse.
+- Die Standortauswahl der Potenzialanalyse beruecksichtigt nur analysefreigegebene Rechnungen, damit neue ungepruefte Praxissoftware-Formatprofile nicht in Potenzial-Exports auftauchen.

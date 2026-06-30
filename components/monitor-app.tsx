@@ -7020,9 +7020,10 @@ function InvoiceServicesView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocume
 }
 
 function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocument[] }) {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => row.standortId === standort.id || row.standortName === standort.name)), [invoiceRows]);
+  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
   const [standortId, setStandortId] = useState(() => invoiceStandorte[0]?.id ?? "");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
   const selectedStandort = invoiceStandorte.find((standort) => standort.id === standortId) ?? invoiceStandorte[0];
@@ -7040,7 +7041,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
   }, [invoiceStandorte, standortId]);
 
   return (
-    <div className="content-stack">
+    <div className="content-stack" ref={exportRef}>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -7067,6 +7068,14 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
             </select>
           </label>
           <span>{selectedPeriod.detail} · Benchmark ohne {selectedStandort?.name ?? "ausgewählten Standort"}</span>
+          <button
+            className="secondary-button custom-export-action"
+            type="button"
+            onClick={() => printCustomTabPdf(exportRef.current, `Potenzialanalyse · ${selectedStandort?.name ?? "Standort"} · ${selectedPeriod.label}`)}
+            disabled={!selectedStandort || !rows.length}
+          >
+            <Printer size={16} /> PDF Export
+          </button>
         </div>
       </section>
       <section className="priority-grid">

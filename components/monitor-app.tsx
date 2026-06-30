@@ -6879,6 +6879,10 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
               {...{ webkitdirectory: "", directory: "" }}
             />
           </label>
+          <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !invoiceRows.length} onClick={() => void resetInvoiceUpload()}>
+            <X size={16} />
+            {isResetting ? "Wird zurückgesetzt..." : "Upload zurücksetzen"}
+          </button>
         </div>
       </section>
       <section className="priority-grid">

@@ -1152,3 +1152,8 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Die PDF-Exporte in `Leistungsuebersicht` und `Potenzialanalyse` verwenden jetzt nur noch den jeweiligen Tabellenbereich als Druckquelle.
 - KPI-Kacheln, Filterbereich und Tab-Erklaertexte bleiben in der App sichtbar, werden aber nicht mehr in diese PDF-Arbeitslisten uebernommen.
+
+## Update 2026-06-30: Praxissoftware-Upload direkt zuruecksetzbar
+
+- Der Praxissoftware-PDF-Uploadblock hat jetzt ebenfalls einen `Upload zuruecksetzen`-Button.
+- Der Button nutzt dieselbe Reset-Logik wie der BFS-Rechnungsupload und leert den gemeinsamen Rechnungsimport-/Vorschaubestand.

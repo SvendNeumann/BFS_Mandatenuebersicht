@@ -185,6 +185,7 @@ Supabase:
 - Auth laeuft ueber Supabase Auth.
 - Super-Admin: `svend.neumann@orisus.de`
 - Wichtige Tabellen: `bfs_import_batches`, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen`, `bfs_bewegungen`, `bfs_cases`, `audit_log`
+- Security-Stand 30.06.2026: Live-Projekt gegen externe Angriffsrisiken geprueft. Alle fachlichen Public-Tabellen haben RLS aktiv; Bucket `bfs-documents` ist privat. Migration `010_security_hardening.sql` setzt feste Function-Search-Paths, entzieht `handle_new_auth_user()` die direkte RPC-Ausfuehrbarkeit fuer `anon`/`authenticated` und korrigiert die `standorte`-Select-Policy. Next.js liefert zusaetzliche Security Header. Offen in Supabase Auth-Konsole: leaked-password protection aktivieren.
 
 Vercel:
 - Projekt: `bfs-mandatenuebersicht`
@@ -1067,6 +1068,23 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Wenn ein Paket serverseitig zu gross ist oder scheitert, wird es automatisch halbiert und erneut verarbeitet.
 - Auch das Bestaetigen/Speichern der erkannten Rechnungen wird in kleinere JSON-Pakete zerlegt, damit mehrere tausend Rechnungen nicht an Request-Groessen scheitern.
 - BFS-Monatsabrechnungen behalten die vorsichtigere Paketgroesse, weil diese PDFs deutlich groesser und parserlastiger sein koennen.
+
+## Update 2026-06-30: Security-Hardening gegen externe Angriffe
+
+- Live-Supabase-Projekt `BFS_Mandatenuebersicht` (`dozcaktodvogbkiomcqo`) geprueft:
+  - fachliche Public-Tabellen haben RLS aktiv;
+  - Bucket `bfs-documents` ist privat;
+  - API-Routen fuer Imports/Admin nutzen serverseitig den Service-Role-Key, sind aber durch `getRequestProfile()` bzw. `requireSuperAdmin()` geschuetzt.
+- Supabase Security Advisors meldeten:
+  - mutable `search_path` bei Funktionen;
+  - `handle_new_auth_user()` als direkt ausfuehrbare `SECURITY DEFINER`-Funktion;
+  - leaked-password protection in Supabase Auth deaktiviert.
+- Migration `010_security_hardening.sql` behebt die DB-seitigen Punkte:
+  - feste `search_path` fuer `set_updated_at`, `is_super_admin`, `can_access_standort`, `audit_case_status_change`, `handle_new_auth_user`;
+  - `revoke execute` fuer `handle_new_auth_user()` von `public`, `anon`, `authenticated`;
+  - korrigierte Standort-Select-Policy fuer Standortleitungen.
+- `next.config.mjs` setzt Security Header: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS.
+- Weiterer Pflichtpunkt vor Produktivbetrieb mit echten Patientendaten: Supabase Auth `Leaked Password Protection` in der Supabase-Konsole aktivieren; das ist keine Repo-Aenderung.
 
 ## Update 2026-06-30: Kallweit Praxissoftware-Sammeldruck geprueft
 

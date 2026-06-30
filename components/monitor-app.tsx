@@ -6073,7 +6073,7 @@ function UploadView({
           </section>
         </div>
       )}
-      <section className="upload-zone">
+      <section className="upload-zone practice-upload-zone">
         <ClipboardList size={28} />
         <div>
           <h2>BFS-Rechnungsstatus- und Saldo-Listen hochladen</h2>
@@ -6696,25 +6696,28 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
   const [activeUploadSource, setActiveUploadSource] = useState<ParsedInvoiceDocument["importSource"]>("bfs_invoice_pdf");
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const [practiceStandortId, setPracticeStandortId] = useState(() => orderedStandorte()[0]?.id ?? "kirchberg");
-  const selectedPracticeStandort = orderedStandorte().find((standort) => standort.id === practiceStandortId);
-  const practiceProfile = practiceSoftwareImportProfile(selectedPracticeStandort);
+  const practiceImportStandorte = orderedStandorte();
   const okRows = invoiceRows.filter((row) => row.status === "OK").length;
   const reviewRows = invoiceRows.length - okRows;
   const serviceCount = invoiceRows.reduce((sum, row) => sum + row.serviceLines.length, 0);
   const labCount = invoiceRows.filter((row) => row.hasEigenlabor || row.hasFremdlabor).length;
   const ocrRequiredRows = invoiceRows.filter((row) => row.ocrStatus === "required").length;
   const canConfirmImport = Boolean(invoiceRows.length) && !ocrRequiredRows;
-  const practiceRowsForSelectedStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === practiceStandortId).length;
 
   async function handleInvoiceFiles(
     files: FileList | null,
     mode: "replace" | "append" = "replace",
-    importSource: ParsedInvoiceDocument["importSource"] = "bfs_invoice_pdf"
+    importSource: ParsedInvoiceDocument["importSource"] = "bfs_invoice_pdf",
+    practiceTargetStandortId?: string
   ) {
     if (!files?.length) return;
     const importableFiles = [...files].filter(isInvoicePdfUploadFile);
+    const targetStandortId = importSource === "practice_software_pdf"
+      ? practiceTargetStandortId ?? practiceStandortId
+      : practiceStandortId;
     setSelectedFileCount(importableFiles.length);
     setActiveUploadSource(importSource);
+    if (importSource === "practice_software_pdf") setPracticeStandortId(targetStandortId);
     if (!importableFiles.length) {
       setUploadStatus("Keine Rechnungs-PDFs gefunden");
       return;
@@ -6725,7 +6728,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
       : `0 von ${importableFiles.length} Dateien ausgelesen`);
     try {
       if (mode === "replace") onRowsChange([]);
-      const practiceStandort = orderedStandorte().find((standort) => standort.id === practiceStandortId);
+      const practiceStandort = orderedStandorte().find((standort) => standort.id === targetStandortId);
       const parsedRows = importSource === "practice_software_pdf" && practiceStandort
         ? await parsePracticeSoftwareOcrFiles(importableFiles, practiceStandort, (progress) => {
           const shortName = progress.fileName.length > 34 ? `${progress.fileName.slice(0, 31)}...` : progress.fileName;
@@ -6740,7 +6743,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
           setUploadStatus(`${processed} von ${total} Rechnungen gelesen (${shortName})`);
         }, {
           importSource,
-          standortId: importSource === "practice_software_pdf" ? practiceStandortId : undefined
+          standortId: importSource === "practice_software_pdf" ? targetStandortId : undefined
         });
       const nextRows = mergeInvoiceRows(mode === "append" ? invoiceRows : [], parsedRows);
       onRowsChange(nextRows);
@@ -6794,22 +6797,25 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
     }
   }
 
-  async function resetPracticeInvoiceUpload() {
-    if (isProcessing || isSaving || isResetting || !practiceRowsForSelectedStandort) return;
+  async function resetPracticeInvoiceUpload(standortId = practiceStandortId) {
+    const standort = practiceImportStandorte.find((entry) => entry.id === standortId);
+    const practiceRowsForStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === standortId).length;
+    if (isProcessing || isSaving || isResetting || !practiceRowsForStandort) return;
     setIsResetting(true);
     setActiveUploadSource("practice_software_pdf");
-    setUploadStatus(`${selectedPracticeStandort?.name ?? "Praxis"}-Upload wird zurückgesetzt`);
+    setPracticeStandortId(standortId);
+    setUploadStatus(`${standort?.name ?? "Praxis"}-Upload wird zurückgesetzt`);
     try {
       const result = await clearConfirmedInvoiceRows({
         source: "practice_software_pdf",
-        standortId: practiceStandortId
+        standortId
       });
       const remainingRows = result.rows?.length
         ? result.rows
-        : invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === practiceStandortId));
+        : invoiceRows.filter((row) => !(row.importSource === "practice_software_pdf" && row.standortId === standortId));
       onRowsChange(remainingRows);
       setSelectedFileCount(0);
-      setUploadStatus(`${selectedPracticeStandort?.name ?? "Praxis"}-Upload zurückgesetzt`);
+      setUploadStatus(`${standort?.name ?? "Praxis"}-Upload zurückgesetzt`);
     } catch (error) {
       setUploadStatus(`Praxissoftware-Upload konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
     } finally {
@@ -6863,20 +6869,46 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         <HardDriveUpload size={28} />
         <div>
           <h2>Praxissoftware-PDF je Praxis prüfen</h2>
-          <p>Die Praxis-Auswahl ordnet die Datei nur fachlich zu. Das Rechnungsformat wird je Praxis separat validiert, weil Sammeldrucke je Software und Einstellung anders aussehen können.</p>
-          <div className="period-filter practice-import-profile-filter">
-            <label className="select-label">
-              Praxis / Zuordnung
-              <select value={practiceStandortId} disabled={isProcessing} onChange={(event) => setPracticeStandortId(event.target.value)}>
-                {orderedStandorte().map((standort) => (
-                  <option key={standort.id} value={standort.id}>{standort.name} · {standort.praxisname}</option>
-                ))}
-              </select>
-            </label>
-            <div>
-              <strong>{practiceProfile.label}</strong>
-              <span>{practiceProfile.hint}</span>
-            </div>
+          <p>Jede Praxis hat einen eigenen Uploadplatz, weil Sammeldrucke je Software und Einstellung anders aussehen können. Kallweit ist bereits als Formatprofil vorbereitet; neue Praxisformate bleiben zur Prüfung markiert.</p>
+          <div className="practice-import-grid">
+            {practiceImportStandorte.map((standort) => {
+              const profile = practiceSoftwareImportProfile(standort);
+              const practiceRowsForStandort = invoiceRows.filter((row) => row.importSource === "practice_software_pdf" && row.standortId === standort.id).length;
+              const isActivePractice = activeUploadSource === "practice_software_pdf" && practiceStandortId === standort.id;
+              return (
+                <article className={isActivePractice ? "practice-import-card active" : "practice-import-card"} key={standort.id}>
+                  <div>
+                    <span>{standort.name}</span>
+                    <strong>{standort.praxisname}</strong>
+                    <small>{profile.label} · {practiceRowsForStandort ? `${integerNumber.format(practiceRowsForStandort)} Rechnungen im Import` : "kein Praxisupload geladen"}</small>
+                  </div>
+                  <p>{profile.hint}</p>
+                  <div className="practice-import-actions">
+                    <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
+                      <Upload size={16} />
+                      Sammel-PDF
+                      <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf", standort.id)} />
+                    </label>
+                    <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
+                      <FolderUp size={16} />
+                      Praxisordner
+                      <input
+                        disabled={isProcessing}
+                        type="file"
+                        multiple
+                        accept=".pdf,application/pdf"
+                        onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf", standort.id)}
+                        {...{ webkitdirectory: "", directory: "" }}
+                      />
+                    </label>
+                    <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForStandort} onClick={() => void resetPracticeInvoiceUpload(standort.id)}>
+                      <X size={16} />
+                      Zurücksetzen
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
           <InvoiceUploadStatus
             active={activeUploadSource === "practice_software_pdf"}
@@ -6884,29 +6916,6 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
             hasRows={Boolean(invoiceRows.length)}
             status={uploadStatus}
           />
-        </div>
-        <div className="upload-actions">
-          <label className={isProcessing ? "file-upload-button disabled" : "file-upload-button"}>
-            <Upload size={16} />
-            Sammel-PDF
-            <input disabled={isProcessing} type="file" multiple accept=".pdf,application/pdf" onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf")} />
-          </label>
-          <label className={isProcessing ? "file-upload-button secondary-upload disabled" : "file-upload-button secondary-upload"}>
-            <FolderUp size={16} />
-            Praxisordner
-            <input
-              disabled={isProcessing}
-              type="file"
-              multiple
-              accept=".pdf,application/pdf"
-              onChange={(event) => handleInvoiceFiles(event.target.files, invoiceRows.length ? "append" : "replace", "practice_software_pdf")}
-              {...{ webkitdirectory: "", directory: "" }}
-            />
-          </label>
-          <button className="secondary-button reset-upload-button" disabled={isProcessing || isSaving || isResetting || !practiceRowsForSelectedStandort} onClick={() => void resetPracticeInvoiceUpload()}>
-            <X size={16} />
-            {isResetting ? "Wird zurückgesetzt..." : "Praxisupload zurücksetzen"}
-          </button>
         </div>
       </section>
       <section className="priority-grid">

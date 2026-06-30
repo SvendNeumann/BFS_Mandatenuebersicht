@@ -1173,3 +1173,10 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Der Reset-Button im Praxissoftware-Upload loescht jetzt nur Praxissoftware-Rechnungen des aktuell ausgewaehlten Standortes.
 - BFS-Rechnungen und Praxissoftware-Importe anderer Standorte bleiben dabei erhalten.
 - Der API-Reset unter `/api/invoices/parse` unterstuetzt dafuer `source=practice_software_pdf` und `standortId`.
+
+## Update 2026-06-30: Praxissoftware-Upload je Praxis vorbereitet
+
+- Der Praxissoftware-Rechnungsimport zeigt jetzt pro Standort/Praxis eine eigene Uploadkarte statt eines zentralen Dropdowns.
+- Jede Praxis hat eigene Buttons fuer `Sammel-PDF`, `Praxisordner` und einen eigenen Reset fuer genau diesen Standort.
+- Kallweit/Kirchberg bleibt als geprueftes Formatprofil markiert; andere Praxen sind als eigene Uploadplaetze vorbereitet und bleiben bis zur Formatpruefung markiert.
+- Die Importlogik wird weiterhin je Standort mit `practice_software_pdf` und `standortId` aufgerufen, sodass spaeter eigene Formatprofile je Praxis ergaenzt werden koennen.

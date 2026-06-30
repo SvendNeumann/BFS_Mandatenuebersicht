@@ -2963,6 +2963,67 @@ td small {
   justify-content: flex-end;
 }
 
+.practice-upload-zone {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.practice-import-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.practice-import-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  padding: 12px;
+}
+
+.practice-import-card.active {
+  border-color: rgba(48, 213, 200, 0.62);
+  background: rgba(48, 213, 200, 0.08);
+}
+
+.practice-import-card > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.practice-import-card > div:first-child span,
+.practice-import-card > div:first-child small {
+  color: var(--muted);
+}
+
+.practice-import-card > div:first-child strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-import-card p {
+  margin: 0;
+}
+
+.practice-import-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.practice-import-actions .file-upload-button,
+.practice-import-actions .secondary-button {
+  min-height: 38px;
+  padding: 8px 11px;
+}
+
 .confirmation-overlay {
   position: fixed;
   inset: 0;
@@ -3783,20 +3844,6 @@ td small {
 .custom-kpi-period {
   grid-template-columns: minmax(210px, 0.24fr) minmax(210px, 0.24fr) minmax(0, 1fr) auto;
   margin-bottom: 0;
-}
-
-.practice-import-profile-filter {
-  grid-template-columns: minmax(320px, 0.42fr) minmax(260px, 1fr);
-  align-items: end;
-  margin-bottom: 0;
-}
-
-.practice-import-profile-filter .select-label {
-  min-width: 0;
-}
-
-.practice-import-profile-filter select {
-  width: 100%;
 }
 
 .custom-export-action {
@@ -4655,6 +4702,15 @@ td small {
 
   .cashflow-waterfall-note strong {
     text-align: left;
+  }
+
+  .practice-import-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .practice-import-actions {
+    justify-content: stretch;
   }
 
   .landing-grid-shell {

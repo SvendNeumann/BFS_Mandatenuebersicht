@@ -190,6 +190,10 @@ function parsePracticeInvoiceBlock(
   if (invoiceDate === "-") notes.push("Rechnungsdatum nicht erkannt.");
   if (patientName === "-") notes.push("Patient nicht erkannt.");
   if (!serviceLines.length) notes.push("Keine Leistungspositionen erkannt.");
+  const suspiciousLineCount = serviceLines.filter(isSuspiciousPracticeServiceLine).length;
+  if (suspiciousLineCount) {
+    notes.push(`${suspiciousLineCount} Leistungspositionen wegen OCR-/Zuordnungsrisiko prüfen.`);
+  }
 
   return {
     file: meta.file,
@@ -235,6 +239,25 @@ function parsePracticeServiceLines(lines: string[]) {
   const sourceLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
   const mainLines = sourceLines.slice(0, firstIndex(sourceLines, /(?:Zwischensumme Honorar|Rechnungstexte:|Begründungen:|Bankverbindung:)/i));
   return mainLines.flatMap((line) => parseFactorLine(line, "leistung", "Praxissoftware-Rechnung"));
+}
+
+function isSuspiciousPracticeServiceLine(line: ParsedInvoiceLine) {
+  return suspiciousPracticeServiceLineReason(line) !== null;
+}
+
+function suspiciousPracticeServiceLineReason(line: ParsedInvoiceLine) {
+  const code = line.code.trim();
+  const description = line.description.trim();
+  if (/^(?:1|5|88)$/.test(code)) return "Gebührennummer wirkt wie OCR-Rest.";
+  if (/^[\d\s,.;:()/-]+$/.test(description)) return "Beschreibung besteht fast nur aus Zahlen/Satzzeichen.";
+  if (/^\([a-z0-9]{1,3}\)\s/i.test(description)) return "Beschreibung beginnt mit OCR-/Zahnrest.";
+  if (/\b(?:ode\d|nalch)\b/i.test(description)) return "Beschreibung enthält typischen OCR-Lesefehler.";
+  if (/\b\d{3}\s+\d\b/.test(description)) return "Faktor/Begründung scheint in die Beschreibung gerutscht.";
+  if (/\b(?:Präparieren|Kiefer|Implantat|Sinusbodenelevation|Krone|Teilkrone)\b.*\b\d\s+\d\b/i.test(description)) {
+    return "Zahn-/Begründungsangaben scheinen an die Beschreibung angehängt.";
+  }
+  if (description.length < 3) return "Beschreibung ist zu kurz.";
+  return null;
 }
 
 function practiceOcrRequiredDocument(meta: {

@@ -167,6 +167,45 @@ test("Praxissoftware-OCR-Text liest Rechnungsbetrag und Leistungsposition", () =
   assert.equal(rows[0].serviceLines[0].amount, 127.44);
 });
 
+test("Praxissoftware-OCR-Text markiert verdächtige Leistungszeilen zur Prüfung", () => {
+  const rows = parsePracticeSoftwareInvoiceText([
+    "Dres. Kallweit MVZ",
+    "Rechnung",
+    "Rechnungsnummer: 20269999 Rechnungsdatum: 30.06.2026",
+    "Behandelte Person: Test Patient",
+    "für zahnärztliche Leistungen erlaube ich mir zu berechnen: EUR 129,00",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "30.06.26 11 88 612, 1,00 1 56,00",
+    "30.06.26 12 5 5 1,00 1 1,00",
+    "30.06.26 13 2080 (dl) Präparieren einer Kavität und Restauration mit 1 2,30 1 72,00",
+    "Rechnungsbetrag: 129,00"
+  ].join("\n"), {
+    file: "Rechnungsexport_06_2026.pdf",
+    fileSizeBytes: 1000,
+    fileHash: "hash-risk",
+    pageCount: 1,
+    standort: {
+      id: "kirchberg",
+      name: "Kirchberg",
+      praxisname: "Dres. Kallweit MVZ",
+      mandantNo: "18504",
+      goLiveDate: "2024-07-01",
+      goLiveLabel: "01.07.2024",
+      lastImport: "kein Import",
+      submittedThisMonth: 0,
+      feesThisMonth: 0,
+      openCases: 0,
+      openChargebacks: 0,
+      withoutProtection: 0,
+      olderThan30: 0
+    }
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "Zu prüfen");
+  assert.equal(rows[0].parseNotes.some((note) => note.includes("Leistungspositionen wegen OCR-/Zuordnungsrisiko")), true);
+});
+
 function importRow(file: string, mandantNo: string, statementNo: string, fileHash: string): ImportPreviewRow {
   return {
     file,

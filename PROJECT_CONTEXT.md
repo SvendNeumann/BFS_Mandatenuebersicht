@@ -1131,3 +1131,12 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - In der Rechnungsanalyse-Ansicht `Potenzialanalyse` gibt es jetzt ebenfalls einen `PDF Export` fuer den aktuell gewaehlten Zeitraum und Standort.
 - Exportiert werden die KPI-Kacheln und die Top-Hebel-Tabelle der gefilterten Potenzialanalyse.
 - Die Standortauswahl der Potenzialanalyse beruecksichtigt nur analysefreigegebene Rechnungen, damit neue ungepruefte Praxissoftware-Formatprofile nicht in Potenzial-Exports auftauchen.
+
+## Update 2026-06-30: OCR-Artefakte aus Leistungs- und Potenzialanalyse herausgefiltert
+
+- Der Praxissoftware-Parser markiert Rechnungen mit verdaechtigen Leistungszeilen jetzt automatisch als `Zu pruefen` und nennt die Anzahl der OCR-/Zuordnungsrisiken in den Parse-Hinweisen.
+- Verdaechtige Leistungszeilen werden vor der Leistungsuebersicht herausgefiltert. Dadurch erscheinen OCR-Reste wie Gebuehrennummern `1`, `5`, `88`, fast numerische Beschreibungen, `(dl)`-/`(0)`-Anfaenge, typische Lesefehler wie `ode7`/`nalch` sowie verrutschte Faktor-/Zahnangaben nicht mehr als echte Gebuehrenpositionen.
+- Die Potenzialanalyse baut auf derselben bereinigten Leistungsuebersicht auf. Damit fliessen diese Artefakte auch nicht mehr in Top-Hebel, Delta, Summe oder Standort-Benchmark ein.
+- Standortvergleich und KPI-Zaehlungen der Rechnungsanalyse nutzen ebenfalls nur analysefaehige Leistungszeilen, damit Positionszahlen und Ø-Faktoren durch OCR-Artefakte nicht kuenstlich steigen.
+- Neuer Test in `tests/core-logic.test.ts`: `Praxissoftware-OCR-Text markiert verdächtige Leistungszeilen zur Prüfung`.
+- Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run lint` (0 Fehler, bestehende Warnung `stornoReview` ungenutzt), `pnpm run build`.

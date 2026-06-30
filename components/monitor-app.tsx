@@ -43,7 +43,7 @@ import {
   liveStatusLabel,
   orderedStandorte
 } from "@/lib/demo-data";
-import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
+import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceLine, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
@@ -7317,7 +7317,7 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
     const isComparisonStandort = selectedStandort
       ? invoice.standortId !== selectedStandort.id && invoice.standortName !== selectedStandort.name
       : true;
-    invoice.serviceLines.forEach((line) => {
+    invoice.serviceLines.filter(invoiceLineReadyForAnalysis).forEach((line) => {
       const entry = byCode.get(line.code) ?? {
         code: line.code,
         description: line.description,
@@ -7370,7 +7370,7 @@ function invoiceServicesKpis(
   serviceRows: ReturnType<typeof invoiceServiceSummary>
 ) {
   const scopedInvoices = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (!selectedStandort || invoice.standortId === selectedStandort.id || invoice.standortName === selectedStandort.name));
-  const serviceLineCount = scopedInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.length, 0);
+  const serviceLineCount = scopedInvoices.reduce((sum, invoice) => sum + invoice.serviceLines.filter(invoiceLineReadyForAnalysis).length, 0);
   const serviceCodeCount = serviceRows.length;
   const topAmount = [...serviceRows].sort((a, b) => b.amount - a.amount || b.count - a.count)[0];
   const widestFactorRange = [...serviceRows]
@@ -7379,7 +7379,7 @@ function invoiceServicesKpis(
   const locationFactors = orderedStandorte()
     .map((standort) => {
       const rows = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
-      const factorLines = rows.flatMap((invoice) => invoice.serviceLines).filter((line) => line.factor);
+      const factorLines = rows.flatMap((invoice) => invoice.serviceLines).filter((line) => invoiceLineReadyForAnalysis(line) && line.factor);
       if (!factorLines.length) return null;
       return {
         standortId: standort.id,
@@ -7423,7 +7423,7 @@ function invoiceLocationSummary(invoiceRows: ParsedInvoiceDocument[], period: Pe
       const rows = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
       if (!rows.length) return null;
       const amount = rows.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-      const serviceLines = rows.flatMap((invoice) => invoice.serviceLines);
+      const serviceLines = rows.flatMap((invoice) => invoice.serviceLines).filter(invoiceLineReadyForAnalysis);
       const factorLines = serviceLines.filter((line) => line.factor);
       const labAmount = rows.reduce((sum, invoice) => sum + invoice.eigenlaborTotal + (invoice.fremdlaborGross || invoice.fremdlaborNet), 0);
       const potentialRows = invoicePotentialSummary(invoiceRows, period, standort);
@@ -7453,6 +7453,25 @@ function annualizeInvoicePotential(value: number, period?: PeriodOption) {
 function invoiceReadyForAnalysis(invoice: ParsedInvoiceDocument) {
   if (invoice.ocrStatus === "required") return false;
   return !invoice.parseNotes.some((note) => note.startsWith("Neues Praxissoftware-Format:"));
+}
+
+function invoiceLineReadyForAnalysis(line: ParsedInvoiceLine) {
+  return suspiciousInvoiceLineReason(line) === null;
+}
+
+function suspiciousInvoiceLineReason(line: ParsedInvoiceLine) {
+  const code = line.code.trim();
+  const description = line.description.trim();
+  if (/^(?:1|5|88)$/.test(code)) return "Gebührennummer wirkt wie OCR-Rest.";
+  if (/^[\d\s,.;:()/-]+$/.test(description)) return "Beschreibung besteht fast nur aus Zahlen/Satzzeichen.";
+  if (/^\([a-z0-9]{1,3}\)\s/i.test(description)) return "Beschreibung beginnt mit OCR-/Zahnrest.";
+  if (/\b(?:ode\d|nalch)\b/i.test(description)) return "Beschreibung enthält typischen OCR-Lesefehler.";
+  if (/\b\d{3}\s+\d\b/.test(description)) return "Faktor/Begründung scheint in die Beschreibung gerutscht.";
+  if (/\b(?:Präparieren|Kiefer|Implantat|Sinusbodenelevation|Krone|Teilkrone)\b.*\b\d\s+\d\b/i.test(description)) {
+    return "Zahn-/Begründungsangaben scheinen an die Beschreibung angehängt.";
+  }
+  if (description.length < 3) return "Beschreibung ist zu kurz.";
+  return null;
 }
 
 function invoiceInPeriod(invoice: ParsedInvoiceDocument, period: PeriodOption) {

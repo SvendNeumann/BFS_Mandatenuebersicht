@@ -1076,3 +1076,12 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Solange Praxissoftware-Bild-PDFs `OCR erforderlich` sind, ist `Rechnungsimport bestaetigen` gesperrt. Diese Dateien duerfen erst nach echter OCR-Aufteilung in Rechnungen/Positionen in den dauerhaften Rechnungsbestand laufen.
 - Persistenz wurde vorbereitet: Fuer echte, ausgelesene Praxissoftware-Rechnungen ohne BFS-Nr. wird intern ein stabiler Schluessel `PRACTICE-{standortId}-{invoiceNo}` genutzt; in der UI bleibt die BFS-Nr. bei Praxissoftware-Belegen sichtbar getrennt.
 - Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `git diff --check`.
+
+## Update 2026-06-30: Kallweit April-Praxisexport geprueft
+
+- Datei geprueft: `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS/1. Rechnung_Kallweit/2026/04/Rechnungsexport_04_2026.pdf`.
+- PDF-Metadaten: 187 A4-Seiten, DynaPDF, ca. 8,0 MB, nicht verschluesselt.
+- Auch dieser kleinere Monatsauszug enthaelt keinen eingebetteten Text; `pdfplumber` liefert auf den ersten zehn Seiten 0 Zeichen.
+- Visuelle Stichproben bestaetigen die klassische Kallweit-Rechnungskopie mit Rechnungsnummer, Rechnungsdatum, Patient, Geburtsdatum, Betrag, Leistungszeile und Fusszeile `Seite x von y`.
+- Beispiele aus der Sichtpruefung: `20260001` und `20260002` vom 07.04.2026, Andreas Oschatz, je 127,44 EUR; `20260003` vom 08.04.2026, Gerlinde Moeckel, 118,00 EUR; `20260038` vom 16.04.2026, Martina Barisch, 75,52 EUR; `20260127` vom 29.04.2026, Heidi Mueller, 127,44 EUR.
+- Lokal verfuegbare OCR-Tools wurden geprueft: `tesseract` und `ocrmypdf` sind nicht installiert; Apple Vision lieferte in dieser Umgebung keine OCR-Ergebnisse. Fuer echtes maschinelles Auslesen muss daher als naechster Schritt Tesseract/OCRmyPDF oder ein anderer OCR-Dienst eingebunden werden.

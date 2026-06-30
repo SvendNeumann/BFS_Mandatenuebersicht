@@ -8599,6 +8599,7 @@ function CasesView({
     return baseRows.filter((fall) => matchesCaseSearch(fall, query));
   }, [compact, enableFilters, rows, caseStandortFilter, casePeriod, caseSearchTerm]);
   const sortedRows = useMemo(() => sortCaseRows(filteredRows, caseSort.key, caseSort.direction), [filteredRows, caseSort]);
+  const caseKpis = useMemo(() => buildCaseListKpis(filteredRows), [filteredRows]);
   const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
   const hasCaseActions = Boolean(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal);
   const toggleSort = (key: CaseSortKey) => {
@@ -8665,6 +8666,23 @@ function CasesView({
           </label>
         </div>
       )}
+      <div className="case-kpi-grid" aria-label="Prüflisten Kennzahlen">
+        <article className="case-kpi-card">
+          <span>Anzahl Prüffälle</span>
+          <strong>{integerNumber.format(caseKpis.count)}</strong>
+          <small>im aktuellen Filter</small>
+        </article>
+        <article className="case-kpi-card">
+          <span>Wert Prüffälle</span>
+          <strong>{money.format(caseKpis.amount)}</strong>
+          <small>offene Prüfsumme</small>
+        </article>
+        <article className="case-kpi-card">
+          <span>Meiste Prüffälle</span>
+          <strong>{caseKpis.topLocationName}</strong>
+          <small>{caseKpis.topLocationCount ? `${integerNumber.format(caseKpis.topLocationCount)} Fälle · ${money.format(caseKpis.topLocationAmount)}` : "keine Fälle im Filter"}</small>
+        </article>
+      </div>
       <div className="table-section-heading">
         <div>
           <span className="eyebrow">Arbeitsliste</span>
@@ -8764,6 +8782,24 @@ function CasesView({
       </div>
     </section>
   );
+}
+
+function buildCaseListKpis(rows: BfsCase[]) {
+  const byLocation = new Map<string, { name: string; count: number; amount: number }>();
+  rows.forEach((fall) => {
+    const current = byLocation.get(fall.standortId) ?? { name: fall.locationName, count: 0, amount: 0 };
+    current.count += 1;
+    current.amount += fall.amount;
+    byLocation.set(fall.standortId, current);
+  });
+  const topLocation = [...byLocation.values()].sort((a, b) => b.count - a.count || b.amount - a.amount || a.name.localeCompare(b.name, "de"))[0];
+  return {
+    count: rows.length,
+    amount: rows.reduce((sum, fall) => sum + fall.amount, 0),
+    topLocationName: topLocation?.name ?? "-",
+    topLocationCount: topLocation?.count ?? 0,
+    topLocationAmount: topLocation?.amount ?? 0
+  };
 }
 
 type CaseSortKey = "priority" | "date" | "patient" | "location" | "invoice" | "bfs" | "amount" | "age" | "dueDate";

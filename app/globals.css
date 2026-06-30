@@ -1709,6 +1709,44 @@ input {
   min-width: 178px;
 }
 
+.case-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 16px;
+}
+
+.case-kpi-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(20, 64, 84, 0.86), rgba(9, 34, 48, 0.92));
+}
+
+.case-kpi-card span {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.case-kpi-card strong {
+  color: var(--ink);
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.02;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.case-kpi-card small {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .table-section-heading {
   display: flex;
   align-items: end;
@@ -4575,6 +4613,7 @@ td small {
   .dashboard-grid,
   .management-summary-grid,
   .management-panel,
+  .case-kpi-grid,
   .filter-grid,
   .cockpit-filter-bar,
   .cockpit-filter-controls,
@@ -4886,6 +4925,15 @@ td small {
 
   .case-sort-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .case-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .case-kpi-card {
+    min-height: 0;
+    padding: 16px;
   }
 
   .case-table-scroll,

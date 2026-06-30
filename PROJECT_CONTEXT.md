@@ -1048,3 +1048,4 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Die `Pruefliste offene Faelle` hat jetzt sortierbare Tabellenkoepfe fuer Ampel, Datum, Patient, Rechnung, BFS-Nr., Betrag, Alter und Wiedervorlage.
 - Zusaetzlich gibt es eine kompakte Sortierauswahl fuer Name, Standort, Datum, Betrag und Alter auf-/absteigend.
 - Auf Mobilgeraeten wird die breite Tabelle durch lesbare Fallkarten mit denselben operativen Aktionen ersetzt.
+- Oberhalb der Arbeitsliste stehen drei KPI-Kacheln: Anzahl Prueffaelle, Wert Prueffaelle und Standort mit den meisten Prueffaellen.

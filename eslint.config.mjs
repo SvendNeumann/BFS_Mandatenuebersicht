@@ -21,6 +21,7 @@ const config = [
       "node_modules/**",
       "out/**",
       "coverage/**",
+      "public/ocr/**",
       "next-env.d.ts"
     ]
   },

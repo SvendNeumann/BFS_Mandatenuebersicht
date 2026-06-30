@@ -49,6 +49,7 @@ import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, lo
 import { importRowBusinessIdentity, isBfsPdfUploadFile, parseDemoImportFiles, reconcileImportRows } from "@/lib/demo-import";
 import { isInvoicePdfUploadFile, parseInvoiceUploadFiles } from "@/lib/invoice-parser";
 import { isInvoiceStatusPdfUploadFile, parseInvoiceStatusUploadFiles } from "@/lib/invoice-status-parser";
+import { parsePracticeSoftwareOcrFiles } from "@/lib/practice-invoice-ocr";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 
 const money = new Intl.NumberFormat("de-DE", {
@@ -6715,17 +6716,24 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
     }
     setIsProcessing(true);
     setUploadStatus(importSource === "practice_software_pdf"
-      ? `${importableFiles.length} Praxissoftware-PDFs werden geprüft`
+      ? `${importableFiles.length} Praxissoftware-PDFs werden per OCR ausgelesen`
       : `${importableFiles.length} Rechnungs-PDFs werden ausgelesen`);
     try {
       if (mode === "replace") onRowsChange([]);
-      const parsedRows = await parseInvoiceFiles(importableFiles, (processed, total, fileName) => {
-        const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
-        setUploadStatus(`${processed} von ${total} Rechnungen gelesen (${shortName})`);
-      }, {
-        importSource,
-        standortId: importSource === "practice_software_pdf" ? practiceStandortId : undefined
-      });
+      const practiceStandort = orderedStandorte().find((standort) => standort.id === practiceStandortId);
+      const parsedRows = importSource === "practice_software_pdf" && practiceStandort
+        ? await parsePracticeSoftwareOcrFiles(importableFiles, practiceStandort, (progress) => {
+          const shortName = progress.fileName.length > 34 ? `${progress.fileName.slice(0, 31)}...` : progress.fileName;
+          const pageProgress = progress.totalPages ? ` · Seite ${progress.processedPages}/${progress.totalPages}` : "";
+          setUploadStatus(`${shortName}${pageProgress} · ${progress.status}`);
+        })
+        : await parseInvoiceFiles(importableFiles, (processed, total, fileName) => {
+          const shortName = fileName.length > 34 ? `${fileName.slice(0, 31)}...` : fileName;
+          setUploadStatus(`${processed} von ${total} Rechnungen gelesen (${shortName})`);
+        }, {
+          importSource,
+          standortId: importSource === "practice_software_pdf" ? practiceStandortId : undefined
+        });
       const nextRows = mergeInvoiceRows(mode === "append" ? invoiceRows : [], parsedRows);
       onRowsChange(nextRows);
       const ocrRequired = parsedRows.filter((row) => row.ocrStatus === "required").length;
@@ -6823,7 +6831,7 @@ function InvoiceImportView({ invoiceRows, onRowsChange }: { invoiceRows: ParsedI
         <HardDriveUpload size={28} />
         <div>
           <h2>Praxissoftware-Sammel-PDF einreichen</h2>
-          <p>Für Praxisexporte ohne BFS-Nr. wird die Praxis vor dem Upload festgelegt. Bild-PDFs werden erkannt und bis zur OCR-Verarbeitung als eigener Prüfstatus geführt.</p>
+          <p>Für Praxisexporte ohne BFS-Nr. wird die Praxis vor dem Upload festgelegt. Bild-PDFs werden direkt im Browser per OCR ausgelesen und danach in dieselbe Rechnungsanalyse übernommen.</p>
           <div className="period-filter custom-kpi-period">
             <label>
               Praxis

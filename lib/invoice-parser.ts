@@ -1,5 +1,5 @@
-import { standorte } from "./demo-data";
-import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types";
+import { standorte } from "./demo-data.ts";
+import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types.ts";
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
 const shortDatePattern = /^\d{2}\.\d{2}\.\d{2}$/;
@@ -137,7 +137,7 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
   };
 }
 
-function parsePracticeSoftwareInvoiceText(
+export function parsePracticeSoftwareInvoiceText(
   text: string,
   meta: { file: string; fileSizeBytes: number; pageCount: number; fileHash?: string; standort?: Standort }
 ) {
@@ -327,7 +327,7 @@ function isRecognizedNonFactorInvoice(invoice: { honorarBema: number; eigenlabor
 
 function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], sourceSection: string): ParsedInvoiceLine[] {
   const amounts = [...line.matchAll(new RegExp(amountPattern, "g"))];
-  const factorMatch = [...line.matchAll(/\b\d,\d{3,4}\b/g)].at(-1);
+  const factorMatch = [...line.matchAll(/\b\d,\d{2,4}\b/g)].at(-1);
   if (!amounts.length || !factorMatch) return [];
   const amount = parseAmount(amounts.at(-1)?.[0] ?? "0,00");
   const beforeFactor = line.slice(0, factorMatch.index).trim();

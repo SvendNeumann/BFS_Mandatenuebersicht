@@ -1085,3 +1085,20 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Visuelle Stichproben bestaetigen die klassische Kallweit-Rechnungskopie mit Rechnungsnummer, Rechnungsdatum, Patient, Geburtsdatum, Betrag, Leistungszeile und Fusszeile `Seite x von y`.
 - Beispiele aus der Sichtpruefung: `20260001` und `20260002` vom 07.04.2026, Andreas Oschatz, je 127,44 EUR; `20260003` vom 08.04.2026, Gerlinde Moeckel, 118,00 EUR; `20260038` vom 16.04.2026, Martina Barisch, 75,52 EUR; `20260127` vom 29.04.2026, Heidi Mueller, 127,44 EUR.
 - Lokal verfuegbare OCR-Tools wurden geprueft: `tesseract` und `ocrmypdf` sind nicht installiert; Apple Vision lieferte in dieser Umgebung keine OCR-Ergebnisse. Fuer echtes maschinelles Auslesen muss daher als naechster Schritt Tesseract/OCRmyPDF oder ein anderer OCR-Dienst eingebunden werden.
+
+## Update 2026-06-30: Browser-OCR fuer Praxissoftware-PDFs eingebaut
+
+- Der Praxissoftware-Sammel-PDF-Upload liest Bild-PDFs jetzt direkt im Browser per `tesseract.js` aus. Dadurch funktioniert der Upload nicht nur auf dem Mac, sondern auch auf anderen PCs, solange die Web-App im Browser erreichbar ist.
+- OCR-Assets werden in der App unter `public/ocr` mitgeliefert: Tesseract Worker, Tesseract-Core/WASM und deutsche Sprachdaten `deu.traineddata.gz`. Dadurch braucht der Praxis-PC keine lokale Tesseract-/OCR-Installation.
+- `public/ocr/**` ist in ESLint ignoriert, weil dort minifizierte Drittanbieter-Worker/WASM-Wrapper als statische Assets liegen.
+- Ablauf im Browser:
+  - PDF-Datei wird lokal im Browser gerendert;
+  - jede Seite wird per OCR mit deutscher Sprache gelesen;
+  - der erkannte Text wird in Rechnungsbloecke ueberfuehrt;
+  - Rechnungsnummer, Rechnungsdatum, Patient, Geburtsdatum, Rechnungsbetrag und Leistungszeilen werden extrahiert;
+  - Leistungszeilen liefern Datum, Region/Zahn, Gebuehrennummer, Beschreibung, Faktor, Anzahl und EUR-Betrag fuer die bestehende Rechnungsanalyse.
+- Die bestehende serverseitige BFS-Rechnungs-PDF-Logik bleibt unveraendert. Nur `practice_software_pdf` nutzt die neue Browser-OCR-Schicht.
+- Kallweit-OCR-Probe gegen Seite 1 aus `Rechnungsexport_04_2026.pdf`: Tesseract erkennt u. a. `Rechnungsnummer: 20260001`, `Rechnungsdatum: 07.04.2026`, `Behandelte Person: Andreas Oschatz`, `Rechnungsbetrag: 127,44` und die Leistungszeile `1040 Professionelle Zahnreinigung`, Faktor `3,00`, Anzahl `27`, Betrag `127,44`.
+- Parser wurde auf OCR-typische Kallweit-Zeilen getestet. Faktoren werden mit 2 bis 4 Nachkommastellen akzeptiert, damit sowohl klassische Rechnungskopien (`3,00`) als auch technische Praxissoftware-Ausgaben (`2,5000`) funktionieren.
+- Neuer Test in `tests/core-logic.test.ts`: `Praxissoftware-OCR-Text liest Rechnungsbetrag und Leistungsposition`.
+- Geprueft: `pnpm run typecheck`, `pnpm test`, `pnpm run build`, `pnpm run lint` (0 Fehler, bestehende Warnung `stornoReview` ungenutzt), lokaler Abruf `http://localhost:3003/login`, OCR-Assets per `curl -I`, `git diff --check`.

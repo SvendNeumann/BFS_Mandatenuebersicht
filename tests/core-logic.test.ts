@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
 import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
+import { parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
 import { parseInvoiceStatusText } from "../lib/invoice-status-parser.ts";
 import type { ImportPreviewRow } from "../lib/types.ts";
 
@@ -115,6 +116,55 @@ test("BFS-Parser erkennt Rückgabe laut RA-Liste als relevante Rückgabe", () =>
   assert.equal(document.movements.length, 1);
   assert.equal(document.movements[0].type, "sonstige_rueckbelastung");
   assert.equal(document.movements[0].reasonCategory, "ra_liste");
+});
+
+test("Praxissoftware-OCR-Text liest Rechnungsbetrag und Leistungsposition", () => {
+  const rows = parsePracticeSoftwareInvoiceText([
+    "Paroimplantologie®",
+    "Dres. Kallweit MVZ",
+    "Rechnung",
+    "Rechnungsnummer: 20260001 Rechnungsdatum: 07.04.2026",
+    "Behandelte Person: Andreas Oschatz",
+    "Geburtsdatum: 15.09.1970",
+    "für zahnärztliche Leistungen erlaube ich mir zu berechnen: EUR 127,44",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "07.04.26 11-17, 1040 Professionelle Zahnreinigung 1) 3,00 27 127,44",
+    "Zwischensumme Honorar: 127,44",
+    "Rechnungsbetrag: 127,44",
+    "Seite 1 von 1"
+  ].join("\n"), {
+    file: "Rechnungsexport_04_2026.pdf",
+    fileSizeBytes: 1000,
+    fileHash: "hash",
+    pageCount: 1,
+    standort: {
+      id: "kirchberg",
+      name: "Kirchberg",
+      praxisname: "Dres. Kallweit MVZ",
+      mandantNo: "18504",
+      goLiveDate: "2024-07-01",
+      goLiveLabel: "01.07.2024",
+      lastImport: "kein Import",
+      submittedThisMonth: 0,
+      feesThisMonth: 0,
+      openCases: 0,
+      openChargebacks: 0,
+      withoutProtection: 0,
+      olderThan30: 0
+    }
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].invoiceNo, "20260001");
+  assert.equal(rows[0].invoiceDate, "07.04.2026");
+  assert.equal(rows[0].patientName, "Andreas Oschatz");
+  assert.equal(rows[0].totalAmount, 127.44);
+  assert.equal(rows[0].serviceLines.length, 1);
+  assert.equal(rows[0].serviceLines[0].code, "1040");
+  assert.equal(rows[0].serviceLines[0].description, "Professionelle Zahnreinigung 1)");
+  assert.equal(rows[0].serviceLines[0].factor, 3);
+  assert.equal(rows[0].serviceLines[0].quantity, 27);
+  assert.equal(rows[0].serviceLines[0].amount, 127.44);
 });
 
 function importRow(file: string, mandantNo: string, statementNo: string, fileHash: string): ImportPreviewRow {

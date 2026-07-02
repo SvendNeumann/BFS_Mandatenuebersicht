@@ -4,7 +4,8 @@ import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
 const shortDatePattern = /^\d{2}\.\d{2}\.\d{2}$/;
 const serviceCodePattern = /^(?:§?\d{1,4}(?:[a-z])?|\d{1,3}\.\d|[a-z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}[a-z]?|Glasur|Cerkat)$/;
-const strongServiceCodePattern = /^(?:Ä\d{1,3}[a-z]?|§?\d{3,4}[a-z]?|\d{1,3}\.\d|[a-zäöü]{1,4}\d{1,4}[a-z]?|Glasur|Cerkat)$/i;
+const bemaFillingCodePattern = /^13[A-Z]0$/i;
+const strongServiceCodePattern = /^(?:13[A-Z]0|Ä\d{1,3}[a-z]?|§?\d{3,4}[a-z]?|\d{1,3}\.\d|[a-zäöü]{1,4}\d{1,4}[a-z]?|Glasur|Cerkat)$/i;
 
 export async function parseInvoiceUploadFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
   const pdfFiles = files.filter(isInvoicePdfUploadFile);
@@ -248,7 +249,7 @@ function isSuspiciousPracticeServiceLine(line: ParsedInvoiceLine) {
 function suspiciousPracticeServiceLineReason(line: ParsedInvoiceLine) {
   const code = line.code.trim();
   const description = line.description.trim();
-  if (/^(?:1|5|88)$/.test(code)) return "Gebührennummer wirkt wie OCR-Rest.";
+  if (/^(?:0+|1|5|88)$/.test(code)) return "Gebührennummer wirkt wie OCR-Rest.";
   if (/^[\d\s,.;:()/-]+$/.test(description)) return "Beschreibung besteht fast nur aus Zahlen/Satzzeichen.";
   if (/^\([a-z0-9]{1,3}\)\s/i.test(description)) return "Beschreibung beginnt mit OCR-/Zahnrest.";
   if (/\b(?:ode\d|nalch)\b/i.test(description)) return "Beschreibung enthält typischen OCR-Lesefehler.";
@@ -316,10 +317,23 @@ async function parseInvoiceUploadFile(file: File) {
 }
 
 function parseServiceLines(lines: string[]) {
-  const tableStart = lines.findIndex((line) => /Datum\s+Region\s+Nr\.\s+Leistungsbeschreibung/i.test(line));
-  const sourceLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
+  const tableStart = findServiceTableStart(lines);
+  const sourceLines = tableStart >= 0 ? lines.slice(tableStart) : lines;
   const mainLines = sourceLines.slice(0, firstIndex(sourceLines, /(?:Zwischensumme Honorar|ZA-Honorar|Anlage Eigenlabor|FREMDLABORBELEG)/i));
-  return mainLines.flatMap((line) => parseFactorLine(line, "leistung", "Patientenrechnung"));
+  return dedupeInvoiceLines([
+    ...mainLines.flatMap((line) => parseFactorLine(line, "leistung", "Patientenrechnung")),
+    ...parseWrappedServiceLines(mainLines)
+  ]);
+}
+
+function findServiceTableStart(lines: string[]) {
+  const inlineStart = lines.findIndex((line) => /Datum\s+Region\s+Nr\.\s+Leistungsbeschreibung/i.test(line));
+  if (inlineStart >= 0) return inlineStart + 1;
+  const headerIndex = lines.findIndex((line, index) => {
+    const header = lines.slice(index, index + 8).join(" ");
+    return /Datum\s+Region\s+Nr\.\s+Leistungsbeschreibung\/Auslagen\s+Bgr\.\s+Faktor\s+Anz\.\s+EUR/i.test(header);
+  });
+  return headerIndex >= 0 ? headerIndex + 8 : -1;
 }
 
 function parseLabLines(lines: string[]) {
@@ -350,41 +364,223 @@ function isRecognizedNonFactorInvoice(invoice: { honorarBema: number; eigenlabor
 
 function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], sourceSection: string): ParsedInvoiceLine[] {
   const amounts = [...line.matchAll(new RegExp(amountPattern, "g"))];
-  const factorMatch = [...line.matchAll(/\b\d,\d{2,4}\b/g)].at(-1);
+  const amountMatch = amounts.at(-1);
+  const factorMatch = [...line.matchAll(/\b\d{1,2},\d{2,4}\b/g)]
+    .filter((match) => (match.index ?? 0) < (amountMatch?.index ?? 0))
+    .at(-1);
   if (!amounts.length || !factorMatch) return [];
-  const amount = parseAmount(amounts.at(-1)?.[0] ?? "0,00");
+  const amount = parseAmount(amountMatch?.[0] ?? "0,00");
   const beforeFactor = line.slice(0, factorMatch.index).trim();
   const afterFactor = line.slice((factorMatch.index ?? 0) + factorMatch[0].length).trim();
   const quantity = Number(afterFactor.match(/^(\d+(?:,\d+)?)/)?.[1]?.replace(",", ".") ?? 1);
+  const factor = parseAmount(factorMatch[0]);
+  if (factor > 15) return [];
   const tokens = beforeFactor.split(/\s+/);
   const date = shortDatePattern.test(tokens[0] ?? "") ? tokens.shift() : undefined;
   const serviceCode = findServiceCode(tokens);
   if (!serviceCode) return [];
   const region = tokens.slice(0, serviceCode.index).join(" ") || undefined;
-  const description = tokens.slice(serviceCode.descriptionStartIndex).join(" ").trim() || serviceCode.code;
+  const description = normalizeLineDescription(tokens.slice(serviceCode.descriptionStartIndex).join(" ").trim() || serviceCode.code);
+  if (isExcludedServiceAdjustment(description)) return [];
+  const normalizedCode = normalizeLineServiceCode(serviceCode.code, description);
   return [{
     date,
     region,
-    code: serviceCode.code,
+    code: normalizedCode,
     description,
-    factor: parseAmount(factorMatch[0]),
+    factor,
     quantity,
     amount,
-    category,
+    category: isBenchmarkFeeServiceLine(normalizedCode, description, region) ? category : "auslage",
     sourceSection
   }];
 }
 
+function parseWrappedServiceLines(lines: string[]) {
+  const rows: ParsedInvoiceLine[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const parsed = parseWrappedServiceLineAt(lines, index);
+    if (parsed) {
+      rows.push(parsed.line);
+      index = parsed.nextIndex - 1;
+    }
+  }
+  return rows;
+}
+
+function parseWrappedServiceLineAt(lines: string[], startIndex: number): { line: ParsedInvoiceLine; nextIndex: number } | null {
+  const startLine = lines[startIndex];
+  const dateMatch = startLine.match(/^(\d{2}\.\d{2}\.\d{2})(?!\d)\s*(.*)$/);
+  const date = dateMatch?.[1];
+  let cursor = startIndex + 1;
+  const regionParts: string[] = [];
+
+  if (dateMatch) {
+    if (dateMatch[2]?.trim()) regionParts.push(dateMatch[2].trim());
+  } else if (looksLikeWrappedRegionStart(lines, startIndex)) {
+    regionParts.push(startLine);
+    cursor = startIndex + 1;
+  } else {
+    return null;
+  }
+
+  const codeMatch = findWrappedCode(lines, cursor);
+  if (!codeMatch) return null;
+  regionParts.push(...lines.slice(cursor, codeMatch.index).filter(isRegionContinuationLine));
+  cursor = codeMatch.nextIndex;
+
+  const descriptionParts: string[] = [];
+  while (cursor < lines.length && !isStandaloneFactor(lines[cursor])) {
+    if (!isBgrMarker(lines[cursor])) descriptionParts.push(lines[cursor]);
+    cursor += 1;
+  }
+  if (cursor >= lines.length) return null;
+  const factor = parseAmount(lines[cursor]);
+  if (factor > 15) return null;
+  cursor += 1;
+
+  const quantityLine = lines[cursor];
+  if (!/^\d+(?:,\d+)?$/.test(quantityLine ?? "")) return null;
+  const quantity = Number(quantityLine.replace(",", "."));
+  cursor += 1;
+
+  const amountLine = lines[cursor];
+  if (!amountLine || !new RegExp(`^${amountPattern.source}$`).test(amountLine)) return null;
+  const amount = parseAmount(amountLine);
+  cursor += 1;
+
+  while (cursor < lines.length && !looksLikeWrappedRowStart(lines, cursor) && !isServiceTableStop(lines[cursor])) {
+    if (!isBgrMarker(lines[cursor])) descriptionParts.push(lines[cursor]);
+    cursor += 1;
+  }
+
+  const description = normalizeLineDescription(descriptionParts.join(" ").replace(/\s+/g, " ").trim() || codeMatch.code);
+  if (isExcludedServiceAdjustment(description)) return null;
+
+  return {
+    line: {
+      date,
+      region: regionParts.join(" ").replace(/\s+/g, " ").trim() || undefined,
+      code: normalizeLineServiceCode(codeMatch.code, description),
+      description,
+      factor,
+      quantity,
+      amount,
+      category: isBenchmarkFeeServiceLine(normalizeLineServiceCode(codeMatch.code, description), description, regionParts.join(" ")) ? "leistung" : "auslage",
+      sourceSection: "Patientenrechnung"
+    },
+    nextIndex: cursor
+  };
+}
+
+function findWrappedCode(lines: string[], startIndex: number) {
+  for (let index = startIndex; index < Math.min(lines.length, startIndex + 5); index += 1) {
+    const line = lines[index];
+    if (!line || isRegionContinuationLine(line)) continue;
+    if (strongServiceCodePattern.test(line) && !isZeroOnlyServiceCode(line)) return { index, code: line, nextIndex: index + 1 };
+    if (isKnownExpenseCode(line)) {
+      const suffix = lines[index + 1];
+      if (/^[A-Za-zÄÖÜäöü]$/.test(suffix ?? "") && isKnownExpenseCode(`${line}${suffix}`)) {
+        return { index, code: `${line}${suffix}`, nextIndex: index + 2 };
+      }
+      return { index, code: line, nextIndex: index + 1 };
+    }
+  }
+  return null;
+}
+
+function looksLikeWrappedRowStart(lines: string[], index: number) {
+  return /^\d{2}\.\d{2}\.\d{2}(?!\d)/.test(lines[index] ?? "") || looksLikeWrappedRegionStart(lines, index);
+}
+
+function looksLikeWrappedRegionStart(lines: string[], index: number) {
+  const line = lines[index] ?? "";
+  if (!isRegionContinuationLine(line)) return false;
+  return !!findWrappedCode(lines, index + 1);
+}
+
+function isRegionContinuationLine(line: string) {
+  return /^(?:\d{1,2}(?:[-,]\d{0,2})*(?:,\d{1,2}-?)?|OK|UK)$/i.test(line.trim());
+}
+
+function isStandaloneFactor(line: string) {
+  return /^\d{1,2},\d{2,4}$/.test(line.trim());
+}
+
+function isBgrMarker(line: string) {
+  return /^\d+\)$/.test(line.trim());
+}
+
+function isServiceTableStop(line: string) {
+  return /^(?:Zwischensumme Honorar|Rechnungsbetrag|Offener Betrag|Kosten für Auslagen|ZA-Honorar|Anlage Eigenlabor|FREMDLABORBELEG)/i.test(line);
+}
+
+function dedupeInvoiceLines(lines: ParsedInvoiceLine[]) {
+  const seen = new Set<string>();
+  return lines.filter((line) => {
+    const key = [line.date, line.region, line.code, line.factor, line.quantity, line.amount, line.category].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function findServiceCode(tokens: string[]) {
-  const strongIndex = tokens.findIndex((token) => strongServiceCodePattern.test(token));
-  const index = strongIndex >= 0 ? strongIndex : tokens.findIndex((token) => serviceCodePattern.test(token));
+  const strongIndex = tokens.findIndex((token) => strongServiceCodePattern.test(token) && !isZeroOnlyServiceCode(token));
+  const bemaIndex = tokens.findIndex((token) => bemaFillingCodePattern.test(token));
+  const alphaIndex = tokens.findIndex((token) => isKnownExpenseCode(token));
+  const index = strongIndex >= 0 ? strongIndex : bemaIndex >= 0 ? bemaIndex : alphaIndex >= 0 ? alphaIndex : tokens.findIndex((token) => serviceCodePattern.test(token) && !isZeroOnlyServiceCode(token));
   if (index < 0) return null;
   const token = tokens[index];
   const suffix = tokens[index + 1];
-  if (/^\d{3,4}$/i.test(token) && /^[a-z]$/i.test(suffix ?? "")) {
+  if (/^\d{3,4}$/i.test(token) && /^[a-zäöü]$/i.test(suffix ?? "")) {
     return { index, code: `${token}${suffix}`, descriptionStartIndex: index + 2 };
   }
   return { index, code: token, descriptionStartIndex: index + 1 };
+}
+
+function isFeeServiceCode(code: string) {
+  const normalizedCode = normalizeServiceCode(code);
+  if (isZeroOnlyServiceCode(normalizedCode)) return false;
+  return /^(?:\d{3,4}[a-z]?|13[A-Z]0|Ä\d{1,4}[a-z]?)$/i.test(normalizedCode);
+}
+
+function isBenchmarkFeeServiceLine(code: string, description: string, region?: string) {
+  const normalizedCode = normalizeServiceCode(code);
+  const normalizedDescription = description.trim();
+  const normalizedRegion = (region ?? "").trim();
+  if (!isFeeServiceCode(normalizedCode)) return false;
+  if (/^\d{1,3}$/.test(normalizedCode) && /^(?:mg|mm|g|ml|stk\.?)$/i.test(normalizedDescription)) return false;
+  if (normalizedCode === "9092" && /^(?:9092|verklebte Titanbasis\b)/i.test(normalizedDescription)) return false;
+  if (/^(?:biooss|bgide|naht|fal_|abdr_|impl_)/i.test(normalizedRegion)) return false;
+  return true;
+}
+
+function isKnownExpenseCode(code: string) {
+  return /^(?:gela|termosta|b_selbst)$/i.test(code.trim());
+}
+
+function normalizeServiceCode(code: string) {
+  return code.trim().replace(/^Ä0*(\d+[a-z]?)$/i, "Ä$1");
+}
+
+function isZeroOnlyServiceCode(code: string) {
+  return /^0+$/.test(code.trim());
+}
+
+function normalizeLineServiceCode(code: string, description: string) {
+  const bemaCode = description.match(/\b(13[A-Z]0)\b/i)?.[1];
+  if (bemaCode) return bemaCode.toUpperCase();
+  const leadingFeeCode = description.match(/^\s*(Ä?\d{3,4}[a-z]?)(?:-\d+)?\b/i)?.[1];
+  return leadingFeeCode ? normalizeServiceCode(leadingFeeCode) : normalizeServiceCode(code);
+}
+
+function normalizeLineDescription(description: string) {
+  return description.replace(/^\s*(?:\d{1,2}(?:[-,]\d{1,2})?\s+)+(13[A-Z]0\b)/i, "$1").trim();
+}
+
+function isExcludedServiceAdjustment(description: string) {
+  return /\babzgl\.\s*Bema-Sachleistung\b/i.test(description);
 }
 
 function parseLabLine(line: string): ParsedInvoiceLine[] {

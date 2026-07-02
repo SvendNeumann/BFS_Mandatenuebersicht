@@ -1,5 +1,5 @@
-import MonitorApp from "@/components/monitor-app";
+import { MonitorAppLoader } from "@/components/monitor-app-loader";
 
 export default function ImportsPage() {
-  return <MonitorApp lockedRole="super_admin" initialView="upload" />;
+  return <MonitorAppLoader lockedRole="super_admin" initialView="upload" />;
 }

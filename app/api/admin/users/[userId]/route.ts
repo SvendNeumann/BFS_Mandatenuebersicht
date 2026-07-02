@@ -3,7 +3,7 @@ import { createServiceClient, requireSuperAdmin } from "@/lib/server-auth";
 
 type UpdateUserBody = {
   fullName?: string;
-  role?: "super_admin" | "standortleitung";
+  role?: "super_admin" | "standortleitung" | "abrechnungsmanagement";
   active?: boolean;
   temporaryPassword?: string;
   standortIds?: string[];
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (typeof body.fullName === "string") patch.full_name = body.fullName.trim() || null;
-  if (body.role === "super_admin" || body.role === "standortleitung") patch.role = body.role;
+  if (isManageableRole(body.role)) patch.role = body.role;
   if (typeof body.active === "boolean") patch.active = body.active;
   if (body.temporaryPassword) {
     if (body.temporaryPassword.length < 8) return NextResponse.json({ error: "Das temporäre Passwort muss mindestens 8 Zeichen haben." }, { status: 400 });
@@ -40,8 +40,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const nextRole = (body.role ?? profile.role) as "super_admin" | "standortleitung";
-  if (Array.isArray(body.standortIds) || nextRole === "super_admin") {
+  const nextRole = (body.role ?? profile.role) as NonNullable<UpdateUserBody["role"]>;
+  if (Array.isArray(body.standortIds) || nextRole !== "standortleitung") {
     await replaceStandortAssignments(supabase, userId, nextRole, body.standortIds ?? []);
   }
   return NextResponse.json({ ok: true });
@@ -50,7 +50,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 async function replaceStandortAssignments(
   supabase: NonNullable<ReturnType<typeof createServiceClient>>,
   userId: string,
-  role: "super_admin" | "standortleitung",
+  role: NonNullable<UpdateUserBody["role"]>,
   standortIds: string[]
 ) {
   await supabase.from("user_standorte").delete().eq("user_id", userId);
@@ -58,4 +58,8 @@ async function replaceStandortAssignments(
   const uniqueIds = Array.from(new Set(standortIds.filter(Boolean)));
   if (!uniqueIds.length) return;
   await supabase.from("user_standorte").insert(uniqueIds.map((standortId) => ({ user_id: userId, standort_id: standortId })));
+}
+
+function isManageableRole(role: string | undefined): role is NonNullable<UpdateUserBody["role"]> {
+  return role === "super_admin" || role === "standortleitung" || role === "abrechnungsmanagement";
 }

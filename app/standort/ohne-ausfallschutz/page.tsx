@@ -1,5 +1,5 @@
-import MonitorApp from "@/components/monitor-app";
+import { MonitorAppLoader } from "@/components/monitor-app-loader";
 
 export default function StandortRisksPage() {
-  return <MonitorApp lockedRole="standortleitung" initialView="risks" />;
+  return <MonitorAppLoader lockedRole="standortleitung" initialView="risks" />;
 }

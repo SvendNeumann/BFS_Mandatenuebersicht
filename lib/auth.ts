@@ -77,12 +77,13 @@ export function getStoredSession(): DemoSession | null {
   try {
     const session = JSON.parse(raw) as DemoSession;
     if (!session.active || session.expiresAt < Date.now()) {
-      logout();
+      clearStoredSession();
+      void clearServerSession();
       return null;
     }
     return session;
   } catch {
-    window.localStorage.removeItem(sessionKey);
+    clearStoredSession();
     return null;
   }
 }
@@ -91,9 +92,12 @@ export const getDemoSession = getStoredSession;
 
 export async function getCurrentSession(): Promise<DemoSession | null> {
   const stored = getStoredSession();
-  if (stored?.role === "super_admin" || (stored && Array.isArray(stored.standortIds))) return stored;
-  const serverSession = await loadServerSession().catch(() => null);
-  if (serverSession) return persistSession({ ...serverSession, expiresAt: stored?.expiresAt ?? expiresAt(true) });
+  const serverSession = await loadServerSession().catch(() => ({ session: null, authFailed: false }));
+  if (serverSession.session) return persistSession({ ...serverSession.session, expiresAt: stored?.expiresAt ?? expiresAt(true) });
+  if (serverSession.authFailed) {
+    clearStoredSession();
+    return null;
+  }
   if (stored) return stored;
   if (!supabase) return null;
 
@@ -108,7 +112,7 @@ export async function getCurrentSession(): Promise<DemoSession | null> {
 export async function logout() {
   if (supabase) await supabase.auth.signOut();
   await clearServerSession();
-  if (typeof window !== "undefined") window.localStorage.removeItem(sessionKey);
+  clearStoredSession();
 }
 
 export function canUsePasskeys() {
@@ -136,6 +140,10 @@ function persistSession(session: DemoSession) {
   return session;
 }
 
+function clearStoredSession() {
+  if (typeof window !== "undefined") window.localStorage.removeItem(sessionKey);
+}
+
 function expiresAt(remember: boolean) {
   return Date.now() + (remember ? 1000 * 60 * 60 * 24 * 30 : 1000 * 60 * 60 * 8);
 }
@@ -148,7 +156,7 @@ async function loadProfile(userId: string | undefined) {
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || (data.role !== "super_admin" && data.role !== "standortleitung")) return null;
+  if (!data || !isAppRole(data.role)) return null;
   const standortIds = data.role === "standortleitung" ? await loadProfileStandortIds(userId) : [];
   return {
     email: data.email,
@@ -157,6 +165,10 @@ async function loadProfile(userId: string | undefined) {
     mustChangePassword: Boolean(data.must_change_password),
     standortIds
   } as { email: string; role: AppRole; active: boolean; mustChangePassword: boolean; standortIds: string[] };
+}
+
+function isAppRole(role: string): role is AppRole {
+  return role === "super_admin" || role === "standortleitung" || role === "abrechnungsmanagement";
 }
 
 async function loadProfileStandortIds(userId: string) {
@@ -176,9 +188,11 @@ async function loadProfileStandortIds(userId: string) {
 
 async function loadServerSession() {
   const response = await fetch("/api/auth/session", { method: "GET" }).catch(() => null);
-  if (!response?.ok) return null;
+  if (!response) return { session: null, authFailed: false };
+  if (response.status === 401 || response.status === 403) return { session: null, authFailed: true };
+  if (!response.ok) return { session: null, authFailed: false };
   const payload = await response.json().catch(() => null) as { session?: Omit<DemoSession, "expiresAt"> } | null;
-  return payload?.session ?? null;
+  return { session: payload?.session ?? null, authFailed: false };
 }
 
 function mapDatabaseStandorteToAppIds(rows: Array<{ name?: string | null }>) {

@@ -1,4 +1,4 @@
-export type AppRole = "super_admin" | "standortleitung";
+export type AppRole = "super_admin" | "standortleitung" | "abrechnungsmanagement";
 
 export type Standort = {
   id: string;

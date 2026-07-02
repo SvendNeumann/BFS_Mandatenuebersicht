@@ -112,7 +112,8 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
 }
 
 function dashboardPathForSession(session: Pick<DemoSession, "role">) {
-  return session.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
+  if (session.role === "standortleitung") return "/standort/dashboard";
+  return "/dashboard";
 }
 
 function nextPathFromLocation() {

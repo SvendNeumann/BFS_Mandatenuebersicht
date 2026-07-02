@@ -1,21 +1,33 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 29.06.2026, ca. 21:45 Uhr
+Stand: 02.07.2026, ca. 19:30 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit und BFS-Rechnungsanalyse. BFS-Abrechnungen wurden auf eine klare Geldfluss-Herleitung plus eine gemeinsame operative Pruefliste umgestellt; BFS-Rechnungsanalyse bleibt davon fachlich getrennt.
+Aktueller Fokus: Orisus BFS Monitor mit drei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit, BFS-Rechnungsanalyse und Abrechnungsqualitaet. BFS-Abrechnungen laufen ueber Geldfluss, Saldo-/Prueflistenlogik und manuelle Klaerung. BFS-Rechnungsanalyse ist fachlich getrennt und arbeitet mit Einzelrechnungen, Leistungspositionen, Faktoren, Katalogabgleich, Benchmarking, Potenzial, Trends und Patientenprofil. Abrechnungsqualitaet nutzt Einzelrechnungen fuer Leistungsketten, Plausibilitaets-/Vollstaendigkeitspruefung und Praxis-Feedback.
 
 ## Aktuelle Wahrheit kurz
 
+- Live-Stand ist produktiv deployed auf `https://bfs-mandatenuebersicht.vercel.app`; letzter Deploy am 02.07.2026 nach der neuen Benchmark-Mindestregel.
+- Letzte Pruefung nach Codeaenderung: `pnpm lint` gruen und `pnpm test` gruen, 15 Tests bestanden. Ein Next/Vercel-Build wurde erfolgreich abgeschlossen und als Production aliasiert.
 - `BFS-Abrechnungen` nutzt die zentrale Geldflusslogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS`.
 - Separat gilt die operative Abzugslogik: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
 - `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, manuell bezahlt/geklaert und Ratenplan laut BFS.
 - `Saldo 0` ohne Ratenplan ist kein Zahlungsnachweis. Bei Storno/Rueckgabe bleibt der Fall pruefpflichtig, bis er manuell geklaert, endgueltig storniert oder durch echte Neueinreichung/Ersatzrechnung erklaert ist.
 - Die sichtbare operative Fallarbeit ist eine gemeinsame `Pruefliste`. Alte sichtbare Mehrkorb-Listen wie `Praxis nachfassen`, `Zahlung/Grund pruefen` und `Noch nicht zugeordnet` sind keine fuehrenden Haupttabs mehr.
 - Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten, ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert und 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen.
-- `BFS-Rechnungsanalyse` ist fachlich getrennt von der Storno-/Saldo-Logik. Tabs: `Leistungsuebersicht`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`.
-- Einzelrechnungen: BEMA/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-Potenzialanalyse eingerechnet.
+- `BFS-Rechnungsanalyse` ist fachlich getrennt von der Storno-/Saldo-Logik. Aktuelle Tabs: `Leistungsuebersicht`, `Katalogpruefung`, `Benchmarking`, `Faktor-Trend`, `Patientenprofil`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`.
+- Neuer dritter Hauptbereich `Abrechnungsqualitaet`: Starttabs `Qualitaetscockpit`, `Leistungsketten`, `Praxis-Feedback`. Die erste Version erkennt datengetriebene Wenn-dann-Muster aus Rechnungspositionen, erzeugt Pruefhinweise fuer auffaellig seltene Begleitleistungen je Standort und bietet PDF-/CSV-Export fuer Praxisgespraeche. Hinweise sind fachliche Pruefansaetze, keine automatische Fehler- oder Rechtsbewertung.
+- Neue Benchmark-Regel ab 02.07.2026: Leistungspositionen, die nur von 1 oder 2 Standorten verwendet werden, fliessen nicht in `Benchmarking` und nicht in `Potenzialanalyse` ein. Benchmarkfaehig ist eine Leistungsnummer erst ab mindestens 3 verwendenden Standorten mit Faktor. Importdaten bleiben unveraendert; nur die Auswertung filtert.
+- Einzelrechnungen: BEMA/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-/Faktor-Potenzialanalyse eingerechnet.
+- Katalogpruefung veraendert keine Original-Importdaten. Sie normalisiert/markiert Leistungsnummern fuer Auswertungen, z. B. `Ä0001 -> Ä1`, `13BO -> 13B0`, fuehrende Nullvarianten und offensichtliche OCR-/Schreibvarianten. Automatisch eindeutige Faelle sollen nicht als manuelle Prueffaelle erscheinen.
+- Katalogpruefung zeigt Leistungszeilen-Prueffaelle, nicht Rechnungsdokumente ohne auswertbare Leistungszeile. Importstatus `Zu pruefen` bei Einzelrechnungen kann daher leer in der Katalogtabelle bleiben, wenn keine Leistung mit Faktor vorhanden ist.
+- Material-/Auslagen-/Laborzeilen, Null-Codes und reine OCR-Reste duerfen nicht als benchmarkfaehige Leistung laufen.
+- Der zuletzt direkt importierte Einzelrechnungs-Batch vom 02.07.2026 hat Batch-ID `e852528d-6f4b-434f-b636-f4deda56c951`: 2.203 PDFs gelesen, 2.185 eindeutige Rechnungen, 2.136 neu, 49 aktualisiert, 18 lokale Dubletten, 18 leer/nicht informativ, 0 Importfehler. Supabase-Nachkontrolle: 7.159 echte Leistungszeilen, 0 Null-Codes, 0 Zahnnummer-Fuellungen als falsche Leistungsnummer, 0 Materialzeilen als Leistung, 0 Faktoren > 15. Es bleiben 130 Rechnungen mit Status `Zu pruefen`, weil keine abrechenbaren Leistungspositionen mit Faktor erkannt wurden; diese verfälschen die Auswertung nicht.
+- Am 02.07.2026 wurden 25 offene operative Prueffaelle mit Grund `Fehler BFS` direkt in Supabase als `neu_eingereicht`/`erledigt_manuell` markiert. Danach: 0 offene `Fehler BFS`-Faelle.
+- Abrechnungsmanagement-Rolle existiert als reine Lese-/Auswertungsrolle fuer BFS-Rechnungsanalyse. Sie darf keine Adminbereiche sehen und keine Upload-/Schreibrechte fuer Einzelrechnungen erhalten.
+- App-Daten laden inzwischen browserseitig gecacht und nur beim ersten Login/erstem Datenbedarf bzw. `Neu laden` hart vom Server. Ziel: App schneller machen, ohne Import- oder Auswertungslogik zu veraendern.
+- PDF-/Druckfenster in der App sollen eine eigene Toolbar/Schliessen-Option haben und nicht als leeres Zwischenfenster stehen bleiben, wenn die Browser-Druckvorschau abgebrochen wird.
 - Praxissoftware-Sammeldrucke koennen als alternative Quelle fuer die Rechnungsanalyse relevant werden. Beispiel Kallweit-Sammeldruck: 756 A4-Seiten, bildbasiert ohne eingebetteten PDF-Text; normale PDF-Textextraktion liefert 0 Zeichen. Inhaltlich sind Rechnungsnummer, Patient, Rechnungsdatum, Betrag und Leistungszeilen visuell klar vorhanden, technisch braucht dieser Import aber OCR oder besser einen echten strukturierten Praxissoftware-Export.
 - Leistungsnummern: Zahn-/Regionangaben wie `36` werden nicht als Leistungsnummer gruppiert, wenn danach eine echte Leistungsnummer wie `2180` folgt. Die Tabelle zeigt `Leistungsnr.`.
 - Prueflisten-Export: PDF/Druck und CSV enden mit den manuellen Spalten `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.
@@ -25,7 +37,7 @@ Aktueller Fokus: Orisus BFS Monitor mit zwei Hauptbereichen: BFS-Abrechnungen/op
 ```text
 Bitte lies zuerst `/Users/svendneumann/Documents/BFS_Mandantenportal/PROJECT_CONTEXT.md` vollstaendig ein und arbeite danach im Projekt `/Users/svendneumann/Documents/BFS_Mandantenportal` weiter.
 
-Antworte auf Deutsch. Nutze die bestehende App-Struktur. Wenn du Code aenderst: zuerst relevante Dateien lesen, dann gezielt patchen, danach mindestens `pnpm run typecheck`, `pnpm run build` und `git diff --check` ausfuehren, committen und auf `origin/main` pushen.
+Antworte auf Deutsch. Nutze die bestehende App-Struktur. Wenn du Code aenderst: zuerst relevante Dateien lesen, dann gezielt patchen, danach mindestens `pnpm lint`, `pnpm test` und bei produktionsrelevanten Aenderungen einen Vercel-Production-Deploy bzw. lokalen Build ausfuehren. Nicht ungefragt fremde/unrelated Aenderungen zuruecksetzen. Bei fertigen Aenderungen Context aktualisieren und, wenn vom Nutzer gewuenscht, committen/pushen.
 
 Wichtig: Diese Kontextdatei muss nach jedem abgeschlossenen Arbeitsauftrag/Befehl mitgeschrieben werden. Wenn fachliche Logik, UI-Struktur, Importlogik, offene Punkte, Commits oder Pruefergebnisse dazukommen, `PROJECT_CONTEXT.md` am Ende aktualisieren, damit ein neuer Chat nahtlos fortsetzen kann.
 
@@ -34,6 +46,7 @@ Wichtige Dateien:
 - `app/globals.css`
 - `app/api/imports/parse/route.ts`
 - `app/api/invoices/parse/route.ts`
+- `app/api/invoices/catalog-mappings/route.ts`
 - `app/api/invoice-status/parse/route.ts`
 - `app/api/cases/resolutions/route.ts`
 - `app/api/admin/users/route.ts`
@@ -59,6 +72,75 @@ Regel:
 - Falls ja: `PROJECT_CONTEXT.md` im selben Arbeitsgang aktualisieren.
 - Die Datei soll nicht mit Kleinigkeiten zugemuellt werden, aber alle entscheidungsrelevanten Projektstaende, naechsten Schritte und Warnhinweise enthalten.
 - Neue Chats sollen zuerst diese Datei lesen und danach direkt weiterarbeiten koennen.
+
+## BFS-Portal Downloadlauf Einzelrechnungen
+
+Aktueller manueller Downloadlauf ueber Chrome/BFS-Portal:
+- Ziel: BFS-Rechnungsduplikate einzeln aus dem BFS-Mandantenportal laden, Zeitraum rueckwaerts von 26.06.2026 bis 01.08.2025.
+- Wichtigste Regel: Klicks zaehlen nicht als Erfolg. Eine Rechnung gilt nur als erledigt, wenn im Ordner `/Users/svendneumann/Downloads` eine Datei `Rechnung_5-...pdf` mit exakt dieser BFS-Nummer liegt.
+- Nach ca. 100 Rechnungen bzw. mehreren Seiten immer den Downloadordner pruefen: `find /Users/svendneumann/Downloads -maxdepth 1 -name 'Rechnung_5-*.pdf' -print | wc -l` und die letzten Dateien mit `ls -lt /Users/svendneumann/Downloads | head`.
+- Wenn Chrome/Codex haengt: Verbindung abbrechen/zuruecksetzen, 30 Sekunden warten, neu verbinden, aktive BFS-Seite unten ablesen, sichtbare BFS-Nummern mit dem Downloadordner abgleichen und bei der ersten fehlenden Nummer weiterarbeiten. Nicht blind annehmen, dass der letzte Klick gespeichert wurde.
+- Wenn das PDF-Fenster nur gross/anders geoeffnet ist: Schliesskreuz suchen und schliessen, danach mit der naechsten Rechnung fortfahren.
+- Wenn kein `Rechnungsduplikat`/PDF vorhanden ist, ist die Rechnung vermutlich zu frisch; Nummer als offen/fehlend notieren und weiter.
+- Wenn die Maus/Seite haengt: Browser per Tastenkombi/Refresh neu laden, im BFS-Menue wieder `Rechnungen > Rechnungen` oeffnen, nach `Re-Datum` sortieren, zur letzten bekannten Seite gehen, sichtbare Nummern gegen Downloads pruefen, dann weiter.
+
+Letzter verifizierter Stand am 01.07.2026:
+- Downloadordner enthaelt 1.927 echte `Rechnung_5-*.pdf`.
+- Seite 81 wurde nach Wiederverbindung vervollstaendigt; danach Seiten 82 bis 206 langsam und stabil bearbeitet.
+- Letzter bestaetigter Punkt: Seite 206 komplett, letzte sichtbare Downloads am 01.07.2026 um 17:04 u. a. `Rechnung_5-18504-72797022.pdf`, `Rechnung_5-18504-72789276.pdf`, `Rechnung_5-18504-72797033.pdf`; Re-Datum auf Seite 206 liegt weiter im Mai 2026. Beim naechsten Fortsetzen mit Seite 207 beginnen bzw. zuerst aktive Seite und sichtbare BFS-Nummern gegen Downloads pruefen.
+- Klicktempo wurde bewusst gedrosselt und lief nahezu absturzfrei; genau so beibehalten: in 3-Seiten-Bloecken arbeiten, nach Rechnungsnummer-Klick ca. 1,25 Sekunden warten, nach PDF-Klick ca. 1,8 Sekunden warten, Download bis zu ca. 18 Sekunden auf die konkrete Datei pruefen, danach ca. 0,65 Sekunden warten, PDF-Fenster schliessen und nochmals ca. 0,75 Sekunden warten. Seitenwechsel mit ca. 1,7 Sekunden Pause. Keine schnelleren Klicks.
+- Nach dem Start ab Seite 207 kam es zu einem Verbindungsabbruch. Der Downloadordner enthielt danach 1.967 echte `Rechnung_5-*.pdf`; letzte sichtbare Dateien am 01.07.2026 um 17:09 u. a. `Rechnung_5-18504-72789264.pdf` und `Rechnung_5-18504-72789279.pdf`. Beim Fortsetzen nicht blind Seite 207 wiederholen, sondern aktive BFS-Seite und sichtbare BFS-Nummern zuerst gegen den Downloadordner pruefen; wahrscheinlich wurden ca. 40 weitere Rechnungen nach Seite 206 gespeichert.
+- Nach erneuter Verbindung war Seite 210 komplett vorhanden. Seite 211 wurde einzeln abgeschlossen, danach Seiten 212 bis 214 im langsamen Modus verifiziert. Downloadordner enthaelt danach 2.007 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 214 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72846209.pdf`, Re-Datum 08.05.2026. Beim Fortsetzen mit Seite 215 beginnen.
+- Danach Seiten 215 bis 217 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.037 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 217 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72756247.pdf`, Re-Datum 07.05.2026. Beim Fortsetzen mit Seite 218 beginnen.
+- Danach Seiten 218 bis 220 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.067 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 220 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72766530.pdf`, Re-Datum 07.05.2026. Beim Fortsetzen mit Seite 221 beginnen.
+- Danach Seiten 221 bis 223 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.097 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 223 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72766599.pdf`, Re-Datum 07.05.2026. Beim Fortsetzen mit Seite 224 beginnen.
+- Danach Seiten 224 bis 226 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.127 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 226 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72766546.pdf`, Re-Datum 07.05.2026. Beim Fortsetzen mit Seite 227 beginnen.
+- Danach Seiten 227 bis 229 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.157 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 229 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72979378.pdf`, Re-Datum 07.05.2026. Beim Fortsetzen mit Seite 230 beginnen.
+- Danach Seiten 230 bis 232 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.187 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 232 komplett, letzte verifizierte Rechnung `Rechnung_5-18790-72738843.pdf`, Re-Datum 06.05.2026. Beim Fortsetzen mit Seite 233 beginnen.
+- Danach Seiten 233 bis 235 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.217 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 235 komplett, letzte verifizierte Rechnung `Rechnung_5-18504-72714769.pdf`, Re-Datum 05.05.2026. Beim Fortsetzen mit Seite 236 beginnen.
+- Danach Seiten 236 bis 238 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.247 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 238 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72725516.pdf`, Re-Datum 05.05.2026. Beim Fortsetzen mit Seite 239 beginnen.
+- Danach Seiten 239 bis 241 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 2.277 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 241 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72766541.pdf`, Re-Datum 05.05.2026. Beim Fortsetzen mit Seite 242 beginnen.
+- Danach Seiten 242 bis 244 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.307 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 244 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72755156.pdf`, Re-Datum 05.05.2026. Beim Fortsetzen mit Seite 245 beginnen.
+- Danach Seiten 245 bis 247 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.337 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 247 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72712621.pdf`, Re-Datum 02.05.2026. Beim Fortsetzen mit Seite 248 beginnen.
+- Danach Seiten 248 bis 250 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.367 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 250 komplett, letzte verifizierte Rechnung `Rechnung_5-18790-72618953.pdf`, Re-Datum 30.04.2026. Beim Fortsetzen mit Seite 251 beginnen.
+- Danach Seiten 251 bis 253 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.397 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 253 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72719948.pdf`, Re-Datum 30.04.2026. Beim Fortsetzen mit Seite 254 beginnen.
+- Danach Seiten 254 bis 256 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.427 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 256 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72712603.pdf`, Re-Datum 29.04.2026. Beim Fortsetzen mit Seite 257 beginnen.
+- Danach Seiten 257 bis 259 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 2.457 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 259 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72712615.pdf`, Re-Datum 28.04.2026. Beim Fortsetzen mit Seite 260 beginnen.
+- Danach Seiten 260 bis 262 im langsamen Modus bearbeitet. Downloadordner enthaelt danach 2.486 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 262 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72506365.pdf`, Re-Datum 27.04.2026. Seite 261 hatte eine neue Ausnahme: `5-18790-72506385` (27.04.2026, kein Duplikat). Beim Fortsetzen mit Seite 263 beginnen.
+- Danach Seiten 263 bis 265 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.516 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 265 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72534479.pdf`, Re-Datum 27.04.2026. Beim Fortsetzen mit Seite 266 beginnen.
+- Danach Seiten 266 bis 268 im langsamen Modus bearbeitet. Downloadordner enthaelt danach 2.545 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 268 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72534515.pdf`, Re-Datum 24.04.2026. Seite 267 hatte eine neue Ausnahme: `5-19260-72534508` (25.04.2026, PDF-Fenster nicht verfuegbar). Beim Fortsetzen mit Seite 269 beginnen.
+- Danach Seiten 269 bis 271 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 2.575 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 271 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72465132.pdf`, Re-Datum 24.04.2026. Beim Fortsetzen mit Seite 272 beginnen.
+- Danach Seiten 272 bis 274 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.605 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 274 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72465067.pdf`, Re-Datum 24.04.2026. Beim Fortsetzen mit Seite 275 beginnen.
+- Danach Seiten 275 bis 277 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.635 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 277 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72454299.pdf`, Re-Datum 23.04.2026. Beim Fortsetzen mit Seite 278 beginnen.
+- Danach Seiten 278 bis 280 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 2.665 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 280 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72465087.pdf`, Re-Datum 23.04.2026. Beim Fortsetzen mit Seite 281 beginnen.
+- Danach Seiten 281 bis 283 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.695 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 283 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72374135.pdf`, Re-Datum 21.04.2026. Beim Fortsetzen mit Seite 284 beginnen.
+- Danach Seiten 284 bis 286 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.725 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 286 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72354246.pdf`, Re-Datum 20.04.2026. Beim Fortsetzen mit Seite 287 beginnen.
+- Danach Seiten 287 bis 289 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.755 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 289 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72360607.pdf`, Re-Datum 20.04.2026. Beim Fortsetzen mit Seite 290 beginnen.
+- Danach Seiten 290 bis 292 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.785 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 292 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72365756.pdf`, Re-Datum 17.04.2026. Beim Fortsetzen mit Seite 293 beginnen.
+- Danach Seiten 293 bis 295 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.815 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 295 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72332352.pdf`, Re-Datum 17.04.2026. Beim Fortsetzen mit Seite 296 beginnen.
+- Danach Seiten 296 bis 298 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.845 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 298 komplett, letzte verifizierte Rechnung `Rechnung_5-18504-72291355.pdf`, Re-Datum 16.04.2026. Beim Fortsetzen mit Seite 299 beginnen.
+- Danach Seiten 299 bis 301 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.875 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 301 komplett, letzte verifizierte Rechnung `Rechnung_5-18504-72291340.pdf`, Re-Datum 16.04.2026. Beim Fortsetzen mit Seite 302 beginnen.
+- Danach Seiten 302 bis 304 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.905 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 304 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72365748.pdf`, Re-Datum 16.04.2026. Beim Fortsetzen mit Seite 305 beginnen.
+- Danach Seiten 305 bis 307 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.935 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 307 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72260072.pdf`, Re-Datum 15.04.2026. Beim Fortsetzen mit Seite 308 beginnen.
+- Danach Seiten 308 bis 310 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.965 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 310 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72231240.pdf`, Re-Datum 14.04.2026. Beim Fortsetzen mit Seite 311 beginnen.
+- Danach Seiten 311 bis 313 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 2.995 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 313 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72260068.pdf`, Re-Datum 14.04.2026. Beim Fortsetzen mit Seite 314 beginnen.
+- Danach Seiten 314 bis 316 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 3.025 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 316 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72218964.pdf`, Re-Datum 13.04.2026. Beim Fortsetzen mit Seite 317 beginnen.
+- Danach Seiten 317 bis 319 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 3.055 echte `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 319 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72206028.pdf`, Re-Datum 12.04.2026. Auf Wunsch des Users hier gestoppt. Beim Fortsetzen mit Seite 320 beginnen; zuerst aktive BFS-Seite und sichtbare BFS-Nummern gegen den Downloadordner pruefen.
+- User hat die bisherigen Downloads nach dem Stopp verschoben; neuer Downloadordner-Lauf startet daher wieder bei 0 Dateien ab Seite 320. Seiten 320 bis 322 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 30 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 322 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72172716.pdf`, Re-Datum 09.04.2026. Beim Fortsetzen mit Seite 323 beginnen.
+- Neuer Lauf: Seiten 323 bis 325 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 60 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 325 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72180787.pdf`, Re-Datum 09.04.2026. Beim Fortsetzen mit Seite 326 beginnen.
+- Neuer Lauf: Seiten 326 bis 328 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 90 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 328 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-72180801.pdf`, Re-Datum 09.04.2026. Beim Fortsetzen mit Seite 329 beginnen.
+- Neuer Lauf: Seiten 329 bis 331 im langsamen Modus abgeschlossen und per separatem Ordnercheck bestaetigt. Downloadordner enthaelt danach 120 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 331 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72126751.pdf`, Re-Datum 07.04.2026. Beim Fortsetzen mit Seite 332 beginnen.
+- Neuer Lauf: Seiten 332 bis 334 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 150 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 334 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-72130578.pdf`, Re-Datum 07.04.2026. Beim Fortsetzen mit Seite 335 beginnen.
+- Neuer Lauf: Seiten 335 bis 337 im langsamen Modus abgeschlossen. Downloadordner enthaelt danach 180 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt im neuen Lauf: Seite 337 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-72039319.pdf`, Re-Datum 02.04.2026. Beim Fortsetzen mit Seite 338 beginnen.
+- Neuer Lauf am 02.07.2026 fortgesetzt: Nach Wiederherstellung/Pruefung stand Chrome auf Seite 396; Seite 396 war komplett vorhanden. Danach Seiten 397 bis 561 im stabilen 3-Seiten-Modus abgeschlossen und mehrfach gegen den Downloadordner geprueft. Downloadordner enthielt danach 2.416 neue `Rechnung_5-*.pdf`; letzter bestaetigter Punkt: Seite 561 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-70995031.pdf`, Re-Datum 16.02.2026. Beim Fortsetzen mit Seite 562 beginnen; zuerst aktive BFS-Seite und sichtbare BFS-Nummern gegen den Downloadordner pruefen. Hinweis: Seite 560 enthielt drei Rechnungen, die bereits im Ordner vorhanden waren; die Seite war am Ende trotzdem vollstaendig. Danach wurde versucht, neu zu verbinden und Seite 562 zu erreichen: Filter fiel auf `letzte4Wochen` zurueck, wurde wieder auf `seitBeginn` gesetzt und Re-Datum war absteigend sortiert. Der lange Seitensprung liess die Chrome-Erweiterungsverbindung mehrfach haengen; danach wurden keine weiteren Downloads bestaetigt. Naechster sicherer Start bleibt Seite 562 nach erneuter manueller/technischer Chrome-Stabilisierung.
+- Neuer Lauf am 02.07.2026 nach erneutem User-Start: Downloads waren vorher wieder verschoben/leerer Downloadordner. Chrome stand auf Seite 435, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend. Kontrolliert in kurzen Seitenspruengen zu Seite 562 gewechselt und dort weitergemacht. Seiten 562 bis 571 wurden im langsamen Modus vollstaendig geladen; externe Ordnerpruefung danach: exakt 100 neue `Rechnung_5-*.pdf` im Downloadordner. Letzter bestaetigter Punkt: Seite 571 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-70907653.pdf`, Re-Datum 13.02.2026. Beim Fortsetzen mit Seite 572 beginnen; Filter und Sortierung erneut pruefen. Neue Prozesskorrektur: Mahn-/RA-Detailzeilen koennen nach Klicks aufgeklappt bleiben und duerfen nicht als eigene Rechnungszeilen gezaehlt werden; nur echte Tabellenzeilen mit sichtbarer BFS-Nr.-Zelle und normaler Rechnungszeilenstruktur zaehlen.
+- Danach im selben Lauf weitergemacht: Seiten 572 bis 583 abgeschlossen und extern geprueft. Downloadordner enthaelt danach 203 neue `Rechnung_5-*.pdf`. Seite 575 enthielt durch gleiche Datums-/Sortiergruppe nur bereits gespeicherte Rechnungen und erzeugte daher 0 neue Dateien; Seite 576 enthielt zunaechst ebenfalls mehrere bereits gespeicherte Zeilen, danach wurden die drei echten fehlenden Dateien nachgezogen. Eine Rechnung (`5-19260-70949035`) brauchte einen zweiten kontrollierten PDF-Klick, wurde danach aber verifiziert gespeichert. Letzter bestaetigter Punkt: Seite 583 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-70949030.pdf`, Re-Datum 11.02.2026. Beim Fortsetzen mit Seite 584 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Danach im selben Lauf weitergemacht: Seiten 584 bis 593 abgeschlossen und extern geprueft. Downloadordner enthaelt danach 303 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 593 komplett, letzte verifizierte Rechnung `Rechnung_5-19092-70768553.pdf`, Re-Datum 06.02.2026. Beim Fortsetzen mit Seite 594 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Danach im selben Lauf weitergemacht: Seiten 594 bis 603 abgeschlossen und extern geprueft. Downloadordner enthaelt danach 403 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 603 komplett, letzte verifizierte Rechnung `Rechnung_5-18504-70762130.pdf`, Re-Datum 05.02.2026. Beim Fortsetzen mit Seite 604 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Danach im selben Lauf weitergemacht: Seiten 604 bis 614 abgeschlossen und extern geprueft. Ein 5-Seiten-Werkzeugblock lief trotz Zeitfenster im Hintergrund weiter; danach wurde die aktive Seite geprueft und sauber ab Seite 609 fortgesetzt. Downloadordner enthaelt danach 513 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 614 komplett, letzte verifizierte Rechnung `Rechnung_5-19260-70832143.pdf`, Re-Datum 02.02.2026. Beim Fortsetzen mit Seite 615 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Danach im selben Lauf weitergemacht: Seiten 615 bis 626 bearbeitet und extern geprueft. Seite 623 hatte eine kurz verzoegerte PDF-Anzeige bei `5-19092-70564834`; nach erneutem Kontrollklick wurde die Datei verifiziert gespeichert. Seite 626 enthielt nur bereits gespeicherte Zeilen aus der gleichen Datums-/Sortiergruppe und brachte 0 neue Dateien. Downloadordner enthaelt danach 623 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 626 erledigt, letzte neu verifizierte Datei davor `Rechnung_5-19092-70542465.pdf`, Re-Datum 28.01.2026. Beim Fortsetzen mit Seite 627 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Danach im selben Lauf weitergemacht: Seiten 627 bis 640 bearbeitet und extern geprueft. Seiten 627 und 628 enthielten nur bereits gespeicherte Zeilen aus gleicher Datums-/Sortiergruppe. Auf Seite 634 hatte `5-19260-70519289` kein PDF-Symbol/kein Duplikat und wurde als offene Ausnahme uebersprungen; restliche Zeilen der Seite wurden geladen. Downloadordner enthaelt danach 740 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 640 komplett, letzte verifizierte Rechnung `Rechnung_5-19804-70529427.pdf`, Re-Datum 27.01.2026. Beim Fortsetzen mit Seite 641 beginnen; vor dem Weiterarbeiten wieder aktive Seite, Filter `seitBeginn`, Sortierung `Re-Datum` absteigend und Downloadordner pruefen.
+- Bekannte offene/nicht ladbare Ausnahmen aus diesem Lauf: `5-19092-73758775` (25.06.2026, kein Duplikat), `5-19260-73896640` (25.06.2026, PDF-Fenster nicht verfuegbar), `5-19092-73638154` (19.06.2026, kein Duplikat), `5-19092-73449292` (11.06.2026, PDF-Fenster nicht verfuegbar), `5-19804-73463376` (11.06.2026, PDF-Fenster nicht verfuegbar), `5-19804-73463411` und `5-19804-73463370` (11.06.2026, kein Duplikat), `5-19804-72962724` (18.05.2026, kein Duplikat), `5-18790-72506385` (27.04.2026, kein Duplikat), `5-19260-72534508` (25.04.2026, PDF-Fenster nicht verfuegbar).
 
 ## Sinn der App
 
@@ -104,9 +186,17 @@ Navigationslogik aktuell:
   - Import-Center Abrechnung
 - Oberreiter `BFS-Rechnungsanalyse`
   - `Leistungsuebersicht`
+  - `Katalogpruefung`
+  - `Benchmarking`
+  - `Faktor-Trend`
+  - `Patientenprofil`
   - `Potenzialanalyse`
   - `Standortvergleich`
   - `Import-Center Rechnungen`
+- Oberreiter `Abrechnungsqualitaet`
+  - `Qualitaetscockpit`
+  - `Leistungsketten`
+  - `Praxis-Feedback`
 - Admin Bereich
 
 Wichtig: Der fruehere Reiter `Import & Pruefung` wurde fachlich geteilt:
@@ -150,6 +240,26 @@ Wichtige aktuelle Sichten:
   - PDF-/Druckexport und CSV sind als Praxisausdruck gedacht und enthalten am Ende `Kommentar` sowie `Wenn storniert: in der Praxissoftware ausgebucht?`.
 - `Prioritaeten heute`
   - Wurde komplett entfernt, inklusive Querverlinkungen.
+- `BFS-Rechnungsanalyse > Leistungsuebersicht`
+  - Klassische Tabelle fuer Leistungspositionen mit Faktor, Haeufigkeit, Gruppenschnitt, Delta, Min/Max und Standorten.
+  - Hat Freitextsuche und Sortierung wie Excel fuer relevante Spalten.
+  - Tablet-/Mobile-Kompatibilitaet ist wichtig: Kopftexte duerfen nicht rechts auslaufen; Tabellen intern horizontal scrollbar.
+- `BFS-Rechnungsanalyse > Katalogpruefung`
+  - Liegt im Bereich `Import & Pruefung`, nicht mehr unter den Auswertungen.
+  - Zweck: Katalog-/Normalisierungscheck je Leistungszeile, ohne Originalimport zu veraendern.
+  - Spaltenlogik: `Original aus Rechnung`, `Verwendet als`, `Katalogart`, `Katalogtext`, `Hinweis`, plus Standort/Rechnung/Faktor/Aktion.
+  - Automatisch korrigierte und OK-Positionen brauchen keine Aktion; nur echte Review-Faelle.
+  - Wenn Position fachlich plausibel und eindeutig ist, soll sie automatisch korrekt laufen, nicht in `Zu pruefen`.
+- `BFS-Rechnungsanalyse > Benchmarking`
+  - Klassisches Faktor-Benchmarking pro Standort und Gruppe.
+  - Management-PDF/Report soll keine absoluten Mengen/Positionszahlen nennen, wenn daraus Rueckschluesse auf Praxisgroesse entstehen koennen.
+  - Neue Regel: nur Leistungen, die mindestens 3 Standorte verwenden, duerfen in Benchmark/KPIs/Potenzial einlaufen.
+- `BFS-Rechnungsanalyse > Faktor-Trend`
+  - Zeigt Faktorentwicklung ueber Jahre/Monate je Leistung/Praxis.
+  - Ziel: erkennen, ob Praxen bei Leistungen im Zeitverlauf hoeher/niedriger fakturieren.
+- `BFS-Rechnungsanalyse > Patientenprofil`
+  - Zeigt Patientenwert, Fallwert, niedriges Faktorprofil und Labor-/Aufwandsanteil aus echten Einzelrechnungen.
+  - Kacheln und Tabellen sollen den Standort des Patienten sichtbar anzeigen.
 
 ## Wichtigste fachliche Weiterentwicklung
 
@@ -184,18 +294,20 @@ Supabase:
 - URL: `https://dozcaktodvogbkiomcqo.supabase.co`
 - Auth laeuft ueber Supabase Auth.
 - Super-Admin: `svend.neumann@orisus.de`
-- Wichtige Tabellen: `bfs_import_batches`, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen`, `bfs_bewegungen`, `bfs_cases`, `audit_log`
+- Wichtige Tabellen: `bfs_import_batches`, `bfs_documents`, `bfs_abrechnungen`, `bfs_forderungen`, `bfs_bewegungen`, `bfs_cases`, `audit_log`, `bfs_invoice_import_batches`, `bfs_patient_invoices`, `bfs_patient_invoice_lines`, `profiles`, `standorte`
+- Katalogmappings fuer Einzelrechnungen werden ueber `app/api/invoices/catalog-mappings/route.ts` im `audit_log` gespeichert/gelesen.
 - Security-Stand 30.06.2026: Live-Projekt gegen externe Angriffsrisiken geprueft. Alle fachlichen Public-Tabellen haben RLS aktiv; Bucket `bfs-documents` ist privat. Migration `010_security_hardening.sql` setzt feste Function-Search-Paths, entzieht `handle_new_auth_user()` die direkte RPC-Ausfuehrbarkeit fuer `anon`/`authenticated` und korrigiert die `standorte`-Select-Policy. Next.js liefert zusaetzliche Security Header. Offen in Supabase Auth-Konsole: leaked-password protection aktivieren.
 
 Vercel:
 - Projekt: `bfs-mandatenuebersicht`
 - Live-Alias: `https://bfs-mandatenuebersicht.vercel.app`
 - Nicht verwechseln mit separatem Projekt `orisus-cfo-dashboard`.
-- Deploys laufen ueber Push auf `origin/main`.
+- Deploys laufen aktuell auch direkt ueber `pnpm dlx vercel --prod --scope orisus`; Live-Alias nach erfolgreichem Deploy pruefen.
 
 Git:
 - Immer auf `origin/main` pushen, wenn Aenderungen abgeschlossen sind.
 - GitHub-Verbindung wurde repariert und funktionierte zuletzt.
+- Arbeitsbaum kann mehrere parallele, noch nicht committete Aenderungen enthalten. Nichts zuruecksetzen, was nicht eindeutig zur aktuellen Aufgabe gehoert.
 
 ## Daten- und Live-Grundsatz
 
@@ -222,6 +334,37 @@ Zahlenformat:
 - Zahlen ohne Nachkommastellen.
 - Prozente mit einer Nachkommastelle.
 - Ausnahme: Gebuehrenquote immer mit zwei Nachkommastellen.
+
+## Performance / Cache / Ladeverhalten
+
+Aktueller Grundsatz:
+- Die App soll nicht bei jeder Navigation hart alle grossen Datenstaende neu laden.
+- Importdaten, Einzelrechnungen, Saldo-/Statusdaten und manuelle Klaerungen werden browserseitig gecacht.
+- Ein harter Server-Refresh passiert beim ersten notwendigen Laden, nach echten Datenveraenderungen oder wenn der Nutzer `Neu laden` klickt.
+- Uploads/Import-Bestaetigungen muessen den Cache aktualisieren bzw. invalidieren, damit neue Daten direkt sichtbar sind.
+- Wenn Login/Logout in einer Reload-Schleife haengt: Auth-/Session-Flow, Cache-Flags und Redirects pruefen. Nutzer beobachtete: Abmelden kann Startbildschirm in Dauerladezustand bringen, bis Browser-Laden manuell gestoppt wird.
+
+## UI / Tablet / Export
+
+Tablet-/Responsive-Regeln:
+- Der gesamte Bereich `BFS-Rechnungsanalyse` muss tablet-kompatibel bleiben.
+- Kopftexte, Filterzeilen und KPI-Karten duerfen nicht nach rechts aus dem Viewport laufen.
+- Karten-/Grid-Layouts muessen auf Tablet umbrechen statt immer breiter zu werden.
+- Tabellen duerfen horizontal scrollen, aber der Seitencontainer selbst soll nicht unkontrolliert nach rechts wachsen.
+- Besonders kritisch/geprueft bzw. zu beobachten:
+  - `Leistungsuebersicht`
+  - `Katalogpruefung`
+  - `Benchmarking`
+  - `Management Cockpit`
+  - Report-/Exportseiten
+
+Export-Regeln:
+- PDF-/Druckexport soll in der gesamten App nach Abbrechen der Browser-Druckvorschau nicht als leeres Zwischenfenster ohne Navigation stehen bleiben.
+- Exportfenster brauchen eine eigene Toolbar/Schliessen-Moeglichkeit.
+- In externen Praxis-/Managementreports fuer Benchmarking keine absoluten Mengen/Positionszahlen anzeigen, wenn daraus Rueckschluesse auf Praxisgroesse entstehen.
+- Benchmark-Management-PDF: Fokus auf Potenzial, Relativindex, Faktorvergleich und Empfehlung; Kacheln wie `Lesart`, `Praxisbild`, `Zielbild`, `Management` wurden vom Nutzer als entbehrlich markiert.
+- Potenzialanalyse-PDF soll die KPI-Kacheln mitdrucken.
+- Wo der Nutzer nur PDF braucht, CSV-Export entfernen/ausblenden.
 
 ## Import / Verarbeitung
 
@@ -265,9 +408,13 @@ Ziel:
 - Spaeter Matching/Neueinreichungen fachlich verbessern, weil Rechnungen Behandlungszeitraum, Positionen, Faktoren und Rechnungsnummern enthalten.
 
 Aktuelle Tabs:
-- `Leistungsuebersicht`: pro Leistung eigener Faktor bzw. Standortfaktor vs. Gruppenschnitt ohne eigenen Standort, nach Haeufigkeit absteigend sortiert, Tabelle intern scrollbar.
+- `Leistungsuebersicht`: pro Leistung eigener Faktor bzw. Standortfaktor vs. Gruppenschnitt ohne eigenen Standort, sortier-/filterbare Tabelle, intern scrollbar.
+- `Katalogpruefung`: Abgleich/Normalisierung von Leistungszeilen gegen lokalen GOZ/GOAe/BEMA-/Praxis-Katalog und gespeicherte Mappings. Liegt unter `Import & Pruefung`.
+- `Benchmarking`: klassisches Faktor-Benchmarking je Standort/Praxis, anonymisierter Gruppenbenchmark, Management-PDF.
+- `Faktor-Trend`: Faktorentwicklung je Leistung ueber Jahre/Monate.
+- `Patientenprofil`: Patientenwert, Fallwert, Faktorprofil, Labor-/Aufwandsanteil je Patient inkl. Standort.
 - `Potenzialanalyse`: Euro-Potenzial, Top-Hebel, Monats-/Jahreshochrechnung aus echten Positionsbetraegen gegen Gruppenschnitt ohne eigene Praxis.
-- `Standortvergleich`: Rechnungen, Positionen, Umsatz, Fallwert, Durchschnittsfaktor, Laborquote und Potenzial je Praxis.
+- `Standortvergleich`: Fokus auf Durchschnittsfaktoren, Faktorprofil, Potenzial und Standortvergleich. Absolute Umsatz-/Mengenkennzahlen sind fuer echte Benchmarkaussagen nur eingeschraenkt geeignet, weil nicht dauerhaft jeder Monat vollstaendig hochgeladen wird.
 - `Import-Center Rechnungen`: Daten rein, speichern, pruefen und bei Bedarf `Upload zuruecksetzen`.
 
 Technik:
@@ -277,6 +424,7 @@ Technik:
 - Upload unterstuetzt mehrere PDFs sowie Ordner inkl. Unterordner.
 - Bestaetigte Rechnungen werden ueber `/api/invoices/parse` in `bfs_invoice_import_batches`, `bfs_patient_invoices` und `bfs_patient_invoice_lines` gespeichert und per `GET` wieder geladen.
 - `Upload zuruecksetzen` ruft den serverseitigen DELETE auf und entfernt gespeicherte Rechnungen, Positionen und Import-Batches dauerhaft.
+- Direkte manuelle Supabase-Imports laufen ueber `scripts/repair-invoice-import.ts`. Das Skript upsertet nach fachlicher Identitaet/Hash, erzeugt keine Doppelzaehlung und meldet `inserted`/`updated`.
 - Parser liest u. a.:
   - BFS-Nr.
   - Mandant-Nr.
@@ -293,12 +441,28 @@ Technik:
   - Leistungszeilen mit Leistungsnummer/Code, Zahn-/Regionangabe, zusammengefasster Leistungsbeschreibung, Faktor, Menge, Betrag, Kategorie
 
 Fachliche Regeln fuer Leistungszeilen:
+- Die grundsaetzliche Importlogik ist aktuell produktiv getestet und darf nicht leichtfertig umgebaut werden. Neue Verbesserungen sollen nachgelagert in Katalog-/Auswertungslogik erfolgen, wenn das moeglich ist.
 - Zahn-/Regionangaben wie `36`, `25`, `37`, `OK`, `UK` duerfen nicht als Leistungsnummer gruppiert werden, wenn danach eine echte GOZ-/GOAe-/Analog-Leistungsnummer folgt.
 - Beispiel: `36 modv 2180 ...` wird als Region `36 modv` und Leistungsnr. `2180` gelesen.
 - Die Tabelle zeigt deshalb `Leistungsnr.` statt nur `Nr.`.
 - BEMA-/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-Potenzialanalyse eingerechnet.
+- Kassenleistungsfuellungen wie `13A0`, `13B0`, `13C0`, `13D0` bleiben drin, weil sie mehrere Standorte betreffen und vergleichbar sind; fehlerhafte Zahnnummern (`15`, `16`, `17`, `26`, `27`, `35`, `37` etc.) muessen auf die passende Kassenleistungsposition normalisiert werden, wenn Text und Kennzahl eindeutig passen.
+- `Ä0001`, `A0001`, `Ä1` und vergleichbare Schreibweisen muessen zusammengefuehrt werden.
+- Null-Codes (`000`, `00`, `0`) duerfen nicht als Leistung in Benchmark/Katalogpruefung laufen.
+- Material, Auslagen, Medikamente, Implantatteile, Naehte, Labor-/Eigenlaborzeilen und reine Freitext-/OCR-Reste duerfen nicht als Leistung laufen.
+- Katalogpruefung: `OK` und `automatisch korrigiert` brauchen keine Nutzeraktion. `Zu pruefen` nur fuer nicht eindeutige, nicht automatisch aufloesbare Faelle.
+- Katalogpruefung ist kein Import-Blocker und veraendert Originaldaten nicht; sie definiert nur, wie Auswertungen eine Leistung fuehren/normalisieren/ignorieren.
+- Benchmark/Potenzial ab 02.07.2026: Nur Leistungsnummern mit Faktor, die in mindestens 3 Standorten vorkommen, sind benchmarkfaehig. Leistungen mit nur 1 oder 2 Standorten werden fuer Benchmarking und Potenzialanalyse ausgeschlossen.
+- Potenzialanalyse berechnet weiterhin nur dann Potenzial, wenn die ausgewaehlte Praxis bei derselben Leistung unter dem Gruppenschnitt ohne diese Praxis liegt.
 - Beispiel `Rechnung_5-18504-73794150.pdf`: BEMA/Festzuschuss + Eigenlabor, keine GOZ-Faktorposition; Importstatus OK, Vorschau `BEMA + Labor`.
 - Gegencheck mit 66 PDFs aus `/Users/svendneumann/Desktop/BFS Uploads/3. Einzel-Rechnungen_BFS`: 0 Parser-Statusfehler und 0 auffaellige Faelle, in denen eine zweistellige Zahn-/Regionnummer vor einer echten Leistungsnummer als Leistungscode gruppiert wurde.
+
+Aktuelle direkte Einzelrechnungsimporte:
+- 02.07.2026 letzter grosser Batch aus `/Users/svendneumann/Downloads/1. Ulmet_01`, `/Users/svendneumann/Downloads/Essen_01`, `/Users/svendneumann/Downloads/Hüttenberg_01`, `/Users/svendneumann/Downloads/Kehl_01`, `/Users/svendneumann/Downloads/Kirchberg_01`.
+- Batch-ID `e852528d-6f4b-434f-b636-f4deda56c951`.
+- Ergebnis: 2.203 PDFs gelesen, 2.185 eindeutige Rechnungen in Supabase, 2.136 inserted, 49 updated, 18 lokale Dubletten, 18 leer/nicht informativ, 0 Fehler.
+- Supabase-Nachkontrolle: 11.387 Positionszeilen, 7.159 Leistungszeilen, 0 bekannte harte Fehlerbilder (`000`, Text als NR, Zahnnummer-Fuellung als Leistung, Material als Leistung, Faktor > 15).
+- 130 Rechnungen im Status `Zu pruefen`, weil keine abrechenbaren Leistungspositionen mit Faktor erkannt wurden; diese erscheinen nicht zwingend in der Katalogpruef-Tabelle und sollen die Auswertungen nicht beeinflussen.
 
 Fachliche Zuordnung:
 - Standorte werden ueber Mandant-Nr. zugeordnet.
@@ -313,6 +477,63 @@ Fachliche Zuordnung:
   - `5-19260-*` wurden Ulmet zugeordnet.
   - `5-18790-*` wurde Essen zugeordnet.
   - `5-18504-*` wurde Kirchberg zugeordnet.
+
+## BFS-Portal-Rechnungsdownload per Chrome
+
+Stand 01.07.2026:
+- Der manuelle BFS-Portal-Download wurde ueber den angemeldeten Chrome-Browser automatisiert.
+- Sortierung in der BFS-Rechnungsuebersicht: Spalte `Re-Datum` auf alt nach neu.
+- Download-Ziel ist der normale macOS-Downloadordner `/Users/svendneumann/Downloads`.
+- Abgeschlossen ist der Zeitraum bis einschliesslich `31.07.2025`.
+- Letzte tatsaechlich gezogene Rechnung im abgeschlossenen Lauf:
+  - Seite: `429`
+  - BFS-Nr.: `5-19092-66852710`
+  - Re-Datum: `31.07.2025`
+- Danach wurde auf derselben Seite die erste Rechnung nach der Zielgrenze erkannt:
+  - BFS-Nr.: `5-19260-66994788`
+  - Re-Datum: `01.08.2025`
+- Wenn spaeter weitergemacht wird, kann ab Seite `429` bzw. ab `01.08.2025` fortgesetzt werden. Vorhandene Downloads muessen ueber BFS-Nr. im Dateinamen uebersprungen werden.
+- Naechster geplanter Lauf: Rechnungen bis einschliesslich `30.06.2026` ergaenzen.
+- Dafuer ist voraussichtlich der bessere Weg: vorne/neuestens in der BFS-Rechnungsuebersicht starten und sich rueckwaerts vom `30.06.2026` bis `01.08.2025` durcharbeiten, statt von Seite `429` vorwaerts zu laufen.
+- Stop fuer diesen naechsten Rueckwaertslauf: Sobald die Grenze `01.08.2025` erreicht bzw. unterschritten ist und vorhandene Downloads per BFS-Nr. geprueft wurden.
+- Lauf am 30.06./01.07.2026 gestartet: rueckwaerts ab Seite `1`. Verlaesslicher Zwischenstand/Stopp: Seite `545` wurde erneut geprueft; 9 von 10 sichtbaren Rechnungen waren im Downloadordner vorhanden, die offene Rechnung `5-19260-67191534` mit Re-Datum `19.08.2025` hatte im Portal kein Rechnungsduplikat. Danach wurde Seite `546` erreicht; ein anschliessender Downloadblock ist wegen Chrome-/Codex-Verbindungsabbruch nicht sicher als abgeschlossen zu werten. Der Lauf wurde auf Nutzerwunsch gestoppt und ist noch nicht bis `01.08.2025` fertig.
+- Rueckblick/Korrektur zum Lauf: Die reinen Klickzaehlungen waren nicht ausreichend verlaesslich. Es wurden deutlich weniger Rechnungen tatsaechlich gespeichert als waehrend des Laufs angenommen; ausserdem wurden offenbar Rechnungen einzelner Mandantennummern nicht sauber mitgenommen. Kuenftige Laeufe duerfen nicht anhand von `download_clicked` als Erfolg bewertet werden, sondern nur anhand einer echten Dateipruefung im Downloadordner.
+- Wenn dieser Downloadlauf spaeter wieder aufgenommen wird: sicher ab Seite `546` starten. Ziel bleibt: weiter rueckwaerts bis einschliesslich `01.08.2025`, vorhandene Downloads anhand der BFS-Nr. im Dateinamen ueberspringen.
+
+Bewaehrte Klick-/Downloadlogik im BFS-Portal:
+1. In Chrome mit bestehender BFS-Session arbeiten, nicht im Codex-In-App-Browser.
+2. Rechnungsuebersicht oeffnen: `https://meinbfsportal.de/mapo-webapp/pages/member/praxis/rechnungen/rechnungUebersicht.xhtml?ansicht=RECHNUNG&modus=ALLE`
+3. Fuer den Ergaenzungslauf 2025/2026 vorne bei Seite `1` starten und sich ueber die Seiten rueckwaerts in Richtung aelterer Rechnungen bewegen. Die Liste ist nicht global streng chronologisch ueber alle Mandanten; deshalb nicht beim ersten aelteren/abweichenden Datum stoppen, sondern Zeilen anhand des Zielzeitraums filtern.
+4. Unten an den sichtbaren Seitenzahlen orientieren. Wichtig: BFS laesst unsichtbare alte Seitenzahlen im DOM stehen; fuehrend ist nur die sichtbare aktive Seitenzahl.
+5. Vor dem Anklicken einer sichtbaren Seite den Downloadordner gegen die sichtbaren BFS-Nummern pruefen. Bereits vorhandene PDFs ueberspringen, damit keine Doppelarbeit entsteht und die Portalbelastung geringer bleibt.
+6. Bei jeder fehlenden Zeile im Zielzeitraum:
+   - BFS-Nr. anklicken.
+   - `Rechnungsduplikat`/PDF-Icon anklicken.
+   - Im PDF-Viewer oben rechts den Download-Button anklicken.
+   - Danach das sichtbare Schliesskreuz des PDF-Dialogs suchen und anklicken.
+7. Rechnungen ohne `Rechnungsduplikat` oder ohne sichtbares PDF-Fenster nicht blockierend behandeln, sondern markieren/ueberspringen. Das bedeutet meist: Rechnung zu frisch oder Duplikat noch nicht hinterlegt.
+8. Wichtiges Portalverhalten: Wenn eine Rechnung ohne Duplikat angeklickt wird, kann BFS beim Zurueckgehen auf Seite `1` springen. Danach nicht weiterklicken, sondern erst wieder kontrolliert zur letzten Arbeitsseite springen.
+9. Nach jedem Seitenwechsel pruefen, ob die sichtbare aktive Seite wirklich um 1 gestiegen ist.
+10. Harte Kontrollregel: Nach ca. 100 angeklickten/versuchten Rechnungen immer im Downloadordner pruefen, ob die zuletzt als heruntergeladen gemeldete BFS-Nr. wirklich als Datei vorhanden ist. Erst wenn die Datei im Downloadordner existiert, gilt diese Rechnung als gespeichert.
+11. Mandantenkontrolle: Nicht nur ein Mandantenblock oder eine optisch zusammenhaengende Liste abarbeiten. Sichtbare BFS-/Mandantennummern muessen je Seite erfasst werden; wenn sich Mandantennummern aendern oder springen, trotzdem alle Zeilen im Zielzeitraum pruefen. Keine Mandantennummer stillschweigend auslassen.
+
+Recovery-Regel bei Haengern:
+- Wenn Maus/Klicks/Dialog haengen: Chrome fokussieren, per Tastenkombi aktualisieren, in der BFS-Navigation `Rechnungen > Rechnungen` erneut oeffnen, wieder nach `Re-Datum` alt nach neu sortieren.
+- Dann unten bis zur letzten bekannten Seite scrollen/klicken. Wenn die Zielseitenzahl sichtbar ist, diese direkt anklicken.
+- Erst wenn die sichtbare aktive Seitenzahl passt, weiter downloaden.
+- Bei groesseren Fenstern nicht mit festen Koordinaten schliessen, sondern sichtbares `X`/Schliesskreuz suchen; nur notfalls vom sichtbaren Dialogrand oben rechts ableiten.
+- Codex-Steuerbloecke laufen technisch nur einige Minuten. Deshalb in Bloecken arbeiten und nach jedem Block den aktuellen Stand merken: Seite, letzte BFS-Nr., letztes Re-Datum.
+- Bei Chrome-/Codex-Verbindungsabbruch: keine ungesicherten Annahmen treffen. Erst Chrome/BFS-Seite neu verbinden, aktive sichtbare Seite und erste sichtbare Rechnungen auslesen, dann fortsetzen. Falls die Verbindung instabil bleibt, Nutzer die Zielseite manuell einstellen lassen und ab dort weitermachen.
+- Nach jedem Block nicht nur Seite/BFS-Nr. merken, sondern zusaetzlich die letzte bestaetigt vorhandene Datei im Downloadordner dokumentieren. Wenn diese Pruefung fehlschlaegt, sofort stoppen und die Downloadlogik korrigieren.
+- Neue Recovery-Regel vom Nutzer: Wenn die Chrome-/Codex-Steuerung wieder abbricht, nicht sofort hektisch weiterprobieren. Steuerung/Tab gedanklich komplett trennen, ca. `30 Sekunden` warten, dann frisch verbinden. Danach immer erst aktive BFS-Seite und Downloadordner pruefen, bevor weitergeklickt wird.
+- Neuer sauberer Lauf gestartet am 01.07.2026: Start auf BFS-Seite `12`, ab Re-Datum ca. `26.06.2026`, Ziel bis `01.08.2025`. Erfolg zaehlt nur bei echter Datei im Downloadordner. Erster bestaetigter Zwischenstand: Seite `16`, letzte verifizierte Datei `Rechnung_5-19804-73805872.pdf`, BFS-Nr. `5-19804-73805872`, Mandant `19804`, Re-Datum `26.06.2026`. Bis dahin wurden Mandanten `19092`, `19260` und `19804` sichtbar mitgenommen.
+- Weiterer Stand desselben sauberen Laufs: Der naechste Block lief bis BFS-Seite `21`; im Downloadordner wurden danach `93` Dateien nach Muster `Rechnung_5-*.pdf` gezaehlt. Zuletzt sichtbar/neu im Ordner waren u. a. `Rechnung_5-19092-73758774.pdf`, `Rechnung_5-19092-73758771.pdf`, mehrere `18790`-Rechnungen und mehrere `18504`-Rechnungen. Chrome-/Codex-Verbindung wurde danach instabil. Beim Fortsetzen kontrolliert auf Seite `21` starten, dort alle sichtbaren BFS-Nummern gegen den Downloadordner pruefen und ab der ersten fehlenden Rechnung weitermachen. Nicht anhand der Klickhistorie fortsetzen.
+- Fortsetzung am 01.07.2026: Seite `21` geprueft, fehlende `5-19092-73758775` hatte kein Rechnungsduplikat. Seiten `22` und `23` vollstaendig verifiziert. Seite `24` hatte eine offene `5-19260-73896640` mit `no_pdf_window`; spaeter ab Seite `30` weiter kontrolliert. Verlaesslicher Stand danach: Seite `41`, Ordnerzaehlung `291` Dateien `Rechnung_5-*.pdf`, letzte verifizierte Datei `Rechnung_5-19260-73896703.pdf`, BFS-Nr. `5-19260-73896703`, Mandant `19260`, Re-Datum `18.06.2026`. In diesem Abschnitt wurden u. a. Mandanten `19092`, `18504`, `18790`, `19260`, `19804` verarbeitet. Fortsetzen ab Seite `41`: sichtbare Seite gegen Downloadordner pruefen und ab erster fehlender Rechnung weiter.
+- Weiterer Stand: Seiten `42` bis `46` verarbeitet und verifiziert. Ordnerzaehlung `341` Dateien `Rechnung_5-*.pdf`; letzte verifizierte Datei `Rechnung_5-19804-73612468.pdf`, BFS-Nr. `5-19804-73612468`, Mandant `19804`, Re-Datum `18.06.2026`. Fortsetzen ab Seite `46`: Seite gegen Downloadordner pruefen und ab erster fehlender Rechnung weiter.
+- Danach wurde weiter bis mindestens Seite `47`/Folgeblock gearbeitet; nach Timeout lagen `392` Dateien im Downloadordner. Letzte sichtbare Dateien waren u. a. `Rechnung_5-19260-73896676.pdf`, `Rechnung_5-19260-73896653.pdf`, mehrere `5-19260-735855xx`. Chrome/Codex-Tabsteuerung brach danach wiederholt ab, obwohl Chrome, Erweiterung und Native-Host laut Check OK waren. Naechster Start: BFS-Seite unten pruefen, wahrscheinlich um Seite `47`+; zuerst aktuelle sichtbare Seite gegen Downloadordner abgleichen und ab erster fehlender Rechnung weitermachen. Letzte belastbare Ordnerzaehlung: `392` Dateien `Rechnung_5-*.pdf`.
+- Fortsetzung danach: aktueller sauberer Stand Seite `57`, Ordnerzaehlung `451` Dateien `Rechnung_5-*.pdf`, letzte verifizierte Datei `Rechnung_5-19092-73554072.pdf`, BFS-Nr. `5-19092-73554072`, Mandant `19092`, Re-Datum `16.06.2026`. Fortsetzen ab Seite `57`: Seite gegen Downloadordner pruefen und ab erster fehlender Rechnung weiter.
+- Weiterer sauberer Stand: Seite `62`, Ordnerzaehlung `501` Dateien `Rechnung_5-*.pdf`, letzte verifizierte Datei `Rechnung_5-19260-73573978.pdf`, BFS-Nr. `5-19260-73573978`, Mandant `19260`, Re-Datum `15.06.2026`. Fortsetzen ab Seite `62`: Seite gegen Downloadordner pruefen und ab erster fehlender Rechnung weiter.
+- Weiterer sauberer Stand: Seite `67`, Ordnerzaehlung `551` Dateien `Rechnung_5-*.pdf`, letzte verifizierte Datei `Rechnung_5-19092-73527812.pdf`, BFS-Nr. `5-19092-73527812`, Mandant `19092`, Re-Datum `14.06.2026`. Fortsetzen ab Seite `67`: Seite gegen Downloadordner pruefen und ab erster fehlender Rechnung weiter.
 
 Wichtig fuer Speicherstrategie:
 - Perspektivisch werden tausende Rechnungen pro Monat importiert.
@@ -434,10 +655,17 @@ Login:
 - `proxy.ts` schuetzt Routen.
 - `lib/server-auth.ts` liest Session und Profil.
 - Legacy-App-Session-Fallback ist entfernt.
+- Nutzerverwaltung zeigt den letzten Login an, soweit Supabase/Auth-Profil den Zeitpunkt liefert.
 
 Wichtige aktuelle Korrektur:
 - Standortleitungen duerfen relevante Serverdaten lesen, statt auf lokale Browserdaten zurueckzufallen.
 - Manuelle Fall-Erledigung wurde fuer Super-Admins repariert, indem App-Standort-IDs korrekt auf Supabase-Standort-UUIDs gemappt werden.
+- Rolle `Abrechnungsmanagement`:
+  - darf nur die BFS-Rechnungsanalyse lesen.
+  - soll keinen Admin-Bereich sehen.
+  - soll keine Upload-/Importfunktionen ausfuehren duerfen.
+  - darf keine BFS-Abrechnungs-/operative Fallarbeitsbereiche sehen.
+  - Nutzer werden vom Super Admin mit temporaerem Passwort angelegt; beim ersten Login muss ein eigenes Passwort gesetzt werden.
 
 Admin:
 - Super Admin kann Nutzer anlegen und Rollen/Standorte verwalten.
@@ -453,11 +681,18 @@ Aktuelle Logik:
 - Fall als `Neu eingereicht` markieren, wenn eine Ersatzrechnung gestellt wurde. Der Fall verschwindet aus der Pruefliste und reduziert die offene Pruefsumme, erzeugt aber keinen zusaetzlichen Geldzufluss.
 - Fall als `Endgueltig storniert` markieren, wenn der Betrag bewusst als Verlust/Endstorno entschieden ist.
 - Markierung wird serverseitig im `audit_log` gespeichert.
+- Nach Klick und Bestaetigung sollen Faelle sofort aus der sichtbaren Pruefliste verschwinden, nicht erst nach Reload.
+- KPI-Kacheln/Tabellen muessen unmittelbar aus den manuell erledigten Faellen neu berechnet werden.
 - Stabile Fall-Schluessel basieren auf Standort, Patient, Rechnungsnummer, BFS-Nr., Betrag und Grund.
+- Zusaetzlich gibt es stabilere Identitaetsschluessel fuer Faelle, damit Entscheidungen auch dann halten, wenn Betrag/Grundtext beim Re-Upload minimal abweichen.
 - Bezahlte/geklaerte und neu eingereichte Faelle reduzieren die offene Pruefsumme und zaehlen als `Bereits geklaert`.
 - Endgueltig stornierte Faelle reduzieren die offene Pruefsumme und laufen in die Kachel `Endgueltig verloren`.
 - Manuelle Entscheidungen bleiben importuebergreifend stabil, wenn derselbe Vorgang spaeter wieder auftaucht.
 - Doppelte Audit-Eintraege fuer denselben Fall wurden als Risiko erkannt und sollten weiterhin verhindert werden.
+- Am 02.07.2026 wurden alle zu diesem Zeitpunkt offenen Prueffaelle mit Grund `Fehler BFS` direkt als `neu eingereicht` gewertet. Ergebnis: 25 neue manuelle Klaerungen, danach 0 offene `Fehler BFS`-Faelle.
+- Die Filter in der Pruefliste muessen kombiniert wirken: Standort, Zeitraum, Suche, Sortierung und `Offen bis`-Stichtag.
+- Sortierung nach `Alter` muss korrekt reagieren.
+- Die Tabelle braucht oben einen horizontalen Schieberegler/Scrollbalken, damit auf Desktop/Tablet nicht bis unten gescrollt werden muss.
 
 Noch wichtig fuer Produktlogik:
 - "Bezahlt/erledigt" bedeutet: fachlich geklaert und nicht mehr operativ offen.
@@ -1226,3 +1461,375 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 
 - Die Tabelle `Rechnungsvorschau` hat wieder einen eigenen scrollbaren Listenbereich mit begrenzter Hoehe.
 - Der Tabellenkopf bleibt beim Scrollen sichtbar, damit grosse Importvorschauen leichter pruefbar bleiben.
+
+## Update 2026-07-01: BFS-Downloadlauf April 2026 gestoppt und dokumentiert
+
+- Ausgangslage: Alte Downloads wurden vom Nutzer bereits verschoben; dieser Lauf zaehlt nur die neu im Download-Ordner liegenden `Rechnung_5-*.pdf`.
+- Verzeichnis fuer diesen Lauf: `/Users/svendneumann/Downloads`.
+- Bewaehrte Download-Logik beibehalten: langsam klicken, nach jedem einzelnen PDF die exakt passende Datei `Rechnung_5-...pdf` im Download-Ordner pruefen, bei Haengern Chrome kurz loslassen/neu verbinden, sichtbare BFS-Nummern gegen Downloads vergleichen und bei der ersten fehlenden sichtbaren Rechnung fortfahren.
+- Klicktempo, das stabil lief: ca. 1,25 s nach Klick auf die BFS-Rechnungsnummer, ca. 1,8 s nach Klick auf das PDF-Symbol, bis zu ca. 18 s auf die Ziel-Datei warten, danach ca. 0,65 s Pause, PDF-Fenster schliessen, ca. 0,75 s Pause; Seitenwechsel ca. 1,7 s. Nicht schneller machen.
+- Nach ca. 100 Rechnungen bzw. nach groesseren Bloecken den Download-Ordner gegenpruefen; eine Rechnung gilt nur als erledigt, wenn die konkrete PDF-Datei wirklich vorhanden ist.
+- Neuer Lauf wurde ab Seite 320 fortgesetzt und bis Seite 357 bearbeitet.
+- Seiten 320 bis 344: fortlaufend verifiziert; nach Seite 344 lagen 250 neue PDFs vor.
+- Seite 345: 9 von 10 Rechnungen gespeichert; Ausnahme `5-19260-72100188` vom 01.04.2026, kein Rechnungsduplikat/keine PDF verfuegbar.
+- Seiten 346 bis 354: alle sichtbaren Rechnungen gespeichert; nach Seite 354 lagen 349 neue PDFs vor.
+- Seiten 355 und 356: alle 20 Rechnungen vom 01.04.2026 gespeichert.
+- Seite 357: die ersten 6 Rechnungen vom 01.04.2026 wurden gespeichert; danach begann der 31.03.2026. Die Seite wurde komplett geladen, daher sind zusaetzlich 4 Maerz-Rechnungen im Download-Ordner.
+- Aktueller neuer Downloadbestand nach Stopp: 379 PDFs.
+- Letzte April-Rechnung in diesem Lauf: `Rechnung_5-19260-72100198.pdf` vom 01.04.2026.
+- Zusaetzlich bereits mitgeladen aus Maerz: `Rechnung_5-18504-71923869.pdf`, `Rechnung_5-18504-71949710.pdf`, `Rechnung_5-18504-71923866.pdf`, `Rechnung_5-18504-71940459.pdf` vom 31.03.2026.
+- Aktuelle BFS-Seite bei Stopp: Seite 357. Fuer den naechsten Lauf ist April 2026 erledigt; wenn ab Maerz weitergemacht werden soll, auf Seite 357 bei den Maerz-Rechnungen starten bzw. sichtbare Rechnungen zuerst gegen vorhandene Downloads pruefen.
+
+## Update 2026-07-01: BFS-Downloadlauf Maerz 2026 bis Portal-Fehlerseite
+
+- Nach Neustart ab Seite 357 wurde der Klickprozess neu kalibriert:
+  - pro Rechnung nur ein Klick auf die BFS-Zeile, ein Klick auf das PDF-Symbol, ein Klick auf `Speichern`;
+  - keine unnoetigen zweiten Zeilenklicks mehr, weil diese offene Detailzeilen wieder zuklappen koennen;
+  - vor tief liegenden Zeilen selbststaendig scrollen und Koordinaten neu auslesen;
+  - nach jedem Speichern die konkrete Datei `Rechnung_5-...pdf` im Download-Ordner pruefen.
+- Seite 358 wurde vollstaendig nachgeladen; dabei wurde die zuerst problematische `5-18504-71940460` nach laengerem Warten erfolgreich gespeichert.
+- Seite 359 und 360 wurden vollstaendig gespeichert.
+- Danach liefen groessere Bloecke stabil:
+  - Seiten 361 bis 365 vollstaendig gespeichert;
+  - Seiten 366 bis 370 vollstaendig gespeichert, trotz Rueckmelde-Timeout; Pruefung danach: Seite 370, 509 PDFs, keine sichtbare Luecke;
+  - Seiten 371 bis 374 fast vollstaendig; `5-19260-71888878` wurde danach einzeln nachgeladen. Pruefung danach: Seite 374 vollstaendig, 549 PDFs;
+  - Seiten 375 und 376 vollstaendig gespeichert, inklusive Nachladen der Restpositionen auf Seite 376;
+  - Seiten 377 bis 380 vollstaendig gespeichert.
+- Aktueller Stand beim Abbruch durch BFS-Fehlerseite:
+  - Downloadbestand: 614 PDFs in `/Users/svendneumann/Downloads`;
+  - letzte vollstaendig abgeschlossene Seite: 380;
+  - aktuelle Bearbeitung stoppte auf Seite 381;
+  - auf Seite 381 wurden die ersten 5 Rechnungen gespeichert;
+  - auf Seite 381 sind noch offen/nicht gespeichert: `5-19804-71863588`, `5-19804-71863621`, `5-19804-71863567`, `5-19804-71863601`, `5-19804-71863570`.
+- Die BFS-Seite wechselte nach einem Reload in `BFS Error Page` und blieb auch nach erneutem Reload/Back auf der Fehlerseite. Naechster Start: Nutzer muss BFS im Chrome-Tab wieder in die Rechnungsuebersicht bringen; dann auf Seite 381 starten und die oben genannten offenen Nummern gegen den Download-Ordner pruefen.
+
+## Update 2026-07-02: BFS-Downloadlauf bis Seite 652
+
+- Im aktuellen Lauf wurde weiter mit dem stabilen Tempo gearbeitet: nicht doppelklicken, Detailfenster nach jedem Speichern sauber schliessen, sichtbare Zeilen und konkrete Dateien im Download-Ordner verifizieren.
+- Seiten 604 bis 614 abgeschlossen; danach 513 neue `Rechnung_5-*.pdf` im Downloadordner. Letzter Stand: Seite 614, `Rechnung_5-19260-70832143.pdf`, Re-Datum 02.02.2026.
+- Seiten 615 bis 626 bearbeitet; Seite 623 hatte eine verzoegerte PDF-Anzeige, wurde danach erfolgreich nachgeladen. Seite 626 enthielt bereits vorhandene Duplikate. Danach 623 PDFs; letzter neu verifizierter Stand: `Rechnung_5-19092-70542465.pdf`, Re-Datum 28.01.2026.
+- Seiten 627 bis 640 bearbeitet; Seiten 627 und 628 waren bereits vorhanden. Seite 634: `5-19260-70519289` hatte kein PDF/kein Rechnungsduplikat und bleibt als offene Ausnahme markiert. Danach 740 PDFs; letzter Stand: `Rechnung_5-19804-70529427.pdf`, Re-Datum 27.01.2026.
+- Seiten 641 bis 652 wurden vollstaendig gespeichert und verifiziert. Downloadordner enthaelt danach 860 neue `Rechnung_5-*.pdf`. Letzter bestaetigter Punkt: Seite 652 komplett, `Rechnung_5-19260-70442104.pdf`, Re-Datum 22.01.2026.
+- Seite 653 wurde danach neu kalibriert und vollstaendig gespeichert/verifiziert. Wichtig: Der Klick muss exakt auf die blaue BFS-Nr. erfolgen, nicht links in die Zeile. Das PDF oeffnet in einem eingebetteten Fenster; der Download-Klick liegt oben rechts im PDF-Fenster auf dem Download-Symbol, nicht an der alten Koordinate. Problemnummer `5-19260-70442109` wurde manuell nachgeladen und ist gespeichert.
+- Danach wurde ein Block ab Seite 654 gestartet. Der Tool-Ruecklauf ist abgelaufen, aber der Downloadordner stieg auf 897 PDFs. Neueste sichtbare Dateien danach u. a. `Rechnung_5-19260-70410605.pdf`, `Rechnung_5-19260-70410609.pdf`, `Rechnung_5-19260-70410612.pdf`, `Rechnung_5-19260-70410601.pdf`, `Rechnung_5-19260-70410620.pdf`.
+- Belastbar abgeschlossen: Seite 653 komplett, 870 PDFs.
+- Nicht als komplett markieren, bevor geprueft: Seiten 654 bis 656 gegen die sichtbaren BFS-Nummern und den Downloadordner nachpruefen; Stand im Ordner nach Timeout: 897 PDFs. Wahrscheinlich wurden 27 weitere Rechnungen gespeichert, aber die letzte aktive Seite konnte wegen Chrome-Verbindungsabbruch nicht mehr ausgelesen werden.
+- Beim Fortsetzen zuerst Chrome-Verbindung wiederherstellen, aktive Seite pruefen und Seiten 654 bis 656 nach fehlenden PDFs scannen. Danach ab der ersten nicht vollstaendigen Seite weiterarbeiten.
+
+## Update 2026-07-02: Fortsetzung ab Seite 656
+
+- Chrome-Verbindung kam wieder zustande; BFS stand auf Seite 656, Zeitraum `seitBeginn`, Re-Datum absteigend.
+- Seite 656 hatte nach dem vorherigen Timeout 3 fehlende Dateien: `5-19260-70410623`, `5-19260-70410596`, `5-19260-70410608`.
+- Diese 3 Dateien wurden erfolgreich nachgeladen. Seite 656 ist damit komplett verifiziert; Downloadbestand danach: 900 `Rechnung_5-*.pdf`.
+- Danach wurde Block Seiten 657 bis 659 gestartet. Der Downloadbestand stieg auf 927 PDFs, also 27 weitere Dateien. Der Tool-Ruecklauf lief erneut in ein Timeout.
+- Neueste sichtbare Dateien danach u. a. `Rechnung_5-19092-70385180.pdf`, `Rechnung_5-19092-70367436.pdf`, `Rechnung_5-19092-70367450.pdf`, `Rechnung_5-19092-70367435.pdf`, `Rechnung_5-19092-70385181.pdf`.
+- Belastbar abgeschlossen: Seite 656 komplett, 900 PDFs.
+- Nicht als komplett markieren, bevor geprueft: Seiten 657 bis 659 gegen die sichtbaren BFS-Nummern und den Downloadordner nachpruefen; Stand im Ordner nach Timeout: 927 PDFs. Wahrscheinlich sind 27 von 30 Rechnungen gespeichert.
+- Beim Fortsetzen zuerst Chrome-Verbindung wiederherstellen, aktive Seite pruefen und Seiten 657 bis 659 nach fehlenden PDFs scannen. Danach ab der ersten nicht vollstaendigen Seite weiterarbeiten.
+
+## Update 2026-07-02: Verbindungsabbruch beim Wiederaufsetzen
+
+- Nach Nutzerwunsch `mache weiter` wurde Chrome wieder angebunden; BFS war durch den Browser-Neustart wieder auf Seite 1 und Zeitraum `letzte4Wochen`.
+- Zeitraum wurde erfolgreich auf `seitBeginn` zurueckgestellt.
+- Direkter Tabellen-Sprung per PrimeFaces war aus dem isolierten Codex-Kontext nicht moeglich; danach wurde ein sichtbarer Seitennavigationssprung getestet. Klick auf die letzte sichtbare Seitennummer springt nur stufenweise weiter.
+- Ein automatischer Vorsprung Richtung Seite 657 wurde gestartet, lief aber in ein Timeout. Danach war die Chrome-Verbindung zum Tab nicht mehr stabil auslesbar.
+- Downloadbestand blieb unveraendert bei 927 `Rechnung_5-*.pdf`; es wurden in diesem Wiederaufnahmeversuch keine neuen Rechnungsdownloads verifiziert.
+- Belastbar bleibt: Seite 656 komplett, 900 PDFs. Seiten 657 bis 659 sind nur teilweise/ungeprueft mit Stand 927 PDFs.
+- Beim naechsten Fortsetzen: Chrome komplett neu starten bzw. Codex-Chrome-Verbindung frisch herstellen, BFS auf `seitBeginn` setzen, dann erst aktive Seite auslesen. Falls BFS wieder auf Seite 1 steht, nicht lange mit Seitensprung experimentieren; besser Nutzer auf Seite 657/659 vorpositionieren lassen oder mit kleinerem Datumszeitraum um den 21./22.01.2026 arbeiten, um die Seitentiefe zu reduzieren.
+
+## Update 2026-07-02: Seiten 657 bis 659 verifiziert, Block 660-662 teilweise
+
+- Nach erneutem Wiederaufsetzen stand BFS korrekt auf Seite 657, Zeitraum `seitBeginn`, Re-Datum absteigend.
+- Seite 657 wurde gegen den Downloadordner geprueft: keine sichtbaren Luecken, Downloadbestand 927 PDFs.
+- Seiten 658 und 659 wurden danach geprueft und vervollstaendigt. Seite 659 hatte 3 fehlende Dateien, die nachgeladen wurden: `Rechnung_5-19092-70367421.pdf`, `Rechnung_5-19092-70367422.pdf`, `Rechnung_5-19092-70367443.pdf`.
+- Belastbar abgeschlossen: Seite 659 komplett, 930 `Rechnung_5-*.pdf`.
+- Danach wurde Block Seiten 660 bis 662 gestartet. Der Tool-Ruecklauf lief in ein Timeout, der Downloadbestand stieg aber auf 958 PDFs.
+- Neueste Dateien nach diesem Timeout u. a. `Rechnung_5-19260-70410619.pdf`, `Rechnung_5-19260-70410629.pdf`, `Rechnung_5-19260-70410617.pdf`, `Rechnung_5-19092-70367428.pdf`, `Rechnung_5-19092-70367432.pdf`, `Rechnung_5-19092-70367446.pdf`, `Rechnung_5-19092-70385179.pdf`, `Rechnung_5-19092-70367438.pdf`, `Rechnung_5-19092-70367448.pdf`, `Rechnung_5-19092-70385176.pdf`, `Rechnung_5-19092-70367426.pdf`, `Rechnung_5-19092-70367433.pdf`, `Rechnung_5-19092-70385178.pdf`.
+- Nicht als komplett markieren, bevor geprueft: Seiten 660 bis 662 gegen die sichtbaren BFS-Nummern und den Downloadordner pruefen. Wahrscheinlich sind 28 von 30 Rechnungen gespeichert.
+- Aktuelles Problem beim Fortsetzen: Chrome antwortete nicht mehr beim Auslesen/Claimen der offenen BFS-Seite. Nach 30 Sekunden Wartezeit und Neuverbindung blieb die Chrome-Verbindung instabil. Naechster Start: Chrome/BFS-Seite neu ansprechbar machen, aktive Seite pruefen, dann Seiten 660 bis 662 verifizieren und ab der ersten Luecke weiterarbeiten.
+
+## Update 2026-07-02: Seiten 660 bis 662 abgeschlossen, Block 663-665 gestartet
+
+- Nach Wiederaufnahme wurde die Klicklogik neu geprueft und langsamer gestellt.
+- Wichtigste Korrektur: PDF-Download nur noch ueber das eindeutig passende `rePDF/iconPDF`-Element in der Detailzeile derselben BFS-Nummer. Keine Fallback-Klicks mehr auf beliebige Icons. Wenn kein eindeutiges PDF-Element sichtbar ist, wird die Rechnung markiert statt falsch geklickt.
+- Bei tief liegenden Detailzeilen liegt das PDF-Icon teilweise unterhalb des sichtbaren Bereichs; dann kontrolliert nach unten scrollen und erst danach das `rePDF/iconPDF` der passenden Detailzeile klicken.
+- Seiten 660, 661 und 662 wurden vollstaendig gegen den Downloadordner verifiziert.
+- Auf Seite 662 fehlten `5-19260-70410627` und `5-19260-70410622`; beide wurden mit der neuen Scroll-/Detailzeilenlogik erfolgreich nachgeladen.
+- Belastbar abgeschlossen: Seite 662 komplett, Downloadbestand danach 960 `Rechnung_5-*.pdf`.
+- Danach wurde ein kleiner Testblock Seiten 663 bis 665 mit der neuen Logik gestartet. Der Tool-Ruecklauf lief in ein Timeout; der Downloadbestand stieg von 960 auf 987 PDFs, also 27 neue Dateien.
+- Neueste Dateien danach u. a. `Rechnung_5-19260-70356308.pdf`, `Rechnung_5-19260-70356305.pdf`, `Rechnung_5-19260-70356307.pdf`, `Rechnung_5-19260-70410611.pdf`, `Rechnung_5-19260-70410599.pdf`, `Rechnung_5-19260-70410628.pdf`, `Rechnung_5-19260-70410616.pdf`, `Rechnung_5-19260-70410600.pdf`, `Rechnung_5-19260-70410621.pdf`, `Rechnung_5-19260-70410597.pdf`.
+- Nicht als komplett markieren, bevor geprueft: Seiten 663 bis 665 gegen sichtbare BFS-Nummern und Downloadordner pruefen; wahrscheinlich sind 27 von 30 Rechnungen gespeichert.
+- Aktuelles Problem: Nach dem Timeout antwortete Chrome erneut nicht mehr beim Tab-Auslesen. Nach 30 Sekunden Wartezeit und Neuverbindung blieb das Auslesen offener Tabs haengen. Naechster Start: Chrome/BFS-Verbindung frisch herstellen, aktive Seite pruefen, Seiten 663 bis 665 verifizieren und fehlende PDFs nachladen.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 675
+
+- Chrome-Verbindung kam wieder zustande; BFS stand auf Seite 665, Zeitraum `seitBeginn`, Re-Datum absteigend.
+- Seiten 663 und 664 wurden gegen den Downloadordner geprueft und waren komplett.
+- Seite 665 hatte 3 fehlende PDFs: `5-19804-70529350`, `5-19804-70529419`, `5-19804-70529355`. Diese wurden erfolgreich nachgeladen.
+- Danach wurden mit langsamer, detailzeilen-genauer Logik die Seiten 666 bis 675 geladen.
+- Seiten 666, 667, 668, 669, 670, 671, 672, 673, 674 und 675 sind vollstaendig gespeichert und verifiziert. Bei 668/669 und 670/671 trat kurz eine Statusanzeige `current: 1` in der Rueckmeldung auf; beide Bloecke wurden danach explizit nachgeprueft und hatten keine fehlenden Dateien.
+- Belastbar abgeschlossen: Seite 675 komplett, Downloadbestand 1090 `Rechnung_5-*.pdf`.
+- Bewaehrte Logik weiterhin: kleine 2-Seiten-Bloecke, nach jedem Block explizit pruefen; PDF nur ueber `rePDF/iconPDF` aus der Detailzeile derselben BFS-Nr.; bei tief liegendem PDF-Icon kontrolliert scrollen; keine Fallback-Klicks.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 681
+
+- Mit derselben langsamen, detailzeilen-genauen Logik weitergeladen.
+- Seiten 676 und 677 komplett gespeichert, Downloadbestand 1110 PDFs.
+- Seiten 678 und 679 komplett gespeichert, Downloadbestand 1130 PDFs.
+- Seiten 680 und 681 komplett gespeichert, Downloadbestand 1150 PDFs.
+- Belastbar abgeschlossen: Seite 681 komplett.
+- Weiterer Startpunkt: Seite 682. Zeitraum muss `seitBeginn` bleiben, Re-Datum absteigend. Weiterhin in 2-Seiten-Bloecken arbeiten und nach jedem Block pruefen.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 685
+
+- Seiten 682 und 683 komplett gespeichert, Downloadbestand 1170 PDFs.
+- Seiten 684 und 685 komplett gespeichert, Downloadbestand 1190 PDFs.
+- Belastbar abgeschlossen: Seite 685 komplett.
+- Weiterer Startpunkt: Seite 686. Gleiche langsame 2-Seiten-Blocklogik beibehalten.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 689
+
+- Seiten 686 und 687 komplett gespeichert, Downloadbestand 1210 PDFs.
+- Seiten 688 und 689 komplett gespeichert, Downloadbestand 1230 PDFs.
+- Belastbar abgeschlossen: Seite 689 komplett.
+- Weiterer Startpunkt: Seite 690.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 693
+
+- Seiten 690 und 691 komplett gespeichert, Downloadbestand 1250 PDFs.
+- Seiten 692 und 693 komplett gespeichert, Downloadbestand 1270 PDFs.
+- Belastbar abgeschlossen: Seite 693 komplett.
+- Weiterer Startpunkt: Seite 694.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 697
+
+- Seiten 694 und 695 komplett gespeichert, Downloadbestand 1290 PDFs.
+- Seiten 696 und 697 komplett gespeichert, Downloadbestand 1310 PDFs.
+- Belastbar abgeschlossen: Seite 697 komplett.
+- Weiterer Startpunkt: Seite 698.
+
+## Update 2026-07-02: Fortsetzung bis Seite 701, eine Storno-Ausnahme
+
+- Seiten 698 und 699 komplett gespeichert, Downloadbestand 1330 PDFs.
+- Seiten 700 und 701 bearbeitet; Seite 701 komplett gespeichert.
+- Auf Seite 700 wurde `5-19092-70174169` nicht gespeichert, weil in der Detailzeile kein Rechnungsduplikat/PDF vorhanden ist. Detailpruefung: Rechnungsbetrag 105,00 EUR, davon storniert 105,00 EUR, erledigt am 08.01.2026. Als Storno-Ausnahme markieren, nicht als fehlenden Download behandeln.
+- Downloadbestand nach Seite 701: 1349 PDFs.
+- Belastbar abgeschlossen: Seite 701 komplett, mit Ausnahme `5-19092-70174169`.
+- Weiterer Startpunkt: Seite 702.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 705
+
+- Seiten 702 und 703 komplett gespeichert, Downloadbestand 1369 PDFs.
+- Seiten 704 und 705 komplett gespeichert, Downloadbestand 1389 PDFs.
+- Belastbar abgeschlossen: Seite 705 komplett.
+- Weiterer Startpunkt: Seite 706.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 707
+
+- Seiten 706 und 707 komplett gespeichert. Bei Seite 707 trat kurz wieder `current: 1` in der Rueckmeldung auf; danach wurden Seiten 706 und 707 explizit nachgeprueft.
+- Beide Seiten haben keine fehlenden Dateien.
+- Belastbar abgeschlossen: Seite 707 komplett, Downloadbestand 1409 PDFs.
+- Weiterer Startpunkt: Seite 708.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 711
+
+- Seiten 708 und 709 komplett gespeichert; wegen kurzer `current: 1`-Rueckmeldung auf Seite 708 wurden beide Seiten explizit nachgeprueft. Downloadbestand 1429 PDFs.
+- Seiten 710 und 711 komplett gespeichert, Downloadbestand 1449 PDFs.
+- Belastbar abgeschlossen: Seite 711 komplett.
+- Weiterer Startpunkt: Seite 712.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 715
+
+- Seiten 712 und 713 komplett gespeichert, Downloadbestand 1469 PDFs.
+- Seiten 714 und 715 komplett gespeichert, Downloadbestand 1489 PDFs.
+- Belastbar abgeschlossen: Seite 715 komplett.
+- Weiterer Startpunkt: Seite 716.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 719
+
+- Seiten 716 und 717 komplett gespeichert, Downloadbestand 1509 PDFs.
+- Seiten 718 und 719 komplett gespeichert, Downloadbestand 1529 PDFs.
+- Belastbar abgeschlossen: Seite 719 komplett.
+- Weiterer Startpunkt: Seite 720.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 721
+
+- Seiten 720 und 721 komplett gespeichert, Downloadbestand 1549 PDFs.
+- Belastbar abgeschlossen: Seite 721 komplett.
+- Weiterer Startpunkt: Seite 722.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 723
+
+- Seiten 722 und 723 komplett gespeichert. Wegen `current: 1`-Rueckmeldungen wurden beide Seiten danach explizit nachgeprueft.
+- Beide Seiten haben keine fehlenden Dateien.
+- Belastbar abgeschlossen: Seite 723 komplett, Downloadbestand 1569 PDFs.
+- Weiterer Startpunkt: Seite 724.
+
+## Update 2026-07-02: Fortsetzung bis Seite 725, zweite Storno-Ausnahme
+
+- Seite 724 komplett gespeichert.
+- Seite 725 bearbeitet; `5-19092-69963323` wurde nicht gespeichert, weil kein Rechnungsduplikat/PDF vorhanden ist. Detailpruefung: Rechnungsbetrag 1.917,53 EUR, davon storniert 1.917,53 EUR, erledigt am 29.12.2025. Als Storno-Ausnahme markieren, nicht als fehlenden Download behandeln.
+- Downloadbestand nach Seite 725: 1588 PDFs.
+- Belastbar abgeschlossen: Seite 725 komplett, mit Ausnahme `5-19092-69963323`.
+- Weiterer Startpunkt: Seite 726.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 749
+
+- Seiten 726 und 727 komplett gespeichert, Downloadbestand 1608 PDFs.
+- Seiten 728 und 729 nach Kontextwechsel explizit nachgeprueft: keine fehlenden Dateien, Downloadbestand 1628 PDFs. Zeitraum `seitBeginn`, Sortierung Re-Datum `descending`.
+- Seiten 730 bis 739 komplett gespeichert und jeweils nachgeprueft, Downloadbestand 1728 PDFs.
+- Seiten 740 bis 749 komplett gespeichert und jeweils nachgeprueft, Downloadbestand 1828 PDFs.
+- Bekannte `current: 1`-Rueckmeldungen traten weiterhin vereinzelt nach PDF-Speicherung auf; die direkte Nachpruefung der jeweiligen Seiten war sauber.
+- Aktuelles Datum auf Seite 749: 16.12.2025.
+- Belastbar abgeschlossen: Seite 749 komplett.
+- Weiterer Startpunkt: Seite 750.
+
+## Update 2026-07-02: Fortsetzung stabil bis Seite 787
+
+- Nach Wiederaufnahme wurde Chrome/BFS zuerst neu verifiziert: Zeitraum `seitBeginn`, Sortierung `Re-Datum` absteigend. Die Seitennavigation sprang optisch zwischen oben/unten unter der Tabelle; deshalb muss beim Seitensprung jeder sichtbare Seitenbutton dynamisch neu gesucht werden. Keine festen Koordinaten fuer Seitenzahlen verwenden.
+- Seiten 750 bis 753 wurden komplett gespeichert/verifiziert.
+- Seite 754 hatte eine neue Storno-Ausnahme: `5-19092-69698261`, Rechnungsnummer `2/14425/1`, Betrag 90,34 EUR, davon storniert 90,34 EUR, erledigt am 16.12.2025. Kein Rechnungsduplikat/PDF vorhanden; nicht als fehlenden Download behandeln.
+- Seiten 755 bis 758 komplett gespeichert/verifiziert. Auf Seite 756 wurde `5-19260-69775094` nach zunaechst fehlender Datei erfolgreich nachgeladen.
+- Seite 759 komplett bis auf Storno-Ausnahme `5-18504-69694019`: Betrag 1.090,99 EUR, davon storniert 1.090,99 EUR, erledigt am 16.12.2025. Kein Rechnungsduplikat/PDF vorhanden; nicht als fehlenden Download behandeln. `5-18790-69685488` wurde nachtraeglich erfolgreich gespeichert.
+- Seiten 760 bis 784 komplett gespeichert/verifiziert.
+- Seite 785: 9 von 10 Dateien gespeichert. Offen bleibt `5-19260-69526279` (05.12.2025, Patient Seeger, Alisa, Betrag 45,36 EUR, davon storniert 45,36 EUR, erledigt am 27.03.2026). In der Detailzeile ist ein `rePDF`/PDF-Icon sichtbar, aber der kontrollierte Speicherversuch lieferte keinen PDF-Dialog bzw. danach kein eindeutig passendes Icon. Beim naechsten Lauf zuerst diese Nummer erneut pruefen; falls wieder kein Speichern moeglich ist, als Storno-/PDF-Ausnahme dokumentieren.
+- Seiten 786 und 787 komplett gespeichert/verifiziert.
+- Nach ca. 100+ neuen Dateien wurde der Downloadordner geprueft; neueste Dateien hatten plausible Dateigroessen und aktuelle Zeitstempel.
+- Downloadbestand bei Stopp: 2203 `Rechnung_5-*.pdf`.
+- Aktueller BFS-Stand bei Stopp: Seite 787, Re-Datum 04.12.2025, Zeitraum `seitBeginn`, Sortierung absteigend.
+- Belastbar abgeschlossen: Seite 787 komplett, mit offener Einzelpruefung `5-19260-69526279` auf Seite 785.
+- Weiterer Startpunkt: Seite 788. Beim Fortsetzen zuerst aktive Seite/Filter/Sortierung pruefen, dann `5-19260-69526279` gezielt nachpruefen oder als Ausnahme markieren, danach ab Seite 788 weiterarbeiten.
+
+## Update 2026-07-02: Hauptbereich Abrechnungsqualitaet gestartet
+
+- Neuer dritter Hauptbereich `Abrechnungsqualitaet` in der App-Navigation fuer Super Admin, Standortleitung und Abrechnungsmanagement.
+- Start-Unterbereiche:
+  - `Qualitaetscockpit`
+  - `Leistungsketten`
+  - `Praxis-Feedback`
+- Die erste Logik nutzt bestehende `ParsedInvoiceDocument`-/Leistungszeilen aus der BFS-Rechnungsanalyse und laedt daher denselben Rechnungsdatenbestand.
+- Muster-Engine:
+  - filtert nur analysefaehige Rechnungen/Leistungszeilen (`invoiceReadyForAnalysis`, `invoiceLineReadyForAnalysis`, Katalog-Normalisierung);
+  - bildet je Rechnung eindeutige Leistungsnummern;
+  - zaehlt datengetriebene Wenn-dann-Kombinationen `Wenn Leistung A, dann kommt Leistung B haeufig mit`;
+  - vergleicht Gruppenquote gegen Praxisquote je Standort;
+  - erzeugt Pruefhinweise, wenn Gruppenquote hoch ist, die Praxisquote deutlich niedriger ist und genuegend Fallbasis vorhanden ist;
+  - schaetzt Potenzial aus erwarteter Luecke mal durchschnittlichem Betrag der moeglichen Begleitleistung.
+- UI:
+  - Filter fuer Zeitraum, Standort, Falltyp, Suche, Mindest-Gruppenquote, Mindestfallzahl und Mindestpotenzial;
+  - zusaetzlicher Statusfilter `Offen`, `Relevant`, `Fachlich unbegruendet`, `Spaeter pruefen`;
+  - KPI-Kacheln fuer Pruefhinweise, geschaetztes Potenzial, staerkste Leistungskette, hoechste Abweichung, Falltypen und Workflow;
+  - Tabelle mit Standort, Falltyp, Hauptleistung, moeglicher Begleitleistung, Gruppenquote, Praxisquote, Luecke, Potenzial und Hinweistext;
+  - Management/Abrechnung kann jeden Hinweis browserseitig als `relevant`, `fachlich unbegruendet` oder `spaeter pruefen` markieren; diese Entscheidung bleibt lokal erhalten;
+  - Vorperiodenvergleich zeigt je Hinweis, ob sich die Praxisquote gegenueber dem vergleichbaren Vorzeitraum verbessert, verschlechtert oder stabil geblieben ist;
+  - in `Leistungsketten` und `Praxis-Feedback` zusaetzliche Rechnungsbeispiele mit Rechnung, Datum, Patient, Betrag und bereits abgerechneten Leistungsnummern;
+  - PDF-Export und CSV-Export fuer Praxisgespraeche.
+- Wichtige fachliche Einordnung: Hinweise sind Pruefansaetze und duerfen nicht als automatisch falsche Abrechnung formuliert werden. Textlogik bleibt bewusst bei `fachlich pruefen`.
+- Echter Supabase-Analysecheck am 02.07.2026:
+  - Datenbasis: 11.614 Einzelrechnungen, 63.315 Positionszeilen, 39.245 Service-Zeilen, 5 Standorte.
+  - 2026-Standortbasis: Kirchberg 3.139 Rechnungen / 9.221 Service-Zeilen; Kehl 2.776 / 10.376; Ulmet 2.545 / 7.415; Huettenberg 1.691 / 5.966; Essen 1.463 / 6.267.
+  - Erste datengetriebene Top-Hinweise bei Schwelle ca. Gruppenquote >=70 %, Mindestfaelle >=12, Praxisanker >=5: Huettenberg `4020 -> 1040` stark auffaellig; Ulmet Implantat-/Augmentationsketten `0530/9100 -> 9010`; Essen `4005/4000 -> 1040`; Kehl Funktionsanalyse `8000 -> 8050/8020/8010`; Kehl Endo `2400 -> 2420`, `2410 -> 2430`; Kirchberg mehrere ZE-/Adhaesiv-/Beratungsbegleiter.
+  - Diese Ergebnisse zeigen, dass der Workflow grundsaetzlich verwertbare Hinweise liefert, aber fachlich kuratiert werden muss: statistische Muster sind Pruefansatz, keine automatische GOZ-Regel.
+- Nach weiterer Klarstellung wurde der Praxis-Feedback-Workflow nachgeschaerft:
+  - `Praxis-Feedback` steht standardmaessig auf `Nur kuratierte Regeln`, damit Standortleitungen nicht rohe statistische Muster sehen.
+  - Erste interne Regelbasis hinterlegt fuer FAL (`8000 -> 8010/8020/8050`), Endo (`2400 -> 2420`, `2410 -> 2430`), ZE/Adhaesiv (`2200/2210/2270/2310/5010/5040 -> 2197`), ZE/FAL (`5040/5180 -> 8010/8020`) und Implantologie/Diagnostik (`0530/9100/Ä2382 -> 9010`, `9100 -> Ä5004`).
+  - Jede Regel hat Titel, fachlichen Hinweistext, Konfidenz (`hoch`/`mittel`) und Quellenlabel, z. B. `BZÄK GOZ-Kommentar Abschnitt J/C/F/K/L`.
+  - Datenmuster bleiben optional sichtbar ueber Filter `Regeln + Datenmuster`, aber nicht als Standard-Praxisbericht.
+- Geprueft nach Aenderung:
+  - `pnpm run typecheck` gruen
+  - `pnpm run lint` gruen
+  - `pnpm test` gruen, 15 Tests bestanden
+  - `pnpm run build` gruen
+  - Vercel Production Deploy am 02.07.2026 ca. 18:17 Uhr erfolgreich: Deployment `dpl_EcNZr6QB3YaPyawyXX74qavQZ86y`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+  - Zweiter Vercel Production Deploy mit kuratierter Regelbasis am 02.07.2026 ca. 18:28 Uhr erfolgreich: Deployment `dpl_AXAChKn4RC1HPjWwdquC4LTRnw8f`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Potenzialanalyse Top 20
+
+- In der BFS-Rechnungsanalyse zeigt die Kachel `Potenzialanalyse > Top-Hebel` jetzt explizit die `Top 20 Leistungen mit groesstem Mehrumsatz`.
+- Die Auswahl basiert auf der bereits nach Euro-Potenzial sortierten Potenzialliste fuer den gewaehlten Standort und Zeitraum.
+- CSV-Export und PDF-Druck der Top-Hebel-Tabelle verwenden dieselbe Top-20-Auswahl; die KPI-Kacheln oben bleiben weiterhin auf der vollstaendigen Potenzialbasis.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 18:35 Uhr erfolgreich: Deployment `dpl_61z4NXc2tM6CV8hbcVE5YyykjbPG`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Abrechnungsqualitaet mobile Hinweise
+
+- Die Tabelle `Abrechnungsqualitaet > Pruefhinweise/Praxis-Feedback` bleibt auf Desktop tabellarisch.
+- Auf mobilen Ansichten wird dieselbe Datenbasis jetzt als Kartenliste gezeigt, damit Standort, Leistungskette, Gruppe/Praxis-Quote, Luecke, Potenzial, Basis, Hinweistext und Statusaktionen ohne horizontales Abschneiden lesbar sind.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 18:39 Uhr erfolgreich: Deployment `dpl_2ehVUfJW9GNp24o5c6Zgm2RXnnu2`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Abrechnungsqualitaet als Informationsliste
+
+- Die Abrechnungsqualitaet-Hinweise sind keine Abhak-/Bearbeitungsliste mehr. Statusfilter, Status-Spalte und Aktionen `relevant`, `unbegruendet`, `spaeter` wurden aus der sichtbaren Hinweis-/Kartenliste entfernt.
+- UI-Text und CSV sprechen nun von `Einordnung`: Die Praxis soll fachlich beurteilen, ob ein Hinweis relevant und im konkreten Behandlungsfall anwendbar ist.
+- Direkt an der Hinweis-/Leistungskettenliste gibt es nun zusaetzlich sichtbare Exportaktionen fuer `Tabelle`/CSV und `PDF`. CSV exportiert alle aktuell gefilterten Hinweise, nicht nur die sichtbaren gekuerzten Reportzeilen.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 18:46 Uhr erfolgreich: Deployment `dpl_26VHXdgUJcwGD7zbFeUGUC6RgAyp`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Praxis-Feedback Exporttext
+
+- Praxis-Feedback nutzt nun ebenfalls die reine Informationslogik: Der Listenabschnitt heisst im Feedback-Kontext `Praxis-Feedback`, nicht mehr allgemein `Pruefhinweise`.
+- Die mobile Kartenansicht fuer Abrechnungsqualitaet ist jetzt bereits ab schmalen Layouts aktiv, nicht erst im kleinsten Mobile-Breakpoint. Damit werden Status-/Tabellenreste auf Smartphone/kleinen Tablets vermieden.
+- Alle Abrechnungsqualitaet-Reports (`Qualitaetscockpit`, `Leistungsketten`, `Praxis-Feedback`) enthalten im exportierten Bereich einen Report-Vorspann `Wie dieser Report zu lesen ist`.
+- Der Vorspann erklaert in 4 Zeilen: Ableitung aus Einzelrechnungen und anonymisierter Standortgruppe, haeufige Begleitleistungen in vergleichbaren Leistungsketten, keine automatische Fehlerbewertung, fachliche Pruefung auf Relevanz/Anwendbarkeit vor Ort.
+- CSV-Exporte der Abrechnungsqualitaet enthalten denselben Vorspann vor der Datentabelle.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 18:51 Uhr erfolgreich: Deployment `dpl_8NGiRQbfG5KQW13vvZD4fFAqUgS7`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Abrechnungsqualitaet konsequent nicht als Abhakliste
+
+- Der gesamte Reiter `Abrechnungsqualitaet` wurde sprachlich weiter von einer Bearbeitungs-/Abhakliste weggefuehrt.
+- Regel- und UI-Texte sprechen jetzt von `Einordnung`, `Katalog-/Plausibilitaetsinfos`, `Informationsgrundlage` und `Orientierungswert`, nicht von `pruefen`, `Workflow`, `Pruefhinweis` oder gesichertem Potenzial.
+- Die fachliche Herleitung wird klarer benannt: gesetzliche Vorgaben, GOZ/BEMA-/GOÄ-Katalog, BZÄK-Kommentar-/Kataloglogik, Dokumentation, Behandlungsablauf und anonymisierter Gruppenvergleich.
+- Die hinterlegten Regeln bleiben bewusst Hinweise zur fachlichen Einordnung; sie erzeugen keine automatische Fehlerbewertung und keinen Nachberechnungsauftrag.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 18:55 Uhr erfolgreich: Deployment `dpl_7fuH77cPwSr2qYrLRvz6dtMsZYXX`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Sofortmassnahmen
+
+- Ziel: App soll schneller sichtbar und weniger hakelig werden, ohne fachliche Logik oder Berechnungsergebnisse zu veraendern.
+- Initiale Importdaten aus dem Browser-Speicher werden beim Start nur noch einmal synchron gelesen und innerhalb des Modulstarts gecacht. Vorher konnten dieselben Daten beim Initialisieren mehrfach geparst werden.
+- Manuelle Klaerungen und Saldo-/Statusdaten blockieren den generellen App-Start nicht mehr. Sie laden weiter im Hintergrund; Ansichten, die diese Daten zwingend brauchen (`Antworten`, `Pruefliste`), warten weiterhin darauf.
+- Die grosse operative Fallliste (`buildUnifiedOperationalReviewCases`) wird in der Root-Komponente nur noch fuer operative Ansichten gebaut, die sie wirklich verwenden (`answers`, `cases`, `practiceFollowup`). Dashboard- und Rechnungsanalyse-Start werden dadurch entlastet.
+- Grosse Hintergrund-State-Updates fuer Importdaten, Saldo-/Statusdaten, manuelle Klaerungen und Einzelrechnungen laufen als React `startTransition`, damit die UI beim Nachladen weniger blockiert.
+- Keine Aenderung an Fachlogik, Katalog-/Abrechnungsregeln, Matching, Importformaten oder gespeicherten Daten.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 19:01 Uhr erfolgreich: Deployment `dpl_4253Y32VSegH3fFWqnkchrJWShQJ`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Runde 2
+
+- Abrechnungsqualitaet wurde rechnerisch optimiert, ohne Auswertungslogik zu veraendern:
+  - Rechnungsprofile fuer Abrechnungsqualitaet werden per `WeakMap` gecacht. Dieselbe Rechnung muss bei Zeitraum-/Vorperioden-/Filterberechnung nicht mehrfach normalisiert werden.
+  - Die Gruppenstatistik zaehlt `anchorCount` jetzt direkt per Map, statt fuer jedes Leistungspaar erneut durch alle Anchor-Schluessel zu filtern.
+- Operative Ableitungen aus Importdaten werden per `WeakMap` fuer dieselbe Importdaten-Array-Referenz gecacht:
+  - `casesFromImportRows`
+  - `resubmissionCandidatesFromImportRows`
+- Diese Caches greifen nur bei unveraenderten In-Memory-Datenarrays. Bei neu geladenen/importierten Daten entsteht ein neues Array und die Ableitungen werden neu berechnet.
+- Keine Aenderung an Fachlogik, Matching, Katalogregeln, Importformaten oder gespeicherten Daten.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 19:08 Uhr erfolgreich: Deployment `dpl_D5MuR8JG6iEoocCZJdbaVGgTEnpn`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Runde 3
+
+- Die grossen Monitor-App-Einstiegspunkte laden `components/monitor-app.tsx` jetzt ueber `components/monitor-app-loader.tsx` dynamisch nach.
+- Alle App-Routen (`/dashboard`, `/reports`, `/standorte`, `/importe`, `/nutzer` sowie die Standortleitungs-Routen) verwenden nun den schlanken Loader statt den direkten Import der grossen Monitor-Komponente.
+- Fuer den Zwischenzustand wurde `components/monitor-loading.tsx` ergaenzt und in `app/globals.css` mit einem schlanken Ladebildschirm gestylt.
+- Ziel: schnellere erste Seitenreaktion und weniger Arbeit im initialen Route-Bundle. Die bestehende Monitor-App, ihre Props, Berechnungslogik, Fachregeln, Matching-Logik, Importformate und gespeicherten Daten wurden nicht veraendert.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 19:15 Uhr erfolgreich: Deployment `dpl_FkvhLp6eu8EWJewLFHnsgcUoZUoM`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Runde 4
+
+- App-Start priorisiert jetzt vorhandene Browserdaten: Wenn IndexedDB-Importdaten lokal vorhanden sind, wird die App damit sofort sichtbar gemacht, auch wenn parallel ein Serverabgleich laeuft.
+- Reine Ableitungen wurden per `WeakMap` gecacht, ohne Formeln oder fachliche Regeln zu veraendern:
+  - `summarizeImportRows`
+  - `rowsForSparklinePeriod`
+  - `buildDeductionRecovery`
+  - `buildUnifiedOperationalReviewCases`
+  - `buildAnonymousPeerAverage`
+- Standort-Dashboard verwendet fuer den eigenen Standort eine stabile Standortliste, damit die Caches nicht durch neu erzeugte Array-Referenzen verfehlt werden.
+- Die Caches greifen nur fuer identische In-Memory-Datenreferenzen. Bei neuem Import, Server-Sync, geaenderten manuellen Klaerungen oder neuen Saldo-/Statusdaten entstehen neue Arrays und die Berechnungen laufen neu.
+- Keine Aenderung an Fachlogik, Diagrammdefinitionen, Katalog-/Abrechnungsregeln, Matching, Importformaten oder gespeicherten Daten.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
+- Lokaler Production-Server gestartet; Auth-geschuetzte Routen `/dashboard`, `/standort/dashboard`, `/reports` antworten erwartungsgemaess mit Redirect `307`.
+- Vercel Production Deploy am 02.07.2026 ca. 19:55 Uhr erfolgreich: Deployment `dpl_EcAPoav4yYsPRuAPXKQdpUXFTz5y`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.

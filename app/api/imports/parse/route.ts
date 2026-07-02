@@ -33,6 +33,10 @@ export async function GET() {
       return NextResponse.json({ rows: [] }, { headers: noStoreHeaders() });
     }
 
+    if (auth.profile.role === "super_admin") {
+      await cleanupImportedDocumentStorage(supabase, auth.profile.id).catch(() => undefined);
+    }
+
     const documents = await fetchImportedDocuments(supabase, auth.profile.role === "super_admin" ? undefined : readableIds);
     const rows = documents
       .map((entry: { extracted_json: unknown }) => entry.extracted_json)
@@ -285,7 +289,48 @@ async function persistImport(
     })
     .eq("id", batchId);
 
+  await cleanupImportedDocumentStorage(supabase, userId).catch(() => undefined);
+
   return { batchId, imported, duplicates, failed, errors };
+}
+
+async function cleanupImportedDocumentStorage(supabase: SupabaseDbClient, userId: string) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 14);
+  const cutoffIso = cutoff.toISOString();
+  const { data, error } = await supabase
+    .from("bfs_documents")
+    .select("id, storage_path")
+    .in("status", ["imported", "duplicate"])
+    .is("deleted_at", null)
+    .not("storage_path", "is", null)
+    .lt("created_at", cutoffIso)
+    .limit(500);
+  if (error) throw error;
+
+  const rows = (data ?? [])
+    .map((row: { id?: string | null; storage_path?: string | null }) => ({
+      id: row.id,
+      storagePath: row.storage_path
+    }))
+    .filter((row): row is { id: string; storagePath: string } => Boolean(row.id && row.storagePath));
+  if (!rows.length) return;
+
+  for (const chunk of chunkArray(rows, 100)) {
+    const storagePaths = chunk.map((row) => row.storagePath);
+    const { error: removeError } = await supabase.storage.from("bfs-documents").remove(storagePaths);
+    if (removeError) throw removeError;
+    await throwIfSupabaseError(
+      supabase
+        .from("bfs_documents")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: userId,
+          deletion_reason: "Automatische PDF-Aufbewahrung: Originaldatei nach 14 Tagen gelöscht. Strukturierte Importwerte bleiben erhalten."
+        })
+        .in("id", chunk.map((row) => row.id))
+    );
+  }
 }
 
 async function findExistingDocumentId(

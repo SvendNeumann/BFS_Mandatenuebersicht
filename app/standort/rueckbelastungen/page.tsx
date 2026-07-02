@@ -1,5 +1,5 @@
-import MonitorApp from "@/components/monitor-app";
+import { MonitorAppLoader } from "@/components/monitor-app-loader";
 
 export default function StandortChargebacksPage() {
-  return <MonitorApp lockedRole="standortleitung" initialView="chargebacks" />;
+  return <MonitorAppLoader lockedRole="standortleitung" initialView="chargebacks" />;
 }

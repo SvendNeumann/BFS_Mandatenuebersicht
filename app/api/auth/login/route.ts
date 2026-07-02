@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     .eq("id", data.user.id)
     .maybeSingle();
 
-  if (profileError || !profile?.active || (profile.role !== "super_admin" && profile.role !== "standortleitung")) {
+  if (profileError || !profile?.active || !isAllowedRole(profile.role)) {
     return NextResponse.json({ error: "Dieser Nutzer ist für den BFS Monitor nicht freigegeben." }, { status: 403 });
   }
 
@@ -95,4 +95,8 @@ function sessionCookieOptions(maxAge: number) {
     path: "/",
     maxAge
   };
+}
+
+function isAllowedRole(role: string) {
+  return role === "super_admin" || role === "standortleitung" || role === "abrechnungsmanagement";
 }

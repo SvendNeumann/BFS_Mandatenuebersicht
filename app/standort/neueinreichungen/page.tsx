@@ -1,5 +1,5 @@
-import MonitorApp from "@/components/monitor-app";
+import { MonitorAppLoader } from "@/components/monitor-app-loader";
 
 export default function StandortMatchesPage() {
-  return <MonitorApp lockedRole="standortleitung" initialView="matches" />;
+  return <MonitorAppLoader lockedRole="standortleitung" initialView="matches" />;
 }

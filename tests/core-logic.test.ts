@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildPaidResolutionKeySet, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
+import { buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
 import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
-import { parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
+import { parseInvoiceText, parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
 import { parseInvoiceStatusText } from "../lib/invoice-status-parser.ts";
 import type { ImportPreviewRow } from "../lib/types.ts";
 
@@ -78,6 +78,38 @@ test("Bezahlte Klärfälle bleiben bei Re-Upload trotz Grundtext-Abweichung erle
   assert.equal(caseResolutionKeys(uploadedAgain).some((key) => paidKeys.has(key)), true);
 });
 
+test("Erledigte Prüflistenfälle schließen auch bei geändertem Betrag oder Grund", () => {
+  const closedResolution = {
+    caseKey: caseResolutionKeyFromParts({
+      standortId: "ulmet",
+      patientName: "Schäfer, Helene",
+      invoiceNo: "673-022512",
+      bfsNo: "5-19260-67367636",
+      amount: 2043.64,
+      reason: "lt. iPortal-Rechnungsliste"
+    }),
+    standortId: "ulmet",
+    patientName: "Schäfer, Helene",
+    invoiceNo: "673 022512",
+    bfsNo: "5 19260 67367636",
+    amount: 2043.64,
+    reason: "lt. iPortal-Rechnungsliste",
+    status: "paid_manual"
+  };
+  const rebuiltCase = {
+    standortId: "ulmet",
+    patientName: "Schäfer, Helene",
+    invoiceNo: "673-022512",
+    bfsNo: "5-19260-67367636",
+    amount: 1900,
+    reason: "BFS offen prüfen: anderer Saldo"
+  };
+  const closedKeys = buildClosedResolutionKeySet([closedResolution]);
+  const rebuiltKeys = [...caseResolutionKeys(rebuiltCase), ...caseResolutionIdentityKeys(rebuiltCase)];
+
+  assert.equal(rebuiltKeys.some((key) => closedKeys.has(key)), true);
+});
+
 test("Rechnungsstatus-Parser trennt Mahnstufe und Ratenplan-Monate", () => {
   const document = parseInvoiceStatusText(
     [
@@ -116,6 +148,203 @@ test("BFS-Parser erkennt Rückgabe laut RA-Liste als relevante Rückgabe", () =>
   assert.equal(document.movements.length, 1);
   assert.equal(document.movements[0].type, "sonstige_rueckbelastung");
   assert.equal(document.movements[0].reasonCategory, "ra_liste");
+});
+
+test("BFS-Rechnungsparser rekonstruiert mehrzeilige Faktorpositionen", () => {
+  const row = parseInvoiceText([
+    "Orisus Zahnmedizin MVZ GmbH",
+    "Zahnmedizin Westpfalz MVZ",
+    "Feldstraße 40",
+    "66887 Ulmet",
+    "BFS-Nr. 5-19260-66450000",
+    "Behandelte Person: Edgar Krein",
+    "Rechnung",
+    "Rechnungsnummer: 131-021989 Rechnungsdatum: 08.07.2025",
+    "Rechnungsbetrag:",
+    "264,12",
+    "Datum",
+    "Region",
+    "Nr.",
+    "Leistungsbeschreibung/Auslagen",
+    "Bgr.",
+    "Faktor",
+    "Anz.",
+    "EUR",
+    "01.07.25 26",
+    "2400",
+    "Elektrometrische Längenbestimmung eines",
+    "1)",
+    "11,180",
+    "3",
+    "132,06",
+    "Wurzelkanals",
+    "26",
+    "2420",
+    "Zusätzliche Anwendung elektrophysikalisch-chemischer",
+    "2)",
+    "11,180",
+    "3",
+    "132,06",
+    "Methoden",
+    "Zwischensumme Honorar:",
+    "264,12"
+  ].join("\n"), { file: "Rechnung_5-19260-66450000.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.status, "OK");
+  assert.equal(row.serviceLines.length, 2);
+  assert.equal(row.serviceLines[0].code, "2400");
+  assert.equal(row.serviceLines[0].description, "Elektrometrische Längenbestimmung eines Wurzelkanals");
+  assert.equal(row.serviceLines[0].factor, 11.18);
+  assert.equal(row.serviceLines[0].quantity, 3);
+  assert.equal(row.serviceLines[0].amount, 132.06);
+  assert.equal(row.serviceLines[1].code, "2420");
+});
+
+test("BFS-Rechnungsparser rekonstruiert mehrzeilige Auslagenpositionen", () => {
+  const row = parseInvoiceText([
+    "Orisus Zahnmedizin MVZ GmbH",
+    "Zahnmedizin Westpfalz MVZ",
+    "Feldstraße 40",
+    "66887 Ulmet",
+    "BFS-Nr. 5-19260-66994529",
+    "Behandelte Person: Ramona Schäfer",
+    "Rechnung",
+    "Rechnungsnummer: 322-022160 Rechnungsdatum: 22.07.2025",
+    "Rechnungsbetrag:",
+    "10,00",
+    "Datum",
+    "Region",
+    "Nr.",
+    "Leistungsbeschreibung/Auslagen",
+    "Bgr.",
+    "Faktor",
+    "Anz.",
+    "EUR",
+    "11.07.25 24-26",
+    "gela",
+    "Gelastypt",
+    "1,000",
+    "4",
+    "10,00",
+    "Kosten für Auslagen nach §3, §4 GOZ und §10 GOÄ:",
+    "10,00"
+  ].join("\n"), { file: "Rechnung_5-19260-66994529.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.status, "OK");
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "gela");
+  assert.equal(row.serviceLines[0].description, "Gelastypt");
+  assert.equal(row.serviceLines[0].category, "auslage");
+  assert.equal(row.serviceLines[0].factor, 1);
+  assert.equal(row.serviceLines[0].quantity, 4);
+  assert.equal(row.serviceLines[0].amount, 10);
+});
+
+test("BFS-Rechnungsparser nimmt Beträge ohne Faktor nicht als Leistungsfaktor", () => {
+  const row = parseInvoiceText([
+    "Orisus Zahnmedizin MVZ GmbH",
+    "Praxis Krause",
+    "BFS-Nr. 5-18790-12345678",
+    "Behandelte Person: Max Test",
+    "Rechnung",
+    "Rechnungsnummer: 100-200 Rechnungsdatum: 10.02.2026",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "10.02.26 11 1040 Professionelle Zahnreinigung 1 56,01",
+    "10.02.26 11 2080 Kompositfüllung in Adhäsivtechnik, zweiflächig 2,300 1 48,10",
+    "Zwischensumme Honorar:",
+    "104,11"
+  ].join("\n"), { file: "Rechnung_5-18790-12345678.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "2080");
+  assert.equal(row.serviceLines[0].factor, 2.3);
+  assert.equal(row.serviceLines[0].amount, 48.1);
+});
+
+test("BFS-Rechnungsparser ignoriert Bema-Sachleistungsabzüge und normalisiert Kassenleistungsfüllungen", () => {
+  const row = parseInvoiceText([
+    "Zahnarztpraxis Zorn de Bulach",
+    "BFS-Nr. 5-19092-66852712",
+    "Behandelte Person: Test Patient",
+    "Rechnung",
+    "Rechnungsnummer: 2/13819/3 Rechnungsdatum: 31.07.2025",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "31.07.25 15 15 abzgl. Bema-Sachleistung 1,000 1 -51,81",
+    "31.07.25 17 17 13C0 Füllung, dreiflächig (Kassenleistung zur Mehrkostenfüllung) 1,245 1 -49,20",
+    "31.07.25 24 24 13B0 Füllung, zweiflächig (Kassenleistung zur Mehrkostenfüllung) 1,245 1 -41,70",
+    "31.07.25 25 25 13A0 Füllung, einflächig (Kassenleistung zur Mehrkostenfüllung) 1,245 1 -32,00",
+    "31.07.25 27 27 13D0 Füllung, mehrflächig (Kassenleistung zur Mehrkostenfüllung) 1,245 1 -58,40",
+    "31.07.25 37 37 13D0 Füllung, mehrflächig (Kassenleistung zur Mehrkostenfüllung) 1,245 1 -58,40",
+    "31.07.25 15 1040 Professionelle Zahnreinigung 1 2,300 1 120,00",
+    "Zwischensumme Honorar:",
+    "68,19"
+  ].join("\n"), { file: "Rechnung_5-19092-66852712.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 6);
+  assert.deepEqual(row.serviceLines.map((line) => line.code), ["13C0", "13B0", "13A0", "13D0", "13D0", "1040"]);
+  assert.deepEqual(row.serviceLines.slice(0, 5).map((line) => line.description), [
+    "Füllung, dreiflächig (Kassenleistung zur Mehrkostenfüllung)",
+    "Füllung, zweiflächig (Kassenleistung zur Mehrkostenfüllung)",
+    "Füllung, einflächig (Kassenleistung zur Mehrkostenfüllung)",
+    "Füllung, mehrflächig (Kassenleistung zur Mehrkostenfüllung)",
+    "Füllung, mehrflächig (Kassenleistung zur Mehrkostenfüllung)"
+  ]);
+  assert.equal(row.serviceLines[5].description, "Professionelle Zahnreinigung 1");
+});
+
+test("BFS-Rechnungsparser normalisiert GOÄ-Codes mit führenden Nullen", () => {
+  const row = parseInvoiceText([
+    "Dres. Kallweit MVZ",
+    "BFS-Nr. 5-18504-66850000",
+    "Behandelte Person: Test Patient",
+    "Rechnung",
+    "Rechnungsnummer: 131-022000 Rechnungsdatum: 31.07.2025",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "31.07.25 11 Ä0001 Beratung - auch mittels Fernsprecher - 2,300 1 10,72",
+    "31.07.25 11 0010 Untersuchung zur Feststellung von Erkrankungen 2,300 1 14,75",
+    "Zwischensumme Honorar:",
+    "25,47"
+  ].join("\n"), { file: "Rechnung_5-18504-66850000.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 2);
+  assert.equal(row.serviceLines[0].code, "Ä1");
+  assert.equal(row.serviceLines[1].code, "0010");
+});
+
+test("BFS-Rechnungsparser interpretiert Fließtext nicht als Gebührennummer", () => {
+  const row = parseInvoiceText([
+    "Orisus Zahnmedizin MVZ GmbH",
+    "Zahnarztpraxis Zorn de Bulach",
+    "BFS-Nr. 5-19092-12345678",
+    "Behandelte Person: Erika Test",
+    "Rechnung",
+    "Rechnungsnummer: 300-400 Rechnungsdatum: 10.02.2026",
+    "Datum",
+    "Region",
+    "Nr.",
+    "Leistungsbeschreibung/Auslagen",
+    "Bgr.",
+    "Faktor",
+    "Anz.",
+    "EUR",
+    "10.02.26 11",
+    "Höhe",
+    "von",
+    "53,81",
+    "1",
+    "53,81",
+    "10.02.26 11",
+    "2080",
+    "Kompositfüllung in Adhäsivtechnik, zweiflächig",
+    "2,300",
+    "1",
+    "48,10",
+    "Zwischensumme Honorar:",
+    "101,91"
+  ].join("\n"), { file: "Rechnung_5-19092-12345678.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "2080");
 });
 
 test("Praxissoftware-OCR-Text liest Rechnungsbetrag und Leistungsposition", () => {

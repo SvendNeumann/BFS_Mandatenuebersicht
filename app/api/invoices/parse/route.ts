@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { parseInvoicePdfBytes, parsePracticeSoftwareInvoicePdfBytes } from "@/lib/invoice-parser";
-import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
+import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ParsedInvoiceDocument, ParsedInvoiceLine } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -41,11 +41,11 @@ export async function GET() {
     if (!supabase) return NextResponse.json({ error: "Supabase Service-Client ist nicht konfiguriert." }, { status: 500 });
 
     const readableIds = await readableStandortIds(supabase, auth.profile.id, auth.profile.role);
-    if (auth.profile.role !== "super_admin" && !readableIds.size) {
+    if (!canReadInvoiceAnalysis(auth.profile.role) && !readableIds.size) {
       return NextResponse.json({ rows: [] }, { headers: noStoreHeaders() });
     }
 
-    const rows = await fetchPersistedInvoiceRows(supabase, auth.profile.role === "super_admin" ? undefined : readableIds);
+    const rows = await fetchPersistedInvoiceRows(supabase, canReadInvoiceAnalysis(auth.profile.role) ? undefined : readableIds);
     return NextResponse.json({ rows }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -56,7 +56,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireInvoiceAnalysisAccess();
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const formData = await request.formData();
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireInvoiceAnalysisAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireInvoiceAnalysisAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -357,20 +357,51 @@ async function fetchPersistedInvoiceRows(supabase: SupabaseDbClient, allowedStan
   const maps = await fetchStandortMaps(supabase);
   const allInvoices: Array<Record<string, unknown>> = [];
   const standortChunks = allowedStandortIds ? chunkArray([...allowedStandortIds], 100) : [undefined];
+  const invoiceSelect = [
+    "id",
+    "standort_id",
+    "original_filename",
+    "file_hash",
+    "file_size_bytes",
+    "bfs_nr",
+    "mandant_nr",
+    "praxisname",
+    "rechnungsnummer",
+    "rechnungsdatum",
+    "patient_name",
+    "treated_person",
+    "birth_date",
+    "treatment_period",
+    "integration_date",
+    "total_amount",
+    "open_amount",
+    "subsidy_amount",
+    "honorar_bema",
+    "honorar_goz",
+    "eigenlabor_total",
+    "fremdlabor_net",
+    "fremdlabor_gross",
+    "material_auslagen",
+    "has_eigenlabor",
+    "has_fremdlabor",
+    "lab_providers",
+    "parse_status",
+    "parse_notes"
+  ].join(", ");
 
   for (const standortChunk of standortChunks) {
     let offset = 0;
     while (true) {
       let query = supabase
         .from("bfs_patient_invoices")
-        .select("*")
+        .select(invoiceSelect)
         .order("rechnungsdatum", { ascending: true })
         .order("created_at", { ascending: true })
         .range(offset, offset + 999);
       if (standortChunk) query = query.in("standort_id", standortChunk);
       const { data, error } = await query;
       if (error) throw new Error(error.message);
-      allInvoices.push(...(data ?? []));
+      allInvoices.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
       if (!data || data.length < 1000) break;
       offset += 1000;
     }
@@ -386,7 +417,7 @@ async function fetchLinesByInvoiceId(supabase: SupabaseDbClient, invoiceIds: str
   for (const chunk of chunkArray(invoiceIds, 200)) {
     const { data, error } = await supabase
       .from("bfs_patient_invoice_lines")
-      .select("*")
+      .select("invoice_id, line_kind, sort_order, line_date, region, code, description, factor, quantity, amount, category, source_section")
       .in("invoice_id", chunk)
       .order("sort_order", { ascending: true });
     if (error) throw new Error(error.message);
@@ -399,32 +430,31 @@ async function fetchLinesByInvoiceId(supabase: SupabaseDbClient, invoiceIds: str
 }
 
 function invoiceRowFromDb(invoice: Record<string, unknown>, lines: Array<Record<string, unknown>>, maps: StandortMaps): ParsedInvoiceDocument {
-  const extracted = isParsedInvoiceDocument(invoice.extracted_json) ? invoice.extracted_json : undefined;
   const dbStandortId = String(invoice.standort_id ?? "");
   const appStandort = maps.appByDbId.get(dbStandortId);
   const serviceLines = lines.filter((line) => line.line_kind === "service").map(lineFromDb);
   const labLines = lines.filter((line) => line.line_kind === "lab").map(lineFromDb);
+  const bfsNo = stringValue(invoice.bfs_nr) || "-";
+  const isPracticeSoftwareInvoice = bfsNo.startsWith("PRACTICE-");
 
   return {
-    file: stringValue(invoice.original_filename) || extracted?.file || "-",
-    fileSizeBytes: numberValue(invoice.file_size_bytes) || extracted?.fileSizeBytes || 0,
-    fileHash: stringValue(invoice.file_hash) || extracted?.fileHash,
-    importSource: extracted?.importSource,
-    ocrStatus: extracted?.ocrStatus,
-    sourcePageStart: extracted?.sourcePageStart,
-    sourcePageEnd: extracted?.sourcePageEnd,
-    bfsNo: extracted?.importSource === "practice_software_pdf" ? extracted?.bfsNo ?? "-" : stringValue(invoice.bfs_nr) || extracted?.bfsNo || "-",
-    mandantNo: stringValue(invoice.mandant_nr) || extracted?.mandantNo || "-",
-    standortId: appStandort?.id ?? extracted?.standortId,
-    standortName: appStandort?.name ?? extracted?.standortName ?? "Unbekannt",
-    practiceName: stringValue(invoice.praxisname) || appStandort?.praxisname || extracted?.practiceName,
-    invoiceNo: stringValue(invoice.rechnungsnummer) || extracted?.invoiceNo || "-",
-    invoiceDate: formatIsoDateGerman(stringValue(invoice.rechnungsdatum)) || extracted?.invoiceDate || "-",
-    patientName: stringValue(invoice.patient_name) || extracted?.patientName || "-",
-    treatedPerson: stringValue(invoice.treated_person) || extracted?.treatedPerson,
-    birthDate: stringValue(invoice.birth_date) || extracted?.birthDate,
-    treatmentPeriod: stringValue(invoice.treatment_period) || extracted?.treatmentPeriod,
-    integrationDate: stringValue(invoice.integration_date) || extracted?.integrationDate,
+    file: stringValue(invoice.original_filename) || "-",
+    fileSizeBytes: numberValue(invoice.file_size_bytes),
+    fileHash: stringValue(invoice.file_hash) || undefined,
+    importSource: isPracticeSoftwareInvoice ? "practice_software_pdf" : "bfs_invoice_pdf",
+    ocrStatus: "not_needed",
+    bfsNo,
+    mandantNo: stringValue(invoice.mandant_nr) || "-",
+    standortId: appStandort?.id,
+    standortName: appStandort?.name ?? "Unbekannt",
+    practiceName: stringValue(invoice.praxisname) || appStandort?.praxisname,
+    invoiceNo: stringValue(invoice.rechnungsnummer) || "-",
+    invoiceDate: formatIsoDateGerman(stringValue(invoice.rechnungsdatum)) || "-",
+    patientName: stringValue(invoice.patient_name) || "-",
+    treatedPerson: stringValue(invoice.treated_person) || undefined,
+    birthDate: stringValue(invoice.birth_date) || undefined,
+    treatmentPeriod: stringValue(invoice.treatment_period) || undefined,
+    integrationDate: stringValue(invoice.integration_date) || undefined,
     totalAmount: numberValue(invoice.total_amount),
     openAmount: numberValue(invoice.open_amount),
     subsidyAmount: numberValue(invoice.subsidy_amount),
@@ -439,7 +469,7 @@ function invoiceRowFromDb(invoice: Record<string, unknown>, lines: Array<Record<
     labProviders: stringArrayValue(invoice.lab_providers),
     serviceLines,
     labLines,
-    pageCount: extracted?.pageCount ?? 0,
+    pageCount: 0,
     status: invoice.parse_status === "OK" ? "OK" : "Zu prüfen",
     parseNotes: stringArrayValue(invoice.parse_notes)
   };
@@ -495,8 +525,23 @@ function resolveDbStandort(row: ParsedInvoiceDocument, maps: StandortMaps) {
 }
 
 async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string): Promise<Set<string>> {
-  if (role === "super_admin") return allStandortIds(supabase);
+  if (canReadInvoiceAnalysis(role)) return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
+}
+
+async function requireInvoiceAnalysisAccess() {
+  const result = await getRequestProfile();
+  if ("error" in result) return result;
+  if (!canWriteInvoiceAnalysis(result.profile.role)) return { error: "Nur Super Admins dürfen Rechnungen importieren oder ändern.", status: 403 };
+  return result;
+}
+
+function canReadInvoiceAnalysis(role: string) {
+  return role === "super_admin" || role === "abrechnungsmanagement";
+}
+
+function canWriteInvoiceAnalysis(role: string) {
+  return role === "super_admin";
 }
 
 async function allStandortIds(supabase: SupabaseDbClient): Promise<Set<string>> {

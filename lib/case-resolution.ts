@@ -47,6 +47,18 @@ export function caseResolutionKeys(parts: CaseResolutionIdentityParts) {
   ]));
 }
 
+export function caseResolutionIdentityKeys(parts: Pick<CaseResolutionIdentityParts, "standortId" | "patientName" | "invoiceNo" | "bfsNo">) {
+  const patient = normalizeResolutionPart(parts.patientName);
+  const invoiceNo = normalizeResolutionPart(parts.invoiceNo || "-");
+  const bfsNo = normalizeResolutionPart(parts.bfsNo || "-");
+  const keys = [
+    invoiceNo !== "-" && bfsNo !== "-" ? `${parts.standortId}|${patient}|invoice:${invoiceNo}|bfs:${bfsNo}` : "",
+    invoiceNo !== "-" ? `${parts.standortId}|${patient}|invoice:${invoiceNo}` : "",
+    bfsNo !== "-" ? `${parts.standortId}|${patient}|bfs:${bfsNo}` : ""
+  ].filter(Boolean);
+  return Array.from(new Set(keys));
+}
+
 export function buildPaidResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {
   return buildManualResolutionKeySet(resolutions.filter((resolution) => resolution.status === "paid_manual"));
 }
@@ -56,7 +68,12 @@ export function buildResubmittedResolutionKeySet<T extends CaseResolutionEntry>(
 }
 
 export function buildClosedResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {
-  return buildManualResolutionKeySet(resolutions.filter((resolution) => resolution.status === "paid_manual" || resolution.status === "resubmitted_manual" || resolution.status === "cancelled_manual"));
+  const closed = resolutions.filter((resolution) => resolution.status === "paid_manual" || resolution.status === "resubmitted_manual" || resolution.status === "cancelled_manual");
+  const keys = buildManualResolutionKeySet(closed);
+  closed.forEach((resolution) => {
+    caseResolutionIdentityKeys(resolution).forEach((key) => keys.add(key));
+  });
+  return keys;
 }
 
 export function buildCancelledResolutionKeySet<T extends CaseResolutionEntry>(resolutions: T[]) {

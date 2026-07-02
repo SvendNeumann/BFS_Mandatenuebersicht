@@ -4,7 +4,7 @@ import { createServiceClient, requireSuperAdmin } from "@/lib/server-auth";
 type CreateUserBody = {
   email?: string;
   fullName?: string;
-  role?: "super_admin" | "standortleitung";
+  role?: "super_admin" | "standortleitung" | "abrechnungsmanagement";
   active?: boolean;
   temporaryPassword?: string;
   standortIds?: string[];
@@ -20,6 +20,11 @@ type AdminUserProfile = {
   user_standorte?: Array<{ standort_id: string }>;
 };
 
+type AuthUserLoginMeta = {
+  id: string;
+  lastSignInAt?: string | null;
+};
+
 export async function GET() {
   const auth = await requireSuperAdmin();
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -33,6 +38,7 @@ export async function GET() {
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const authUsersById = await loadAuthUserLoginMeta(supabase);
   return NextResponse.json({
     users: ((profiles ?? []) as AdminUserProfile[]).map((profile) => ({
       id: profile.id,
@@ -41,6 +47,7 @@ export async function GET() {
       role: profile.role,
       active: profile.active,
       mustChangePassword: Boolean(profile.must_change_password),
+      lastLoginAt: authUsersById.get(profile.id)?.lastSignInAt ?? null,
       standortIds: (profile.user_standorte ?? []).map((entry: { standort_id: string }) => entry.standort_id)
     }))
   });
@@ -59,7 +66,7 @@ export async function POST(request: Request) {
   const standortIds = body?.standortIds ?? [];
 
   if (!email || !email.includes("@")) return NextResponse.json({ error: "Bitte eine gültige E-Mail angeben." }, { status: 400 });
-  if (role !== "super_admin" && role !== "standortleitung") return NextResponse.json({ error: "Bitte eine gültige Rolle wählen." }, { status: 400 });
+  if (!isManageableRole(role)) return NextResponse.json({ error: "Bitte eine gültige Rolle wählen." }, { status: 400 });
   if (temporaryPassword.length < 8) return NextResponse.json({ error: "Das temporäre Passwort muss mindestens 8 Zeichen haben." }, { status: 400 });
 
   const supabase = createServiceClient();
@@ -114,10 +121,30 @@ async function findUserIdByEmail(supabase: NonNullable<ReturnType<typeof createS
   return data.users.find((user) => user.email?.toLowerCase() === email)?.id;
 }
 
+async function loadAuthUserLoginMeta(supabase: NonNullable<ReturnType<typeof createServiceClient>>) {
+  const usersById = new Map<string, AuthUserLoginMeta>();
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    for (const user of data.users) {
+      usersById.set(user.id, {
+        id: user.id,
+        lastSignInAt: user.last_sign_in_at ?? null
+      });
+    }
+    if (data.users.length < 1000) break;
+    page += 1;
+  }
+
+  return usersById;
+}
+
 async function replaceStandortAssignments(
   supabase: NonNullable<ReturnType<typeof createServiceClient>>,
   userId: string,
-  role: "super_admin" | "standortleitung",
+  role: NonNullable<CreateUserBody["role"]>,
   standortIds: string[]
 ) {
   await supabase.from("user_standorte").delete().eq("user_id", userId);
@@ -125,4 +152,8 @@ async function replaceStandortAssignments(
   const uniqueIds = Array.from(new Set(standortIds.filter(Boolean)));
   if (!uniqueIds.length) return;
   await supabase.from("user_standorte").insert(uniqueIds.map((standortId) => ({ user_id: userId, standort_id: standortId })));
+}
+
+function isManageableRole(role: string | undefined): role is NonNullable<CreateUserBody["role"]> {
+  return role === "super_admin" || role === "standortleitung" || role === "abrechnungsmanagement";
 }

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const existingResolution = await findLatestResolutionForCase(supabase, resolution.caseKey);
     if (existingResolution?.status === resolution.status) {
-      if (resolution.status === "paid_manual" || resolution.status === "resubmitted_manual" || resolution.status === "cancelled_manual") await markMatchingDatabaseCasesResolved(supabase, existingResolution, auth.profile.id);
+      if (isClosingResolution(resolution.status)) await markMatchingDatabaseCasesResolved(supabase, existingResolution, auth.profile.id);
       return NextResponse.json({ resolution: existingResolution, duplicate: true }, { headers: noStoreHeaders() });
     }
 
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     if (auditError) return NextResponse.json({ error: auditError.message }, { status: 500 });
 
-    if (resolution.status === "paid_manual" || resolution.status === "resubmitted_manual" || resolution.status === "cancelled_manual") await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
+    if (isClosingResolution(resolution.status)) await markMatchingDatabaseCasesResolved(supabase, resolution, auth.profile.id);
     return NextResponse.json({ resolution }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -149,7 +149,7 @@ async function markMatchingDatabaseCasesResolved(supabase: SupabaseDbClient, res
       status: "erledigt_manuell",
       resolved_at: resolution.resolvedAt,
       resolved_by: userId,
-      resolution_reason: resolution.status === "cancelled_manual" ? "rechnung_wird_nicht_weiterverfolgt" : resolution.status === "resubmitted_manual" ? "neue_rechnung" : "direktzahlung_patient",
+      resolution_reason: resolutionReasonForStatus(resolution.status),
       resolution_comment: resolution.comment
     })
     .eq("standort_id", databaseStandortId)
@@ -160,7 +160,25 @@ async function markMatchingDatabaseCasesResolved(supabase: SupabaseDbClient, res
   if (resolution.invoiceNo && resolution.invoiceNo !== "-") query = query.eq("rechnungsnummer", resolution.invoiceNo);
   if (resolution.bfsNo && resolution.bfsNo !== "-") query = query.eq("bfs_nr", resolution.bfsNo);
   const { error } = await query;
-  if (error) throw error;
+  if (error) {
+    console.warn("BFS case secondary update failed", {
+      message: error.message,
+      standortId: resolution.standortId,
+      invoiceNo: resolution.invoiceNo,
+      bfsNo: resolution.bfsNo,
+      status: resolution.status
+    });
+  }
+}
+
+function isClosingResolution(status: ManualCaseResolution["status"]) {
+  return status === "paid_manual" || status === "resubmitted_manual" || status === "cancelled_manual";
+}
+
+function resolutionReasonForStatus(status: ManualCaseResolution["status"]) {
+  if (status === "cancelled_manual") return "rechnung_wird_nicht_weiterverfolgt";
+  if (status === "resubmitted_manual") return "neu_eingereicht";
+  return "direktzahlung_patient";
 }
 
 function normalizeResolutionStatus(value: unknown): ManualCaseResolution["status"] {

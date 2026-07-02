@@ -45,7 +45,7 @@ import {
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceLine, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
-import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
+import { enablePasskey, getCurrentSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, reconcileImportRows } from "@/lib/import-identity";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 import {
@@ -365,9 +365,9 @@ type ViewHistoryEntry = {
 };
 
 export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
-  const [session, setSession] = useState<DemoSession | null>(() => getStoredSession());
+  const [session, setSession] = useState<DemoSession | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [appDataLoaded, setAppDataLoaded] = useState(() => loadInitialStoredImportRows().length > 0);
+  const appDataLoaded = true;
   const role = lockedRole ?? session?.role ?? "super_admin";
   const [activeView, setActiveView] = useState(() => {
     const storedView = readStoredViewState()?.activeView;
@@ -383,6 +383,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadInitialStoredImportRows());
+  const [importRowsHydrating, setImportRowsHydrating] = useState(() => loadInitialStoredImportRows().length === 0);
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [invoiceCatalogMappings, setInvoiceCatalogMappings] = useState<InvoiceCatalogMapping[]>([]);
   const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
@@ -410,7 +411,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     : role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
-  const showNoUploadData = !hasUploadData && !emptyDataAllowedViews.includes(activeView);
+  const showNoUploadData = !importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const needsOperationalCases = activeView === "answers" || activeView === "cases" || activeView === "practiceFollowup";
   const operationalReviewCases = useMemo(
     () => needsOperationalCases ? buildUnifiedOperationalReviewCases(privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions) : [],
@@ -425,16 +426,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
 
   useEffect(() => {
     let active = true;
-    let initialDataVisible = false;
     const syncImportsFromServer = shouldLoadDatasetFromServer(appCacheKeys.importRows);
     const syncCaseResolutionsFromServer = shouldLoadDatasetFromServer(appCacheKeys.caseResolutions);
     const syncInvoiceStatusFromServer = shouldLoadDatasetFromServer(appCacheKeys.invoiceStatusDocuments);
-    const showAppWithAvailableData = () => {
-      if (!active || initialDataVisible) return;
-      initialDataVisible = true;
-      setAppDataLoaded(true);
-    };
-    const fallbackTimer = window.setTimeout(showAppWithAvailableData, 1600);
     getCurrentSession()
       .then((currentSession) => {
         if (active) setSession(currentSession);
@@ -445,37 +439,17 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       });
     applyStoredStandorteConfig();
     setLocationConfigVersion((version) => version + 1);
-    const browserImportRowsPromise = loadStoredImportRowsFromBrowser()
-      .then((rows) => {
-        if (!active) return;
-        if (rows.length) startTransition(() => setLiveImportRows(rows));
-        if (rows.length) {
-          window.clearTimeout(fallbackTimer);
-          showAppWithAvailableData();
-        }
-      })
-      .catch(() => undefined);
-    if (syncImportsFromServer) {
-      loadStoredImportRowsFromServer()
+    const importLoadTimer = window.setTimeout(() => {
+      loadStoredImportRowsForStartup(syncImportsFromServer)
         .then((rows) => {
           if (!active) return;
-          startTransition(() => setLiveImportRows(rows));
-          markDatasetSynced(appCacheKeys.importRows);
-          window.clearTimeout(fallbackTimer);
-          showAppWithAvailableData();
-          if (rows.length) void storeImportRows(rows).catch(() => undefined);
+          if (rows.length) startTransition(() => setLiveImportRows(rows));
         })
-        .catch(() => {
-          window.clearTimeout(fallbackTimer);
-          showAppWithAvailableData();
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setImportRowsHydrating(false);
         });
-    } else {
-      browserImportRowsPromise.then(() => {
-        if (!active) return;
-        window.clearTimeout(fallbackTimer);
-        showAppWithAvailableData();
-      });
-    }
+    }, 0);
     loadManualCaseResolutions({ forceServer: syncCaseResolutionsFromServer })
       .then((resolutions) => {
         if (active) startTransition(() => setManualCaseResolutions(resolutions));
@@ -494,7 +468,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       });
     return () => {
       active = false;
-      window.clearTimeout(fallbackTimer);
+      window.clearTimeout(importLoadTimer);
     };
   }, []);
 
@@ -563,7 +537,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
   }
 
-  if (!appDataLoaded || (isInvoiceAnalysisView(activeView) && !invoiceRowsLoaded) || (needsOperationalCases && (!caseResolutionsLoaded || !invoiceStatusLoaded))) {
+  if (!appDataLoaded || (importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView)) || (isInvoiceAnalysisView(activeView) && !invoiceRowsLoaded) || (needsOperationalCases && (!caseResolutionsLoaded || !invoiceStatusLoaded))) {
     return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Rechnungen, Fallstände, Saldo-Status und Standortfilter werden synchronisiert." />;
   }
 
@@ -11326,6 +11300,25 @@ async function loadStoredImportRowsFromBrowser() {
   });
 }
 
+async function loadStoredImportRowsForStartup(syncFromServer: boolean) {
+  const forceServer = isHardServerSyncRequested();
+  const browserRows = await loadStoredImportRowsFromBrowser().catch(() => []);
+  if (browserRows.length && !forceServer) {
+    markDatasetSynced(appCacheKeys.importRows);
+    return browserRows;
+  }
+  if (!syncFromServer && browserRows.length) return browserRows;
+
+  try {
+    const serverRows = await loadStoredImportRowsFromServer();
+    markDatasetSynced(appCacheKeys.importRows);
+    if (serverRows.length) void storeImportRows(serverRows).catch(() => undefined);
+    return serverRows.length ? serverRows : browserRows;
+  } catch {
+    return browserRows;
+  }
+}
+
 async function loadStoredImportRowsFromServer() {
   if (typeof window === "undefined") return [];
   const response = await fetch("/api/imports/parse", { method: "GET", cache: "no-store" });
@@ -11642,6 +11635,11 @@ function shouldLoadDatasetFromServer(key: string) {
   if (typeof window === "undefined") return true;
   return window.sessionStorage.getItem(appCacheForceServerSyncKey) === "1"
     || window.sessionStorage.getItem(datasetSyncStorageKey(key)) !== "1";
+}
+
+function isHardServerSyncRequested() {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(appCacheForceServerSyncKey) === "1";
 }
 
 function markDatasetSynced(key: string) {

@@ -1853,3 +1853,26 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Keine Aenderung an Fachlogik, UI, Diagrammen, Reporttexten, Katalognormalisierung, Matching, Importformaten oder gespeicherten Daten beabsichtigt.
 - Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build` und `git diff --check` gruen.
 - Vercel Production Deploy am 02.07.2026 ca. 20:12 Uhr erfolgreich: Deployment `dpl_HtJQQLkyduqh5R5ZGu7yWwStF8kx`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Runde 5 / Startpfad
+
+- Vor der Aenderung wurde in echter Chrome-Production-Session gemessen:
+  - Reload bis echte Dashboard-KPIs sichtbar: ca. 15,4 Sekunden.
+  - Nach der reinen Analyse-Extraktion blieb die Ladezeit bei ca. 15,8-17,1 Sekunden.
+  - Befund: Der Nutzer sah lange `App-Modul und Datenstand werden vorbereitet`; der erste harte Blocker war damit nicht die fachliche Abrechnungslogik allein, sondern Startpfad aus grossem Monitor-Modul plus Datenhydration.
+- Datenladepfad wurde vorsichtig geaendert:
+  - Die App wartet nicht mehr global auf einen Server-Importsync, wenn Browserdaten vorhanden sind.
+  - Beim Start wird zuerst IndexedDB/Browsercache gelesen; Serverdaten werden nur bei hartem Sync/`Neu laden` oder fehlenden Browserdaten geladen.
+  - Waehrend Importdaten noch hydrieren, wird keine falsche `Keine Uploaddaten`-Ansicht angezeigt.
+  - Falls noch keine Importdaten im Speicher sind, bleibt das Dashboard im Ladezustand, damit keine falschen 0-KPIs als echte Auswertung sichtbar werden.
+- Loader-Auslieferung wurde angepasst:
+  - `components/monitor-app-loader.tsx` nutzt den dynamischen Monitor-Import nicht mehr mit `ssr: false`.
+  - Dadurch kann Next/Vercel den grossen Monitor-Chunk frueher in den Route-Startpfad nehmen. Ein Zwischen-Test zeigte, dass das App-Modul dadurch schon nach ca. 1,5 Sekunden sichtbar werden kann.
+  - Danach wurde ein Hydration-Risiko beseitigt: `session` startet server- und clientseitig konsistent mit `null`; die echte Session wird im bestehenden Effekt geladen.
+- Wichtig: Fachlogik, Kennzahlenformeln, Diagramme, Report-/Exportlogik, Katalog-/Abrechnungsqualitaet, Matching und Importformate wurden nicht veraendert.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploys:
+  - Datenladepfad: 02.07.2026 ca. 20:27 Uhr, Deployment `dpl_GQ4LsNigSUVXv6PDZaNHkpk6NAMs`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+  - Loader-Test: 02.07.2026 ca. 20:31 Uhr, Deployment `dpl_2ijesSLGhnVbMgNjBNXgnKuCtEoa`, Status `Ready`; zeigte Modulstart ca. 1,5 Sekunden, aber Hydration-Fehler/kurz 0-KPIs, daher nicht als final bewertet.
+  - Korrigierter finaler Stand: 02.07.2026 ca. 20:35 Uhr, Deployment `dpl_7bMrBRZMYEZe4LpQ7bswZUpkH1gs`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+- Offene Nachmessung: Die echte Chrome-Nachmessung des finalen Deployments wurde gestartet, aber das Browser-Werkzeug lief in ein Timeout/Session-Abbruch. Production-Alias und Buildstatus sind verifiziert; eine weitere echte Chrome-Zeitmessung sollte bei naechster Gelegenheit nachgezogen werden.

@@ -1833,3 +1833,23 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, `pnpm run build` und `git diff --check` gruen.
 - Lokaler Production-Server gestartet; Auth-geschuetzte Routen `/dashboard`, `/standort/dashboard`, `/reports` antworten erwartungsgemaess mit Redirect `307`.
 - Vercel Production Deploy am 02.07.2026 ca. 19:55 Uhr erfolgreich: Deployment `dpl_EcAPoav4yYsPRuAPXKQdpUXFTz5y`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Refactor Checkpoint und Stufe 2 Start
+
+- Vor dem groesseren Refactor wurde der aktuelle Arbeitsstand als Git-Checkpoint gesichert und auf `origin/main` gepusht:
+  - Commit `f65ad86f` (`Checkpoint current BFS monitor state before refactor`)
+  - Dient als Rueckvergleich/Rueckkehrpunkt fuer fachliche Querchecks.
+- Erster vorsichtiger Stufe-2-Schnitt: Abrechnungsqualitaet-Analyse wurde teilweise aus `components/monitor-app.tsx` herausgezogen nach `lib/invoice-quality-analysis.ts`.
+- Ausgelagert wurden:
+  - Invoice-Quality-Typen (`InvoiceQualityFinding`, `InvoiceQualityProfile`, Regeln)
+  - kuratierte Regelbasis
+  - Musterlogik `buildInvoiceQualityFindingsFromProfiles`
+  - Profilbildung `buildInvoiceQualityProfile`
+  - Gruppenstatistik, Falltyp-Erkennung, Filter, KPIs, CSV, Export-Vorspann, Trendlabel
+- `components/monitor-app.tsx` behaelt aktuell noch die UI und den Wrapper `buildInvoiceQualityFindings`, der Rechnungen filtert, Profile cached und dann die neue Lib-Funktion aufruft. Die bestehende Canonicalisierung/Katalognormalisierung bleibt unveraendert und wird als Callback genutzt.
+- Neue Regressionstests fuer Abrechnungsqualitaet ergaenzt:
+  - kuratierte Leistungskette `8000 -> 8010`
+  - Filter/KPI/CSV-Stabilitaet
+- Keine Aenderung an Fachlogik, UI, Diagrammen, Reporttexten, Katalognormalisierung, Matching, Importformaten oder gespeicherten Daten beabsichtigt.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploy am 02.07.2026 ca. 20:12 Uhr erfolgreich: Deployment `dpl_HtJQQLkyduqh5R5ZGu7yWwStF8kx`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.

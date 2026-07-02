@@ -5,7 +5,8 @@ import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
 import { parseInvoiceText, parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
 import { parseInvoiceStatusText } from "../lib/invoice-status-parser.ts";
-import type { ImportPreviewRow } from "../lib/types.ts";
+import { buildInvoiceQualityFindingsFromProfiles, createInvoiceQualityCsv, filterInvoiceQualityFindings, invoiceQualityKpis, type InvoiceQualityProfile } from "../lib/invoice-quality-analysis.ts";
+import type { ImportPreviewRow, ParsedInvoiceLine } from "../lib/types.ts";
 
 test("Import-Business-Identity nutzt Mandant und Abrechnungsnummer", () => {
   assert.equal(importRowBusinessIdentity({ mandantNo: "18504", statementNo: "7" }), "18504:7");
@@ -434,6 +435,101 @@ test("Praxissoftware-OCR-Text markiert verdächtige Leistungszeilen zur Prüfung
   assert.equal(rows[0].status, "Zu prüfen");
   assert.equal(rows[0].parseNotes.some((note) => note.includes("Leistungspositionen wegen OCR-/Zuordnungsrisiko")), true);
 });
+
+test("Abrechnungsqualität erkennt kuratierte Leistungsketten aus Profilen", () => {
+  const groupProfiles = [
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["8000", "8010"]),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["8000", "8010"]),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["8000", "8010"]),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["8000"])
+  ];
+  const findings = buildInvoiceQualityFindingsFromProfiles(groupProfiles, [{
+    id: "ziel",
+    name: "Zielpraxis",
+    praxisname: "Zielpraxis",
+    mandantNo: "1",
+    goLiveDate: "2024-01-01",
+    goLiveLabel: "01.01.2024",
+    lastImport: "",
+    submittedThisMonth: 0,
+    feesThisMonth: 0,
+    openCases: 0,
+    openChargebacks: 0,
+    withoutProtection: 0,
+    olderThan30: 0
+  }], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].anchorCode, "8000");
+  assert.equal(findings[0].companionCode, "8010");
+  assert.equal(findings[0].rule?.title, "FAL-Zentrallage einordnen");
+  assert.equal(findings[0].affectedInvoices.length, 3);
+});
+
+test("Abrechnungsqualität filtert, aggregiert und exportiert Hinweise stabil", () => {
+  const finding = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["8000", "8010"]),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["8000", "8010"]),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["8000", "8010"]),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["8000"])
+  ], [{
+    id: "ziel",
+    name: "Zielpraxis",
+    praxisname: "Zielpraxis",
+    mandantNo: "1",
+    goLiveDate: "2024-01-01",
+    goLiveLabel: "01.01.2024",
+    lastImport: "",
+    submittedThisMonth: 0,
+    feesThisMonth: 0,
+    openCases: 0,
+    openChargebacks: 0,
+    withoutProtection: 0,
+    olderThan30: 0
+  }], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 })[0];
+
+  const filtered = filterInvoiceQualityFindings([finding], "Allgemein", "Zentrallage", "regeln");
+  const kpis = invoiceQualityKpis(filtered);
+  const csv = createInvoiceQualityCsv(filtered, { label: "2026 gesamt" }, new Map(), ["Einordnungstest"]);
+
+  assert.equal(filtered.length, 1);
+  assert.equal(kpis.count, 1);
+  assert.equal(kpis.affectedInvoices, 3);
+  assert.match(csv, /2026 gesamt/);
+  assert.match(csv, /FAL-Zentrallage einordnen/);
+  assert.match(csv, /Einordnungstest/);
+});
+
+function invoiceQualityProfile(key: string, standortId: string, standortName: string, codes: string[]): InvoiceQualityProfile {
+  const lineByCode = new Map<string, ParsedInvoiceLine>();
+  codes.forEach((code) => {
+    lineByCode.set(code, {
+      code,
+      description: code === "8010" ? "Registrierung der gelenkbezüglichen Zentrallage" : "Klinische Funktionsanalyse",
+      amount: code === "8010" ? 50 : 100,
+      category: "leistung",
+      sourceSection: "test"
+    });
+  });
+  return {
+    invoice: {} as InvoiceQualityProfile["invoice"],
+    standortId,
+    standortName,
+    invoiceNo: key,
+    bfsNo: `bfs-${key}`,
+    invoiceDate: "01.01.2026",
+    patientName: `Patient ${key}`,
+    amount: 100,
+    codes,
+    codeSet: new Set(codes),
+    lineByCode,
+    caseType: "Allgemein"
+  };
+}
 
 function importRow(file: string, mandantNo: string, statementNo: string, fileHash: string): ImportPreviewRow {
   return {

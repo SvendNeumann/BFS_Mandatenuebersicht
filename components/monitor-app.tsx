@@ -45,7 +45,7 @@ import {
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceLine, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
 import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
-import { enablePasskey, getCurrentSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
+import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, reconcileImportRows } from "@/lib/import-identity";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
 import {
@@ -60,14 +60,6 @@ import {
   type InvoiceQualityFinding,
   type InvoiceQualityProfile
 } from "@/lib/invoice-quality-analysis";
-
-let initialStoredImportRowsCache: ImportPreviewRow[] | null = null;
-
-function loadInitialStoredImportRows() {
-  if (initialStoredImportRowsCache) return initialStoredImportRowsCache;
-  initialStoredImportRowsCache = loadStoredImportRows();
-  return initialStoredImportRowsCache;
-}
 
 const money = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -382,8 +374,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [viewHistory, setViewHistory] = useState<ViewHistoryEntry[]>([]);
-  const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>(() => loadInitialStoredImportRows());
-  const [importRowsHydrating, setImportRowsHydrating] = useState(() => loadInitialStoredImportRows().length === 0);
+  const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>([]);
+  const [importRowsHydrating, setImportRowsHydrating] = useState(true);
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [invoiceCatalogMappings, setInvoiceCatalogMappings] = useState<InvoiceCatalogMapping[]>([]);
   const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
@@ -429,6 +421,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     const syncImportsFromServer = shouldLoadDatasetFromServer(appCacheKeys.importRows);
     const syncCaseResolutionsFromServer = shouldLoadDatasetFromServer(appCacheKeys.caseResolutions);
     const syncInvoiceStatusFromServer = shouldLoadDatasetFromServer(appCacheKeys.invoiceStatusDocuments);
+    const storedSession = getStoredSession();
+    if (storedSession) {
+      setSession(storedSession);
+      setSessionChecked(true);
+    }
     getCurrentSession()
       .then((currentSession) => {
         if (active) setSession(currentSession);
@@ -443,7 +440,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       loadStoredImportRowsForStartup(syncImportsFromServer)
         .then((rows) => {
           if (!active) return;
-          if (rows.length) startTransition(() => setLiveImportRows(rows));
+          if (rows.length) setLiveImportRows(rows);
         })
         .catch(() => undefined)
         .finally(() => {
@@ -11273,17 +11270,6 @@ const appCacheKeys = {
   invoiceCatalogMappings: "invoice-catalog-mappings"
 } as const;
 
-function loadStoredImportRows() {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(importStorageLegacyKey);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as ImportPreviewRow[];
-  } catch {
-    return [];
-  }
-}
-
 async function loadStoredImportRowsFromBrowser() {
   if (typeof window === "undefined" || !("indexedDB" in window)) return [];
   const db = await openImportDb();
@@ -11302,21 +11288,54 @@ async function loadStoredImportRowsFromBrowser() {
 
 async function loadStoredImportRowsForStartup(syncFromServer: boolean) {
   const forceServer = isHardServerSyncRequested();
-  const browserRows = await loadStoredImportRowsFromBrowser().catch(() => []);
-  if (browserRows.length && !forceServer) {
-    markDatasetSynced(appCacheKeys.importRows);
-    return browserRows;
-  }
-  if (!syncFromServer && browserRows.length) return browserRows;
-
-  try {
+  if (forceServer) {
     const serverRows = await loadStoredImportRowsFromServer();
     markDatasetSynced(appCacheKeys.importRows);
     if (serverRows.length) void storeImportRows(serverRows).catch(() => undefined);
-    return serverRows.length ? serverRows : browserRows;
-  } catch {
+    return serverRows;
+  }
+
+  const browserRowsPromise = loadStoredImportRowsFromBrowser().catch(() => []);
+  if (!syncFromServer) {
+    const browserRows = await browserRowsPromise;
+    if (browserRows.length) markDatasetSynced(appCacheKeys.importRows);
     return browserRows;
   }
+
+  const serverRowsPromise = loadStoredImportRowsFromServer()
+    .then((serverRows) => {
+      if (serverRows.length) void storeImportRows(serverRows).catch(() => undefined);
+      return serverRows;
+    })
+    .catch(() => []);
+  const rows = await firstNonEmptyImportRows([browserRowsPromise, serverRowsPromise]);
+  if (rows.length) {
+    markDatasetSynced(appCacheKeys.importRows);
+  }
+  return rows;
+}
+
+function firstNonEmptyImportRows(promises: Array<Promise<ImportPreviewRow[]>>) {
+  return new Promise<ImportPreviewRow[]>((resolve) => {
+    let pending = promises.length;
+    let fallback: ImportPreviewRow[] = [];
+    let resolved = false;
+    promises.forEach((promise) => {
+      promise
+        .then((rows) => {
+          fallback = rows.length ? rows : fallback;
+          if (!resolved && rows.length) {
+            resolved = true;
+            resolve(rows);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pending -= 1;
+          if (!pending && !resolved) resolve(fallback);
+        });
+    });
+  });
 }
 
 async function loadStoredImportRowsFromServer() {

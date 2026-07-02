@@ -1,5 +1,4 @@
 import type { AppRole } from "./types";
-import { supabase } from "./supabase";
 
 const sessionKey = "orisus_bfs_monitor_session";
 
@@ -16,6 +15,7 @@ export async function loginWithEmail(email: string, password: string, remember: 
   const serverSession = await loginWithServerAuth(email, password, remember);
   if (serverSession) return persistSession({ ...serverSession, expiresAt: expiresAt(remember) });
 
+  const supabase = await getSupabaseClient();
   if (supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -48,6 +48,7 @@ async function loginWithServerAuth(email: string, password: string, remember: bo
 }
 
 export async function requestPasswordReset(email: string) {
+  const supabase = await getSupabaseClient();
   if (!supabase) {
     throw new Error("Supabase Auth ist nicht konfiguriert.");
   }
@@ -55,6 +56,7 @@ export async function requestPasswordReset(email: string) {
 }
 
 export async function updateOwnPassword(newPassword: string) {
+  const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase Auth ist nicht konfiguriert.");
   if (newPassword.length < 8) throw new Error("Das neue Passwort muss mindestens 8 Zeichen haben.");
   const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -99,6 +101,7 @@ export async function getCurrentSession(): Promise<DemoSession | null> {
     return null;
   }
   if (stored) return stored;
+  const supabase = await getSupabaseClient();
   if (!supabase) return null;
 
   const { data: sessionData } = await supabase.auth.getSession();
@@ -110,6 +113,7 @@ export async function getCurrentSession(): Promise<DemoSession | null> {
 }
 
 export async function logout() {
+  const supabase = await getSupabaseClient();
   if (supabase) await supabase.auth.signOut();
   await clearServerSession();
   clearStoredSession();
@@ -149,6 +153,7 @@ function expiresAt(remember: boolean) {
 }
 
 async function loadProfile(userId: string | undefined) {
+  const supabase = await getSupabaseClient();
   if (!supabase || !userId) return null;
   const { data, error } = await supabase
     .from("profiles")
@@ -172,6 +177,7 @@ function isAppRole(role: string): role is AppRole {
 }
 
 async function loadProfileStandortIds(userId: string) {
+  const supabase = await getSupabaseClient();
   if (!supabase) return [];
   const { data: assignments } = await supabase
     .from("user_standorte")
@@ -221,4 +227,9 @@ async function persistServerSession(accessToken: string, refreshToken: string, e
 async function clearServerSession() {
   if (typeof window === "undefined") return;
   await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
+}
+
+async function getSupabaseClient() {
+  const { supabase } = await import("./supabase");
+  return supabase;
 }

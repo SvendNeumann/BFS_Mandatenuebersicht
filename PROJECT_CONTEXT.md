@@ -1876,3 +1876,28 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
   - Loader-Test: 02.07.2026 ca. 20:31 Uhr, Deployment `dpl_2ijesSLGhnVbMgNjBNXgnKuCtEoa`, Status `Ready`; zeigte Modulstart ca. 1,5 Sekunden, aber Hydration-Fehler/kurz 0-KPIs, daher nicht als final bewertet.
   - Korrigierter finaler Stand: 02.07.2026 ca. 20:35 Uhr, Deployment `dpl_7bMrBRZMYEZe4LpQ7bswZUpkH1gs`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
 - Offene Nachmessung: Die echte Chrome-Nachmessung des finalen Deployments wurde gestartet, aber das Browser-Werkzeug lief in ein Timeout/Session-Abbruch. Production-Alias und Buildstatus sind verifiziert; eine weitere echte Chrome-Zeitmessung sollte bei naechster Gelegenheit nachgezogen werden.
+
+## Update 2026-07-02: Performance Runde 6 / Nachtest und sichere Zusatzoptimierungen
+
+- Auf Nutzerwunsch wurde Production erneut in echter Chrome-Session getestet.
+- Messwerte vor weiteren Aenderungen:
+  - Reload bis echte Dashboard-KPIs sichtbar: ca. 17,4 Sekunden.
+  - Zweiter Reload direkt danach: ca. 15,4 Sekunden.
+  - Keine Console-Fehler, keine 0-KPIs; sichtbarer Zustand bis dahin `Anmeldung wird geprueft`.
+- Sichere Zusatzoptimierungen umgesetzt:
+  - Kein synchroner `localStorage`-Importdaten-Parse mehr beim Komponentenstart. `liveImportRows` startet leer, `importRowsHydrating` blockiert falsche 0-Auswertung bis echte Daten da sind.
+  - Browsercache und Server-Importdaten laufen beim notwendigen Startup-Sync parallel; die App nimmt den ersten nicht-leeren Datensatz. `Neu laden` bleibt serverorientiert.
+  - Eine gueltige lokale Session aus `getStoredSession()` wird im Effekt sofort gesetzt; Servervalidierung laeuft weiter nach.
+  - `lib/auth.ts` laedt Supabase nur noch lazy bei Login/Passwort/Supabase-Fallback. Dashboard-Start importiert Supabase nicht mehr direkt.
+- Getestete, aber wieder entfernte Idee:
+  - Kompakter Dashboard-Startcache wurde gebaut und live getestet, brachte aber keine messbare Verbesserung (`cache-warmup` ca. 17,4s, zweiter Reload ca. 15,2s). Wegen Zusatzkomplexitaet und potenzieller Teil-Daten-Risiken wurde er wieder entfernt.
+- Finale Production-Messung nach bereinigten sicheren Optimierungen:
+  - Reload bis echte Dashboard-KPIs sichtbar: ca. 17,5 Sekunden.
+  - Keine Console-Fehler, keine 0-KPIs.
+- Schlussfolgerung: Kleine Startpfad-/Cache-Optimierungen reichen nicht. Der verbleibende Blocker ist sehr wahrscheinlich die monolithische Client-App (`components/monitor-app.tsx`, >13k Zeilen, grosses gemeinsames Bundle) plus initialer Voll-Datenhydration. Der naechste wirksame Schritt ist ein echter Strukturumbau:
+  - Dashboard/Management als eigenes schlankes Bundle bzw. eigener Hauptbereich ohne alle Import-, Rechnungsanalyse-, Admin- und Report-Views im Startpfad.
+  - Alternativ oder zusaetzlich serverseitig/materialisierte Dashboard-Aggregate statt Voll-Importdaten fuer den ersten Render.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build` und `git diff --check` gruen.
+- Vercel Production Deploys:
+  - Datenpfad/Session-Zwischenstaende: `dpl_5NrLM7AUu9CuMEdbrKmWj8oK7sx8`, `dpl_BpJ6o7BGm8Tu5GhC62vwnXQ55Biw`, `dpl_J3PKXjopUsbJ4GE2u5nNF69Vtkqn`.
+  - Finale bereinigte sichere Optimierungen: 02.07.2026 ca. 21:00 Uhr, Deployment `dpl_7pQg8XimqBLCMpifvuJe2ekQ8Cmr`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.

@@ -276,6 +276,26 @@ test("BFS-Rechnungsparser nimmt Beträge ohne Faktor nicht als Leistungsfaktor",
   assert.equal(row.serviceLines[0].amount, 48.1);
 });
 
+test("BFS-Rechnungsparser erkennt Versaeumnis-Termin als Ausfallhonorar-Position", () => {
+  const row = parseInvoiceText([
+    "Praxis Dr. Krauthausen",
+    "BFS-Nr. 5-19804-71218567",
+    "Behandelte Person: Heino Engel",
+    "Rechnung",
+    "Rechnungsnummer: 978-091576 Rechnungsdatum: 27.02.2026",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "27.02.26 Vers_ Versäumnis Termin 1,000 1 50,00",
+    "Zwischensumme Honorar:",
+    "50,00"
+  ].join("\n"), { file: "Rechnung_5-19804-71218567.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "Vers_");
+  assert.equal(row.serviceLines[0].description, "Versäumnis Termin");
+  assert.equal(row.serviceLines[0].amount, 50);
+  assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
+});
+
 test("BFS-Rechnungsparser ignoriert Bema-Sachleistungsabzüge und normalisiert Kassenleistungsfüllungen", () => {
   const row = parseInvoiceText([
     "Zahnarztpraxis Zorn de Bulach",

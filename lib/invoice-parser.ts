@@ -3,7 +3,7 @@ import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
 const shortDatePattern = /^\d{2}\.\d{2}\.\d{2}$/;
-const serviceCodePattern = /^(?:§?\d{1,4}(?:[a-z])?|\d{1,3}\.\d|[a-z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}[a-z]?|Glasur|Cerkat)$/;
+const serviceCodePattern = /^(?:§?\d{1,4}(?:[a-z])?|\d{1,3}\.\d|[a-z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}[a-z]?|Vers_?|Glasur|Cerkat)$/;
 const bemaFillingCodePattern = /^13[A-Z]0$/i;
 const strongServiceCodePattern = /^(?:13[A-Z]0|Ä\d{1,3}[a-z]?|§?\d{3,4}[a-z]?|\d{1,3}\.\d|[a-zäöü]{1,4}\d{1,4}[a-z]?|Glasur|Cerkat)$/i;
 

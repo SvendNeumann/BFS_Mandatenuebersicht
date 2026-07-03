@@ -6491,18 +6491,6 @@ function UploadView({
       setStatusUploadStatus("Saldo-Vorschau verworfen");
       setSelectedStatusFileCount(0);
       setSelectedStatusFileNames([]);
-    } else {
-      setIsStatusConfirming(true);
-      try {
-        await clearConfirmedInvoiceStatusDocuments();
-        onStatusDocumentsChange([]);
-        setSelectedStatusFileNames([]);
-        setStatusUploadStatus("Saldo-Import zurückgesetzt");
-      } catch (error) {
-        setStatusUploadStatus(`Saldo-Import konnte nicht zurückgesetzt werden: ${error instanceof Error ? error.message : "unbekannter Fehler"}`);
-      } finally {
-        setIsStatusConfirming(false);
-      }
     }
   }
 
@@ -6641,10 +6629,12 @@ function UploadView({
             <CheckCircle2 size={16} />
             {isStatusConfirming ? "Wird gespeichert" : "Saldo-Import bestätigen"}
           </button>
-          <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || isStatusConfirming || (!displayedStatusDocuments.length && !hasPendingStatusImport)} onClick={() => void resetStatusImport()}>
-            <X size={16} />
-            {hasPendingStatusImport ? "Saldo-Vorschau verwerfen" : "Saldo-Import zurücksetzen"}
-          </button>
+          {hasPendingStatusImport && (
+            <button className="secondary-button reset-upload-button" disabled={isStatusProcessing || isStatusConfirming} onClick={() => void resetStatusImport()}>
+              <X size={16} />
+              Saldo-Vorschau verwerfen
+            </button>
+          )}
         </div>
       </section>
       <section className="priority-grid">

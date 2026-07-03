@@ -11766,17 +11766,19 @@ async function loadManualCaseResolutions(options?: { forceServer?: boolean }) {
 
 async function loadConfirmedInvoiceStatusDocuments(options?: { forceServer?: boolean }) {
   if (typeof window === "undefined") return [];
-  if (!options?.forceServer) {
-    const cached = await loadCachedJson<ParsedInvoiceStatusDocument[]>(appCacheKeys.invoiceStatusDocuments).catch(() => null);
+  const cached = await loadCachedJson<ParsedInvoiceStatusDocument[]>(appCacheKeys.invoiceStatusDocuments).catch(() => null);
+  try {
+    const response = await fetch("/api/invoice-status/parse", { method: "GET", cache: "no-store" });
+    if (!response.ok) throw new Error("Bestätigter Rechnungsstatus konnte nicht geladen werden.");
+    const payload = await response.json() as { documents?: ParsedInvoiceStatusDocument[] };
+    const documents = payload.documents ?? [];
+    await storeCachedJson(appCacheKeys.invoiceStatusDocuments, documents).catch(() => undefined);
+    markDatasetSynced(appCacheKeys.invoiceStatusDocuments);
+    return documents;
+  } catch (error) {
     if (cached) return cached;
+    throw error;
   }
-  const response = await fetch("/api/invoice-status/parse", { method: "GET", cache: "no-store" });
-  if (!response.ok) throw new Error("Bestätigter Rechnungsstatus konnte nicht geladen werden.");
-  const payload = await response.json() as { documents?: ParsedInvoiceStatusDocument[] };
-  const documents = payload.documents ?? [];
-  await storeCachedJson(appCacheKeys.invoiceStatusDocuments, documents).catch(() => undefined);
-  markDatasetSynced(appCacheKeys.invoiceStatusDocuments);
-  return documents;
 }
 
 async function loadConfirmedInvoiceRows(options?: { forceServer?: boolean }) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys } from "../lib/case-resolution.ts";
+import { buildClosedResolutionKeySet, buildPaidResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys, isAusfallhonorarDescription } from "../lib/case-resolution.ts";
 import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
 import { parseInvoiceText, parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
@@ -41,6 +41,16 @@ test("Klärfall-Schlüssel bleibt stabil trotz Schreibweise, Umlaut und Cent-Run
   });
 
   assert.equal(first, sameCase);
+});
+
+test("Ausfallhonorar wird als feste Storno-Regel erkannt", () => {
+  assert.equal(isAusfallhonorarDescription("Ausfallhonorar gemäß § 615 BGB"), true);
+  assert.equal(isAusfallhonorarDescription("Ausfall-Honorar"), true);
+  assert.equal(isAusfallhonorarDescription("Vers_ Versäumnis Termin"), true);
+  assert.equal(isAusfallhonorarDescription("§615 Ausfallhonorar gemäß § 615 BGB"), true);
+  assert.equal(isAusfallhonorarDescription("Ausfallschutz"), false);
+  assert.equal(isAusfallhonorarDescription("Versiegelung von kariesfreien Zahnfissuren"), false);
+  assert.equal(isAusfallhonorarDescription("Versorgung eines Zahnes durch eine Krone"), false);
 });
 
 test("Bezahlte Klärfälle bleiben bei Re-Upload trotz Grundtext-Abweichung erledigt", () => {
@@ -118,12 +128,13 @@ test("Rechnungsstatus-Parser trennt Mahnstufe und Ratenplan-Monate", () => {
       "19260 5-19260-123456 Mustermann Max 4711 R12345 15.06.2026 2 nein nein 1.234,56 € -234,56 €",
       "18790 5-18790-999999 Beispiel Erika 42 R999 20.06.2026 ja (12) ja ja 900,00 € -900,00 €",
       "18504 5-18504-111111 Fertig Paula 7 R111 21.06.2026 0 nein ja 100,00 € 0,00 €",
-      "19260 5-19260-67553333 Nies, Ella Gabriele 5223 223-022607 04.09.2025 ja ja 131,36 € 0,00 € 12,94 €"
+      "19260 5-19260-67553333 Nies, Ella Gabriele 5223 223-022607 04.09.2025 ja ja 131,36 € 0,00 € 12,94 €",
+      "19260 5-19260-66994516 Bösi, Alina 7489 489-022180 23.07.2025 RA ja ja 50,00 € 0,00 €"
     ].join("\n"),
     { file: "status.pdf", fileSizeBytes: 1, pageCount: 1 }
   );
 
-  assert.equal(document.rows.length, 4);
+  assert.equal(document.rows.length, 5);
   assert.equal(document.rows[0].reminderLevel, 2);
   assert.equal(document.rows[0].paymentStatus, "teilbezahlt");
   assert.equal(document.rows[1].reminderLevel, 0);
@@ -133,6 +144,9 @@ test("Rechnungsstatus-Parser trennt Mahnstufe und Ratenplan-Monate", () => {
   assert.equal(document.rows[2].paymentStatus, "bezahlt");
   assert.equal(document.rows[3].cancelledAmount, 12.94);
   assert.equal(document.rows[3].paymentStatus, "storniert");
+  assert.equal(document.rows[4].bfsNo, "5-19260-66994516");
+  assert.equal(document.rows[4].invoiceNo, "489-022180");
+  assert.equal(document.rows[4].paymentStatus, "bezahlt");
 });
 
 test("BFS-Parser erkennt Rückgabe laut RA-Liste als relevante Rückgabe", () => {

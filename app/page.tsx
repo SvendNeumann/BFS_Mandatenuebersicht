@@ -30,15 +30,15 @@ const featureCards = [
     icon: ShieldCheck
   },
   {
-    title: "Reports",
-    text: "Standort- und Gruppenberichte für Controlling, Nachverfolgung und interne Abstimmung.",
+    title: "Exporte",
+    text: "PDF- und CSV-Ausgaben sitzen direkt in den passenden Fachansichten und Arbeitslisten.",
     icon: FileText
   }
 ];
 
 const previewMetrics = [
   { label: "Eingereichter Umsatz", value: "542 Tsd. EUR", trend: "+ 839 PDFs vorbereitet" },
-  { label: "Auszahlung BFS", value: "498 Tsd. EUR", trend: "nach Gebühren & Steuer" },
+  { label: "Auszahlung BFS", value: "498 Tsd. EUR", trend: "91,9 % vom Umsatz" },
   { label: "BFS-Gebühr netto", value: "12,4 Tsd. EUR", trend: "inkl. Importkontrolle" },
   { label: "MwSt auf Gebühr", value: "2,36 Tsd. EUR", trend: "separat ausgewiesen" },
   { label: "Praxis nachfassen", value: "5", trend: "ohne Ausfallschutz" },

@@ -88,6 +88,16 @@ export function buildManualResolutionKeySet<T extends CaseResolutionEntry>(resol
   return keys;
 }
 
+export function isAusfallhonorarDescription(value: string | null | undefined) {
+  const normalized = normalizeResolutionPart(value ?? "");
+  return normalized === "ausfallhonorar"
+    || /\bausfall(?:\s+|-)?honorar\b/.test(normalized)
+    || /(?:^|\s)615(?:\s|$)/.test(normalized)
+    || /\bvers\s+versaumnis\s+termin\b/.test(normalized)
+    || /\bversaeumnis\s+termin\b/.test(normalized)
+    || /\bversaumnis\s+termin\b/.test(normalized);
+}
+
 export function normalizeResolutionPart(value: string) {
   return value
     .toLowerCase()

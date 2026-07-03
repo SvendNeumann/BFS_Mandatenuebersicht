@@ -11,6 +11,7 @@ type MonitorAppLoaderProps = {
 };
 
 const MonitorApp = dynamic(() => import("@/components/monitor-app"), {
+  ssr: false,
   loading: () => <AppLoadingScreen title="Dashboard wird geladen" message="App-Modul und Datenstand werden vorbereitet." />
 });
 

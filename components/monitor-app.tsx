@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { CSSProperties } from "react";
+import type { CSSProperties, DependencyList } from "react";
 import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import {
@@ -44,10 +44,10 @@ import {
   orderedStandorte
 } from "@/lib/demo-data";
 import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImportMovement, ParsedInvoiceDocument, ParsedInvoiceLine, ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow, RiskClaim, Standort } from "@/lib/types";
-import { createCasesCsv, downloadTextFile } from "@/lib/reporting";
+import { downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, reconcileImportRows } from "@/lib/import-identity";
-import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys } from "@/lib/case-resolution";
+import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys, isAusfallhonorarDescription, normalizeResolutionPart } from "@/lib/case-resolution";
 import {
   buildInvoiceQualityProfile,
   buildInvoiceQualityFindingsFromProfiles,
@@ -86,6 +86,7 @@ const feeRateNumber = new Intl.NumberFormat("de-DE", {
   maximumFractionDigits: 2
 });
 const formatPercent = (value: number) => `${percentNumber.format(Number.isFinite(value) ? value : 0)} %`;
+const payoutShareLabel = (payout: number, submitted: number) => `${formatPercent(submitted ? (payout / submitted) * 100 : 0)} vom Umsatz`;
 const formatFeeRate = (value: number) => `${feeRateNumber.format(Number.isFinite(value) ? value : 0)} %`;
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
 const locationConfigStorageKey = "orisus_bfs_monitor_locations";
@@ -110,7 +111,6 @@ const superAdminNavGroups: NavGroup[] = [
         title: "Management",
         items: [
           ["custom", "Zusammenfassung", BarChart3],
-          ["dashboard", "Management Cockpit", LayoutDashboard],
           ["answers", "Schnellantworten", ClipboardList]
         ]
       },
@@ -131,14 +131,6 @@ const superAdminNavGroups: NavGroup[] = [
         ]
       },
       {
-        title: "Reports",
-        items: [
-          ["reports", "Report-Center", FileText],
-          ["groupReports", "Gruppenreports", BarChart3],
-          ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
-        ]
-      },
-      {
         title: "Import & Prüfung",
         items: [
           ["upload", "Import-Center Abrechnung", FolderUp]
@@ -154,9 +146,9 @@ const superAdminNavGroups: NavGroup[] = [
         items: [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
+          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
-          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceLocations", "Standortvergleich", Building2]
         ]
       },
@@ -205,7 +197,6 @@ const leadNavGroups: NavGroup[] = [
         title: "Mein Standort",
         items: [
           ["custom", "Zusammenfassung", BarChart3],
-          ["dashboard", "Management Cockpit", LayoutDashboard],
           ["answers", "Schnellantworten", ClipboardList]
         ]
       },
@@ -223,13 +214,6 @@ const leadNavGroups: NavGroup[] = [
         items: [
           ["practiceFollowup", "Prüfliste", ClipboardCheck]
         ]
-      },
-      {
-        title: "Reports",
-        items: [
-          ["reports", "Report-Center", FileText],
-          ["outcomes", "Maßnahmenkontrolle", ClipboardCheck]
-        ]
       }
     ]
   },
@@ -241,9 +225,9 @@ const leadNavGroups: NavGroup[] = [
         items: [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
+          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
-          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceLocations", "Standortvergleich", Building2]
         ]
       },
@@ -291,9 +275,9 @@ const billingNavGroups: NavGroup[] = [
         items: [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
+          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
-          ["invoicePotential", "Potenzialanalyse", TrendingUp],
           ["invoiceLocations", "Standortvergleich", Building2]
         ]
       },
@@ -326,6 +310,22 @@ type MonitorAppProps = {
   requireAuth?: boolean;
 };
 
+type PerfMetric = {
+  label: string;
+  durationMs: number;
+  detail: string;
+  at: number;
+};
+
+type PerfMetricEventDetail = {
+  label: string;
+  durationMs: number;
+  detail?: string;
+};
+
+const perfDiagnosticsStorageKey = "orisus_perf_diagnostics";
+const perfDiagnosticsEventName = "orisus:perf-metric";
+
 type ManualCaseResolution = {
   caseKey: string;
   standortId: string;
@@ -356,7 +356,7 @@ type ViewHistoryEntry = {
   selectedStandortId: string;
 };
 
-export default function MonitorApp({ lockedRole, initialView = "dashboard", requireAuth = true }: MonitorAppProps) {
+export default function MonitorApp({ lockedRole, initialView = "custom", requireAuth = true }: MonitorAppProps) {
   const [session, setSession] = useState<DemoSession | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const appDataLoaded = true;
@@ -364,7 +364,8 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [activeView, setActiveView] = useState(() => {
     const storedView = readStoredViewState()?.activeView;
     if (storedView && isKnownViewForRole(storedView, role)) return storedView;
-    return isKnownViewForRole(initialView, role) ? initialView : defaultViewForRole(role);
+    if (isKnownViewForRole(initialView, role)) return initialView;
+    return defaultViewForRole(role);
   });
   const [, setLocationConfigVersion] = useState(0);
   const [selectedStandortId, setSelectedStandortId] = useState(() => {
@@ -387,8 +388,12 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const [caseResolutionMode, setCaseResolutionMode] = useState<ManualCaseResolution["status"]>("paid_manual");
   const [caseResolveError, setCaseResolveError] = useState("");
   const [caseResolveSaving, setCaseResolveSaving] = useState(false);
+  const [perfDiagnosticsEnabled, setPerfDiagnosticsEnabled] = useState(false);
+  const [perfMetrics, setPerfMetrics] = useState<PerfMetric[]>([]);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const invoiceRowsLoadRef = useRef<Promise<void> | null>(null);
+  const perfDiagnosticsEnabledRef = useRef(false);
+  const perfBootStartedAtRef = useRef<number | null>(null);
   const permittedStandorte = useMemo(() => permittedStandorteForRole(role, session), [role, session]);
   const selectedStandort = permittedStandorte.find((standort) => standort.id === selectedStandortId) ?? permittedStandorte[0] ?? standorte[0];
   const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
@@ -397,17 +402,25 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const hasUploadData = privacyScopedImportRows.length > 0;
   const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
   const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "billingQualityFeedback", "locations", "users", "settings"];
-  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "reports", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "billingQualityFeedback"];
+  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "billingQualityFeedback"];
   const pageScopeLabel = role === "abrechnungsmanagement"
     ? "BFS-Rechnungsanalyse"
     : role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
   const showNoUploadData = !importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView);
+  const usesOperationalResolutionMetrics = activeView === "dashboard" || activeView === "custom" || activeView === "answers" || activeView === "benchmark" || activeView === "quality" || activeView === "claims" || activeView === "cashflow" || activeView === "cases" || activeView === "practiceFollowup";
   const needsOperationalCases = activeView === "answers" || activeView === "cases" || activeView === "practiceFollowup";
-  const operationalReviewCases = useMemo(
-    () => needsOperationalCases ? buildUnifiedOperationalReviewCases(privacyScopedImportRows, invoiceStatusRows, manualCaseResolutions) : [],
-    [invoiceStatusRows, manualCaseResolutions, needsOperationalCases, privacyScopedImportRows]
+  const needsInvoiceRowsForAusfallhonorarRule = hasUploadData && usesOperationalResolutionMetrics;
+  const effectiveManualCaseResolutions = useMemo(
+    () => buildAusfallhonorarAutoCancelledResolutions(privacyScopedImportRows, invoiceRows, invoiceStatusRows, manualCaseResolutions),
+    [invoiceRows, invoiceStatusRows, manualCaseResolutions, privacyScopedImportRows]
+  );
+  const operationalReviewCases = useMeasuredMemo(
+    "App operative Fallliste",
+    () => needsOperationalCases ? buildUnifiedOperationalReviewCases(privacyScopedImportRows, invoiceStatusRows, effectiveManualCaseResolutions) : [],
+    [effectiveManualCaseResolutions, invoiceStatusRows, needsOperationalCases, privacyScopedImportRows],
+    (cases) => `${integerNumber.format(cases.length)} Fälle`
   );
   const visibleOperationalReviewCases = useMemo(
     () => needsOperationalCases ? operationalReviewCases.filter((fall) => isGroupScope || fall.standortId === selectedStandort.id) : [],
@@ -417,7 +430,33 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   const nav = flattenNavGroups(navGroups);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const enabled = params.get("perf") === "1";
+    perfDiagnosticsEnabledRef.current = enabled;
+    setPerfDiagnosticsEnabled(enabled);
+    window.localStorage.removeItem(perfDiagnosticsStorageKey);
+    if (enabled) {
+      perfBootStartedAtRef.current = performance.now();
+      recordPerfMetric("Diagnose gestartet", perfBootStartedAtRef.current, "Messmodus aktiv");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePerfMetric = (event: Event) => {
+      const detail = (event as CustomEvent<PerfMetricEventDetail>).detail;
+      if (!detail) return;
+      recordExternalPerfMetric(detail.label, detail.durationMs, detail.detail ?? "");
+    };
+    window.addEventListener(perfDiagnosticsEventName, handlePerfMetric);
+    return () => window.removeEventListener(perfDiagnosticsEventName, handlePerfMetric);
+  }, []);
+
+  useEffect(() => {
     let active = true;
+    const bootStartedAt = performance.now();
+    perfBootStartedAtRef.current = bootStartedAt;
     const syncImportsFromServer = shouldLoadDatasetFromServer(appCacheKeys.importRows);
     const syncCaseResolutionsFromServer = shouldLoadDatasetFromServer(appCacheKeys.caseResolutions);
     const syncInvoiceStatusFromServer = shouldLoadDatasetFromServer(appCacheKeys.invoiceStatusDocuments);
@@ -425,7 +464,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     if (storedSession) {
       setSession(storedSession);
       setSessionChecked(true);
+      recordPerfMetric("Lokale Session", bootStartedAt, storedSession.email);
     }
+    const sessionStartedAt = performance.now();
     getCurrentSession()
       .then((currentSession) => {
         if (active) setSession(currentSession);
@@ -433,33 +474,47 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       .catch(() => undefined)
       .finally(() => {
         if (active) setSessionChecked(true);
+        recordPerfMetric("Session geprüft", sessionStartedAt, "Loginstatus");
       });
     applyStoredStandorteConfig();
     setLocationConfigVersion((version) => version + 1);
     const importLoadTimer = window.setTimeout(() => {
+      const importStartedAt = performance.now();
       loadStoredImportRowsForStartup(syncImportsFromServer)
         .then((rows) => {
           if (!active) return;
           if (rows.length) setLiveImportRows(rows);
+          recordPerfMetric("Importdaten geladen", importStartedAt, `${integerNumber.format(rows.length)} Zeilen · ${syncImportsFromServer ? "Server/Cache-Abgleich" : "Browsercache"}`);
         })
-        .catch(() => undefined)
+        .catch((error) => {
+          recordPerfMetric("Importdaten Fehler", importStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+        })
         .finally(() => {
           if (active) setImportRowsHydrating(false);
         });
     }, 0);
+    const resolutionsStartedAt = performance.now();
     loadManualCaseResolutions({ forceServer: syncCaseResolutionsFromServer })
       .then((resolutions) => {
         if (active) startTransition(() => setManualCaseResolutions(resolutions));
+        recordPerfMetric("Manuelle Klärungen", resolutionsStartedAt, `${integerNumber.format(resolutions.length)} Einträge`);
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        recordPerfMetric("Manuelle Klärungen Fehler", resolutionsStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+      })
       .finally(() => {
         if (active) setCaseResolutionsLoaded(true);
       });
+    const statusStartedAt = performance.now();
     loadConfirmedInvoiceStatusDocuments({ forceServer: syncInvoiceStatusFromServer })
       .then((documents) => {
         if (active) startTransition(() => setInvoiceStatusDocuments(documents));
+        const rowCount = documents.reduce((sum, document) => sum + document.rows.length, 0);
+        recordPerfMetric("Saldo-Status geladen", statusStartedAt, `${integerNumber.format(rowCount)} Zeilen aus ${integerNumber.format(documents.length)} Dokumenten`);
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        recordPerfMetric("Saldo-Status Fehler", statusStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+      })
       .finally(() => {
         if (active) setInvoiceStatusLoaded(true);
       });
@@ -470,13 +525,17 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
   }, []);
 
   useEffect(() => {
-    if (!isInvoiceAnalysisView(activeView) || invoiceRowsLoaded || invoiceRowsLoadRef.current) return;
+    if (!(isInvoiceAnalysisView(activeView) || needsInvoiceRowsForAusfallhonorarRule) || invoiceRowsLoaded || invoiceRowsLoadRef.current) return;
     let active = true;
+    const invoiceRowsStartedAt = performance.now();
     const loadPromise = loadConfirmedInvoiceRows({ forceServer: shouldLoadDatasetFromServer(appCacheKeys.invoiceRows) })
       .then((rows) => {
         if (active) startTransition(() => setInvoiceRows(rows));
+        recordPerfMetric("Einzelrechnungen geladen", invoiceRowsStartedAt, `${integerNumber.format(rows.length)} Rechnungen`);
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        recordPerfMetric("Einzelrechnungen Fehler", invoiceRowsStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+      })
       .finally(() => {
         if (active) setInvoiceRowsLoaded(true);
         invoiceRowsLoadRef.current = null;
@@ -485,20 +544,33 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     return () => {
       active = false;
     };
-  }, [activeView, invoiceRowsLoaded]);
+  }, [activeView, invoiceRowsLoaded, needsInvoiceRowsForAusfallhonorarRule]);
 
   useEffect(() => {
     if (!isInvoiceAnalysisView(activeView)) return;
     let active = true;
+    const catalogStartedAt = performance.now();
     loadInvoiceCatalogMappings()
       .then((mappings) => {
         if (active) setInvoiceCatalogMappings(mappings);
+        recordPerfMetric("Katalog-Mappings geladen", catalogStartedAt, `${integerNumber.format(mappings.length)} Regeln`);
       })
-      .catch(() => undefined);
+      .catch((error) => {
+        recordPerfMetric("Katalog-Mappings Fehler", catalogStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+      });
     return () => {
       active = false;
     };
   }, [activeView]);
+
+  useEffect(() => {
+    if (!perfDiagnosticsEnabledRef.current || typeof window === "undefined") return;
+    const viewStartedAt = performance.now();
+    const frameId = window.requestAnimationFrame(() => {
+      recordPerfMetric(`Ansicht sichtbar: ${titleFor(activeView)}`, viewStartedAt, `${integerNumber.format(privacyScopedImportRows.length)} Importzeilen · ${integerNumber.format(invoiceRows.length)} Rechnungen`);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeView, caseResolutionsLoaded, importRowsHydrating, invoiceRows.length, invoiceRowsLoaded, invoiceStatusLoaded, privacyScopedImportRows.length]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -556,7 +628,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
     if (role === "super_admin") setSelectedStandortId("gruppe");
     setActiveView(defaultView);
     setMobileNavOpen(false);
-    openNavSectionForView("dashboard");
+    openNavSectionForView(defaultView);
     scrollToPageStart();
   }
 
@@ -649,7 +721,7 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-top">
-            <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zum Management Cockpit">
+            <button type="button" className="brand brand-button" onClick={goToCockpit} aria-label="Zur Zusammenfassung">
               <Image className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" width={1859} height={557} priority />
             </button>
             <button className="drawer-close" aria-label="Navigation schließen" onClick={() => setMobileNavOpen(false)}>
@@ -713,9 +785,9 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
         </div>
       </aside>
 
-      <section className={`workspace${isInvoiceAnalysisView(activeView) ? " invoice-analysis-workspace" : ""}${activeView === "dashboard" ? " cockpit-workspace" : ""}`} ref={workspaceRef}>
+      <section className={`workspace${isInvoiceAnalysisView(activeView) ? " invoice-analysis-workspace" : ""}`} ref={workspaceRef}>
         <header className="topbar">
-          <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zum Management Cockpit">
+          <button type="button" className="mobile-app-brand" onClick={goToCockpit} aria-label="Zur Zusammenfassung">
             <Image className="orisus-wordmark" src="/orisus-zahnmedizin-transparent.png" alt="Orisus Zahnmedizin" width={1859} height={557} priority />
           </button>
           <button className="mobile-menu-button" aria-label="Navigation öffnen" onClick={() => setMobileNavOpen(true)}>
@@ -739,15 +811,15 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           <>
             {activeView === "dashboard" && (
               role === "super_admin" && isGroupScope
-                ? <GroupDashboard importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
-                : <LocationDashboard standort={selectedStandort} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
+                ? <GroupDashboard importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
+                : <LocationDashboard standort={selectedStandort} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
             )}
-            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "quality" && <QualityView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "quality" && <QualityView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {["upload", "preview", "history"].includes(activeView) && <UploadView liveRows={liveImportRows} onRowsChange={setLiveImportRows} statusDocuments={invoiceStatusDocuments} onStatusDocumentsChange={setInvoiceStatusDocuments} />}
             {activeView === "invoiceImport" && <InvoiceImportView invoiceRows={invoiceRows} onRowsChange={setInvoiceRows} />}
             {activeView === "invoiceServices" && <InvoiceServicesView invoiceRows={invoiceRows} catalogMappings={invoiceCatalogMappings} />}
@@ -765,6 +837,11 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
                 title="Prüfliste offene Fälle"
                 description="Eine gemeinsame Arbeitsliste für alle noch zu prüfenden Abzüge. Die Praxis hakt je Fall ab: bezahlt/geklärt, neu eingereicht oder endgültig storniert."
                 cases={role === "super_admin" ? operationalReviewCases : visibleOperationalReviewCases}
+                importRows={privacyScopedImportRows}
+                invoiceRows={invoiceRows}
+                invoiceStatusRows={invoiceStatusRows}
+                manualCaseResolutions={effectiveManualCaseResolutions}
+                allowedStandortIds={role === "super_admin" ? undefined : [selectedStandort.id]}
                 onResolvePaid={resolveCaseAsPaid}
                 onResolveResubmitted={resolveCaseAsResubmitted}
                 onCancelFinal={cancelCaseFinally}
@@ -775,9 +852,6 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
             {activeView === "risks" && <RiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
-            {activeView === "reports" && <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "outcomes" && <OutcomeControlView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={manualCaseResolutions} />}
-            {activeView === "groupReports" && (isGroupScope ? <GroupReportsView onNavigate={navigateTo} /> : <ReportsView role={role} standort={selectedStandort} importRows={privacyScopedImportRows} invoiceStatusRows={invoiceStatusRows} manualCaseResolutions={manualCaseResolutions} />)}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -817,8 +891,80 @@ export default function MonitorApp({ lockedRole, initialView = "dashboard", requ
           </section>
         </div>
       )}
+      {perfDiagnosticsEnabled && role === "super_admin" ? (
+        <PerformanceDiagnosticsPanel
+          metrics={perfMetrics}
+          onClose={() => {
+            perfDiagnosticsEnabledRef.current = false;
+            setPerfDiagnosticsEnabled(false);
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem(perfDiagnosticsStorageKey);
+              const url = new URL(window.location.href);
+              url.searchParams.delete("perf");
+              window.history.replaceState(null, "", url.toString());
+            }
+          }}
+        />
+      ) : null}
     </main>
   );
+
+  function recordPerfMetric(label: string, startedAt: number, detail = "") {
+    if (!perfDiagnosticsEnabledRef.current || typeof performance === "undefined") return;
+    const metric: PerfMetric = {
+      label,
+      durationMs: Math.max(0, performance.now() - startedAt),
+      detail,
+      at: Date.now()
+    };
+    setPerfMetrics((current) => [...current.slice(-19), metric]);
+    console.info(`[Orisus Performance] ${label}: ${Math.round(metric.durationMs)} ms${detail ? ` · ${detail}` : ""}`);
+  }
+
+  function recordExternalPerfMetric(label: string, durationMs: number, detail = "") {
+    if (!perfDiagnosticsEnabledRef.current) return;
+    const metric: PerfMetric = {
+      label,
+      durationMs: Math.max(0, durationMs),
+      detail,
+      at: Date.now()
+    };
+    setPerfMetrics((current) => [...current.slice(-19), metric]);
+    console.info(`[Orisus Performance] ${label}: ${Math.round(metric.durationMs)} ms${detail ? ` · ${detail}` : ""}`);
+  }
+}
+
+function PerformanceDiagnosticsPanel({ metrics, onClose }: { metrics: PerfMetric[]; onClose: () => void }) {
+  const latestMetrics = [...metrics].reverse();
+  return (
+    <section className="performance-diagnostics" aria-label="Performance Diagnose">
+      <div className="performance-diagnostics-head">
+        <div>
+          <strong>Performance Diagnose</strong>
+          <span>nur Admin · Live-Messung</span>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Performance Diagnose schließen">
+          <X size={16} />
+        </button>
+      </div>
+      <div className="performance-diagnostics-list">
+        {latestMetrics.length ? latestMetrics.map((metric, index) => (
+          <div className="performance-diagnostics-row" key={`${metric.label}-${metric.at}-${index}`}>
+            <span>{metric.label}</span>
+            <strong>{formatPerformanceDuration(metric.durationMs)}</strong>
+            {metric.detail ? <small>{metric.detail}</small> : null}
+          </div>
+        )) : (
+          <p>Noch keine Messpunkte.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatPerformanceDuration(durationMs: number) {
+  if (durationMs >= 1000) return `${(durationMs / 1000).toLocaleString("de-DE", { maximumFractionDigits: 1 })} s`;
+  return `${Math.round(durationMs)} ms`;
 }
 
 function permittedStandorteForRole(role: AppRole, session: DemoSession | null) {
@@ -942,7 +1088,7 @@ function navGroupsForRole(role: AppRole) {
 }
 
 function defaultViewForRole(role: AppRole) {
-  return role === "abrechnungsmanagement" ? "invoiceServices" : "dashboard";
+  return role === "abrechnungsmanagement" ? "invoiceServices" : "custom";
 }
 
 function roleLabel(role: AppRole) {
@@ -966,7 +1112,6 @@ function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
 
 function titleFor(view: string) {
   const titles: Record<string, string> = {
-    dashboard: "Management Cockpit",
     custom: "Zusammenfassung",
     answers: "Schnellantworten",
     benchmark: "Standorte",
@@ -992,14 +1137,36 @@ function titleFor(view: string) {
     risks: "Laufend ohne Ausfallschutz",
     repeatRisks: "Wiederholer ohne Ausfallschutz",
     patientClasses: "Patientenklassifizierung",
-    reports: "Report-Center",
-    outcomes: "Maßnahmenkontrolle",
-    groupReports: "Gruppenreports",
     locations: "Standorte",
     users: "Nutzerverwaltung",
     settings: "Einstellungen"
   };
   return titles[view] ?? "Orisus BFS Monitor";
+}
+
+function useMeasuredMemo<T>(label: string, factory: () => T, deps: DependencyList, detail?: (value: T) => string): T {
+  return useMemo(() => {
+    const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
+    const value = factory();
+    if (isPerfDiagnosticsEnabled() && typeof performance !== "undefined") {
+      emitPerfMetric(`Berechnung: ${label}`, performance.now() - startedAt, detail?.(value));
+    }
+    return value;
+    // Der Mess-Hook reicht die Dependency-Liste der aufrufenden useMemo-Berechnung bewusst unverändert durch.
+    // eslint-disable-next-line react-hooks/use-memo, react-hooks/exhaustive-deps
+  }, deps);
+}
+
+function isPerfDiagnosticsEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("perf") === "1";
+}
+
+function emitPerfMetric(label: string, durationMs: number, detail = "") {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<PerfMetricEventDetail>(perfDiagnosticsEventName, {
+    detail: { label, durationMs, detail }
+  }));
 }
 
 function caseResolutionDialogTitle(status: ManualCaseResolution["status"]) {
@@ -1038,6 +1205,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   const [chartPeriodId, setChartPeriodId] = useState(() => defaultPeriodId(chartPeriodOptions));
   const [chartStandortFilterId, setChartStandortFilterId] = useState(() => standort?.id ?? "alle");
   const [benchmarkPeriodId, setBenchmarkPeriodId] = useState(() => defaultPeriodId(chartPeriodOptions));
+
   const selectedPeriod = useMemo(
     () => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0],
     [periodOptions, periodId]
@@ -1063,29 +1231,87 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
   }, [chartStandortFilterId, selectableStandorte, standort]);
   const relevantStandortNames = useMemo(() => new Set(relevantStandorte.map((entry) => entry.name)), [relevantStandorte]);
   const chartStandortNames = useMemo(() => new Set(chartStandorte.map((entry) => entry.name)), [chartStandorte]);
-  const scopedRows = useMemo(() => importRows.filter((row) => {
+  const scopedRows = useMeasuredMemo("Zusammenfassung Importfilter", () => importRows.filter((row) => {
     if (!relevantStandortNames.has(row.location)) return false;
     const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, relevantStandortNames, relevantStandorte, selectedPeriod]);
-  const chartRows = useMemo(() => importRows.filter((row) => {
+  }), [importRows, relevantStandortNames, relevantStandorte, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Zeilen`);
+  const chartRows = useMeasuredMemo("Zusammenfassung Diagrammfilter", () => importRows.filter((row) => {
     if (!chartStandortNames.has(row.location)) return false;
     const rowStandort = chartStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedChartPeriod, rowStandort) : false;
-  }), [chartStandortNames, chartStandorte, importRows, selectedChartPeriod]);
-  const summary = useMemo(() => summarizeImportRows(scopedRows), [scopedRows]);
-  const metrics = useMemo(() => metricsFromImportSummary(summary), [summary]);
-  const stornoReview = useMemo(() => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions]);
-  const kpiTrendPoints = useMemo(() => customMonthlyChartPoints(scopedRows, manualCaseResolutions, invoiceStatusRows), [invoiceStatusRows, manualCaseResolutions, scopedRows]);
-  const chartPoints = useMemo(() => customMonthlyChartPoints(chartRows, manualCaseResolutions, invoiceStatusRows), [chartRows, invoiceStatusRows, manualCaseResolutions]);
-  const benchmarkRows = useMemo(() => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod]);
+  }), [chartStandortNames, chartStandorte, importRows, selectedChartPeriod], (rows) => `${integerNumber.format(rows.length)} Zeilen`);
+  const summary = useMeasuredMemo("Zusammenfassung Summen", () => summarizeImportRows(scopedRows), [scopedRows], (value) => `${integerNumber.format(value.rows)} Importzeilen`);
+  const metrics = useMeasuredMemo("Zusammenfassung KPIs", () => metricsFromImportSummary(summary), [summary], (value) => money.format(value.submitted));
+  const stornoReview = useMeasuredMemo("Zusammenfassung Storno-Review", () => stornoReviewFromImportRows(scopedRows, standort?.id, manualCaseResolutions), [scopedRows, standort?.id, manualCaseResolutions], (value) => `${integerNumber.format(value.total)} Fälle`);
+  const chartPoints = useMeasuredMemo("Zusammenfassung Diagrammdaten", () => customMonthlyChartPoints(chartRows, manualCaseResolutions, invoiceStatusRows), [chartRows, invoiceStatusRows, manualCaseResolutions], (rows) => `${integerNumber.format(rows.length)} Punkte`);
+  const benchmarkRows = useMeasuredMemo("Zusammenfassung Standortvergleich", () => customBenchmarkRows(importRows, selectableStandorte, selectedBenchmarkPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, selectableStandorte, selectedBenchmarkPeriod], (rows) => `${integerNumber.format(rows.length)} Standorte`);
   const chartScopeHint = chartStandorte.length === 1 ? chartStandorte[0].name : "alle Standorte";
-  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
+  const deductionRecovery = useMeasuredMemo("Zusammenfassung Abzugserholung", () => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod], (value) => `${money.format(value.grossDeductionAmount)} Brutto-Abzug`);
   const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
   const recoveredStornoAmount = deductionRecovery.recoveredAmount;
   const openStornoAmount = deductionRecovery.openAmount;
   const finalLostAmount = manualCancelledAmountFromRows(scopedRows, manualCaseResolutions);
   const scopeHint = relevantStandorte.length === 1 ? relevantStandorte[0].name : "alle Standorte";
+  const locationKpiBreakdown = useMeasuredMemo("Zusammenfassung Standortaufschlüsselung", () => relevantStandorte.map((entry) => {
+    const rows = importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, selectedPeriod, entry));
+    const locationMetrics = metricsFromImportSummary(summarizeImportRows(rows));
+    const locationRecovery = buildDeductionRecovery(importRows, [entry], selectedPeriod, manualCaseResolutions, invoiceStatusRows);
+    return {
+      name: entry.name,
+      metrics: locationMetrics,
+      grossDeductionAmount: locationRecovery.grossDeductionAmount,
+      recoveredAmount: locationRecovery.recoveredAmount,
+      openAmount: locationRecovery.openAmount,
+      finalLostAmount: manualCancelledAmountFromRows(rows, manualCaseResolutions)
+    };
+  }), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Standorte`);
+  const submittedInfo = [
+    "Diese Kachel zeigt den eingereichten Forderungsumsatz im gewählten Zeitraum.",
+    `Herleitung: Summe aller eingereichten Forderungen für ${scopeHint}: ${money.format(metrics.submitted)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.submitted })))
+  ].join(" ");
+  const feeNetInfo = [
+    "Diese Kachel zeigt die Netto-BFS-Gebühren ohne Mehrwertsteuer.",
+    `Herleitung: Summe der Netto-Gebühren aus dem BFS-Abrechnungsimport für ${scopeHint}: ${money.format(metrics.feeNet)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.feeNet })))
+  ].join(" ");
+  const taxInfo = [
+    "Diese Kachel zeigt die erkannten Steueranteile auf BFS-Gebühren und EWMA/Adressprüfung.",
+    `Herleitung: BFS-MwSt ${money.format(metrics.feeVat)} plus EWMA-MwSt ${money.format(metrics.ewmaVat)} = ${money.format(metrics.feeVat + metrics.ewmaVat)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.feeVat + entry.metrics.ewmaVat })))
+  ].join(" ");
+  const ewmaInfo = [
+    "Diese Kachel zeigt Zusatzkosten für Meldeamt und Adressprüfung.",
+    `Herleitung: EWMA/Adressprüfung netto ${money.format(metrics.ewmaNet)} plus Steuer ${money.format(metrics.ewmaVat)} = ${money.format(metrics.ewmaTotal)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.ewmaTotal })))
+  ].join(" ");
+  const payoutInfo = [
+    "Diese Kachel zeigt den nach BFS-Abrechnung ausgezahlten Umsatz.",
+    `Herleitung: Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}: ${money.format(metrics.payout)}.`,
+    `Auszahlungsquote: ${payoutShareLabel(metrics.payout, metrics.submitted)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.payout })))
+  ].join(" ");
+  const grossDeductionInfo = [
+    "Diese Kachel zeigt die Brutto-Grundmenge aus Stornos und Rückgaben.",
+    `Herleitung: Rückgaben/Rückbelastungen ${money.format(metrics.returnAmount)} plus Stornos ${money.format(metrics.cancellationAmount)} = ${money.format(grossDeductionAmount)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.grossDeductionAmount })))
+  ].join(" ");
+  const recoveredInfo = [
+    "Diese Kachel zeigt den Teil des Brutto-Abzugs, der bereits wirtschaftlich geklärt ist.",
+    `Herleitung: echte Neueinreichungen/Ersatzrechnungen, Ratenpläne laut BFS und manuell geklärte Zahlungen, maximal bis zum Brutto-Abzug angerechnet: ${money.format(recoveredStornoAmount)}. ${recoveryBreakdownText(deductionRecovery)}`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.recoveredAmount })))
+  ].join(" ");
+  const openDeductionInfo = [
+    "Diese Kachel zeigt die noch operative offene Prüfsumme.",
+    `Herleitung: Brutto Storno/Rückgabe ${money.format(grossDeductionAmount)} minus bereits geklärt ${money.format(recoveredStornoAmount)} minus endgültig verloren ${money.format(finalLostAmount)} = ${money.format(openStornoAmount)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.openAmount })))
+  ].join(" ");
+  const finalLostInfo = [
+    "Diese Kachel zeigt endgültig als Verlust entschiedene Storno-/Rückgabebeträge.",
+    `Herleitung: Summe der manuell als endgültig storniert gespeicherten Fälle im gewählten Zeitraum für ${scopeHint}: ${money.format(finalLostAmount)}.`,
+    formatLocationAmountBreakdown(locationKpiBreakdown.map((entry) => ({ name: entry.name, amount: entry.finalLostAmount })))
+  ].join(" ");
   const locationExportTarget = relevantStandorte.length === 1 ? relevantStandorte[0] : undefined;
   const printLocationExport = () => {
     if (!locationExportTarget) return;
@@ -1143,8 +1369,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           hint={scopeHint}
           period={selectedPeriod.label}
           tone="blue"
-          trend={customKpiTrend("submitted", kpiTrendPoints)}
-          info={`Summe aller im gewählten Zeitraum eingereichten Forderungen für ${scopeHint}.`}
+          info={submittedInfo}
         />
         <PriorityCard
           label="BFS-Gebühr netto"
@@ -1152,8 +1377,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           hint="ohne MwSt"
           period={selectedPeriod.label}
           tone={metrics.feeNet ? "amber" : "green"}
-          trend={customKpiTrend("feeNet", kpiTrendPoints, true)}
-          info={`Netto-Gebühr aus dem BFS-Abrechnungsimport im gewählten Zeitraum für ${scopeHint}. Diese Kachel ist Teil der CashFlow-Herleitung vom eingereichten Umsatz zur Auszahlung.`}
+          info={feeNetInfo}
         />
         <PriorityCard
           label="MwSt"
@@ -1161,8 +1385,7 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           hint={`BFS ${money.format(metrics.feeVat)} · EWMA ${money.format(metrics.ewmaVat)}`}
           period={selectedPeriod.label}
           tone={metrics.feeVat + metrics.ewmaVat ? "amber" : "green"}
-          trend={customKpiTrend("tax", kpiTrendPoints, true)}
-          info="Separat erkannte Steueranteile auf BFS-Gebühren und EWMA/Adressprüfung. Wird in der CashFlow-Herleitung getrennt von Netto-Gebühren geführt."
+          info={taxInfo}
         />
         <PriorityCard
           label="EWMA / Adressprüfung"
@@ -1170,25 +1393,23 @@ function CustomKpiView({ standort, importRows, manualCaseResolutions = [], invoi
           hint={`netto ${money.format(metrics.ewmaNet)}`}
           period={selectedPeriod.label}
           tone={metrics.ewmaTotal ? "amber" : "green"}
-          trend={customKpiTrend("ewma", kpiTrendPoints, true)}
-          info="Zusatzkosten für Meldeamt/Adressprüfung aus dem Import. Diese Kosten reduzieren den wirtschaftlich verbleibenden Betrag zusätzlich zur BFS-Gebühr."
+          info={ewmaInfo}
         />
         <PriorityCard
           label="Ausgezahlter Umsatz"
           value={money.format(metrics.payout)}
-          hint="nach BFS-Abrechnung"
+          hint={`${payoutShareLabel(metrics.payout, metrics.submitted)} · nach BFS-Abrechnung`}
           period={selectedPeriod.label}
           tone="green"
-          trend={customKpiTrend("payout", kpiTrendPoints)}
-          info={`Summe der in den Importdaten ausgewiesenen Auszahlungen für ${scopeHint}.`}
+          info={payoutInfo}
         />
       </section>
 
       <section className="custom-kpi-slider custom-kpi-secondary" aria-label="Zusammenfassung offene Prüfsumme">
-        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} trend={customKpiTrend("grossDeductionAmount", kpiTrendPoints, true)} info={`Grundmenge: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${selectedPeriod.label} für ${scopeHint}.`} />
-        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} trend={customKpiTrend("recoveredAmount", kpiTrendPoints)} info={`Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. ${recoveryBreakdownText(deductionRecovery)}`} />
-        <PriorityCard label="Offene Prüfsumme" value={money.format(openStornoAmount)} hint="Brutto-Abzug minus bereits geklärt" period={selectedPeriod.label} tone={openStornoAmount ? "amber" : "green"} trend={customKpiTrend("openStornoAmount", kpiTrendPoints, true)} info="Das ist die Summe, die in der operativen Prüfliste abgearbeitet wird." />
-        <PriorityCard label="Endgültig verloren" value={money.format(finalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={finalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
+        <PriorityCard label="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${integerNumber.format(stornoReview.total)} Stornos · ${integerNumber.format(metrics.returnCount)} Rückgaben`} period={selectedPeriod.label} tone={grossDeductionAmount ? "amber" : "green"} info={grossDeductionInfo} />
+        <PriorityCard label="Bereits geklärt" value={money.format(recoveredStornoAmount)} hint={`${formatPercent(grossDeductionAmount ? (recoveredStornoAmount / grossDeductionAmount) * 100 : 0)} vom Brutto-Abzug`} period={selectedPeriod.label} tone={recoveredStornoAmount ? "green" : grossDeductionAmount ? "amber" : "blue"} info={recoveredInfo} />
+        <PriorityCard label="Offene Prüfsumme" value={money.format(openStornoAmount)} hint="Brutto-Abzug minus bereits geklärt" period={selectedPeriod.label} tone={openStornoAmount ? "amber" : "green"} info={openDeductionInfo} />
+        <PriorityCard label="Endgültig verloren" value={money.format(finalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={finalLostAmount ? "red" : "green"} info={finalLostInfo} />
       </section>
 
       <section className="panel period-filter custom-kpi-period custom-chart-period">
@@ -1657,34 +1878,6 @@ function emptyCustomChartPoint(label: string): CustomChartPoint {
   };
 }
 
-type CustomKpiTrendMetric = "submitted" | "fees" | "feeNet" | "tax" | "ewma" | "payout" | "cancellations" | "grossDeductionAmount" | "recoveredAmount" | "recoveredStornos" | "openStornoAmount" | "practiceFollowupAmount" | "finalCashflow" | "claims" | "averageClaim";
-
-function customKpiTrend(metric: CustomKpiTrendMetric, points: CustomChartPoint[], lowerIsBetter = false): AnswerSparklineTrend {
-  const values = points.map((point) => customKpiTrendValue(metric, point)).slice(-12);
-  const nonEmptyValues = values.length ? values : [0, 0, 0];
-  const first = nonEmptyValues[0] ?? 0;
-  const last = nonEmptyValues[nonEmptyValues.length - 1] ?? 0;
-  const delta = first ? ((last - first) / first) * 100 : last ? 100 : 0;
-  const desiredDelta = lowerIsBetter ? -delta : delta;
-  const tone: AnswerSparklineTrend["tone"] = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
-  const label = first
-    ? `Trend ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
-    : last
-      ? "Trend neu"
-      : "kein Trend";
-
-  return {
-    points: nonEmptyValues,
-    tone,
-    label
-  };
-}
-
-function customKpiTrendValue(metric: CustomKpiTrendMetric, point: CustomChartPoint) {
-  if (metric === "averageClaim") return point.claims ? point.submitted / point.claims : 0;
-  return Number(point[metric]);
-}
-
 function customBenchmarkRows(importRows: ImportPreviewRow[], benchmarkStandorte: Standort[], period: PeriodOption, manualCaseResolutions: ManualCaseResolution[], invoiceStatusRows: ParsedInvoiceStatusRow[]): CustomBenchmarkRow[] {
   return benchmarkStandorte.map((standort) => {
     const rows = importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, period, standort));
@@ -1734,6 +1927,7 @@ function customBenchmarkSignal(openReviewRate: number, recoveredRate: number, no
 }
 
 function GroupDashboard({ importRows, manualCaseResolutions = [], invoiceStatusRows = [] }: { importRows: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[]; invoiceStatusRows?: ParsedInvoiceStatusRow[] }) {
+  const [groupDetailsReady, setGroupDetailsReady] = useState(false);
   const [groupStandortFilter, setGroupStandortFilter] = useState("alle");
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [cockpitPeriodId, setCockpitPeriodId] = useState(() => defaultPeriodId(periodOptions));
@@ -1750,28 +1944,19 @@ function GroupDashboard({ importRows, manualCaseResolutions = [], invoiceStatusR
     : standorte.filter((standort) => standort.id === chartStandortFilter), [chartStandortFilter]);
   const chartScopeLabel = chartStandorte.length === 1 ? chartStandorte[0].name : "Alle Standorte";
   const filteredStandortIds = useMemo(() => new Set(filteredStandorte.map((standort) => standort.id)), [filteredStandorte]);
-  const dashboardCases = useMemo(() => buildUnifiedOperationalReviewCases(importRows, invoiceStatusRows, manualCaseResolutions), [importRows, invoiceStatusRows, manualCaseResolutions]);
+  const dashboardCases = useMemo(() => groupDetailsReady ? buildUnifiedOperationalReviewCases(importRows, invoiceStatusRows, manualCaseResolutions) : [], [groupDetailsReady, importRows, invoiceStatusRows, manualCaseResolutions]);
   const openCases = useMemo(() => dashboardCases.filter((fall) => {
     if (fall.status.includes("erledigt") || !filteredStandortIds.has(fall.standortId)) return false;
     const fallStandort = filteredStandorte.find((standort) => standort.id === fall.standortId);
     return fallStandort ? shortDateInPeriod(fall.sourceDate, cockpitPeriod, fallStandort) : false;
   }), [cockpitPeriod, dashboardCases, filteredStandortIds, filteredStandorte]);
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows]);
-  const groupChartSeries = useMemo(() => buildManagementChartSeries(chartStandorte, importRows, chartPeriod), [chartStandorte, importRows, chartPeriod]);
-  const groupKpiInfo = buildKpiDerivationInfo(managementComparison.currentMetrics, managementComparison.currentPeriod.label);
-  const groupSparklineContext = { importRows, relevantStandorte: filteredStandorte, period: managementComparison.currentPeriod, manualCaseResolutions, invoiceStatusRows };
-  const groupSparkline = (metric: AnswerSparklineMetric) => buildAnswerSparkline(metric, groupSparklineContext);
-  const groupKpis: KpiCardTuple[] = [
-    ["Eingereicht", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, groupKpiInfo.submitted, groupSparkline("submitted")],
-    ["BFS-Gebühr netto", money.format(managementComparison.currentMetrics.feeNet), "Kostenblock", groupKpiInfo.fees, groupSparkline("feeNet")],
-    ["MwSt", money.format(managementComparison.currentMetrics.feeVat + managementComparison.currentMetrics.ewmaVat), "auf Gebühren/EWMA", undefined, groupSparkline("tax")],
-    ["Adressprüfung", money.format(managementComparison.currentMetrics.ewmaTotal), "EWMA", undefined, groupSparkline("fees")],
-    ["Auszahlung", money.format(managementComparison.currentMetrics.payout), "laut BFS-Abrechnung", undefined, groupSparkline("payout")],
-    ["Brutto Storno/Rückgabe", money.format(managementComparison.deductionAmount), `${formatPercent(managementComparison.chargebackRate)} vom Eingang`, "Grundmenge aller Rückgaben, Rückbelastungen und Stornos.", groupSparkline("deductionAmount")],
-    ["Bereits geklärt", money.format(managementComparison.recoveredAmount), `${formatPercent(managementComparison.recoveryRate)} vom Brutto-Abzug`, `Nicht mehr offene Prüfsumme: ${money.format(managementComparison.recoveredByResubmissionAmount + managementComparison.manuallyResubmittedAmount)} Neueinreichung/Ersatzrechnung ohne Doppelumsatz, ${money.format(managementComparison.paidByInvoiceStatusAmount)} Ratenplan laut BFS, ${money.format(managementComparison.manuallyPaidAmount)} manuell bezahlt/geklärt. Saldo 0 allein zählt nicht.`, groupSparkline("recoveryRate")],
-    ["Offene Prüfsumme", money.format(managementComparison.openDeductionAmount), "geht in die Prüfliste", "Diese Summe wird operativ abgearbeitet.", groupSparkline("openAmount")],
-    ["Endgültig verloren", money.format(managementComparison.finalLostAmount), "manuell endgültig storniert", "Betrag, der nach Prüfung nicht weiterverfolgt wird.", groupSparkline("deductionAmount")]
-  ];
+  const managementComparison = useMemo(
+    () => groupDetailsReady
+      ? buildManagementComparison(importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows)
+      : buildLightweightManagementComparison(importRows, filteredStandorte, cockpitPeriod),
+    [groupDetailsReady, importRows, filteredStandorte, openCases, cockpitPeriod, manualCaseResolutions, invoiceStatusRows]
+  );
+  const groupChartSeries = useMemo(() => groupDetailsReady ? buildManagementChartSeries(chartStandorte, importRows, chartPeriod) : [], [chartStandorte, groupDetailsReady, importRows, chartPeriod]);
   return (
     <div className="content-stack">
       <CockpitFilterBar
@@ -1783,7 +1968,6 @@ function GroupDashboard({ importRows, manualCaseResolutions = [], invoiceStatusR
         scopeLabel={cockpitScopeLabel}
         detail={cockpitPeriod.detail}
       />
-      <KpiGrid cards={groupKpis} className="cockpit-kpi-grid" />
       <CockpitChartFilterBar
         periodOptions={periodOptions}
         selectedPeriodId={chartPeriodId}
@@ -1793,20 +1977,37 @@ function GroupDashboard({ importRows, manualCaseResolutions = [], invoiceStatusR
         scopeLabel={chartScopeLabel}
         detail={chartPeriod.detail}
       />
-      <section className="chart-grid management-chart-grid">
-        {groupChartSeries.map((chart) => (
-          <div className="panel mini-chart year-chart-panel cockpit-combo-panel" key={chart.title}>
-            <h2>{chart.title}</h2>
-            <small className="period-note">
-              {chart.title.includes("Standortvergleich") ? `Je Standort · ${chartPeriod.label} vs. Vorjahr` : `${chartScopeLabel} · ${chartPeriod.label} vs. Vorjahr`}
-            </small>
-            <ManagementComboChart title={chart.title} values={chart.values} format={chart.format} />
+      {!groupDetailsReady && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Detailauswertung</h2>
+              <p>Diagramme, Prüfsummen und Verlauf werden erst bei Bedarf berechnet, damit das Cockpit sofort bedienbar bleibt.</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => setGroupDetailsReady(true)}>
+              <BarChart3 size={16} /> Details laden
+            </button>
           </div>
-        ))}
-      </section>
-      <section className="management-summary-grid">
-        <ManagementDeltaPanel comparison={managementComparison} />
-      </section>
+        </section>
+      )}
+      {groupDetailsReady && (
+        <>
+          <section className="chart-grid management-chart-grid">
+            {groupChartSeries.map((chart) => (
+              <div className="panel mini-chart year-chart-panel cockpit-combo-panel" key={chart.title}>
+                <h2>{chart.title}</h2>
+                <small className="period-note">
+                  {chart.title.includes("Standortvergleich") ? `Je Standort · ${chartPeriod.label} vs. Vorjahr` : `${chartScopeLabel} · ${chartPeriod.label} vs. Vorjahr`}
+                </small>
+                <ManagementComboChart title={chart.title} values={chart.values} format={chart.format} />
+              </div>
+            ))}
+          </section>
+          <section className="management-summary-grid">
+            <ManagementDeltaPanel comparison={managementComparison} />
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -2427,6 +2628,38 @@ function buildManagementComparison(importRows: ImportPreviewRow[], relevantStand
   };
 }
 
+function buildLightweightManagementComparison(importRows: ImportPreviewRow[], relevantStandorte: Standort[], period?: PeriodOption) {
+  const currentPeriod = comparableCurrentPeriod(period ?? ytdPeriod(todayReference.getFullYear()));
+  const previousPeriod = previousYearPeriod(currentPeriod);
+  const currentMetrics = metricsFromRows(rowsForSparklinePeriod(importRows, relevantStandorte, currentPeriod));
+  const previousMetrics = metricsFromRows(rowsForSparklinePeriod(importRows, relevantStandorte, previousPeriod));
+  const submittedDelta = currentMetrics.submitted - previousMetrics.submitted;
+  const submittedDeltaRate = previousMetrics.submitted ? (submittedDelta / previousMetrics.submitted) * 100 : currentMetrics.submitted ? 100 : 0;
+  return {
+    importRows,
+    standortIds: relevantStandorte.map((standort) => standort.id),
+    currentPeriod,
+    previousPeriod,
+    currentMetrics,
+    previousMetrics,
+    submittedDelta,
+    submittedDeltaRate,
+    deductionAmount: 0,
+    recoveredAmount: 0,
+    recoveredByResubmissionAmount: 0,
+    manuallyResubmittedAmount: 0,
+    paidByInvoiceStatusAmount: 0,
+    manuallyPaidAmount: 0,
+    rawRecoveredAmount: 0,
+    finalLostAmount: 0,
+    openDeductionAmount: 0,
+    recoveryRate: 0,
+    chargebackRate: 0,
+    noProtectionShare: currentMetrics.submitted ? (currentMetrics.noProtectionAmount / currentMetrics.submitted) * 100 : 0,
+    openCases: []
+  };
+}
+
 function ytdPeriod(year: number): PeriodOption {
   return {
     id: `year-${year}-ytd`,
@@ -2593,7 +2826,14 @@ function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = f
             </div>
             <div className="location-metric-grid">
               <LocationMetricTile label="Umsatz" value={money.format(entry.metrics.submitted)} current={entry.metrics.submitted} previous={previous?.metrics.submitted ?? 0} format={money.format} />
-              <LocationMetricTile label="Auszahlung" value={money.format(entry.metrics.payout)} current={entry.metrics.payout} previous={previous?.metrics.payout ?? 0} format={money.format} />
+              <LocationMetricTile
+                label="Auszahlung"
+                value={money.format(entry.metrics.payout)}
+                current={entry.metrics.payout}
+                previous={previous?.metrics.payout ?? 0}
+                format={money.format}
+                detail={payoutShareLabel(entry.metrics.payout, entry.metrics.submitted)}
+              />
               <LocationMetricTile label="Gebühr" value={formatFeeRate(entry.metrics.feeRate)} current={entry.metrics.feeRate} previous={previous?.metrics.feeRate ?? 0} format={formatFeeRate} />
               <span className="location-metric-with-info">
                 <MetricInfo title={`Brutto Storno/Rückgabe ${entry.standort.name}`} text={locationChargebackRateInfo(entry)} />
@@ -2611,7 +2851,7 @@ function LocationBenchmarkCards({ snapshots, previousSnapshots = [], compact = f
   );
 }
 
-function LocationMetricTile({ label, value, current, previous, format, bare = false }: { label: string; value: string; current: number; previous: number; format: (value: number) => string; bare?: boolean }) {
+function LocationMetricTile({ label, value, current, previous, format, detail, bare = false }: { label: string; value: string; current: number; previous: number; format: (value: number) => string; detail?: string; bare?: boolean }) {
   const delta = previous ? ((current - previous) / previous) * 100 : current ? 100 : 0;
   const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
   const comparisonLabel = previous
@@ -2621,6 +2861,7 @@ function LocationMetricTile({ label, value, current, previous, format, bare = fa
     <>
       <b>{value}</b>
       {label}
+      {detail && <em>{detail}</em>}
       <small className={previous ? deltaClass : "neutral"}>{comparisonLabel}</small>
     </>
   );
@@ -3217,29 +3458,30 @@ function LocationDashboard({
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
   const locationStandorte = useMemo(() => [standort], [standort]);
-  const locationImportRows = useMemo(() => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort]);
-  const importSummary = useMemo(() => summarizeImportRows(locationImportRows), [locationImportRows]);
-  const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary]);
+  const locationImportRows = useMeasuredMemo("Standort-Dashboard Importfilter", () => importRows.filter((row) => row.location === standort.name && importRowInPeriod(row, selectedPeriod, standort)), [importRows, selectedPeriod, standort], (rows) => `${integerNumber.format(rows.length)} Zeilen`);
+  const importSummary = useMeasuredMemo("Standort-Dashboard Summen", () => summarizeImportRows(locationImportRows), [locationImportRows], (value) => `${integerNumber.format(value.rows)} Importzeilen`);
+  const selectedMetrics = useMeasuredMemo("Standort-Dashboard KPIs", () => importSummary.rows ? metricsFromImportSummary(importSummary) : zeroMetrics(), [importSummary], (value) => money.format(value.submitted));
   const periodLabel = importRows.length ? "aktueller Import" : selectedPeriod.label;
-  const openCases = useMemo(
+  const openCases = useMeasuredMemo(
+    "Standort-Dashboard Prüffälle",
     () => buildUnifiedOperationalReviewCases(locationImportRows, invoiceStatusRows, manualCaseResolutions),
-    [invoiceStatusRows, locationImportRows, manualCaseResolutions]
+    [invoiceStatusRows, locationImportRows, manualCaseResolutions],
+    (cases) => `${integerNumber.format(cases.length)} Fälle`
   );
-  const managementComparison = useMemo(() => buildManagementComparison(importRows, locationStandorte, openCases, undefined, manualCaseResolutions, invoiceStatusRows), [importRows, locationStandorte, openCases, manualCaseResolutions, invoiceStatusRows]);
-  const peerAverage = useMemo(() => buildAnonymousPeerAverage(peerImportRows), [peerImportRows]);
+  const managementComparison = useMeasuredMemo("Standort-Dashboard Vergleich", () => buildManagementComparison(importRows, locationStandorte, openCases, undefined, manualCaseResolutions, invoiceStatusRows), [importRows, locationStandorte, openCases, manualCaseResolutions, invoiceStatusRows], (value) => money.format(value.currentMetrics.submitted));
+  const peerAverage = useMeasuredMemo("Standort-Dashboard Peer-Schnitt", () => buildAnonymousPeerAverage(peerImportRows), [peerImportRows], (value) => formatFeeRate(value.feeRate));
   const locationKpiInfo = buildKpiDerivationInfo(selectedMetrics, periodLabel);
-  const locationSparklineContext = { importRows, relevantStandorte: locationStandorte, period: selectedPeriod, manualCaseResolutions, invoiceStatusRows };
   const groupChargebackRate = peerAverage.chargebackRate;
   const groupNoProtectionShare = peerAverage.noProtectionShare;
   const locationKpis: KpiCardTuple[] = [
-    ["Eingereicht YTD", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, locationKpiInfo.submitted, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext)],
-    ["Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label, undefined, kpiSparklineForLabel("Umsatz eingereicht", { ...locationSparklineContext, period: managementComparison.previousPeriod })],
-    ["Delta Vorjahr", money.format(managementComparison.submittedDelta), formatDelta(managementComparison.submittedDeltaRate), undefined, kpiSparklineForLabel("Umsatz eingereicht", locationSparklineContext), managementComparison.currentPeriod.label],
-    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Ø Gruppe ${formatFeeRate(peerAverage.feeRate)}`, undefined, kpiSparklineForLabel("Gebührenquote", locationSparklineContext)],
-    ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Ø Gruppe ${formatPercent(groupChargebackRate)}`, undefined, kpiSparklineForLabel("Rückbelastungsquote", locationSparklineContext)],
-    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Ø Gruppe ${formatPercent(groupNoProtectionShare)}`, undefined, kpiSparklineForLabel("Laufend ohne Ausfallschutz", locationSparklineContext)],
-    ["Prüfliste", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, "Eine operative Liste für offene Fälle. Je Fall wird bezahlt/geklärt oder endgültig storniert markiert.", kpiSparklineForLabel("Prüfliste", locationSparklineContext)],
-    ["Patientenqualität", patientQualityMixLabel(importRows, standort.id), "A/B/C/D-Mix", undefined, kpiSparklineForLabel("Ohne Ausfallschutz", locationSparklineContext)]
+    ["Eingereicht YTD", money.format(managementComparison.currentMetrics.submitted), managementComparison.currentPeriod.label, locationKpiInfo.submitted],
+    ["Vorjahr YTD", money.format(managementComparison.previousMetrics.submitted), managementComparison.previousPeriod.label],
+    ["Delta Vorjahr", money.format(managementComparison.submittedDelta), formatDelta(managementComparison.submittedDeltaRate), undefined, managementComparison.currentPeriod.label],
+    ["Gebührenquote", formatFeeRate(managementComparison.currentMetrics.feeRate), `Ø Gruppe ${formatFeeRate(peerAverage.feeRate)}`],
+    ["Rückbelastungsquote", formatPercent(managementComparison.chargebackRate), `Ø Gruppe ${formatPercent(groupChargebackRate)}`],
+    ["Ohne-Ausfallschutz-Anteil", formatPercent(managementComparison.noProtectionShare), `Ø Gruppe ${formatPercent(groupNoProtectionShare)}`],
+    ["Prüfliste", String(openCases.length), `${openCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0)} Tage ältester Fall`, "Eine operative Liste für offene Fälle. Je Fall wird bezahlt/geklärt oder endgültig storniert markiert."],
+    ["Patientenqualität", patientQualityMixLabel(importRows, standort.id), "A/B/C/D-Mix"]
   ];
 
   return (
@@ -3329,7 +3571,7 @@ function LocationDashboard({
             <p>Konkrete Patienten, offene Prüffälle und Reports werden hier weiterbearbeitet.</p>
           </div>
         </div>
-        <AnswerCockpit scope="location" standort={standort} cases={openCases} onNavigate={onNavigate} compact showReportAction={false} importRows={importRows} hasImportDataset={importRows.length > 0} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
+        <AnswerCockpit scope="location" standort={standort} cases={openCases} onNavigate={onNavigate} compact importRows={importRows} hasImportDataset={importRows.length > 0} manualCaseResolutions={manualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
       </section>
       <CasesView title="Prüfliste offene Fälle" cases={openCases} compact />
     </div>
@@ -3342,7 +3584,6 @@ function AnswerCockpit({
   cases: rows,
   onNavigate,
   compact = false,
-  showReportAction = false,
   importRows = [],
   manualCaseResolutions = [],
   invoiceStatusRows = [],
@@ -3354,7 +3595,6 @@ function AnswerCockpit({
   cases: BfsCase[];
   onNavigate: (view: string) => void;
   compact?: boolean;
-  showReportAction?: boolean;
   importRows?: ImportPreviewRow[];
   manualCaseResolutions?: ManualCaseResolution[];
   invoiceStatusRows?: ParsedInvoiceStatusRow[];
@@ -3375,23 +3615,25 @@ function AnswerCockpit({
       ? [standort]
       : standorte, [scope, selectedAnswerStandortId, standort]);
   const relevantStandortIds = useMemo(() => new Set(relevantStandorte.map((entry) => entry.id)), [relevantStandorte]);
-  const scopedImportRows = useMemo(() => importRows.filter((row) => {
+  const scopedImportRows = useMeasuredMemo("Schnellantworten Importfilter", () => importRows.filter((row) => {
     const rowStandort = relevantStandorte.find((entry) => entry.name === row.location);
     return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, relevantStandorte, selectedPeriod]);
-  const scopedRows = useMemo(() => importRows.length
+  }), [importRows, relevantStandorte, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Zeilen`);
+  const scopedRows = useMeasuredMemo("Schnellantworten Fallliste", () => importRows.length
     ? buildUnifiedOperationalReviewCases(scopedImportRows, invoiceStatusRows, manualCaseResolutions)
-    : rows.filter((fall) => relevantStandortIds.has(fall.standortId)), [importRows.length, invoiceStatusRows, manualCaseResolutions, scopedImportRows, rows, relevantStandortIds]);
-  const importSummary = useMemo(() => summarizeImportRows(scopedImportRows), [scopedImportRows]);
-  const selectedMetrics = useMemo(() => importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics(), [importSummary, periodMetrics]);
+    : rows.filter((fall) => relevantStandortIds.has(fall.standortId)), [importRows.length, invoiceStatusRows, manualCaseResolutions, scopedImportRows, rows, relevantStandortIds], (cases) => `${integerNumber.format(cases.length)} Fälle`);
+  const importSummary = useMeasuredMemo("Schnellantworten Summen", () => summarizeImportRows(scopedImportRows), [scopedImportRows], (value) => `${integerNumber.format(value.rows)} Importzeilen`);
+  const selectedMetrics = useMeasuredMemo("Schnellantworten KPIs", () => importSummary.rows ? metricsFromImportSummary(importSummary) : periodMetrics ?? zeroMetrics(), [importSummary, periodMetrics], (value) => money.format(value.submitted));
   const openCases = useMemo(() => scopedRows.filter((fall) => !fall.status.includes("erledigt")), [scopedRows]);
   const openCaseAmount = useMemo(() => openCases.reduce((sum, fall) => sum + fall.amount, 0), [openCases]);
   const chargebacks = useMemo(() => openCases.filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung")), [openCases]);
-  const recurringRisks = useMemo(() => getRecurringRiskProfiles(
+  const noProtectionClaims = useMeasuredMemo("Schnellantworten Ohne-Schutz-Risiken", () => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows], (claims) => `${integerNumber.format(claims.length)} Positionen`);
+  const noProtectionPaymentRisk = useMeasuredMemo("Schnellantworten Nichtzahler", () => summarizeNoProtectionPaymentRisk(noProtectionClaims), [noProtectionClaims], (value) => money.format(value.unpaidAmount));
+  const recurringRisks = useMeasuredMemo("Schnellantworten Wiederholer", () => getRecurringRiskProfiles(
     relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
     scopedImportRows,
     hasImportDataset
-  ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)), [relevantStandorte, scopedImportRows, hasImportDataset]);
+  ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)), [relevantStandorte, scopedImportRows, hasImportDataset], (profiles) => `${integerNumber.format(profiles.length)} Profile`);
   const submitted = selectedMetrics.submitted;
   const claimCount = useMemo(() => importRowsClaimCount(scopedImportRows), [scopedImportRows]);
   const averageInvoiceValue = claimCount ? submitted / claimCount : 0;
@@ -3409,28 +3651,34 @@ function AnswerCockpit({
     : standort?.name ?? "Standort";
   const title = scope === "group" ? "Antwortcockpit für Standort-Rückfragen" : `Antwortcockpit ${selectedStandortLabel}`;
   const resolvedPeriodLabel = selectedPeriod.label;
-  const effectivePeriod = selectedPeriod;
-  const answerSparklineContext = useMemo(() => ({
-    importRows,
-    relevantStandorte,
-    period: effectivePeriod,
-    manualCaseResolutions,
-    invoiceStatusRows
-  }), [effectivePeriod, importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte]);
-  const submittedTrend = useMemo(() => buildAnswerSparkline("submitted", answerSparklineContext), [answerSparklineContext]);
-  const averageInvoiceTrend = useMemo(() => buildAnswerSparkline("averageClaim", answerSparklineContext), [answerSparklineContext]);
-  const payoutTrend = useMemo(() => buildAnswerSparkline("payout", answerSparklineContext), [answerSparklineContext]);
-  const noProtectionTrend = useMemo(() => buildAnswerSparkline("noProtection", answerSparklineContext), [answerSparklineContext]);
-  const recurringTrend = useMemo(() => buildAnswerSparkline("recurring", answerSparklineContext), [answerSparklineContext]);
-  const feesTrend = useMemo(() => buildAnswerSparkline("fees", answerSparklineContext), [answerSparklineContext]);
-  const grossDeductionTrend = useMemo(() => buildAnswerSparkline("deductionAmount", answerSparklineContext), [answerSparklineContext]);
-  const recoveredTrend = useMemo(() => buildAnswerSparkline("recoveryRate", answerSparklineContext), [answerSparklineContext]);
-  const openDeductionTrend = useMemo(() => buildAnswerSparkline("openAmount", answerSparklineContext), [answerSparklineContext]);
-  const deductionRecovery = useMemo(() => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod]);
+  const deductionRecovery = useMeasuredMemo("Schnellantworten Abzugserholung", () => buildDeductionRecovery(importRows, relevantStandorte, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, selectedPeriod], (value) => money.format(value.openAmount));
   const grossDeductionAmount = deductionRecovery.grossDeductionAmount;
   const recoveredAmount = deductionRecovery.recoveredAmount;
   const openDeductionAmount = deductionRecovery.openAmount;
   const grossDeductionRate = submitted ? (grossDeductionAmount / submitted) * 100 : 0;
+  const locationAnswerBreakdown = useMeasuredMemo("Schnellantworten Standortaufschlüsselung", () => relevantStandorte.map((entry) => {
+    const rows = importRows.filter((row) => row.location === entry.name && importRowInPeriod(row, selectedPeriod, entry));
+    const locationMetrics = metricsFromImportSummary(summarizeImportRows(rows));
+    const locationClaimCount = importRowsClaimCount(rows);
+    const locationRecovery = buildDeductionRecovery(importRows, [entry], selectedPeriod, manualCaseResolutions, invoiceStatusRows);
+    const locationCases = scopedRows.filter((fall) => fall.standortId === entry.id && !fall.status.includes("erledigt"));
+    const locationNoProtectionPaymentRisk = summarizeNoProtectionPaymentRisk(riskClaimsFromImportRows(rows));
+    const locationRecurring = getRecurringRiskProfiles(entry.id, rows, hasImportDataset)
+      .filter((profile) => profile.standortName === entry.name);
+    return {
+      name: entry.name,
+      metrics: locationMetrics,
+      claimCount: locationClaimCount,
+      averageInvoiceValue: locationClaimCount ? locationMetrics.submitted / locationClaimCount : 0,
+      grossDeductionAmount: locationRecovery.grossDeductionAmount,
+      recoveredAmount: locationRecovery.recoveredAmount,
+      openAmount: locationRecovery.openAmount,
+      openCaseCount: locationCases.length,
+      noProtectionUnpaidAmount: locationNoProtectionPaymentRisk.unpaidAmount,
+      noProtectionUnpaidPatients: locationNoProtectionPaymentRisk.unpaidPatients,
+      recurringCount: locationRecurring.length
+    };
+  }), [hasImportDataset, importRows, invoiceStatusRows, manualCaseResolutions, relevantStandorte, scopedRows, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Standorte`);
   const answerInfo = useMemo(() => buildAnswerCardInfo({
     periodLabel: resolvedPeriodLabel,
     scopeLabel: selectedStandortLabel,
@@ -3442,8 +3690,10 @@ function AnswerCockpit({
     openCaseAmount,
     averageInvoiceValue,
     claimCount,
-    deductionRecovery
-  }), [averageInvoiceValue, chargebacks, claimCount, deductionRecovery, openCaseAmount, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel]);
+    deductionRecovery,
+    noProtectionPaymentRisk,
+    locationBreakdown: locationAnswerBreakdown
+  }), [averageInvoiceValue, chargebacks, claimCount, deductionRecovery, locationAnswerBreakdown, noProtectionPaymentRisk, openCaseAmount, openCases, oldest, recurringRisks, resolvedPeriodLabel, selectedMetrics, selectedStandortLabel]);
 
   useEffect(() => {
     if (previousAnswerScope.current !== scope) {
@@ -3461,7 +3711,6 @@ function AnswerCockpit({
           <span className="eyebrow">Cockpit-Schnellantworten</span>
           <h2>{title}</h2>
         </div>
-        {showReportAction && <button className="secondary-button" onClick={() => onNavigate("reports")}><Printer size={16} /> Report senden</button>}
       </div>
       <section className={compact ? "period-filter answer-filter-panel compact-answer-filter" : "period-filter answer-filter-panel"}>
         <label className="select-label">
@@ -3483,21 +3732,22 @@ function AnswerCockpit({
         </label>
       </section>
       <div className="answer-grid">
-        <AnswerMetricCard title="Umsatz eingereicht" value={money.format(submitted)} hint={resolvedPeriodLabel} trend={submittedTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="Ø Rechnungswert" value={money.format(averageInvoiceValue)} hint={`${integerNumber.format(claimCount)} Rechnungen`} trend={averageInvoiceTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.averageInvoiceValue} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="BFS-Kosten" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} trend={feesTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="Umsatz ausgezahlt" value={money.format(payout)} hint="nach BFS-Abzug" trend={payoutTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.payout} onClick={() => onNavigate("claims")} />
-        <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} trend={noProtectionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
-        <AnswerMetricCard title="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${formatPercent(grossDeductionRate)} vom Eingang`} trend={grossDeductionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
-        <AnswerMetricCard title="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug`} trend={recoveredTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
-        <AnswerMetricCard title="Offene Prüfsumme" value={money.format(openDeductionAmount)} hint={`${integerNumber.format(openCases.length)} Fälle in der Prüfliste`} trend={openDeductionTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
-        <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" trend={recurringTrend} periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
+        <AnswerMetricCard title="Umsatz eingereicht" value={money.format(submitted)} hint={resolvedPeriodLabel} periodLabel={resolvedPeriodLabel} info={answerInfo.submitted} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Ø Rechnungswert" value={money.format(averageInvoiceValue)} hint={`${integerNumber.format(claimCount)} Rechnungen`} periodLabel={resolvedPeriodLabel} info={answerInfo.averageInvoiceValue} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="BFS-Kosten" value={money.format(fees)} hint={`Gebühr ${money.format(feeNet)} · MwSt ${money.format(feeVat)}${ewmaTotal ? ` · EWMA ${money.format(ewmaTotal)}` : ""}`} periodLabel={resolvedPeriodLabel} info={answerInfo.fees} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Umsatz ausgezahlt" value={money.format(payout)} hint={payoutShareLabel(payout, submitted)} periodLabel={resolvedPeriodLabel} info={answerInfo.payout} onClick={() => onNavigate("claims")} />
+        <AnswerMetricCard title="Ohne Ausfallschutz" value={money.format(noProtectionAmount)} hint={resolvedPeriodLabel} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtection} onClick={() => onNavigate("risks")} />
+        <AnswerMetricCard title="Ohne Schutz nicht gezahlt" value={money.format(noProtectionPaymentRisk.unpaidAmount)} hint={`${integerNumber.format(noProtectionPaymentRisk.unpaidPatients)} Patienten · ${formatPercent(noProtectionPaymentRisk.unpaidRate)}`} periodLabel={resolvedPeriodLabel} info={answerInfo.noProtectionUnpaid} onClick={() => onNavigate("risks")} />
+        <AnswerMetricCard title="Brutto Storno/Rückgabe" value={money.format(grossDeductionAmount)} hint={`${formatPercent(grossDeductionRate)} vom Eingang`} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoTotal} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Bereits geklärt" value={money.format(recoveredAmount)} hint={`${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug`} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoDone} onClick={() => onNavigate("cashflow")} />
+        <AnswerMetricCard title="Offene Prüfsumme" value={money.format(openDeductionAmount)} hint={`${integerNumber.format(openCases.length)} Fälle in der Prüfliste`} periodLabel={resolvedPeriodLabel} info={answerInfo.stornoOpen} onClick={() => onNavigate("practiceFollowup")} />
+        <AnswerMetricCard title="Wiederholer" value={String(recurringRisks.length)} hint="Patienten mehrfach ohne Schutz" periodLabel={resolvedPeriodLabel} info={answerInfo.recurring} onClick={() => onNavigate("repeatRisks")} />
       </div>
     </section>
   );
 }
 
-function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClick }: { title: string; value: string; hint: string; trend: AnswerSparklineTrend; periodLabel: string; info: string; onClick: () => void }) {
+function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClick }: { title: string; value: string; hint: string; trend?: AnswerSparklineTrend; periodLabel: string; info: string; onClick: () => void }) {
   return (
     <article className="answer-card">
       <MetricInfo title={title} text={info} />
@@ -3505,14 +3755,14 @@ function AnswerMetricCard({ title, value, hint, trend, periodLabel, info, onClic
         <span>{title}</span>
         <strong>{value}</strong>
         <small>{hint}</small>
-        <AnswerSparkline trend={trend} />
+        {trend && <AnswerSparkline trend={trend} />}
         <small className="period-note">{periodLabelFromHint(periodLabel)}</small>
       </button>
     </article>
   );
 }
 
-function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, openCaseAmount, averageInvoiceValue, claimCount, deductionRecovery }: {
+function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, chargebacks, recurringRisks, oldest, openCaseAmount, averageInvoiceValue, claimCount, deductionRecovery, noProtectionPaymentRisk, locationBreakdown }: {
   periodLabel: string;
   scopeLabel: string;
   metrics: BfsMetrics;
@@ -3524,6 +3774,20 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   averageInvoiceValue: number;
   claimCount: number;
   deductionRecovery: ReturnType<typeof buildDeductionRecovery>;
+  noProtectionPaymentRisk: ReturnType<typeof summarizeNoProtectionPaymentRisk>;
+  locationBreakdown: {
+    name: string;
+    metrics: BfsMetrics;
+    claimCount: number;
+    averageInvoiceValue: number;
+    grossDeductionAmount: number;
+    recoveredAmount: number;
+    openAmount: number;
+    openCaseCount: number;
+    noProtectionUnpaidAmount: number;
+    noProtectionUnpaidPatients: number;
+    recurringCount: number;
+  }[];
 }) {
   const openAmount = openCaseAmount;
   const chargebackAmount = chargebacks.reduce((sum, fall) => sum + fall.amount, 0);
@@ -3531,49 +3795,67 @@ function buildAnswerCardInfo({ periodLabel, scopeLabel, metrics, openCases, char
   const feeNet = metrics.feeNet || feeTotal;
   const taxTotal = metrics.feeVat + metrics.ewmaVat;
   return {
-    submitted: `Herleitung: Summe aller erkannten Forderungen im Zeitraum ${periodLabel} für ${scopeLabel}. Verwendet werden die importierten BFS-Forderungsbeträge je Abrechnung. Aktueller Wert: ${money.format(metrics.submitted)}. Die Sparkline zeigt die Monatsentwicklung im gewählten Zeitraum und der VJ-Wert vergleicht denselben Zeitraum mit dem Vorjahr.`,
-    averageInvoiceValue: `Herleitung: Eingereichter Umsatz ${money.format(metrics.submitted)} geteilt durch ${integerNumber.format(claimCount)} erkannte Rechnungen/Forderungen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Ø Rechnungswert: ${money.format(averageInvoiceValue)}.`,
-    payout: `Herleitung: Summe der erkannten Auszahlungsbeträge im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.payout)}. Die Differenz zum eingereichten Umsatz entsteht aus BFS-Kosten, Steuern, EWMA/Meldeamtabfragen sowie Rückgaben oder Stornos, sofern diese im Import erkannt wurden.`,
+    submitted: [
+      "Diese Kachel zeigt den eingereichten Forderungsumsatz im gewählten Zeitraum.",
+      `Herleitung: Summe aller erkannten BFS-Forderungsbeträge für ${scopeLabel}: ${money.format(metrics.submitted)}.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.submitted })))
+    ].join(" "),
+    averageInvoiceValue: [
+      "Diese Kachel zeigt den durchschnittlichen Wert je erkannter Rechnung/Forderung.",
+      `Herleitung: Eingereichter Umsatz ${money.format(metrics.submitted)} geteilt durch ${integerNumber.format(claimCount)} erkannte Rechnungen/Forderungen = ${money.format(averageInvoiceValue)}.`,
+      formatLocationAverageInvoiceBreakdown(locationBreakdown)
+    ].join(" "),
+    payout: [
+      "Diese Kachel zeigt den nach BFS-Abrechnung ausgezahlten Umsatz.",
+      `Herleitung: Summe der erkannten Auszahlungsbeträge im Zeitraum ${periodLabel} für ${scopeLabel}: ${money.format(metrics.payout)}.`,
+      `Auszahlungsquote: ${payoutShareLabel(metrics.payout, metrics.submitted)}.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.payout })))
+    ].join(" "),
     open: `Herleitung: Summe der Fälle in der gemeinsamen Prüfliste im aktuellen Standortfilter ${scopeLabel}. Zeitraum: ${periodLabel}. Gezählt werden ${openCases.length} Fälle mit zusammen ${money.format(openAmount)}. Je Fall wird nur noch entschieden: bezahlt/geklärt oder endgültig storniert.`,
     chargebacks: `Herleitung: Gezählt werden offene Fälle mit Rückgabe oder Rückbelastung im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${chargebacks.length} Rückläufer mit ${money.format(chargebackAmount)} offenem Betrag. Stornos werden in den separaten Qualitäts- und Geldflussansichten ausgewertet.`,
-    noProtection: `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}. Aktueller Wert: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
-    recurring: `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${recurringRisks.length} Wiederholer. Diese Kachel zeigt Patientenselektion und Standortprozess, nicht einzelne Buchungssummen.`,
-    fees: `Herleitung: BFS-Kosten im Zeitraum ${periodLabel} für ${scopeLabel}: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)}, Gesamtkosten ${money.format(feeTotal)}. EWMA- und Meldeamtabfragen sind enthalten, sofern sie im Import erkannt wurden.`,
-    stornoTotal: `Herleitung: Brutto Storno/Rückgabe ist die Grundmenge aller erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${periodLabel} für ${scopeLabel}. Aktuell: ${money.format(deductionRecovery.grossDeductionAmount)} aus ${metrics.returnCount + metrics.cancellationCount} erkannten Abzugsbewegungen. Danach wird getrennt in bereits geklärt, offene Prüfsumme und endgültig verloren.`,
-    stornoDone: `Herleitung: Bereits geklärt heißt: nicht mehr offene Prüfsumme, weil eine wirtschaftliche Erklärung vorliegt. Dazu zählen Neueinreichung/Ersatzrechnung ohne Doppelumsatz, Ratenplan laut BFS oder manuell belegte Zahlung/Klärung. Aktuell: ${money.format(deductionRecovery.recoveredAmount)} bzw. ${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug. Saldo 0 allein ist kein Zahlungsnachweis.`,
-    stornoOpen: `Herleitung: Offene Prüfsumme = Brutto Storno/Rückgabe - Bereits geklärt - Endgültig verloren. Zeitraum: ${periodLabel}, Filter: ${scopeLabel}. Aktuell: ${money.format(deductionRecovery.openAmount)}; die zugehörige operative Liste enthält ${openCases.length} Fälle mit zusammen ${money.format(openAmount)} und wird je Fall als bezahlt/geklärt, neu eingereicht oder endgültig storniert entschieden.`,
+    noProtection: [
+      "Diese Kachel zeigt den Risikobestand ohne Ausfallschutz.",
+      `Herleitung: Summe aller Forderungen und erkannten Bewegungen ohne Ausfallschutz im Zeitraum ${periodLabel} für ${scopeLabel}: ${money.format(metrics.noProtectionAmount)}. Ohne Ausfallschutz ist ein Risikobestand, nicht automatisch ein offener Klärfall.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.noProtectionAmount })))
+    ].join(" "),
+    noProtectionUnpaid: [
+      "Diese Kachel zeigt den Teil der Ohne-Ausfallschutz-Patienten mit erkannter Nichtzahlung.",
+      `Herleitung: ${integerNumber.format(noProtectionPaymentRisk.unpaidPatients)} von ${integerNumber.format(noProtectionPaymentRisk.totalPatients)} Ohne-Schutz-Patienten haben eine nicht erledigte Storno-, Rückgabe- oder Rückbelastungsbewegung. Nichtzahlungsquote: ${formatPercent(noProtectionPaymentRisk.unpaidRate)}. Erkannte kritische Summe: ${money.format(noProtectionPaymentRisk.unpaidAmount)}.`,
+      `${formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.noProtectionUnpaidAmount })))} ${formatLocationCountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, count: entry.noProtectionUnpaidPatients })), "Patienten")}`
+    ].join(" "),
+    recurring: [
+      "Diese Kachel zeigt Patienten mit mehrfacher Ohne-Ausfallschutz-Historie.",
+      `Herleitung: Patientenprofile mit mehrfachen Ohne-Ausfallschutz-Ereignissen im Zeitraum ${periodLabel} für ${scopeLabel}: ${integerNumber.format(recurringRisks.length)} Wiederholer.`,
+      formatLocationCountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, count: entry.recurringCount })), "Wiederholer")
+    ].join(" "),
+    fees: [
+      "Diese Kachel zeigt die gesamten erkannten BFS-Kosten inklusive Steuer und EWMA.",
+      `Herleitung: angezeigter Kostenwert aus dem BFS-Import ${money.format(feeTotal)}. Darin bzw. daneben ausgewiesen: Gebühr netto ${money.format(feeNet)}, Steuer/Zusatzsteuer ${money.format(taxTotal)} und EWMA/Adressprüfung ${money.format(metrics.ewmaTotal)}.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.metrics.fees })))
+    ].join(" "),
+    stornoTotal: [
+      "Diese Kachel zeigt die Brutto-Grundmenge aus Stornos und Rückgaben.",
+      `Herleitung: alle erkannten Rückgaben, Rückbelastungen und Stornos im Zeitraum ${periodLabel} für ${scopeLabel}: ${money.format(deductionRecovery.grossDeductionAmount)} aus ${metrics.returnCount + metrics.cancellationCount} erkannten Abzugsbewegungen.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.grossDeductionAmount })))
+    ].join(" "),
+    stornoDone: [
+      "Diese Kachel zeigt den Teil des Brutto-Abzugs, der bereits wirtschaftlich geklärt ist.",
+      `Herleitung: Neueinreichung/Ersatzrechnung, Ratenplan laut BFS oder manuell belegte Zahlung/Klärung, maximal bis zum Brutto-Abzug angerechnet: ${money.format(deductionRecovery.recoveredAmount)} bzw. ${formatPercent(deductionRecovery.recoveryRate)} vom Brutto-Abzug.`,
+      formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.recoveredAmount })))
+    ].join(" "),
+    stornoOpen: [
+      "Diese Kachel zeigt die noch operative offene Prüfsumme.",
+      `Herleitung: Offene Prüfsumme = Brutto Storno/Rückgabe ${money.format(deductionRecovery.grossDeductionAmount)} minus bereits geklärt ${money.format(deductionRecovery.recoveredAmount)} minus endgültig verloren ${money.format(deductionRecovery.finalLostAmount)} = ${money.format(deductionRecovery.openAmount)}.`,
+      `${formatLocationAmountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, amount: entry.openAmount })))} ${formatLocationCountBreakdown(locationBreakdown.map((entry) => ({ name: entry.name, count: entry.openCaseCount })), "offene Fälle")}`
+    ].join(" "),
     oldest: `Herleitung: Höchstes Alter unter allen Fällen der gemeinsamen Prüfliste im aktuellen Filter ${scopeLabel}. Zeitraum: aktueller Bearbeitungsstand mit fachlicher Einordnung zum Zeitraum ${periodLabel}. Aktueller Wert: ${oldest} Tage.`
   };
 }
 
-type AnswerSparklineMetric =
-  | "submitted"
-  | "payout"
-  | "feeNet"
-  | "tax"
-  | "feeRate"
-  | "deductionAmount"
-  | "recoveryRate"
-  | "chargebackRate"
-  | "openAmount"
-  | "openCount"
-  | "chargebacks"
-  | "noProtection"
-  | "recurring"
-  | "fees"
-  | "averageClaim"
-  | "oldest";
 type AnswerSparklineTrend = {
   points: number[];
   tone: "green" | "amber" | "red";
   label: string;
-};
-type AnswerSparklineContext = {
-  importRows: ImportPreviewRow[];
-  relevantStandorte: Standort[];
-  period: PeriodOption;
-  manualCaseResolutions?: ManualCaseResolution[];
-  invoiceStatusRows?: ParsedInvoiceStatusRow[];
 };
 
 function AnswerSparkline({ trend }: { trend: AnswerSparklineTrend }) {
@@ -3598,46 +3880,6 @@ function AnswerSparkline({ trend }: { trend: AnswerSparklineTrend }) {
       <small>{trend.label}</small>
     </span>
   );
-}
-
-function buildAnswerSparkline(metric: AnswerSparklineMetric, context: AnswerSparklineContext): AnswerSparklineTrend {
-  const currentRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, context.period);
-  const comparisonPeriod = comparableCurrentPeriod(context.period);
-  const currentComparisonRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, comparisonPeriod);
-  const previousRows = rowsForSparklinePeriod(context.importRows, context.relevantStandorte, previousYearPeriod(comparisonPeriod));
-  const currentTotal = valueForAnswerMetric(metric, currentComparisonRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
-  const previousTotal = valueForAnswerMetric(metric, previousRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
-  const points = monthlySparklinePoints(metric, currentRows, context.relevantStandorte, context.manualCaseResolutions, context.invoiceStatusRows);
-  const delta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : currentTotal ? 100 : 0;
-  const lowerIsBetter: AnswerSparklineMetric[] = ["feeNet", "tax", "feeRate", "deductionAmount", "chargebackRate", "openAmount", "openCount", "chargebacks", "noProtection", "recurring", "fees", "oldest"];
-  const desiredDelta = lowerIsBetter.includes(metric) ? -delta : delta;
-  const tone = desiredDelta >= 0 ? "green" : desiredDelta <= -15 ? "red" : "amber";
-  const label = previousTotal
-    ? `VJ ${delta >= 0 ? "+" : ""}${formatPercent(delta)}`
-    : currentTotal
-      ? "VJ startet"
-      : "kein Trend";
-
-  return {
-    points: points.length ? points : [0, currentTotal, currentTotal],
-    tone,
-    label
-  };
-}
-
-function kpiSparklineForLabel(label: string, context: AnswerSparklineContext) {
-  const normalized = label.toLowerCase();
-  if (normalized.includes("umsatz") || normalized.includes("eingereicht")) return buildAnswerSparkline("submitted", context);
-  if (normalized.includes("auszahlung")) return buildAnswerSparkline("payout", context);
-  if (normalized.includes("gebührenquote")) return buildAnswerSparkline("feeRate", context);
-  if (normalized.includes("rückbelastungsquote")) return buildAnswerSparkline("chargebackRate", context);
-  if (normalized.includes("mwst")) return buildAnswerSparkline("tax", context);
-  if (normalized.includes("gebühr netto")) return buildAnswerSparkline("feeNet", context);
-  if (normalized.includes("gesamtkosten") || normalized.includes("bfs-kosten")) return buildAnswerSparkline("fees", context);
-  if (normalized.includes("ausfallschutz") || normalized.includes("schutz")) return buildAnswerSparkline("noProtection", context);
-  if (normalized.includes("klä") || normalized.includes("offen")) return buildAnswerSparkline("openCount", context);
-  if (normalized.includes("ältester")) return buildAnswerSparkline("oldest", context);
-  return buildAnswerSparkline("submitted", context);
 }
 
 function comparableCurrentPeriod(period: PeriodOption): PeriodOption {
@@ -3794,54 +4036,6 @@ function previousYearPeriod(period: PeriodOption): PeriodOption {
   };
 }
 
-function monthlySparklinePoints(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
-  const monthKeys = [...new Set(rows.map((row) => importRowMonth(row)).filter(Boolean))].sort();
-  return monthKeys.map((month) => {
-    const monthRows = rows.filter((row) => importRowMonth(row) === month);
-    return valueForAnswerMetric(metric, monthRows, relevantStandorte, manualCaseResolutions, invoiceStatusRows);
-  }).slice(-12);
-}
-
-function valueForAnswerMetric(metric: AnswerSparklineMetric, rows: ImportPreviewRow[], relevantStandorte: Standort[], manualCaseResolutions: ManualCaseResolution[] = [], invoiceStatusRows: ParsedInvoiceStatusRow[] = []) {
-  const summary = summarizeImportRows(rows);
-  const metrics = summary.rows ? metricsFromImportSummary(summary) : zeroMetrics();
-  if (metric === "submitted") return metrics.submitted;
-  if (metric === "payout") return metrics.payout;
-  if (metric === "feeNet") return metrics.feeNet;
-  if (metric === "tax") return metrics.feeVat + metrics.ewmaVat;
-  if (metric === "fees") return metrics.fees;
-  if (metric === "averageClaim") {
-    const claimCount = importRowsClaimCount(rows);
-    return claimCount ? metrics.submitted / claimCount : 0;
-  }
-  if (metric === "feeRate") return metrics.feeRate;
-  if (metric === "deductionAmount") return metrics.returnAmount + metrics.cancellationAmount;
-  if (metric === "recoveryRate") {
-    const recovery = buildDeductionRecovery(rows, relevantStandorte, { id: "sparkline-scope", label: "Sparkline", detail: "Monat" }, manualCaseResolutions, invoiceStatusRows);
-    return recovery.grossDeductionAmount ? Math.min(100, (recovery.recoveredAmount / recovery.grossDeductionAmount) * 100) : 0;
-  }
-  if (metric === "chargebackRate") return metrics.submitted ? ((metrics.returnAmount + metrics.cancellationAmount) / metrics.submitted) * 100 : 0;
-  if (metric === "noProtection") return metrics.noProtectionAmount;
-
-  const cases = buildUnifiedOperationalReviewCases(rows, invoiceStatusRows, manualCaseResolutions).filter((fall) => relevantStandorte.some((entry) => entry.id === fall.standortId) && !fall.status.includes("erledigt"));
-  if (metric === "openAmount") return cases.reduce((sum, fall) => sum + fall.amount, 0);
-  if (metric === "openCount") return cases.length;
-  if (metric === "chargebacks") {
-    return cases
-      .filter((fall) => fall.reason.includes("Rückgabe") || fall.reason.includes("Rückbelastung"))
-      .reduce((sum, fall) => sum + fall.amount, 0);
-  }
-  if (metric === "oldest") return cases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  if (metric === "recurring") {
-    return getRecurringRiskProfiles(
-      relevantStandorte.length === 1 ? relevantStandorte[0].id : undefined,
-      rows,
-      rows.length > 0
-    ).filter((profile) => relevantStandorte.some((entry) => entry.name === profile.standortName)).length;
-  }
-  return 0;
-}
-
 function ClaimsFlowView({
   mode = "details",
   standort,
@@ -3915,7 +4109,6 @@ function ClaimsFlowView({
   const recoveryMetrics = useMemo(() => recoverySummary.rows ? metricsFromImportSummary(recoverySummary) : zeroMetrics(), [recoverySummary]);
   const waterfallSummary = useMemo(() => summarizeImportRows(waterfallScopedImportRows), [waterfallScopedImportRows]);
   const waterfallMetrics = useMemo(() => waterfallSummary.rows ? metricsFromImportSummary(waterfallSummary) : zeroMetrics(), [waterfallSummary]);
-  const recentMonths = useMemo(() => buildRecentMonthlyTrend(detailsStandortIds, selectedPeriod, importRows), [detailsStandortIds, selectedPeriod, importRows]);
   const quarterRows = useMemo(() => buildQuarterComparison(detailsStandortIds, importRows), [detailsStandortIds, importRows]);
   const deductionRecoverySummary = useMemo(() => buildDeductionRecovery(importRows, deductionStandorte, deductionPeriod, manualCaseResolutions, invoiceStatusRows), [deductionPeriod, deductionStandorte, importRows, invoiceStatusRows, manualCaseResolutions]);
   const recoveryDeductionSummary = useMemo(() => buildDeductionRecovery(importRows, recoveryStandorte, recoveryPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, invoiceStatusRows, manualCaseResolutions, recoveryPeriod, recoveryStandorte]);
@@ -3925,6 +4118,7 @@ function ClaimsFlowView({
     [invoiceStatusRows, manualCaseResolutions, recoveryScopedImportRows]
   );
   const recoveryReviewCaseAmount = useMemo(() => recoveryReviewCases.reduce((sum, fall) => sum + fall.amount, 0), [recoveryReviewCases]);
+  const detailsFinalLostAmount = useMemo(() => manualCancelledAmountFromRows(scopedImportRows, manualCaseResolutions), [manualCaseResolutions, scopedImportRows]);
   const recoveryFinalLostAmount = useMemo(() => manualCancelledAmountFromRows(recoveryScopedImportRows, manualCaseResolutions), [manualCaseResolutions, recoveryScopedImportRows]);
   const deductionAmount = selectedMetrics.returnAmount + selectedMetrics.cancellationAmount;
   const analysisDeductionAmount = deductionMetrics.returnAmount + deductionMetrics.cancellationAmount;
@@ -3981,11 +4175,12 @@ function ClaimsFlowView({
         <PriorityCard label="BFS-Gebühr netto" value={money.format(selectedMetrics.feeNet)} hint="ohne MwSt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="MwSt auf Gebühren" value={money.format(selectedMetrics.feeVat)} hint="separat erkannt" period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="EWMA / Adressprüfung" value={money.format(selectedMetrics.ewmaTotal)} hint={`netto ${money.format(selectedMetrics.ewmaNet)} · MwSt ${money.format(selectedMetrics.ewmaVat)}`} period={selectedPeriod.label} tone={selectedMetrics.ewmaTotal ? "amber" : "green"} />
-        <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint="nach BFS-Abzug" period={selectedPeriod.label} tone="green" />
+        <PriorityCard label="Auszahlungsbetrag" value={money.format(selectedMetrics.payout)} hint={payoutShareLabel(selectedMetrics.payout, selectedMetrics.submitted)} period={selectedPeriod.label} tone="green" />
         <PriorityCard label="Gesamtkosten BFS" value={money.format(selectedMetrics.fees)} hint={`${formatFeeRate(selectedMetrics.feeRate)} vom Eingang`} period={selectedPeriod.label} tone="amber" />
         <PriorityCard label="Gesamtabzug" value={money.format(totalCostAndDeductions)} hint="BFS-Gebühr, MwSt, EWMA und Storno/Rückgabe" period={selectedPeriod.label} tone={totalCostAndDeductions ? "red" : "green"} />
         <PriorityCard label="Rückläufer" value={String(selectedMetrics.returnCount)} hint={money.format(selectedMetrics.returnAmount)} period={selectedPeriod.label} tone={selectedMetrics.returnCount ? "red" : "green"} />
         <PriorityCard label="Stornierungen" value={String(selectedMetrics.cancellationCount)} hint={money.format(selectedMetrics.cancellationAmount)} period={selectedPeriod.label} tone={selectedMetrics.cancellationCount ? "amber" : "green"} />
+        <PriorityCard label="Endgültig storniert" value={money.format(detailsFinalLostAmount)} hint="manuell endgültig storniert" period={selectedPeriod.label} tone={detailsFinalLostAmount ? "red" : "green"} info="Betrag, der nach Prüfung endgültig nicht weiterverfolgt wird." />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -4138,7 +4333,7 @@ function ClaimsFlowView({
                 </div>
                 <dl>
                   <div><dt>Umsatz eingereicht</dt><dd>{money.format(periodCashflow.submitted)}</dd></div>
-	                  <div><dt>Auszahlungsbetrag</dt><dd>{money.format(periodCashflow.payout)}</dd></div>
+	                  <div><dt>Auszahlungsbetrag</dt><dd>{money.format(periodCashflow.payout)}<small>{payoutShareLabel(periodCashflow.payout, periodCashflow.submitted)}</small></dd></div>
 	                  <div><dt>BFS-Gebühr netto</dt><dd>{money.format(periodCashflow.feeNet)}</dd></div>
 	                  <div><dt>MwSt</dt><dd>{money.format(periodCashflow.feeVat)}</dd></div>
 	                  <div><dt>EWMA / Adressprüfung</dt><dd>{money.format(periodCashflow.ewmaTotal)}</dd></div>
@@ -4194,48 +4389,14 @@ function ClaimsFlowView({
 	        </div>
 	      </section>
       <section className="dashboard-grid">
-        <article className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Monatstrend</h2>
-              <p>Zeitraum: letzte Monate aus dem ausgewählten Standortumfang.</p>
-            </div>
-          </div>
-          <div className="table-wrap compact-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Monat</th>
-                  <th>Umsatz eingereicht</th>
-                  <th>Gesamtkosten BFS</th>
-                  <th>Rückläufer</th>
-                  <th>Stornos</th>
-                  <th>Ohne Schutz</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentMonths.map((metric) => (
-                  <tr key={metric.month}>
-                    <td><strong>{formatMetricMonth(metric.month)}</strong></td>
-                    <td>{money.format(metric.submitted)}</td>
-                    <td>{money.format(metric.fees)}</td>
-                    <td>{metric.returnCount} / {money.format(metric.returnAmount)}</td>
-                    <td>{metric.cancellationCount} / {money.format(metric.cancellationAmount)}</td>
-                    <td>{money.format(metric.noProtectionAmount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article className="panel">
+        <article className="panel quarter-comparison-panel">
           <div className="panel-heading">
             <div>
               <h2>Quartalsvergleich</h2>
               <p>Zeitraum: Quartale im Vergleich, inklusive Veränderung zum Vorquartal.</p>
             </div>
           </div>
-          <div className="table-wrap compact-table">
+          <div className="table-wrap compact-table quarter-comparison-table">
             <table>
               <thead>
                 <tr>
@@ -4898,6 +5059,61 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
   return cases;
 }
 
+function buildAusfallhonorarAutoCancelledResolutions(importRows: ImportPreviewRow[], invoiceRows: ParsedInvoiceDocument[], invoiceStatusRows: ParsedInvoiceStatusRow[] = [], manualCaseResolutions: ManualCaseResolution[] = []) {
+  if (!invoiceRows.length || !importRows.length) return manualCaseResolutions;
+  const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
+  const ausfallhonorarInvoices = invoiceRows
+    .filter(invoiceHasAusfallhonorarLine)
+    .filter((invoice) => !ausfallhonorarInvoiceHasRecognizedPayment(invoice, statusRowsByKey));
+  if (!ausfallhonorarInvoices.length) return manualCaseResolutions;
+
+  const existingCancelledIdentityKeys = buildClosedResolutionKeySet(manualCaseResolutions);
+  const autoResolutions = casesFromImportRows(importRows)
+    .filter((fall) => !caseOperationalResolutionKeys(fall).some((key) => existingCancelledIdentityKeys.has(key)))
+    .filter((fall) => ausfallhonorarInvoices.some((invoice) => caseMatchesAusfallhonorarInvoice(fall, invoice)))
+    .map((fall) => ({
+      caseKey: caseResolutionKey(fall),
+      standortId: fall.standortId,
+      patientName: fall.patientName,
+      invoiceNo: fall.invoiceNo,
+      bfsNo: fall.bfsNo,
+      amount: fall.amount,
+      reason: fall.reason,
+      status: "cancelled_manual" as const,
+      comment: "Systemregel: Leistungsbeschreibung enthält Ausfallhonorar.",
+      resolvedAt: "system:ausfallhonorar",
+      resolvedBy: "Systemregel"
+    }));
+
+  return autoResolutions.length ? [...manualCaseResolutions, ...autoResolutions] : manualCaseResolutions;
+}
+
+function ausfallhonorarInvoiceHasRecognizedPayment(invoice: ParsedInvoiceDocument, statusRowsByKey: Map<string, ParsedInvoiceStatusRow>) {
+  const submittedAmount = ausfallhonorarSubmittedAmount(invoice);
+  const statusRow = invoiceDocumentMatchKeys(invoice).map((key) => statusRowsByKey.get(key)).find(Boolean);
+  return paidAmountForAusfallhonorarInvoice(submittedAmount, statusRow) > 0.005;
+}
+
+function invoiceHasAusfallhonorarLine(invoice: ParsedInvoiceDocument) {
+  return invoice.serviceLines.some(isAusfallhonorarLine);
+}
+
+function caseMatchesAusfallhonorarInvoice(fall: BfsCase, invoice: ParsedInvoiceDocument) {
+  if (sameResolvedField(fall.bfsNo, invoice.bfsNo)) return true;
+  if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && sameResolvedField(fall.patientName, invoice.patientName)) return true;
+  if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && (!invoice.standortId || invoice.standortId === fall.standortId)) return true;
+  return sameResolvedField(fall.patientName, invoice.patientName)
+    && (!invoice.standortId || invoice.standortId === fall.standortId)
+    && Math.abs(Math.abs(fall.amount) - Math.abs(invoice.totalAmount)) < 0.01;
+}
+
+function sameResolvedField(left: string | undefined, right: string | undefined) {
+  const normalizedLeft = normalizeResolutionPart(left ?? "");
+  const normalizedRight = normalizeResolutionPart(right ?? "");
+  return normalizedLeft !== "-" && normalizedLeft === normalizedRight;
+}
+
 function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const statusCache = operationalCasesCache.get(importRows);
   const resolutionCache = statusCache?.get(invoiceStatusRows);
@@ -5458,68 +5674,6 @@ function compactPatientHistoryNote(value: string) {
   return cleaned.length > 90 ? `${cleaned.slice(0, 87)}...` : cleaned;
 }
 
-function outcomeRowsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
-  const candidates = resubmissionCandidatesFromImportRows(rows);
-  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
-  const rawRows = rows.flatMap((row) => {
-    const standort = standorte.find((entry) => entry.name === row.location);
-    if (!standort || (standortId && standort.id !== standortId)) return [];
-
-    return (row.parsedMovements ?? [])
-      .filter(isRelevantDeductionMovement)
-      .map((movement) => {
-        const key = `${normalizePatientName(movement.patientName ?? "")}:${row.date}:${movement.bfsNo ?? "-"}`;
-        const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const reasonText = movement.reason?.toLowerCase() ?? "";
-        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || movement.reasonCategory === "direktzahlung_patient" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
-        return {
-          month: monthLabelFromDate(row.date),
-          locationName: row.location,
-          patientName: movement.patientName ?? "Patient noch nicht gematcht",
-          amount: Math.abs(movement.amount ?? 0),
-          reworked: wasReworked || wasPaid,
-          paid: wasPaid,
-          open: !(wasReworked || wasPaid)
-        };
-      });
-  });
-
-  return groupOutcomeRows(rawRows);
-}
-
-function openUnresolvedMovementsFromImportRows(rows: ImportPreviewRow[], standortId?: string) {
-  const candidates = resubmissionCandidatesFromImportRows(rows);
-  const candidateKeys = new Set(candidates.map((candidate) => `${normalizePatientName(candidate.patientName)}:${candidate.originalDate}:${candidate.bfsNo}`));
-
-  return rows.flatMap((row) => {
-    const standort = standorte.find((entry) => entry.name === row.location);
-    if (!standort || (standortId && standort.id !== standortId)) return [];
-
-    return (row.parsedMovements ?? [])
-      .filter(isRelevantDeductionMovement)
-      .flatMap((movement) => {
-        const patientName = movement.patientName ?? "Patient noch nicht gematcht";
-        const key = `${normalizePatientName(patientName)}:${row.date}:${movement.bfsNo ?? "-"}`;
-        const reasonText = movement.reason?.toLowerCase() ?? "";
-        const wasReworked = candidateKeys.has(key) || movement.reasonCategory === "neue_rechnung";
-        const wasPaid = movement.reasonCategory === "zahlung_nach_storno" || movement.reasonCategory === "direktzahlung_patient" || reasonText.includes("zahlung nach storno") || reasonText.includes("direktzahlung");
-        if (wasReworked || wasPaid) return [];
-
-        return [{
-          patientName,
-          locationName: row.location,
-          date: row.date,
-          invoiceNo: movement.invoiceNo ?? "-",
-          bfsNo: movement.bfsNo ?? "-",
-          reason: movement.reason ?? reasonLabel(movement.reasonCategory),
-          amount: Math.abs(movement.amount ?? 0),
-          statementNo: row.statementNo,
-          file: row.file
-        }];
-      });
-  }).sort((a, b) => b.amount - a.amount);
-}
-
 function stornoReviewFromImportRows(rows: ImportPreviewRow[], standortId?: string, manualCaseResolutions: ManualCaseResolution[] = []) {
   const candidates = resubmissionCandidatesFromImportRows(rows);
   const manualCancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
@@ -5664,25 +5818,6 @@ function isOperationalCaseMovement(movement: NonNullable<ImportPreviewRow["parse
   return isRelevantDeductionMovement(movement) && movement.reasonCategory !== "direktzahlung_patient";
 }
 
-function groupOutcomeRows(rows: Array<{ month: string; locationName: string; patientName: string; amount: number; reworked: boolean; paid: boolean; open: boolean }>) {
-  const grouped = new Map<string, typeof rows>();
-  rows.forEach((row) => {
-    const key = `${row.month}:${row.locationName}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), row]);
-  });
-
-  return [...grouped.values()].map((entries) => ({
-    month: entries[0].month,
-    locationName: entries[0].locationName,
-    total: entries.length,
-    reworked: entries.filter((entry) => entry.reworked).length,
-    paid: entries.filter((entry) => entry.paid).length,
-    open: entries.filter((entry) => entry.open).length,
-    amount: entries.filter((entry) => entry.open).reduce((sum, entry) => sum + entry.amount, 0),
-    examples: entries.slice(0, 3).map((entry) => entry.patientName)
-  })).sort((a, b) => b.month.localeCompare(a.month) || compareLocationNamesByContractStart(a.locationName, b.locationName));
-}
-
 function compareLocationNamesByContractStart(a: string, b: string) {
   const StandortA = standorte.find((standort) => standort.name === a);
   const StandortB = standorte.find((standort) => standort.name === b);
@@ -5711,11 +5846,6 @@ function normalizePatientName(value: string) {
 function importDateKey(value: string | undefined) {
   const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return match ? `${match[3]}${match[2]}${match[1]}` : "";
-}
-
-function monthLabelFromDate(value: string) {
-  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  return match ? shortMonthYearLabel(Number(match[3]), Number(match[2]) - 1) : "ohne Datum";
 }
 
 function reasonLabel(reasonCategory?: string) {
@@ -5825,17 +5955,6 @@ function caseDateTime(value: string | undefined) {
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
-function buildRecentMonthlyTrend(standortIds: string[], period?: PeriodOption, importRows: ImportPreviewRow[] = []) {
-  const rows = importRows.filter((row) => {
-    const standort = standorte.find((entry) => entry.name === row.location);
-    return standort && standortIds.includes(standort.id) && (!period || importRowInPeriod(row, period, standort));
-  });
-  return groupImportRowsByMonth(rows)
-    .sort((a, b) => b.month.localeCompare(a.month))
-    .slice(0, period?.id === "since-start" ? 12 : 24)
-    .sort((a, b) => a.month.localeCompare(b.month));
-}
-
 function buildQuarterComparison(standortIds: string[], importRows: ImportPreviewRow[] = []) {
   const quarters = groupImportRowsByQuarter(importRows.filter((row) => {
     const standort = standorte.find((entry) => entry.name === row.location);
@@ -5853,15 +5972,6 @@ function buildQuarterComparison(standortIds: string[], importRows: ImportPreview
       feeRate: quarter.submitted ? (quarter.fees / quarter.submitted) * 100 : 0
     };
   });
-}
-
-function groupImportRowsByMonth(rows: ImportPreviewRow[]) {
-  const grouped = new Map<string, ImportPreviewRow[]>();
-  rows.forEach((row) => {
-    const month = importRowMonth(row);
-    if (month) grouped.set(month, [...(grouped.get(month) ?? []), row]);
-  });
-  return [...grouped.entries()].map(([month, entries]) => ({ month, ...metricsFromImportSummary(summarizeImportRows(entries)) }));
 }
 
 function groupImportRowsByQuarter(rows: ImportPreviewRow[]) {
@@ -5892,6 +6002,27 @@ function formatMetricMonth(month: string) {
   return shortMonthYearLabel(parsedYear, parsedMonth - 1);
 }
 
+function formatLocationAmountBreakdown(entries: { name: string; amount: number }[]) {
+  if (!entries.length) return "Je Standort: kein Standort im aktuellen Filter.";
+  const breakdown = entries.map((entry) => `${entry.name}: ${money.format(entry.amount)}`).join("; ");
+  if (entries.length === 1) return `Standortwert: ${breakdown}.`;
+  return `Je Standort: ${breakdown}.`;
+}
+
+function formatLocationAverageInvoiceBreakdown(entries: { name: string; averageInvoiceValue: number; claimCount: number }[]) {
+  if (!entries.length) return "Je Standort: kein Standort im aktuellen Filter.";
+  const breakdown = entries.map((entry) => `${entry.name}: ${money.format(entry.averageInvoiceValue)} (${integerNumber.format(entry.claimCount)} Rechnungen)`).join("; ");
+  if (entries.length === 1) return `Standortwert: ${breakdown}.`;
+  return `Je Standort: ${breakdown}.`;
+}
+
+function formatLocationCountBreakdown(entries: { name: string; count: number }[], label: string) {
+  if (!entries.length) return "Je Standort: kein Standort im aktuellen Filter.";
+  const breakdown = entries.map((entry) => `${entry.name}: ${integerNumber.format(entry.count)} ${label}`).join("; ");
+  if (entries.length === 1) return `Standortwert: ${breakdown}.`;
+  return `Je Standort: ${breakdown}.`;
+}
+
 function formatDelta(value: number) {
   if (!value) return "Vergleich startet";
   const sign = value > 0 ? "+" : "";
@@ -5910,7 +6041,7 @@ function formatMonth(date: Date) {
   return shortMonthYearLabel(date.getFullYear(), date.getMonth());
 }
 
-type KpiCardTuple = [label: string, value: string, hint: string, info?: string, trend?: AnswerSparklineTrend, period?: string];
+type KpiCardTuple = [label: string, value: string, hint: string, info?: string, period?: string];
 
 function KpiGrid({ standort, cards: customCards, importRows = [], className = "" }: { standort?: Standort; cards?: KpiCardTuple[]; importRows?: ImportPreviewRow[]; className?: string }) {
   const cards = useMemo(() => {
@@ -5928,19 +6059,18 @@ function KpiGrid({ standort, cards: customCards, importRows = [], className = ""
       : [
           ["Anzahl Standorte", `${standorte.filter((entry) => isStandortLive(entry, todayReference)).length} + ${standorte.filter((entry) => !isStandortLive(entry, todayReference)).length}`, "aktive und geplante Standorte", defaultInfo.locations],
           ["Umsatz eingereicht", money.format(defaultMetrics.submitted), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.submitted],
-          ["Auszahlungsbetrag", money.format(defaultMetrics.payout), importSummary.rows ? "aus aktuellem Import" : "kein Datenstand", defaultInfo.payout],
+          ["Auszahlungsbetrag", money.format(defaultMetrics.payout), importSummary.rows ? payoutShareLabel(defaultMetrics.payout, defaultMetrics.submitted) : "kein Datenstand", defaultInfo.payout],
           ["Gesamtkosten BFS", money.format(defaultMetrics.fees), importSummary.rows ? `Gebühr ${money.format(importSummary.feeNet)} · MwSt ${money.format(importSummary.feeVat)}` : "kein Datenstand", defaultInfo.fees]
         ] satisfies KpiCardTuple[];
   }, [customCards, importRows, standort]);
   return (
     <section className={className ? `kpi-grid ${className}` : "kpi-grid"}>
-      {cards.map(([label, value, hint, info, trend, period]) => (
+      {cards.map(([label, value, hint, info, period]) => (
         <article className="kpi-card" key={label}>
           <MetricInfo title={label} text={normalizeProductCopy(info ?? metricExplanation(label, value, normalizeProductCopy(hint), periodLabelFromHint(period ?? hint)))} />
           <span>{label}</span>
           <strong>{value}</strong>
           <small>{normalizeProductCopy(hint)}</small>
-          {trend && <AnswerSparkline trend={trend} />}
           <small className="period-note">{periodLabelFromHint(period ?? hint)}</small>
         </article>
       ))}
@@ -5964,6 +6094,7 @@ function buildKpiDerivationInfo(metrics: BfsMetrics, periodLabel: string) {
     ].join(" "),
     payout: [
       `Herleitung: Auszahlungsbetrag laut Abrechnung im Zeitraum ${periodLabel}: ${money.format(metrics.payout)}.`,
+      `Auszahlungsquote: ${payoutShareLabel(metrics.payout, metrics.submitted)}.`,
       `Differenz zum eingereichten Umsatz: ${money.format(payoutGap)}. Darin stecken laufende BFS-Abzüge/Kosten sowie zeitversetzt sichtbare Rückgaben oder Stornos.`,
       `Aktuell erkannte Storno-/Rückgabe-Belastung: ${money.format(stornoLoss)}. Zusatzkosten ohne Steuer: ${money.format(extraCostsNet)}. Steueranteil: ${money.format(taxTotal)}.`
     ].join(" "),
@@ -6152,7 +6283,7 @@ function metricExplanation(label: string, value: string, hint: string, period = 
     return `Herleitung: Neueste Abrechnung oder Bewegung innerhalb der aktuell gefilterten Risikoliste. Sie zeigt, wie aktuell der jüngste Treffer ist. ${base}`;
   }
   if (normalized.includes("reportfälle")) {
-    return `Herleitung: Fälle der gemeinsamen Prüfliste, die im Report-Center für den Standortbericht berücksichtigt werden. ${base}`;
+    return `Herleitung: Fälle der gemeinsamen Prüfliste im aktuellen Standort- und Zeitraumfilter. ${base}`;
   }
   if (normalized.includes("eingereicht") || normalized.includes("forderungen")) {
     return `Herleitung: Summe der aus den BFS-Abrechnungen erkannten Forderungsbeträge im gewählten Zeitraum. ${base}`;
@@ -6453,7 +6584,7 @@ function UploadView({
               <CheckCircle2 size={24} />
             </div>
             <h2>Import bestätigt</h2>
-            <p>Alles fertig eingelesen. Die Import-Vorschau wurde übernommen und die App wertet diesen Datenstand jetzt in Cockpit, Fällen, Matching, Maßnahmenkontrolle, Patientenklassifizierung und Reports aus.</p>
+            <p>Alles fertig eingelesen. Die Import-Vorschau wurde übernommen und die App wertet diesen Datenstand jetzt in Cockpit, Prüfliste, Matching und Patientenklassifizierung aus.</p>
             <dl>
               <div><dt>Dateien</dt><dd>{previewRows.length}</dd></div>
               <div><dt>Importfähig</dt><dd>{okRows}</dd></div>
@@ -7046,7 +7177,9 @@ function caseInvoiceMatchKeys(fall: BfsCase) {
 }
 
 function normalizeMatchKeys(values: string[]) {
-  return Array.from(new Set(values.map(normalizeMatchKey).filter(Boolean)));
+  const normalized = values.map(normalizeMatchKey).filter(Boolean);
+  const compact = normalized.map((value) => value.replace(/\s+/g, "")).filter(Boolean);
+  return Array.from(new Set([...normalized, ...compact]));
 }
 
 function standortFromMandantNo(mandantNo: string) {
@@ -7054,7 +7187,12 @@ function standortFromMandantNo(mandantNo: string) {
 }
 
 function normalizeMatchKey(value: string) {
-  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function normalizeSearchQuery(value: string) {
@@ -7754,10 +7892,10 @@ function InvoiceServicesView({ invoiceRows, catalogMappings }: { invoiceRows: Pa
   const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
   const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
   const catalogContext = useMemo(() => buildInvoiceCatalogContext(catalogMappings), [catalogMappings]);
-  const rows = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort, catalogContext), [catalogContext, invoiceRows, selectedPeriod, selectedStandort]);
-  const filteredRows = useMemo(() => filterInvoiceServiceRows(rows, descriptionFilter), [rows, descriptionFilter]);
-  const sortedRows = useMemo(() => sortInvoiceServiceRows(filteredRows, sort.key, sort.direction), [filteredRows, sort]);
-  const kpis = useMemo(() => invoiceServicesKpis(invoiceRows, selectedPeriod, selectedStandort, rows), [invoiceRows, rows, selectedPeriod, selectedStandort]);
+  const rows = useMeasuredMemo("Leistungsübersicht Zusammenfassung", () => invoiceServiceSummary(invoiceRows, selectedPeriod, selectedStandort, catalogContext), [catalogContext, invoiceRows, selectedPeriod, selectedStandort], (value) => `${integerNumber.format(value.length)} Leistungen`);
+  const filteredRows = useMeasuredMemo("Leistungsübersicht Filter", () => filterInvoiceServiceRows(rows, descriptionFilter), [rows, descriptionFilter], (value) => `${integerNumber.format(value.length)} Treffer`);
+  const sortedRows = useMeasuredMemo("Leistungsübersicht Sortierung", () => sortInvoiceServiceRows(filteredRows, sort.key, sort.direction), [filteredRows, sort], (value) => `${integerNumber.format(value.length)} Zeilen`);
+  const kpis = useMeasuredMemo("Leistungsübersicht KPIs", () => invoiceServicesKpis(invoiceRows, selectedPeriod, selectedStandort, rows), [invoiceRows, rows, selectedPeriod, selectedStandort], (value) => `${integerNumber.format(value.serviceCodeCount)} Leistungen`);
   const hasLocationFactorComparison = kpis.locationFactorCount > 1;
   const comparisonLabel = selectedStandort ? `Gruppenschnitt ohne ${selectedStandort.name}` : "Gruppenschnitt";
   const exportScopeLabel = selectedStandort?.name ?? "Alle Standorte";
@@ -7896,13 +8034,13 @@ function InvoiceBenchmarkView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
   const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
   const [standortId, setStandortId] = useState(() => invoiceStandorte[0]?.id ?? "");
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
-  const benchmarkRows = useMemo(() => invoiceBenchmarkRows(invoiceRows, selectedPeriod), [invoiceRows, selectedPeriod]);
+  const benchmarkRows = useMeasuredMemo("Benchmarking Standortzeilen", () => invoiceBenchmarkRows(invoiceRows, selectedPeriod), [invoiceRows, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Standorte`);
   const selectedStandort = invoiceStandorte.find((standort) => standort.id === standortId) ?? invoiceStandorte[0];
   const selectedBenchmark = benchmarkRows.find((row) => row.standortId === selectedStandort?.id);
-  const selectedServiceRows = useMemo(() => invoiceBenchmarkServiceRows(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort]);
-  const kpis = useMemo(() => invoiceBenchmarkKpis(benchmarkRows), [benchmarkRows]);
+  const selectedServiceRows = useMeasuredMemo("Benchmarking Praxisleistungen", () => invoiceBenchmarkServiceRows(invoiceRows, selectedPeriod, selectedStandort), [invoiceRows, selectedPeriod, selectedStandort], (rows) => `${integerNumber.format(rows.length)} Leistungen`);
+  const kpis = useMeasuredMemo("Benchmarking KPIs", () => invoiceBenchmarkKpis(benchmarkRows), [benchmarkRows], (value) => `${integerNumber.format(value.serviceLineCount)} Faktorzeilen`);
   const topServiceRows = selectedServiceRows.slice(0, 12);
-  const groupTopServices = useMemo(() => invoiceServiceSummary(invoiceRows, selectedPeriod).slice(0, 10), [invoiceRows, selectedPeriod]);
+  const groupTopServices = useMeasuredMemo("Benchmarking Gruppenleistungen", () => invoiceServiceSummary(invoiceRows, selectedPeriod).slice(0, 10), [invoiceRows, selectedPeriod], (rows) => `${integerNumber.format(rows.length)} Top-Leistungen`);
 
   useEffect(() => {
     if (!standortId && invoiceStandorte[0]) setStandortId(invoiceStandorte[0].id);
@@ -8007,17 +8145,6 @@ function InvoiceBenchmarkView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
             <h2>Standort-Benchmark nach Faktor, Relativindex und Hebelklasse</h2>
             <p>Der Relativindex zeigt, wie nah der durchschnittliche Standortfaktor am jeweiligen Benchmark liegt. 100 % bedeutet: Standort entspricht dem Vergleichsschnitt der Gruppe ohne diesen Standort.</p>
           </div>
-          <button
-            className="secondary-button custom-export-action"
-            type="button"
-            onClick={() => downloadTextFile(
-              `benchmarking-management-${fileSlug(selectedPeriod.label)}.csv`,
-              createInvoiceBenchmarkCsv(benchmarkRows, selectedPeriod)
-            )}
-            disabled={!benchmarkRows.length}
-          >
-            <Download size={16} /> Tabelle
-          </button>
         </div>
         <div className="table-wrap compact-table invoice-services-scroll">
           <table className="invoice-benchmark-table">
@@ -8087,14 +8214,6 @@ function InvoiceBenchmarkView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
         </section>
         <div className="table-export-bar">
           <span>{selectedStandort?.name ?? "Praxis"} · {selectedPeriod.label} · anonymisierter Gruppenbenchmark</span>
-          <button
-            className="secondary-button custom-export-action"
-            type="button"
-            onClick={() => printCustomTabPdf(practiceExportRef.current, `Benchmarking Praxis · ${selectedStandort?.name ?? "Standort"} · ${selectedPeriod.label}`)}
-            disabled={!selectedBenchmark}
-          >
-            <Printer size={16} /> PDF Export
-          </button>
         </div>
         <div className="table-wrap compact-table invoice-services-scroll">
           <table className="invoice-benchmark-detail-table">
@@ -8382,14 +8501,6 @@ function InvoicePatientValueView({ invoiceRows }: { invoiceRows: ParsedInvoiceDo
             <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Name, Standort, Rechnungsnr." />
           </label>
           <span>{selectedPeriod.detail} · {exportScopeLabel}</span>
-          <button
-            className="secondary-button custom-export-action"
-            type="button"
-            onClick={() => printCustomTabPdf(tableExportRef.current, `Patientenprofil · ${exportScopeLabel} · ${selectedPeriod.label}`)}
-            disabled={!sortedRows.length}
-          >
-            <Printer size={16} /> PDF Export
-          </button>
         </div>
         <section className="priority-grid invoice-service-kpi-grid">
           <PriorityCard label="Höchster Patientenwert" value={kpis.topValue?.patientName ?? "-"} hint={kpis.topValue ? `${patientLocationLabel(kpis.topValue)} · ${money.format(kpis.topValue.amount)} · Ø Faktor ${feeRateNumber.format(kpis.topValue.avgFactor)}` : "keine Daten"} tone="green" />
@@ -8502,7 +8613,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
           </button>
         </div>
       </section>
-      <div className="content-stack" ref={reportExportRef}>
+      <div className="content-stack invoice-potential-report" ref={reportExportRef}>
         <section className="priority-grid">
           <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" tone={totalPotential ? "green" : "blue"} />
           <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" tone={monthlyPotential ? "green" : "blue"} />
@@ -8532,27 +8643,6 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
           </div>
           <div className="table-export-bar">
             <span>{selectedStandort?.name ?? "Standort"} · {selectedPeriod.label} · Top 20 nach Potenzial</span>
-            <div className="custom-export-actions">
-              <button
-                className="secondary-button custom-export-action"
-                type="button"
-                onClick={() => downloadTextFile(
-                  `potenzialanalyse-${fileSlug(selectedStandort?.name ?? "standort")}-${fileSlug(selectedPeriod.label)}.csv`,
-                  createInvoicePotentialCsv(topPotentialRows, selectedStandort, selectedPeriod)
-                )}
-                disabled={!selectedStandort}
-              >
-                <Download size={16} /> Tabelle
-              </button>
-              <button
-                className="secondary-button custom-export-action"
-                type="button"
-                onClick={() => printCustomTabPdf(reportExportRef.current, `Potenzialanalyse · ${selectedStandort?.name ?? "Standort"} · ${selectedPeriod.label}`)}
-                disabled={!selectedStandort}
-              >
-                <Printer size={16} /> PDF
-              </button>
-            </div>
           </div>
           <div className="table-wrap compact-table invoice-services-scroll">
             <table className="invoice-potential-table">
@@ -8680,19 +8770,21 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
   const [minPotential, setMinPotential] = useState(0);
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
   const previousPeriod = useMemo(() => previousComparablePeriod(selectedPeriod), [selectedPeriod]);
-  const invoiceStandorte = useMemo(() => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows]);
+  const invoiceStandorte = useMeasuredMemo("Qualitätscockpit Standortliste", () => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows], (rows) => `${integerNumber.format(rows.length)} Standorte`);
   const selectedStandort = standortId === "gruppe" ? undefined : invoiceStandorte.find((standort) => standort.id === standortId);
-  const findings = useMemo(
+  const findings = useMeasuredMemo(
+    "Qualitätscockpit Hinweise",
     () => buildInvoiceQualityFindings(invoiceRows, selectedPeriod, selectedStandort, { minGroupRate: minGroupRate / 100, minCaseCount, minPotential }),
-    [invoiceRows, minCaseCount, minGroupRate, minPotential, selectedPeriod, selectedStandort]
+    [invoiceRows, minCaseCount, minGroupRate, minPotential, selectedPeriod, selectedStandort],
+    (rows) => `${integerNumber.format(rows.length)} Hinweise`
   );
-  const previousFindingsByKey = useMemo(() => {
+  const previousFindingsByKey = useMeasuredMemo("Qualitätscockpit Vorperiode", () => {
     if (!previousPeriod) return new Map<string, InvoiceQualityFinding>();
     return new Map(buildInvoiceQualityFindings(invoiceRows, previousPeriod, selectedStandort, { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 }).map((row) => [row.key, row]));
-  }, [invoiceRows, previousPeriod, selectedStandort]);
+  }, [invoiceRows, previousPeriod, selectedStandort], (rows) => `${integerNumber.format(rows.size)} Hinweise`);
   const caseTypes = useMemo(() => ["alle", ...Array.from(new Set(findings.map((row) => row.caseType))).sort((a, b) => a.localeCompare(b, "de"))], [findings]);
-  const visibleFindings = useMemo(() => filterInvoiceQualityFindings(findings, caseType, searchTerm, basisFilter), [basisFilter, caseType, findings, searchTerm]);
-  const kpis = useMemo(() => invoiceQualityKpis(visibleFindings), [visibleFindings]);
+  const visibleFindings = useMeasuredMemo("Qualitätscockpit Filter", () => filterInvoiceQualityFindings(findings, caseType, searchTerm, basisFilter), [basisFilter, caseType, findings, searchTerm], (rows) => `${integerNumber.format(rows.length)} Treffer`);
+  const kpis = useMeasuredMemo("Qualitätscockpit KPIs", () => invoiceQualityKpis(visibleFindings), [visibleFindings], (value) => `${integerNumber.format(value.count)} Hinweise`);
   const reportRows = mode === "feedback" ? visibleFindings.slice(0, 18) : visibleFindings.slice(0, 80);
   const scopeLabel = selectedStandort?.name ?? "Alle Standorte";
   const modeTitle = mode === "chains" ? "Leistungsketten" : mode === "feedback" ? "Praxis-Feedback" : "Qualitätscockpit";
@@ -8796,7 +8888,26 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
         <PriorityCard label="Export" value="PDF / CSV" hint="für Praxisgespräch" tone="blue" info="Die Liste ist als Informationsgrundlage gedacht: bitte vor Ort anhand Katalog, Dokumentation und Behandlung fachlich einordnen, ob ein Hinweis anwendbar ist." />
       </section>
 
-      <div className="content-stack" ref={exportRef}>
+      <div className="content-stack invoice-quality-report" ref={exportRef}>
+        <section className="panel invoice-quality-export-summary">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Exportübersicht</span>
+              <h2>{modeTitle} · {scopeLabel}</h2>
+              <p>Schlichte Tabellenübersicht der Hinweise im gewählten Filter.</p>
+            </div>
+          </div>
+          <div className="table-wrap compact-table invoice-quality-summary-table-wrap">
+            <table>
+              <tbody>
+                <tr><th>Zeitraum</th><td>{selectedPeriod.label}</td><th>Scope</th><td>{scopeLabel}</td></tr>
+                <tr><th>Hinweise</th><td>{integerNumber.format(kpis.count)}</td><th>Betroffene Rechnungen</th><td>{integerNumber.format(kpis.affectedInvoices)}</td></tr>
+                <tr><th>Orientierungswert</th><td>{money.format(kpis.potential)}</td><th>Basis</th><td>{basisFilter === "regeln" ? "kuratiert" : "Regeln + Datenmuster"}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section className="panel invoice-quality-export-note">
           <div className="panel-heading">
             <div>
@@ -8827,25 +8938,39 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
             </div>
           </div>
           <div className="table-export-bar">
-            <span>{scopeLabel} · {selectedPeriod.label} · {integerNumber.format(visibleFindings.length)} Hinweise exportierbar</span>
-            <div className="custom-export-actions">
-              <button
-                className="secondary-button custom-export-action"
-                type="button"
-                onClick={() => downloadTextFile(`abrechnungsqualitaet-${fileSlug(scopeLabel)}-${fileSlug(selectedPeriod.label)}.csv`, createInvoiceQualityCsv(visibleFindings, selectedPeriod, previousFindingsByKey, exportIntro))}
-                disabled={!visibleFindings.length}
-              >
-                <Download size={16} /> Tabelle
-              </button>
-              <button
-                className="secondary-button custom-export-action"
-                type="button"
-                onClick={() => printCustomTabPdf(exportRef.current, `${modeTitle} · ${scopeLabel} · ${selectedPeriod.label}`)}
-                disabled={!visibleFindings.length}
-              >
-                <Printer size={16} /> PDF
-              </button>
-            </div>
+            <span>{scopeLabel} · {selectedPeriod.label} · {integerNumber.format(visibleFindings.length)} Hinweise</span>
+          </div>
+          <div className="table-wrap compact-table invoice-quality-print-table-wrap">
+            <table className="invoice-quality-print-table">
+              <thead>
+                <tr>
+                  <th>Standort</th>
+                  <th>Falltyp</th>
+                  <th>Auslöser</th>
+                  <th>Begleitleistung</th>
+                  <th>Gruppe</th>
+                  <th>Praxis</th>
+                  <th>Lücke</th>
+                  <th>Wert</th>
+                  <th>Einordnung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportRows.length ? reportRows.map((row) => (
+                  <tr key={`print-${row.key}`}>
+                    <td><strong>{row.standortName}</strong></td>
+                    <td>{row.caseType}</td>
+                    <td><strong>{row.anchorCode}</strong><small>{row.anchorDescription}</small></td>
+                    <td><strong>{row.companionCode}</strong><small>{row.companionDescription}</small></td>
+                    <td>{formatPercent(row.groupRate * 100)}<small>{integerNumber.format(row.groupTogetherCount)} / {integerNumber.format(row.groupAnchorCount)}</small></td>
+                    <td>{formatPercent(row.targetRate * 100)}<small>{integerNumber.format(row.targetTogetherCount)} / {integerNumber.format(row.targetAnchorCount)}</small></td>
+                    <td>{integerNumber.format(row.missingEstimate)}</td>
+                    <td><strong>{money.format(row.potential)}</strong></td>
+                    <td>{row.rule ? row.rule.title : "Datenmuster"}<small>{row.rule?.rationale ?? invoiceQualityDefaultRecommendation(row)}</small></td>
+                  </tr>
+                )) : <EmptyTableRow colSpan={9} label="Keine Hinweise im gewählten Filter. Schwellenwerte ggf. senken oder Zeitraum erweitern." />}
+              </tbody>
+            </table>
           </div>
           <div className="table-wrap compact-table invoice-services-scroll invoice-quality-table-wrap">
             <table className="invoice-quality-table">
@@ -9894,58 +10019,6 @@ function compareInvoicePotentialRows(
     || a.code.localeCompare(b.code, "de", { numeric: true });
 }
 
-function createInvoicePotentialCsv(rows: ReturnType<typeof invoicePotentialSummary>, selectedStandort: Standort | undefined, period: PeriodOption) {
-  const header = [
-    "Standort",
-    "Zeitraum",
-    "Nr.",
-    "Kurzbeschreibung",
-    "Praxis Ø",
-    "Gruppe ohne Praxis",
-    "Delta",
-    "Potenzial"
-  ];
-  const body = rows.length
-    ? rows.map((row) => [
-      selectedStandort?.name ?? "-",
-      period.label,
-      row.code,
-      row.description,
-      decimalCsv(row.avgFactor),
-      decimalCsv(row.groupAvgFactor),
-      row.factorDelta === null ? "" : decimalCsv(row.factorDelta),
-      decimalCsv(row.potential)
-    ])
-    : [[selectedStandort?.name ?? "-", period.label, "", "Keine Tabellenzeilen im gewählten Filter.", "", "", "", ""]];
-  return [header, ...body].map((row) => row.map(escapeTableCsv).join(";")).join("\n");
-}
-
-function createInvoiceBenchmarkCsv(rows: ReturnType<typeof invoiceBenchmarkRows>, period: PeriodOption) {
-  const header = [
-    "Zeitraum",
-    "Standort",
-    "Praxis",
-    "Relativindex",
-    "Durchschnittsfaktor",
-    "Benchmark",
-    "Delta",
-    "Hebelklasse"
-  ];
-  const body = rows.length
-    ? rows.map((row) => [
-      period.label,
-      row.standortName,
-      row.praxisname,
-      decimalCsv(row.relativeIndex),
-      decimalCsv(row.avgFactor),
-      decimalCsv(row.groupAvgFactor),
-      row.factorDelta === null ? "" : decimalCsv(row.factorDelta),
-      benchmarkPriorityLabel(row.potential)
-    ])
-    : [[period.label, "", "", "", "", "", "", ""]];
-  return [header, ...body].map((row) => row.map(escapeTableCsv).join(";")).join("\n");
-}
-
 function buildInvoiceQualityFindings(
   invoiceRows: ParsedInvoiceDocument[],
   period: PeriodOption,
@@ -10106,15 +10179,6 @@ function formatFactorDelta(value: number) {
   const formatted = feeRateNumber.format(Math.abs(value));
   if (Math.abs(value) < 0.005) return "0,00";
   return `${value > 0 ? "+" : "-"}${formatted}`;
-}
-
-function decimalCsv(value: number) {
-  return Number.isFinite(value) ? String(Math.round(value * 100) / 100).replace(".", ",") : "";
-}
-
-function escapeTableCsv(value: string) {
-  if (/[;"\n]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
-  return value;
 }
 
 function fileSlug(value: string) {
@@ -10653,6 +10717,7 @@ function ImportHistorySummary({ rows }: { rows: ImportPreviewRow[] }) {
             <article>
               <span>Auszahlungsbetrag</span>
               <strong>{money.format(totalPayout)}</strong>
+              <small>{payoutShareLabel(totalPayout, totalSubmitted)}</small>
             </article>
             <article>
               <span>Kosten BFS/EWMA</span>
@@ -11007,8 +11072,356 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
     .status { padding: 3px 6px !important; font-size: 9px !important; }
     .location-export-note { border: 1px solid rgba(121, 238, 231, 0.32); border-radius: 8px; background: rgba(48, 213, 200, 0.08); padding: 9px 10px; margin-bottom: 10px; font-size: 11px; color: #dffcff; break-inside: avoid; page-break-inside: avoid; }
     @media print {
-      html, body { width: auto; height: auto; }
+      html, body { width: auto; height: auto; background: #ffffff !important; color: #111827 !important; }
       .print-page { width: 100%; }
+      .content-stack,
+      .panel,
+      .table-wrap,
+      .invoice-services-scroll,
+      .invoice-services-table-wrap { background: #ffffff !important; color: #111827 !important; }
+      .panel {
+        border: 1px solid #d7e3ea !important;
+        border-radius: 8px !important;
+        padding: 14px !important;
+        overflow: hidden !important;
+      }
+      .panel-heading {
+        align-items: flex-start !important;
+        gap: 18px !important;
+        margin-bottom: 12px !important;
+        padding-bottom: 10px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+      }
+      .panel-heading .eyebrow {
+        color: #64748b !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.04em !important;
+      }
+      .panel-heading h2 {
+        color: #0f172a !important;
+        font-size: 20px !important;
+        line-height: 1.18 !important;
+        margin: 4px 0 5px !important;
+      }
+      .panel-heading p {
+        max-width: 100% !important;
+        color: #475569 !important;
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+      }
+      .invoice-benchmark-table,
+      .invoice-benchmark-group-table,
+      .invoice-benchmark-detail-table,
+      .invoice-potential-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        background: #ffffff !important;
+      }
+      .invoice-benchmark-table th,
+      .invoice-benchmark-table td,
+      .invoice-benchmark-group-table th,
+      .invoice-benchmark-group-table td,
+      .invoice-benchmark-detail-table th,
+      .invoice-benchmark-detail-table td,
+      .invoice-potential-table th,
+      .invoice-potential-table td {
+        color: #111827 !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        padding: 9px 8px !important;
+        font-size: 11px !important;
+        line-height: 1.3 !important;
+        vertical-align: top !important;
+      }
+      .invoice-benchmark-table th,
+      .invoice-benchmark-group-table th,
+      .invoice-benchmark-detail-table th,
+      .invoice-potential-table th {
+        background: #f1f5f9 !important;
+        color: #334155 !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+      }
+      .invoice-benchmark-table td strong,
+      .invoice-benchmark-group-table td strong,
+      .invoice-benchmark-detail-table td strong,
+      .invoice-potential-table td strong {
+        color: #0f172a !important;
+        font-weight: 800 !important;
+      }
+      .invoice-benchmark-table td small,
+      .invoice-benchmark-group-table td small,
+      .invoice-benchmark-detail-table td small,
+      .invoice-potential-table td small {
+        display: block !important;
+        margin-top: 3px !important;
+        color: #64748b !important;
+        font-size: 10px !important;
+        line-height: 1.25 !important;
+      }
+      .invoice-benchmark-table th:nth-child(1),
+      .invoice-benchmark-table td:nth-child(1) { width: 19% !important; }
+      .invoice-benchmark-table th:nth-child(2),
+      .invoice-benchmark-table td:nth-child(2) { width: 13% !important; }
+      .invoice-benchmark-table th:nth-child(3),
+      .invoice-benchmark-table td:nth-child(3),
+      .invoice-benchmark-table th:nth-child(4),
+      .invoice-benchmark-table td:nth-child(4),
+      .invoice-benchmark-table th:nth-child(5),
+      .invoice-benchmark-table td:nth-child(5) { width: 15% !important; }
+      .invoice-benchmark-table th:nth-child(6),
+      .invoice-benchmark-table td:nth-child(6) { width: 23% !important; }
+      .invoice-practice-benchmark-report .priority-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        margin: 0 0 10px !important;
+      }
+      .invoice-practice-benchmark-report .priority-card {
+        min-height: 96px !important;
+        padding: 10px !important;
+        gap: 5px !important;
+        border: 1px solid #cbdff8 !important;
+        background: #f8fbff !important;
+        color: #111827 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-practice-benchmark-report .priority-card.green {
+        border-color: #9bdcc9 !important;
+        background: #f1fcf8 !important;
+      }
+      .invoice-practice-benchmark-report .priority-card.amber {
+        border-color: #f0cc83 !important;
+        background: #fffaf0 !important;
+      }
+      .invoice-practice-benchmark-report .priority-card > span {
+        color: #64748b !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+        font-weight: 800 !important;
+      }
+      .invoice-practice-benchmark-report .priority-card strong {
+        color: #0f172a !important;
+        font-size: 24px !important;
+        line-height: 1.05 !important;
+      }
+      .invoice-practice-benchmark-report .priority-card small {
+        color: #64748b !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+      }
+      .invoice-practice-benchmark-report .priority-card .period-note {
+        margin-top: 4px !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+      }
+      .invoice-practice-benchmark-report .table-export-bar {
+        min-height: 0 !important;
+        margin: 8px 0 10px !important;
+        padding: 8px 10px !important;
+        border: 1px solid #d7e3ea !important;
+        border-radius: 7px !important;
+        background: #f8fafc !important;
+        color: #334155 !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+      }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(1),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(1) { width: 9% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(2),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(2) { width: 30% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(3),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(3) { width: 12% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(4),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(4) { width: 14% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(5),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(5) { width: 10% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(6),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(6) { width: 13% !important; }
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table th:nth-child(7),
+      .invoice-practice-benchmark-report .invoice-benchmark-detail-table td:nth-child(7) { width: 12% !important; }
+      .invoice-potential-report .priority-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+        margin: 0 0 10px !important;
+      }
+      .invoice-potential-report .priority-card {
+        min-height: 82px !important;
+        padding: 8px 9px !important;
+        gap: 4px !important;
+        border: 1px solid #cbdff8 !important;
+        background: #f8fbff !important;
+        color: #111827 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-potential-report .priority-card.green {
+        border-color: #9bdcc9 !important;
+        background: #f1fcf8 !important;
+      }
+      .invoice-potential-report .priority-card.amber {
+        border-color: #f0cc83 !important;
+        background: #fffaf0 !important;
+      }
+      .invoice-potential-report .priority-card > span {
+        color: #64748b !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
+        font-weight: 800 !important;
+      }
+      .invoice-potential-report .priority-card strong {
+        color: #0f172a !important;
+        font-size: 19px !important;
+        line-height: 1.05 !important;
+        overflow-wrap: anywhere !important;
+      }
+      .invoice-potential-report .priority-card small {
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.16 !important;
+      }
+      .invoice-potential-report .priority-card .period-note {
+        margin-top: 2px !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+      }
+      .invoice-potential-report .table-export-bar {
+        min-height: 0 !important;
+        margin: 8px 0 10px !important;
+        padding: 8px 10px !important;
+        border: 1px solid #d7e3ea !important;
+        border-radius: 7px !important;
+        background: #f8fafc !important;
+        color: #334155 !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+      }
+      .invoice-potential-report .invoice-potential-table th:nth-child(1),
+      .invoice-potential-report .invoice-potential-table td:nth-child(1) { width: 8% !important; }
+      .invoice-potential-report .invoice-potential-table th:nth-child(2),
+      .invoice-potential-report .invoice-potential-table td:nth-child(2) { width: 34% !important; }
+      .invoice-potential-report .invoice-potential-table th:nth-child(3),
+      .invoice-potential-report .invoice-potential-table td:nth-child(3) { width: 13% !important; }
+      .invoice-potential-report .invoice-potential-table th:nth-child(4),
+      .invoice-potential-report .invoice-potential-table td:nth-child(4) { width: 18% !important; }
+      .invoice-potential-report .invoice-potential-table th:nth-child(5),
+      .invoice-potential-report .invoice-potential-table td:nth-child(5) { width: 12% !important; }
+      .invoice-potential-report .invoice-potential-table th:nth-child(6),
+      .invoice-potential-report .invoice-potential-table td:nth-child(6) { width: 15% !important; }
+      .invoice-quality-report {
+        gap: 9px !important;
+      }
+      .invoice-quality-report .invoice-quality-export-note,
+      .invoice-quality-report .invoice-quality-card-list,
+      .invoice-quality-report .invoice-quality-table-wrap {
+        display: none !important;
+      }
+      .invoice-quality-report .invoice-quality-print-table-wrap,
+      .invoice-quality-report .invoice-quality-summary-table-wrap {
+        display: block !important;
+        overflow: visible !important;
+        max-height: none !important;
+      }
+      .invoice-quality-report .panel {
+        padding: 10px !important;
+        border-color: #d9e4ea !important;
+        border-radius: 6px !important;
+      }
+      .invoice-quality-report .panel-heading {
+        margin-bottom: 8px !important;
+        padding-bottom: 7px !important;
+      }
+      .invoice-quality-report .panel-heading h2 {
+        font-size: 17px !important;
+        margin: 2px 0 !important;
+      }
+      .invoice-quality-report .panel-heading p {
+        font-size: 10px !important;
+        margin: 0 !important;
+      }
+      .invoice-quality-report .table-export-bar {
+        min-height: 0 !important;
+        margin: 0 0 8px !important;
+        padding: 7px 8px !important;
+        border: 1px solid #d9e4ea !important;
+        border-radius: 6px !important;
+        background: #f8fafc !important;
+        color: #334155 !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+      }
+      .invoice-quality-summary-table-wrap table,
+      .invoice-quality-print-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        background: #ffffff !important;
+      }
+      .invoice-quality-summary-table-wrap th,
+      .invoice-quality-summary-table-wrap td,
+      .invoice-quality-print-table th,
+      .invoice-quality-print-table td {
+        color: #111827 !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 6px 6px !important;
+        font-size: 9.5px !important;
+        line-height: 1.22 !important;
+        vertical-align: top !important;
+        overflow-wrap: anywhere !important;
+        hyphens: auto !important;
+      }
+      .invoice-quality-summary-table-wrap th,
+      .invoice-quality-print-table th {
+        background: #f1f5f9 !important;
+        color: #334155 !important;
+        font-size: 8.5px !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+      }
+      .invoice-quality-summary-table-wrap th {
+        width: 18% !important;
+      }
+      .invoice-quality-summary-table-wrap td {
+        width: 32% !important;
+        font-weight: 800 !important;
+      }
+      .invoice-quality-print-table td strong {
+        display: block !important;
+        color: #0f172a !important;
+        font-weight: 900 !important;
+        margin-bottom: 2px !important;
+      }
+      .invoice-quality-print-table td small {
+        display: block !important;
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.2 !important;
+        margin-top: 2px !important;
+      }
+      .invoice-quality-print-table th:nth-child(1),
+      .invoice-quality-print-table td:nth-child(1) { width: 10% !important; }
+      .invoice-quality-print-table th:nth-child(2),
+      .invoice-quality-print-table td:nth-child(2) { width: 10% !important; }
+      .invoice-quality-print-table th:nth-child(3),
+      .invoice-quality-print-table td:nth-child(3) { width: 13% !important; }
+      .invoice-quality-print-table th:nth-child(4),
+      .invoice-quality-print-table td:nth-child(4) { width: 13% !important; }
+      .invoice-quality-print-table th:nth-child(5),
+      .invoice-quality-print-table td:nth-child(5),
+      .invoice-quality-print-table th:nth-child(6),
+      .invoice-quality-print-table td:nth-child(6) { width: 7% !important; }
+      .invoice-quality-print-table th:nth-child(7),
+      .invoice-quality-print-table td:nth-child(7) { width: 6% !important; }
+      .invoice-quality-print-table th:nth-child(8),
+      .invoice-quality-print-table td:nth-child(8) { width: 9% !important; }
+      .invoice-quality-print-table th:nth-child(9),
+      .invoice-quality-print-table td:nth-child(9) { width: 25% !important; }
       a { color: inherit; text-decoration: none; }
     }
   </style>
@@ -11746,6 +12159,11 @@ function openImportDb() {
 
 function CasesView({
   cases: rows,
+  importRows = [],
+  invoiceRows = [],
+  invoiceStatusRows = [],
+  manualCaseResolutions = [],
+  allowedStandortIds,
   compact = false,
   title,
   description,
@@ -11757,6 +12175,11 @@ function CasesView({
   tableScrollable = false
 }: {
   cases: BfsCase[];
+  importRows?: ImportPreviewRow[];
+  invoiceRows?: ParsedInvoiceDocument[];
+  invoiceStatusRows?: ParsedInvoiceStatusRow[];
+  manualCaseResolutions?: ManualCaseResolution[];
+  allowedStandortIds?: string[];
   compact?: boolean;
   title?: string;
   description?: string;
@@ -11778,7 +12201,11 @@ function CasesView({
   const isSyncingScroll = useRef(false);
   const [tableScrollWidth, setTableScrollWidth] = useState(1540);
   const casePeriod = useMemo(() => periodOptions.find((period) => period.id === casePeriodId) ?? periodOptions[0], [periodOptions, casePeriodId]);
-  const caseStandorte = useMemo(() => orderedStandorte().filter((entry) => rows.some((fall) => fall.standortId === entry.id)), [rows]);
+  const caseStandorte = useMemo(() => orderedStandorte().filter((entry) =>
+    rows.some((fall) => fall.standortId === entry.id)
+    || importRows.some((row) => row.location === entry.name && (row.parsedClaims ?? []).some((claim) => claim.protectionStatus === "ohne_ausfallschutz"))
+    || invoiceRows.some((invoice) => (invoice.standortId === entry.id || invoice.standortName === entry.name) && invoiceHasAusfallhonorarLine(invoice))
+  ), [importRows, invoiceRows, rows]);
   const caseOpenUntilLabel = useMemo(() => germanDateFromIsoDate(caseOpenUntilDate), [caseOpenUntilDate]);
   const filteredRows = useMemo(() => {
     const query = normalizeSearchQuery(caseSearchTerm);
@@ -11794,6 +12221,19 @@ function CasesView({
   }, [compact, enableFilters, rows, caseStandortFilter, casePeriod, caseOpenUntilDate, caseSearchTerm]);
   const sortedRows = useMemo(() => sortCaseRows(filteredRows, caseSort.key, caseSort.direction), [filteredRows, caseSort]);
   const caseKpis = useMemo(() => buildCaseListKpis(filteredRows), [filteredRows]);
+  const ausfallhonorarSummary = useMemo(() => buildAusfallhonorarPaymentSummary(invoiceRows, invoiceStatusRows, {
+    allowedStandortIds,
+    period: casePeriod,
+    searchTerm: caseSearchTerm,
+    standortId: caseStandortFilter
+  }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, invoiceRows, invoiceStatusRows]);
+  const showAusfallhonorarSummary = ausfallhonorarSummary.invoiceCount > 0;
+  const noProtectionSummary = useMemo(() => buildNoProtectionPatientSummary(importRows, invoiceStatusRows, manualCaseResolutions, {
+    allowedStandortIds,
+    period: casePeriod,
+    searchTerm: caseSearchTerm,
+    standortId: caseStandortFilter
+  }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, importRows, invoiceStatusRows, manualCaseResolutions]);
   const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
   const hasCaseActions = Boolean(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal);
   useEffect(() => {
@@ -11905,6 +12345,40 @@ function CasesView({
           <strong>{caseKpis.topLocationName}</strong>
           <small>{caseKpis.topLocationCount ? `${integerNumber.format(caseKpis.topLocationCount)} Fälle · ${money.format(caseKpis.topLocationAmount)}` : "keine Fälle im Filter"}</small>
         </article>
+        {showAusfallhonorarSummary && (
+          <>
+            <article className="case-kpi-card">
+              <span>Ausfallhonorar eingereicht</span>
+              <strong>{money.format(ausfallhonorarSummary.submittedAmount)}</strong>
+              <small>{integerNumber.format(ausfallhonorarSummary.invoiceCount)} Rechnungen im Filter</small>
+            </article>
+            <article className="case-kpi-card">
+              <span>Ausfallhonorar bezahlt</span>
+              <strong>{money.format(ausfallhonorarSummary.paidAmount)}</strong>
+              <small>{integerNumber.format(ausfallhonorarSummary.paidInvoiceCount)} bezahlt/gesichert</small>
+            </article>
+            <article className="case-kpi-card">
+              <span>Ausfallhonorar-Quote</span>
+              <strong>{formatPercent(ausfallhonorarSummary.paymentRate)}</strong>
+              <small>bezahlt von eingereicht</small>
+            </article>
+          </>
+        )}
+        <article className="case-kpi-card">
+          <span>Ohne Schutz Patienten</span>
+          <strong>{integerNumber.format(noProtectionSummary.patientCount)}</strong>
+          <small>{integerNumber.format(noProtectionSummary.claimCount)} Forderungen · {money.format(noProtectionSummary.amount)}</small>
+        </article>
+        <article className="case-kpi-card">
+          <span>Zahlen regelmäßig</span>
+          <strong>{integerNumber.format(noProtectionSummary.regularPaidPatients)}</strong>
+          <small>{formatPercent(noProtectionSummary.regularPaidRate)} der Ohne-Schutz-Patienten</small>
+        </article>
+        <article className="case-kpi-card">
+          <span>Endgültig storniert</span>
+          <strong>{integerNumber.format(noProtectionSummary.finalCancelledPatients)}</strong>
+          <small>{money.format(noProtectionSummary.finalCancelledAmount)} ohne Schutz</small>
+        </article>
       </div>
       <div className="table-section-heading">
         <div>
@@ -11912,7 +12386,7 @@ function CasesView({
           <h2>Offene Nachfassfälle</h2>
           <small>{sortedRows.length} Fälle · sortiert nach {sortLabel}</small>
         </div>
-        <button className="secondary-button" disabled={!sortedRows.length} onClick={() => printCasesReport(sortedRows, reportTitle)}>
+        <button className="secondary-button" disabled={!sortedRows.length && !showAusfallhonorarSummary && !noProtectionSummary.patientCount} onClick={() => printCasesReport(sortedRows, reportTitle, showAusfallhonorarSummary ? ausfallhonorarSummary : undefined, noProtectionSummary)}>
           <Printer size={16} /> PDF Export
         </button>
       </div>
@@ -12028,6 +12502,226 @@ function buildCaseListKpis(rows: BfsCase[]) {
   };
 }
 
+type AusfallhonorarPaymentSummary = {
+  invoiceCount: number;
+  paidInvoiceCount: number;
+  submittedAmount: number;
+  paidAmount: number;
+  openAmount: number;
+  paymentRate: number;
+};
+
+function buildAusfallhonorarPaymentSummary(
+  invoiceRows: ParsedInvoiceDocument[],
+  invoiceStatusRows: ParsedInvoiceStatusRow[],
+  options: {
+    allowedStandortIds?: string[];
+    period: PeriodOption;
+    searchTerm?: string;
+    standortId?: string;
+  }
+): AusfallhonorarPaymentSummary {
+  const allowedStandortIds = options.allowedStandortIds?.length ? new Set(options.allowedStandortIds) : null;
+  const query = normalizeSearchQuery(options.searchTerm ?? "");
+  const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
+
+  const summary = invoiceRows
+    .filter(invoiceReadyForAnalysis)
+    .filter(invoiceHasAusfallhonorarLine)
+    .filter((invoice) => invoiceInPeriod(invoice, options.period))
+    .filter((invoice) => !allowedStandortIds || allowedStandortIds.has(invoice.standortId ?? ""))
+    .filter((invoice) => !options.standortId || options.standortId === "alle" || invoice.standortId === options.standortId || invoice.standortName === standorte.find((standort) => standort.id === options.standortId)?.name)
+    .filter((invoice) => !query || matchesAusfallhonorarInvoiceSearch(invoice, query))
+    .reduce((current, invoice) => {
+      const submittedAmount = ausfallhonorarSubmittedAmount(invoice);
+      const statusRow = invoiceDocumentMatchKeys(invoice).map((key) => statusRowsByKey.get(key)).find(Boolean);
+      const paidAmount = paidAmountForAusfallhonorarInvoice(submittedAmount, statusRow);
+      current.invoiceCount += 1;
+      current.paidInvoiceCount += paidAmount > 0.005 ? 1 : 0;
+      current.submittedAmount += submittedAmount;
+      current.paidAmount += paidAmount;
+      return current;
+    }, {
+      invoiceCount: 0,
+      paidInvoiceCount: 0,
+      submittedAmount: 0,
+      paidAmount: 0,
+      openAmount: 0,
+      paymentRate: 0
+    });
+
+  summary.openAmount = Math.max(summary.submittedAmount - summary.paidAmount, 0);
+  summary.paymentRate = summary.submittedAmount ? (summary.paidAmount / summary.submittedAmount) * 100 : 0;
+  return summary;
+}
+
+function ausfallhonorarSubmittedAmount(invoice: ParsedInvoiceDocument) {
+  const lineAmount = invoice.serviceLines
+    .filter(isAusfallhonorarLine)
+    .reduce((sum, line) => sum + Math.abs(line.amount), 0);
+  return lineAmount > 0.005 ? lineAmount : Math.abs(invoice.totalAmount);
+}
+
+function paidAmountForAusfallhonorarInvoice(submittedAmount: number, statusRow?: ParsedInvoiceStatusRow) {
+  if (!statusRow) return 0;
+  if (statusRow.paymentStatus === "bezahlt" || statusRow.paymentStatus === "ratenzahlung" || statusRow.installmentPlan) return submittedAmount;
+  if (statusRow.paymentStatus !== "teilbezahlt") return 0;
+  const paidEstimate = Math.max(0, Math.abs(statusRow.amount) - Math.abs(statusRow.saldo));
+  return Math.min(submittedAmount, paidEstimate);
+}
+
+function invoiceDocumentMatchKeys(invoice: ParsedInvoiceDocument) {
+  return normalizeMatchKeys([
+    invoice.bfsNo,
+    `${invoice.patientName}|${invoice.invoiceNo}`,
+    `${invoice.patientName}|${invoice.bfsNo}`
+  ]);
+}
+
+function matchesAusfallhonorarInvoiceSearch(invoice: ParsedInvoiceDocument, query: string) {
+  return [
+    invoice.patientName,
+    invoice.invoiceNo,
+    invoice.bfsNo,
+    invoice.standortName,
+    ...invoice.serviceLines.filter(isAusfallhonorarLine).flatMap((line) => [line.code, line.description])
+  ].some((value) => normalizeSearchQuery(value).includes(query));
+}
+
+function isAusfallhonorarLine(line: ParsedInvoiceLine) {
+  return isAusfallhonorarDescription(`${line.code} ${line.description}`);
+}
+
+type NoProtectionPatientSummary = {
+  patientCount: number;
+  claimCount: number;
+  amount: number;
+  regularPaidPatients: number;
+  regularPaidAmount: number;
+  finalCancelledPatients: number;
+  finalCancelledAmount: number;
+  openRiskPatients: number;
+  openRiskAmount: number;
+  regularPaidRate: number;
+  finalCancelledRate: number;
+};
+
+function buildNoProtectionPatientSummary(
+  importRows: ImportPreviewRow[],
+  invoiceStatusRows: ParsedInvoiceStatusRow[],
+  manualCaseResolutions: ManualCaseResolution[],
+  options: {
+    allowedStandortIds?: string[];
+    period: PeriodOption;
+    searchTerm?: string;
+    standortId?: string;
+  }
+): NoProtectionPatientSummary {
+  const allowedStandortIds = options.allowedStandortIds?.length ? new Set(options.allowedStandortIds) : null;
+  const selectedStandort = options.standortId && options.standortId !== "alle" ? standorte.find((standort) => standort.id === options.standortId) : undefined;
+  const query = normalizeSearchQuery(options.searchTerm ?? "");
+  const scopedRows = importRows.filter((row) => {
+    const rowStandort = standorte.find((standort) => standort.name === row.location);
+    if (!rowStandort) return false;
+    if (allowedStandortIds && !allowedStandortIds.has(rowStandort.id)) return false;
+    if (selectedStandort && rowStandort.id !== selectedStandort.id) return false;
+    return importRowInPeriod(row, options.period, rowStandort);
+  });
+  const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
+  invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
+  const cancelledKeys = buildCancelledResolutionKeySet(manualCaseResolutions);
+  const finalCancelledCases = casesFromImportRows(scopedRows)
+    .filter(isNoProtectionReturnCase)
+    .filter((fall) => caseOperationalResolutionKeys(fall).some((key) => cancelledKeys.has(key)));
+  const finalCancelledCaseKeys = new Set(finalCancelledCases.flatMap((fall) => riskActivityKeys(fall.standortId, fall.patientName, fall.invoiceNo, fall.bfsNo)));
+
+  const claims = riskClaimsFromImportRows(scopedRows)
+    .filter((claim) => !query || matchesNoProtectionClaimSearch(claim, query));
+  const patients = new Map<string, {
+    claims: RiskClaim[];
+    regularPaid: boolean;
+    finalCancelled: boolean;
+    openRisk: boolean;
+    regularPaidAmount: number;
+    finalCancelledAmount: number;
+    openRiskAmount: number;
+  }>();
+
+  claims.forEach((claim) => {
+    const key = noProtectionPatientKey(claim);
+    const current = patients.get(key) ?? {
+      claims: [],
+      regularPaid: false,
+      finalCancelled: false,
+      openRisk: false,
+      regularPaidAmount: 0,
+      finalCancelledAmount: 0,
+      openRiskAmount: 0
+    };
+    const statusRow = riskClaimMatchKeys(claim).map((matchKey) => statusRowsByKey.get(matchKey)).find(Boolean);
+    const paidAmount = paidAmountForNoProtectionClaim(claim, statusRow);
+    const finalCancelled = riskActivityKeys(claim.standortId, claim.patientName, claim.invoiceNo, claim.bfsNo).some((matchKey) => finalCancelledCaseKeys.has(matchKey)) || statusRow?.paymentStatus === "storniert";
+    const openRisk = !paidAmount && !finalCancelled && claim.assessment === "auffaellig";
+    current.claims.push(claim);
+    current.regularPaid ||= paidAmount > 0.005 || claim.assessment === "erledigt";
+    current.finalCancelled ||= finalCancelled;
+    current.openRisk ||= openRisk;
+    current.regularPaidAmount += paidAmount;
+    if (finalCancelled) current.finalCancelledAmount += claim.amount;
+    if (openRisk) current.openRiskAmount += claim.eventAmount ?? claim.amount;
+    patients.set(key, current);
+  });
+
+  const patientRows = [...patients.values()];
+  const patientCount = patientRows.length;
+  const regularPaidPatients = patientRows.filter((row) => row.regularPaid && !row.finalCancelled).length;
+  const finalCancelledPatients = patientRows.filter((row) => row.finalCancelled).length;
+  const openRiskPatients = patientRows.filter((row) => row.openRisk && !row.finalCancelled && !row.regularPaid).length;
+  const amount = claims.reduce((sum, claim) => sum + claim.amount, 0);
+  const regularPaidAmount = patientRows.reduce((sum, row) => sum + row.regularPaidAmount, 0);
+  const finalCancelledAmount = patientRows.reduce((sum, row) => sum + row.finalCancelledAmount, 0);
+  const openRiskAmount = patientRows.reduce((sum, row) => sum + row.openRiskAmount, 0);
+
+  return {
+    patientCount,
+    claimCount: claims.length,
+    amount,
+    regularPaidPatients,
+    regularPaidAmount,
+    finalCancelledPatients,
+    finalCancelledAmount,
+    openRiskPatients,
+    openRiskAmount,
+    regularPaidRate: patientCount ? (regularPaidPatients / patientCount) * 100 : 0,
+    finalCancelledRate: patientCount ? (finalCancelledPatients / patientCount) * 100 : 0
+  };
+}
+
+function paidAmountForNoProtectionClaim(claim: RiskClaim, statusRow?: ParsedInvoiceStatusRow) {
+  if (!statusRow) return claim.assessment === "erledigt" ? claim.amount : 0;
+  if (statusRow.paymentStatus === "bezahlt" || statusRow.paymentStatus === "ratenzahlung" || statusRow.installmentPlan) return claim.amount;
+  if (statusRow.paymentStatus !== "teilbezahlt") return 0;
+  const paidEstimate = Math.max(0, Math.abs(statusRow.amount) - Math.abs(statusRow.saldo));
+  return Math.min(claim.amount, paidEstimate);
+}
+
+function riskClaimMatchKeys(claim: RiskClaim) {
+  return normalizeMatchKeys([
+    claim.bfsNo,
+    `${claim.patientName}|${claim.invoiceNo}`,
+    `${claim.patientName}|${claim.bfsNo}`
+  ]);
+}
+
+function noProtectionPatientKey(claim: RiskClaim) {
+  return `${claim.standortId}:${normalizePatientName(claim.patientName)}`;
+}
+
+function matchesNoProtectionClaimSearch(claim: RiskClaim, query: string) {
+  return searchHaystack(claim.patientName, claim.invoiceNo, claim.bfsNo, claim.amount, claim.markerReason, claim.assessmentLabel).includes(query);
+}
+
 type CaseSortKey = "priority" | "date" | "patient" | "location" | "invoice" | "bfs" | "amount" | "age" | "dueDate";
 type SortDirection = "asc" | "desc";
 
@@ -12098,7 +12792,7 @@ function caseDateSortValue(value: string | undefined) {
   return Number(`${year}${match[2]}${match[1]}`);
 }
 
-function printCasesReport(rows: BfsCase[], title: string) {
+function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?: AusfallhonorarPaymentSummary, noProtectionSummary?: NoProtectionPatientSummary) {
   const totalAmount = rows.reduce((sum, fall) => sum + fall.amount, 0);
   const oldestAge = rows.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
   const locations = [...new Set(rows.map((fall) => fall.locationName).filter(Boolean))].sort(compareLocationNamesByContractStart);
@@ -12122,6 +12816,8 @@ function printCasesReport(rows: BfsCase[], title: string) {
     .summary div { border: 1px solid #c8d7dc; border-radius: 6px; padding: 8px; }
     .summary span { display: block; color: #607783; font-size: 9px; font-weight: 700; text-transform: uppercase; }
     .summary strong { display: block; margin-top: 4px; font-size: 17px; }
+    .ausfallhonorar-summary { margin-top: 4px; }
+    .ausfallhonorar-summary div { border-color: #94d8d1; background: #f2fbfa; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     th, td { border: 1px solid #d7e3e7; padding: 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
     th { background: #eaf7f6; color: #0f5360; font-size: 9px; text-transform: uppercase; }
@@ -12156,6 +12852,28 @@ function printCasesReport(rows: BfsCase[], title: string) {
     <div><span>Ältester Fall</span><strong>${oldestAge} Tage</strong></div>
     <div><span>Standorte</span><strong>${locations.length || "-"}</strong></div>
   </section>
+  ${ausfallhonorarSummary ? `
+  <h2>Ausfallhonorar</h2>
+  <section class="summary ausfallhonorar-summary">
+    <div><span>Eingereicht</span><strong>${escapeHtml(money.format(ausfallhonorarSummary.submittedAmount))}</strong></div>
+    <div><span>Bezahlt</span><strong>${escapeHtml(money.format(ausfallhonorarSummary.paidAmount))}</strong></div>
+    <div><span>Quote</span><strong>${escapeHtml(formatPercent(ausfallhonorarSummary.paymentRate))}</strong></div>
+    <div><span>Rechnungen</span><strong>${ausfallhonorarSummary.paidInvoiceCount}/${ausfallhonorarSummary.invoiceCount}</strong></div>
+  </section>` : ""}
+  ${noProtectionSummary ? `
+  <h2>Ohne Ausfallschutz</h2>
+  <section class="summary ausfallhonorar-summary">
+    <div><span>Patienten</span><strong>${integerNumber.format(noProtectionSummary.patientCount)}</strong></div>
+    <div><span>Zahlen regelmäßig</span><strong>${integerNumber.format(noProtectionSummary.regularPaidPatients)}</strong></div>
+    <div><span>Regelmäßig-Quote</span><strong>${escapeHtml(formatPercent(noProtectionSummary.regularPaidRate))}</strong></div>
+    <div><span>Endgültig storniert</span><strong>${integerNumber.format(noProtectionSummary.finalCancelledPatients)}</strong></div>
+  </section>
+  <section class="summary ausfallhonorar-summary">
+    <div><span>Forderungen</span><strong>${integerNumber.format(noProtectionSummary.claimCount)}</strong></div>
+    <div><span>Ohne-Schutz-Betrag</span><strong>${escapeHtml(money.format(noProtectionSummary.amount))}</strong></div>
+    <div><span>Bezahlt/Gesichert</span><strong>${escapeHtml(money.format(noProtectionSummary.regularPaidAmount))}</strong></div>
+    <div><span>Storniert Betrag</span><strong>${escapeHtml(money.format(noProtectionSummary.finalCancelledAmount))}</strong></div>
+  </section>` : ""}
   <h2>Fallliste</h2>
   <table>
     <thead>
@@ -12696,309 +13414,6 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
               )}
             </tbody>
           </table>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function OutcomeControlView({ standort, importRows = [], manualCaseResolutions = [] }: { standort?: Standort; importRows?: ImportPreviewRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
-  const outcomeRows = useMemo(() => outcomeRowsFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
-  const openItems = useMemo(() => openUnresolvedMovementsFromImportRows(importRows, standort?.id), [importRows, standort?.id]);
-  const stornoReview = useMemo(() => stornoReviewFromImportRows(importRows, standort?.id, manualCaseResolutions), [importRows, standort?.id, manualCaseResolutions]);
-  const totals = useMemo(() => outcomeRows.reduce((sum, row) => ({
-    total: sum.total + row.total,
-    reworked: sum.reworked + row.reworked,
-    paid: sum.paid + row.paid,
-    open: sum.open + row.open,
-    amount: sum.amount + row.amount
-  }), { total: 0, reworked: 0, paid: 0, open: 0, amount: 0 }), [outcomeRows]);
-  const openAmount = openItems.length ? openItems.reduce((sum, item) => sum + item.amount, 0) : totals.amount;
-  const successRate = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0;
-  const stornoDoneInfo = [
-    `Grundmenge: ${stornoReview.total} erkannte Storno-Zeilen.`,
-    `Davon sind ${stornoReview.done} zurückgeholt/bezahlt, ${stornoReview.finalCancelled} endgültig storniert und ${stornoReview.open} weiter zu prüfen.`,
-    "Als zurückgeholt/bezahlt gelten echte spätere Neueinreichung oder wirtschaftlich belegte Zahlung. Endgültig storniert ist geklärt, zählt aber nicht als zurückgeholt. Saldo 0 allein ist kein Zahlungsnachweis."
-  ].join(" ");
-
-  return (
-    <div className="content-stack">
-      <section className="priority-grid">
-        <PriorityCard label="Fälle im Blick" value={String(totals.total)} hint={standort ? standort.name : "alle Standorte"} tone="blue" />
-        <PriorityCard label="Nachbearbeitet" value={String(totals.reworked)} hint="Neueinreichung oder Maßnahme erkannt" tone="amber" />
-        <PriorityCard label="Bezahlt" value={String(totals.paid)} hint={`${formatPercent(successRate)} Zahlungsquote`} tone="green" info="Bezahlt zählt nur erkannte oder manuell belegte Zahlung. Es ist nicht gleichzusetzen mit BFS-Saldo 0." />
-        <PriorityCard label="Storno-Zeilen geklärt" value={`${stornoReview.done}/${stornoReview.total}`} hint={`${stornoReview.open} Storno-Zeilen prüfen`} tone={stornoReview.open ? "amber" : "green"} info={stornoDoneInfo} />
-        <PriorityCard label="Weiter zu prüfen" value={String(openItems.length || totals.open)} hint={money.format(openAmount)} tone={(openItems.length || totals.open) ? "red" : "green"} />
-      </section>
-      <section className="chart-grid">
-        <div className="panel mini-chart">
-          <h2>Maßnahmenstatus</h2>
-          <InteractiveBars title="Maßnahmenstatus Fälle" values={[
-            { label: "Ausgang", value: totals.total },
-            { label: "nachbearbeitet", value: totals.reworked },
-            { label: "bezahlt", value: totals.paid },
-            { label: "prüfen", value: openItems.length || totals.open }
-          ]} />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Offen nach Monat</h2>
-          <InteractiveBars title="Offene Fälle nach Monat" values={outcomeRows.slice(0, 8).map((row) => ({
-            label: row.month,
-            value: row.open
-          }))} />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Offener Betrag nach Standort</h2>
-          <InteractiveBars title="Offener Betrag je Standort" values={aggregateOutcomeAmountByLocation(outcomeRows)} />
-        </div>
-      </section>
-      <StornoReviewSection review={stornoReview} />
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{standort ? `Maßnahmenkontrolle ${standort.name}` : "Maßnahmenkontrolle Gruppe"}</h2>
-            <p>Zeigt je Standort und Monat, ob stornierte oder zurückgegebene Fälle nachbearbeitet wurden und ob daraus Neueinreichung, Zahlung oder weiterer Prüfbedarf erkennbar ist.</p>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Monat</th>
-                <th>Standort</th>
-                <th>Ausgangsfälle</th>
-                <th>Nachbearbeitet</th>
-                <th>Bezahlt</th>
-                <th>Weiter prüfen</th>
-                <th>Offener Betrag</th>
-                <th>Beispiele</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outcomeRows.map((row) => (
-                <tr key={`${row.locationName}-${row.month}`}>
-                  <td><strong>{row.month}</strong></td>
-                  <td>{row.locationName}</td>
-                  <td>{row.total}</td>
-                  <td>{row.reworked}</td>
-                  <td>{row.paid}</td>
-                  <td>{row.open}</td>
-                  <td>{money.format(row.amount)}</td>
-                  <td>{row.examples.join(", ")}</td>
-                </tr>
-              ))}
-              {!outcomeRows.length && (
-                <tr><td colSpan={8}>Keine Maßnahmenkontrolle im aktuellen Datenstand.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      {!!openItems.length && (
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Weiter prüfen nach Storno/Rückgabe</h2>
-              <p>Patienten, bei denen eine Rückgabe oder Stornierung erkannt wurde, aber im hochgeladenen Datenstand keine spätere Neueinreichung oder belegte Zahlung gefunden wurde.</p>
-            </div>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Patient</th>
-                  <th>Standort</th>
-                  <th>Datum</th>
-                  <th>Re.-Nr.</th>
-                  <th>BFS-Nr.</th>
-                  <th>Grund</th>
-                  <th>Betrag</th>
-                  <th>AbrechnungsNr.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {openItems.slice(0, 120).map((item) => (
-                  <tr key={`${item.file}-${item.bfsNo}-${item.invoiceNo}-${item.patientName}`}>
-                    <td><strong>{item.patientName}</strong></td>
-                    <td>{item.locationName}</td>
-                    <td>{item.date}</td>
-                    <td>{item.invoiceNo}</td>
-                    <td>{item.bfsNo}</td>
-                    <td>{item.reason}</td>
-                    <td>{money.format(item.amount)}</td>
-                    <td>{formatStatementReference(item.statementNo, item.file)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function aggregateOutcomeAmountByLocation(rows: ReturnType<typeof outcomeRowsFromImportRows>) {
-  const grouped = new Map<string, number>();
-  rows.forEach((row) => grouped.set(row.locationName, (grouped.get(row.locationName) ?? 0) + row.amount));
-  return [...grouped.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([label, value]) => ({ label, value }));
-}
-
-function ReportsView({ role, standort, importRows = [], invoiceStatusRows = [], manualCaseResolutions = [] }: { role: AppRole; standort: Standort; importRows?: ImportPreviewRow[]; invoiceStatusRows?: ParsedInvoiceStatusRow[]; manualCaseResolutions?: ManualCaseResolution[] }) {
-  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
-  const [selectedReportStandortId, setSelectedReportStandortId] = useState(() => role === "super_admin" ? "alle" : standort.id);
-  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === selectedPeriodId) ?? periodOptions[0], [periodOptions, selectedPeriodId]);
-  const selectableStandorte = useMemo(() => role === "super_admin" ? orderedStandorte() : [standort], [role, standort]);
-  const selectedReportStandorte = useMemo(() => {
-    if (role !== "super_admin") return [standort];
-    if (selectedReportStandortId === "alle") return selectableStandorte;
-    return selectableStandorte.filter((entry) => entry.id === selectedReportStandortId);
-  }, [role, selectableStandorte, selectedReportStandortId, standort]);
-  const selectedReportStandortIds = useMemo(() => new Set(selectedReportStandorte.map((entry) => entry.id)), [selectedReportStandorte]);
-  const scopeLabel = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].name : "Alle Standorte";
-  const scopedImportRows = useMemo(() => importRows.filter((row) => {
-    const rowStandort = selectedReportStandorte.find((entry) => entry.name === row.location);
-    return rowStandort ? importRowInPeriod(row, selectedPeriod, rowStandort) : false;
-  }), [importRows, selectedPeriod, selectedReportStandorte]);
-  const reportCases = useMemo(() => buildUnifiedOperationalReviewCases(scopedImportRows, invoiceStatusRows, manualCaseResolutions)
-    .filter((fall) => selectedReportStandortIds.has(fall.standortId))
-    .filter((fall) => {
-      const fallStandort = selectedReportStandorte.find((entry) => entry.id === fall.standortId);
-      return fallStandort ? shortDateInPeriod(fall.sourceDate, selectedPeriod, fallStandort) : false;
-    }), [invoiceStatusRows, manualCaseResolutions, scopedImportRows, selectedPeriod, selectedReportStandortIds, selectedReportStandorte]);
-  const comparison = useMemo(() => buildManagementComparison(importRows, selectedReportStandorte, reportCases, selectedPeriod, manualCaseResolutions, invoiceStatusRows), [importRows, reportCases, selectedPeriod, selectedReportStandorte, manualCaseResolutions, invoiceStatusRows]);
-  const riskClaims = useMemo(() => riskClaimsFromImportRows(scopedImportRows), [scopedImportRows]);
-  const reportStandortId = selectedReportStandorte.length === 1 ? selectedReportStandorte[0].id : undefined;
-  const recurring = useMemo(() => getRecurringRiskProfiles(reportStandortId, scopedImportRows), [reportStandortId, scopedImportRows]);
-  const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
-  const reportComment = buildLocationReportComment(scopeLabel, comparison, reportCases, riskClaims, recurring);
-  function exportCsv() {
-    downloadTextFile(`offene-bfs-klaerfaelle-${scopeLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, createCasesCsv(reportCases));
-  }
-  return (
-    <div className="content-stack report-screen">
-      <section className="panel period-filter report-period-filter">
-        <label className="select-label">
-          Report-Zeitraum
-          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            {periodOptions.map((period) => (
-              <option key={period.id} value={period.id}>{period.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="select-label">
-          Standort
-          <select value={role === "super_admin" ? selectedReportStandortId : standort.id} onChange={(event) => setSelectedReportStandortId(event.target.value)} disabled={role !== "super_admin"}>
-            {role === "super_admin" && <option value="alle">Alle Standorte</option>}
-            {selectableStandorte.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.name}</option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <strong>{scopeLabel}</strong>
-          <span>{selectedPeriod.detail}</span>
-        </div>
-      </section>
-      <section className="priority-grid report-priority-grid">
-        <PriorityCard label="Eingereicht" value={money.format(comparison.currentMetrics.submitted)} hint="Summe Forderungen" period={comparison.currentPeriod.label} tone="blue" />
-        <PriorityCard label="Ausgezahlt" value={money.format(comparison.currentMetrics.payout)} hint="BFS-Auszahlungsbetrag" period={comparison.currentPeriod.label} tone="green" />
-        <PriorityCard label="Gebührenquote" value={formatFeeRate(comparison.currentMetrics.feeRate)} hint={`Vorjahr ${formatFeeRate(comparison.previousMetrics.feeRate)}`} period={comparison.currentPeriod.label} tone={comparison.currentMetrics.feeRate > comparison.previousMetrics.feeRate && comparison.previousMetrics.feeRate > 0 ? "amber" : "green"} />
-        <PriorityCard label="Prüfliste" value={String(reportCases.length)} hint="offene Fälle" period={comparison.currentPeriod.label} tone={reportCases.length ? "amber" : "green"} info="Enthält die gemeinsame Abarbeitungsliste. Je Fall wird bezahlt/geklärt oder endgültig storniert markiert." />
-        <PriorityCard label="Prüfsumme Liste" value={money.format(openAmount)} hint={scopeLabel} period={comparison.currentPeriod.label} tone="blue" />
-        <PriorityCard label="Ohne Schutz Risiko" value={String(riskClaims.filter((claim) => claim.assessment === "auffaellig").length)} hint={`${riskClaims.length} Ohne-Schutz-Claims`} period={comparison.currentPeriod.label} tone={riskClaims.some((claim) => claim.assessment === "auffaellig") ? "red" : "green"} />
-      </section>
-      <section className="panel report-toolbar">
-        <div>
-          <h2>Report-Center {scopeLabel}</h2>
-          <p>{role === "super_admin" ? "Reports werden über den Zeitraum- und Standortfilter erzeugt und können als PDF/Druck oder CSV exportiert werden." : "Standortleitung sieht und exportiert nur den eigenen Standort."}</p>
-        </div>
-        <button className="secondary-button" onClick={() => window.print()}><Printer size={16} /> Drucken / PDF</button>
-        <button className="secondary-button" onClick={exportCsv}><Download size={16} /> CSV</button>
-      </section>
-      <section className="insight-grid">
-        <InsightCard title="Management-Kommentar" items={reportComment} />
-        <InsightCard title="Reportinhalte" items={["Monats-/YTD-Kennzahlen", "gemeinsame Prüfliste", "Ohne-Schutz-Risiko"]} />
-        <InsightCard title="Operative Maßnahme" items={["Prüfliste je Fall abhaken", "Neueinreichungen gegen Brutto-Storno prüfen", "Rest als bezahlt/geklärt oder endgültig storniert markieren"]} />
-      </section>
-      <section className="print-report">
-        <header>
-          <div>
-            <span>Orisus BFS Monitor</span>
-            <h2>Report: {scopeLabel}</h2>
-          </div>
-          <p>Erstellt am {formatGermanDate(todayReference.toISOString().slice(0, 10))}</p>
-        </header>
-        <div className="report-summary">
-          <div><strong>{money.format(comparison.currentMetrics.submitted)}</strong><span>{comparison.currentPeriod.label} eingereicht</span></div>
-          <div><strong>{money.format(comparison.currentMetrics.payout)}</strong><span>ausgezahlt</span></div>
-          <div><strong>{formatFeeRate(comparison.currentMetrics.feeRate)}</strong><span>Gebührenquote</span></div>
-          <div><strong>{reportCases.length}</strong><span>Prüfliste</span></div>
-          <div><strong>{money.format(openAmount)}</strong><span>Prüfsumme Liste</span></div>
-        </div>
-        <h3>Abschnitt 1: Prüfliste offene Fälle</h3>
-        <CasesView cases={reportCases} compact tableScrollable />
-        <h3>Abschnitt 2: Laufend ohne Ausfallschutz</h3>
-        <RiskView standortId={reportStandortId} importRows={scopedImportRows} periodOverride={selectedPeriod} />
-        <h3>Abschnitt 3: Wiederholer ohne Ausfallschutz</h3>
-        <RecurringRiskView standortId={reportStandortId} compact importRows={scopedImportRows} />
-      </section>
-    </div>
-  );
-}
-
-function buildLocationReportComment(
-  scopeLabel: string,
-  comparison: ManagementComparison,
-  reportCases: BfsCase[],
-  riskClaims: RiskClaim[],
-  recurring: ReturnType<typeof getRecurringRiskProfiles>
-) {
-  const suspiciousRisks = riskClaims.filter((claim) => claim.assessment === "auffaellig");
-  const oldest = reportCases.reduce((max, fall) => Math.max(max, fall.ageDays), 0);
-  const openAmount = reportCases.reduce((sum, fall) => sum + fall.amount, 0);
-  return [
-    `${scopeLabel}: ${comparison.currentPeriod.label} ${money.format(comparison.currentMetrics.submitted)} eingereicht, Delta Vorjahr ${formatDelta(comparison.submittedDeltaRate)}.`,
-    `Gebührenquote ${formatFeeRate(comparison.currentMetrics.feeRate)}, Rückbelastungs-/Stornoquote ${formatPercent(comparison.chargebackRate)}, Wiedereinholung ${formatPercent(comparison.recoveryRate)}.`,
-    `${reportCases.length} Fälle in der Prüfliste mit ${money.format(openAmount)}, ältester Fall ${oldest} Tage.`,
-    `${suspiciousRisks.length} auffällige Ohne-Schutz-Claims und ${recurring.length} Wiederholer ohne Schutz für Standortleitung markieren.`
-  ];
-}
-
-function GroupReportsView({ onNavigate }: { onNavigate: (view: string) => void }) {
-  return (
-    <div className="content-stack">
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Gruppenreport</h2>
-            <p>Konsolidierte Auswertung über alle Standorte für Zentrale und Monatsabschluss.</p>
-          </div>
-          <button className="secondary-button" onClick={() => onNavigate("reports")}><FileText size={16} /> Report je Standort</button>
-        </div>
-        <div className="report-type-grid">
-          <button onClick={() => onNavigate("practiceFollowup")}><ClipboardCheck size={18} /> Prüfliste gruppiert</button>
-          <button onClick={() => onNavigate("claims")}><CircleDollarSign size={18} /> Rückbelastungen je Standort</button>
-          <button onClick={() => onNavigate("risks")}><ShieldCheck size={18} /> Ohne Ausfallschutz laufend</button>
-          <button onClick={() => onNavigate("upload")}><FolderUp size={18} /> Import-Center</button>
-        </div>
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Auswertungsfilter</h2>
-            <p>Vorbereitet für Zeitraum, Standort, Status, Falltyp und Sortierung.</p>
-          </div>
-        </div>
-        <div className="filter-grid">
-          <label>Zeitraum<select><option>Aktueller Monat</option><option>Letzte 3 Monate</option></select></label>
-          <label>Status<select><option>Nur offene Fälle</option><option>inkl. erledigte Fälle</option></select></label>
-          <label>Falltyp<select><option>Alle Falltypen</option><option>Rückbelastungen</option><option>Fehlerhafte Rechnungen</option></select></label>
-          <label>Sortierung<select><option>Alter absteigend</option><option>Betrag absteigend</option><option>Standort</option></select></label>
         </div>
       </section>
     </div>

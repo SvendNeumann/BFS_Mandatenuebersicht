@@ -12220,6 +12220,7 @@ function CasesView({
     standortId: caseStandortFilter
   }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, invoiceRows, invoiceStatusRows]);
   const showAusfallhonorarSummary = ausfallhonorarSummary.invoiceCount > 0;
+  const hasInvoiceStatusRows = invoiceStatusRows.length > 0;
   const noProtectionSummary = useMemo(() => buildNoProtectionPatientSummary(importRows, invoiceStatusRows, manualCaseResolutions, {
     allowedStandortIds,
     period: casePeriod,
@@ -12347,7 +12348,7 @@ function CasesView({
             <article className="case-kpi-card">
               <span>Ausfallhonorar bezahlt</span>
               <strong>{money.format(ausfallhonorarSummary.paidAmount)}</strong>
-              <small>{integerNumber.format(ausfallhonorarSummary.paidInvoiceCount)} bezahlt/gesichert</small>
+              <small>{hasInvoiceStatusRows ? `${integerNumber.format(ausfallhonorarSummary.paidInvoiceCount)} bezahlt/gesichert` : "Saldo-Status nicht geladen"}</small>
             </article>
             <article className="case-kpi-card">
               <span>Ausfallhonorar-Quote</span>

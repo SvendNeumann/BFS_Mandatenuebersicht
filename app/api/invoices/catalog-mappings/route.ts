@@ -37,8 +37,8 @@ export async function POST(request: Request) {
   try {
     const auth = await getRequestProfile();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
-    if (auth.profile.role !== "super_admin") {
-      return NextResponse.json({ error: "Nur Super Admins dürfen Katalog-Mappings speichern." }, { status: 403 });
+    if (!["super_admin", "abrechnungsmanagement"].includes(auth.profile.role)) {
+      return NextResponse.json({ error: "Nur Super Admins und Abrechnungsmanagement dürfen Katalog-Mappings speichern." }, { status: 403 });
     }
 
     const supabase = createServiceClient();

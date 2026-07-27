@@ -52,15 +52,46 @@ export async function requestPasswordReset(email: string) {
   if (!supabase) {
     throw new Error("Supabase Auth ist nicht konfiguriert.");
   }
-  await supabase.auth.resetPasswordForEmail(email);
+  const redirectTo = typeof window === "undefined"
+    ? undefined
+    : `${window.location.origin}/passwort-aendern?reset=1`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) throw error;
 }
 
 export async function updateOwnPassword(newPassword: string) {
+  if (newPassword.length < 8) throw new Error("Das neue Passwort muss mindestens 8 Zeichen haben.");
+  const serverResponse = await fetch("/api/auth/password", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password: newPassword })
+  }).catch(() => null);
+
+  if (serverResponse?.ok) {
+    const session = getStoredSession();
+    if (session) persistSession({ ...session, mustChangePassword: false });
+    return;
+  }
+
+  if (serverResponse && ![401, 403, 404].includes(serverResponse.status)) {
+    const body = await serverResponse.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? "Passwort konnte nicht geändert werden.");
+  }
+
   const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase Auth ist nicht konfiguriert.");
-  if (newPassword.length < 8) throw new Error("Das neue Passwort muss mindestens 8 Zeichen haben.");
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session?.user?.id) {
+    throw new Error("Der Passwort-Link ist nicht mehr aktiv. Bitte erneut Passwort vergessen anfordern.");
+  }
+
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
+
+  const refreshedSession = (await supabase.auth.getSession()).data.session ?? sessionData.session;
+  if (refreshedSession?.access_token && refreshedSession.refresh_token) {
+    await persistServerSession(refreshedSession.access_token, refreshedSession.refresh_token, refreshedSession.expires_at, true);
+  }
 
   const response = await fetch("/api/auth/complete-password-change", { method: "POST" });
   if (!response.ok) {
@@ -68,8 +99,10 @@ export async function updateOwnPassword(newPassword: string) {
     throw new Error(body?.error ?? "Passwortwechsel konnte nicht abgeschlossen werden.");
   }
 
-  const session = getStoredSession();
-  if (session) persistSession({ ...session, mustChangePassword: false });
+  const profile = await loadProfile(refreshedSession?.user.id ?? sessionData.session.user.id);
+  if (profile?.active) {
+    persistSession({ email: profile.email, role: profile.role, active: true, mustChangePassword: false, standortIds: profile.standortIds, expiresAt: expiresAt(true) });
+  }
 }
 
 export function getStoredSession(): DemoSession | null {

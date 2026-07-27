@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm run build",
+  "buildCommand": "node -e \"const p=require('./package.json'); if (p.name !== 'orisus-bfs-monitor') { console.error('Blocked wrong Vercel source: '+p.name); process.exit(1); }\" && pnpm run build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next"
 }

@@ -72,10 +72,10 @@ export const standorte: Standort[] = [
   {
     id: "huettenberg",
     name: "Hüttenberg",
-    praxisname: "Praxis Dr. Krauthausen",
+    praxisname: "Praxis Dr. Krauhausen",
     mandantNo: "19804",
     mandantNos: ["19804", "22674"],
-    locationHints: ["Hüttenberg", "Huettenberg", "Krauthausen"],
+    locationHints: ["Hüttenberg", "Huettenberg", "Krauhausen"],
     goLiveDate: "2026-01-01",
     goLiveLabel: "01.01.2026",
     lastImport: "kein Import",

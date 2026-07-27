@@ -5,7 +5,7 @@ import { parseBfsText } from "../lib/bfs-parser.ts";
 import { dedupeImportRows, importRowBusinessIdentity } from "../lib/import-identity.ts";
 import { parseInvoiceText, parsePracticeSoftwareInvoiceText } from "../lib/invoice-parser.ts";
 import { parseInvoiceStatusText } from "../lib/invoice-status-parser.ts";
-import { buildInvoiceQualityFindingsFromProfiles, createInvoiceQualityCsv, filterInvoiceQualityFindings, invoiceQualityKpis, type InvoiceQualityProfile } from "../lib/invoice-quality-analysis.ts";
+import { buildInvoiceQualityChainFindings, buildInvoiceQualityFactorDeviationFindingsFromProfiles, buildInvoiceQualityFindingsFromProfiles, createInvoiceQualityChainCsv, createInvoiceQualityCsv, filterInvoiceQualityFindings, invoiceQualityChainKpis, invoiceQualityKpis, type InvoiceQualityProfile } from "../lib/invoice-quality-analysis.ts";
 import type { ImportPreviewRow, ParsedInvoiceLine } from "../lib/types.ts";
 
 test("Import-Business-Identity nutzt Mandant und Abrechnungsnummer", () => {
@@ -46,7 +46,11 @@ test("Klärfall-Schlüssel bleibt stabil trotz Schreibweise, Umlaut und Cent-Run
 test("Ausfallhonorar wird als feste Storno-Regel erkannt", () => {
   assert.equal(isAusfallhonorarDescription("Ausfallhonorar gemäß § 615 BGB"), true);
   assert.equal(isAusfallhonorarDescription("Ausfall-Honorar"), true);
+  assert.equal(isAusfallhonorarDescription("AG Ausfallgebühr"), true);
   assert.equal(isAusfallhonorarDescription("Vers_ Versäumnis Termin"), true);
+  assert.equal(isAusfallhonorarDescription("Terminversäumnis"), true);
+  assert.equal(isAusfallhonorarDescription("Versäumnisgebühr"), true);
+  assert.equal(isAusfallhonorarDescription("Terminausfall"), true);
   assert.equal(isAusfallhonorarDescription("§615 Ausfallhonorar gemäß § 615 BGB"), true);
   assert.equal(isAusfallhonorarDescription("Ausfallschutz"), false);
   assert.equal(isAusfallhonorarDescription("Versiegelung von kariesfreien Zahnfissuren"), false);
@@ -278,7 +282,7 @@ test("BFS-Rechnungsparser nimmt Beträge ohne Faktor nicht als Leistungsfaktor",
 
 test("BFS-Rechnungsparser erkennt Versaeumnis-Termin als Ausfallhonorar-Position", () => {
   const row = parseInvoiceText([
-    "Praxis Dr. Krauthausen",
+    "Praxis Dr. Krauhausen",
     "BFS-Nr. 5-19804-71218567",
     "Behandelte Person: Heino Engel",
     "Rechnung",
@@ -293,6 +297,46 @@ test("BFS-Rechnungsparser erkennt Versaeumnis-Termin als Ausfallhonorar-Position
   assert.equal(row.serviceLines[0].code, "Vers_");
   assert.equal(row.serviceLines[0].description, "Versäumnis Termin");
   assert.equal(row.serviceLines[0].amount, 50);
+  assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
+});
+
+test("BFS-Rechnungsparser erkennt Ulmet-615-Ausfallhonorar", () => {
+  const row = parseInvoiceText([
+    "Zahnmedizin Westpfalz MVZ",
+    "BFS-Nr. 5-19260-67946990",
+    "Behandelte Person: Bashar Dergham",
+    "Rechnung",
+    "Rechnungsnummer: 047-022885 Rechnungsdatum: 25.09.2025",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "25.09.25 §615 Ausfallhonorar gemäß § 615 BGB 1,000 1 50,00",
+    "Zwischensumme Honorar:",
+    "50,00"
+  ].join("\n"), { file: "Rechnung_5-19260-67946990.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "§615");
+  assert.equal(row.serviceLines[0].description, "Ausfallhonorar gemäß § 615 BGB");
+  assert.equal(row.serviceLines[0].amount, 50);
+  assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
+});
+
+test("BFS-Rechnungsparser erkennt Kehl-Ausfallgebuehr mit AG-Code", () => {
+  const row = parseInvoiceText([
+    "Zahnarztpraxis Zorn de Bulach",
+    "BFS-Nr. 5-19092-68627547",
+    "Behandelte Person: Pedro Nicolas Spagnuolo",
+    "Rechnung",
+    "Rechnungsnummer: 2/14219/5 Rechnungsdatum: 30.10.2025",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "29.10.25 AG Ausfallgebühr 1,000 1 60,00",
+    "Zwischensumme Honorar:",
+    "60,00"
+  ].join("\n"), { file: "Rechnung_5-19092-68627547.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.serviceLines.length, 1);
+  assert.equal(row.serviceLines[0].code, "AG");
+  assert.equal(row.serviceLines[0].description, "Ausfallgebühr");
+  assert.equal(row.serviceLines[0].amount, 60);
   assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
 });
 
@@ -533,17 +577,276 @@ test("Abrechnungsqualität filtert, aggregiert und exportiert Hinweise stabil", 
   assert.equal(filtered.length, 1);
   assert.equal(kpis.count, 1);
   assert.equal(kpis.affectedInvoices, 3);
+  assert.equal(filtered[0].hintType, "Kataloghinweis");
+  assert.equal(filtered[0].precheckStatus, "Regel hinterlegt");
   assert.match(csv, /2026 gesamt/);
-  assert.match(csv, /FAL-Zentrallage einordnen/);
+  assert.match(csv, /Regel hinterlegt/);
   assert.match(csv, /Einordnungstest/);
+  assert.match(csv, /Fachliche Vorprüfung/);
+  assert.doesNotMatch(csv, /Lücke/);
+  assert.doesNotMatch(csv, /Nachberechnen/);
 });
 
-function invoiceQualityProfile(key: string, standortId: string, standortName: string, codes: string[]): InvoiceQualityProfile {
+test("Abrechnungsqualität zeigt unbekannte Kombinationen als Datenmuster", () => {
+  const findings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["7777", "8888"], "Neuer Leistungsbereich"),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["7777", "8888"], "Neuer Leistungsbereich"),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["7777", "8888"], "Neuer Leistungsbereich"),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["7777"], "Neuer Leistungsbereich"),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["7777"], "Neuer Leistungsbereich"),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["7777"], "Neuer Leistungsbereich")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].caseType, "Neuer Leistungsbereich");
+  assert.equal(findings[0].hintType, "Datenmuster");
+  assert.equal(findings[0].precheckStatus, "Keine Regel vorhanden");
+  assert.equal(findings[0].orientationLevel, "einzelfallabhängig");
+  assert.equal(findings[0].status, "offen");
+  assert.ok(findings[0].topicCluster.length > 0);
+  assert.match(findings[0].explanation, /Standortvergleich/);
+});
+
+test("Qualitätscockpit bewertet Muster mit Score, Priorität und vorsichtiger Klassifikation", () => {
+  const implantRows = [
+    ...Array.from({ length: 18 }, (_, index) => invoiceQualityProfile(`gruppe-implant-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["9000", "9010"], "ZE/Implantat/Labor")),
+    ...Array.from({ length: 12 }, (_, index) => invoiceQualityProfile(`ziel-implant-${index}`, "ziel", "Zielpraxis", ["9000"], "ZE/Implantat/Labor"))
+  ];
+  const implantFinding = buildInvoiceQualityFindingsFromProfiles(implantRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 8, minPotential: 0 })
+    .find((row) => row.anchorCode === "9000" && row.companionCode === "9010");
+
+  assert.equal(implantFinding?.context, "implantology");
+  assert.equal(implantFinding?.classification, "kontextabhaengig");
+  assert.equal(implantFinding?.priority, "hoch");
+  assert.match(implantFinding?.comparisonBasis ?? "", /ohne ausgewählten Standort/);
+  assert.ok((implantFinding?.score ?? 0) >= 75);
+
+  const weakRows = [
+    ...Array.from({ length: 18 }, (_, index) => invoiceQualityProfile(`gruppe-weak-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["0070", "2420"], "Endodontie")),
+    ...Array.from({ length: 12 }, (_, index) => invoiceQualityProfile(`ziel-weak-${index}`, "ziel", "Zielpraxis", ["0070"], "Endodontie"))
+  ];
+  const weakFinding = buildInvoiceQualityFindingsFromProfiles(weakRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 8, minPotential: 0 })
+    .find((row) => row.anchorCode === "0070" && row.companionCode === "2420");
+
+  assert.equal(weakFinding?.classification, "schwach_statistisch");
+  assert.notEqual(weakFinding?.priority, "hoch");
+
+  const unknownRows = [
+    ...Array.from({ length: 12 }, (_, index) => invoiceQualityProfile(`gruppe-unknown-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["7777", "8888"], "Neuer Falltyp")),
+    ...Array.from({ length: 8 }, (_, index) => invoiceQualityProfile(`ziel-unknown-${index}`, "ziel", "Zielpraxis", ["7777"], "Neuer Falltyp"))
+  ];
+  const unknownFinding = buildInvoiceQualityFindingsFromProfiles(unknownRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 8, minPotential: 0 })
+    .find((row) => row.anchorCode === "7777" && row.companionCode === "8888");
+
+  assert.equal(unknownFinding?.classification, "unklassifiziert");
+  assert.equal(unknownFinding?.context, "unknown");
+  assert.ok(unknownFinding);
+});
+
+test("Qualitätscockpit stuft OP-Zuschlag, Anästhesie und geringe Fallzahlen konservativ ein", () => {
+  const surchargeRows = [
+    ...Array.from({ length: 18 }, (_, index) => invoiceQualityProfile(`gruppe-surcharge-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["0530", "9100"], "ZE/Implantat/Labor")),
+    ...Array.from({ length: 12 }, (_, index) => invoiceQualityProfile(`ziel-surcharge-${index}`, "ziel", "Zielpraxis", ["0530"], "ZE/Implantat/Labor"))
+  ];
+  const surchargeFinding = buildInvoiceQualityFindingsFromProfiles(surchargeRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 8, minPotential: 0 })
+    .find((row) => row.anchorCode === "0530" && row.companionCode === "9100");
+
+  assert.equal(surchargeFinding?.context, "surgery");
+  assert.equal(surchargeFinding?.classification, "schwach_statistisch");
+  assert.notEqual(surchargeFinding?.priority, "hoch");
+
+  const anesthesiaRows = [
+    ...Array.from({ length: 18 }, (_, index) => invoiceQualityProfile(`gruppe-anesthesia-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["3010", "0090"], "Chirurgie")),
+    ...Array.from({ length: 12 }, (_, index) => invoiceQualityProfile(`ziel-anesthesia-${index}`, "ziel", "Zielpraxis", ["3010"], "Chirurgie"))
+  ];
+  const anesthesiaFinding = buildInvoiceQualityFindingsFromProfiles(anesthesiaRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 8, minPotential: 0 })
+    .find((row) => row.anchorCode === "3010" && row.companionCode === "0090");
+
+  assert.equal(anesthesiaFinding?.context, "anesthesia");
+  assert.equal(anesthesiaFinding?.classification, "schwach_statistisch");
+  assert.notEqual(anesthesiaFinding?.priority, "hoch");
+
+  const lowCaseRows = [
+    ...Array.from({ length: 9 }, (_, index) => invoiceQualityProfile(`gruppe-low-${index}`, index % 2 ? "gruppe-a" : "gruppe-b", "Vergleich", ["5040", "8020"], "ZE/FAL")),
+    ...Array.from({ length: 4 }, (_, index) => invoiceQualityProfile(`ziel-low-${index}`, "ziel", "Zielpraxis", ["5040"], "ZE/FAL"))
+  ];
+  const lowCaseFinding = buildInvoiceQualityFindingsFromProfiles(lowCaseRows, [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 })
+    .find((row) => row.anchorCode === "5040" && row.companionCode === "8020");
+
+  assert.equal(lowCaseFinding?.context, "prosthetics");
+  assert.equal(lowCaseFinding?.lowCaseCount, true);
+  assert.notEqual(lowCaseFinding?.priority, "hoch");
+});
+
+test("Abrechnungsqualität zeigt Faktorabweichungen als Faktorhinweis", () => {
+  const profiles = [
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["1040"], "Prophylaxe/PZR", { "1040": 3.5 }),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["1040"], "Prophylaxe/PZR", { "1040": 3.4 }),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["1040"], "Prophylaxe/PZR", { "1040": 3.6 }),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR", { "1040": 2.3 }),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR", { "1040": 2.4 }),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR", { "1040": 2.2 })
+  ];
+  const findings = buildInvoiceQualityFactorDeviationFindingsFromProfiles(profiles, [testStandort("ziel", "Zielpraxis")], { minCaseCount: 3, minPotential: 0 });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].analysisType, "factor_deviation");
+  assert.equal(findings[0].hintType, "Faktorhinweis");
+  assert.equal(findings[0].topicCluster, "Faktoren / Steigerungssätze");
+  assert.equal(findings[0].precheckStatus, "Keine Regel vorhanden");
+  assert.equal(findings[0].orientationLevel, "einzelfallabhängig");
+  assert.ok((findings[0].groupAverageFactor ?? 0) > (findings[0].practiceAverageFactor ?? 0));
+});
+
+test("Leistungsketten bündeln mehrere Begleitpositionen je Hauptleistung", () => {
+  const findings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["8000", "8010", "8020"]),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["8000", "8010", "8020"]),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["8000", "8010", "8020"]),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["8000"]),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["8000"])
+  ], [{
+    id: "ziel",
+    name: "Zielpraxis",
+    praxisname: "Zielpraxis",
+    mandantNo: "1",
+    goLiveDate: "2024-01-01",
+    goLiveLabel: "01.01.2024",
+    lastImport: "",
+    submittedThisMonth: 0,
+    feesThisMonth: 0,
+    openCases: 0,
+    openChargebacks: 0,
+    withoutProtection: 0,
+    olderThan30: 0
+  }], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+
+  const chains = buildInvoiceQualityChainFindings(findings);
+  const kpis = invoiceQualityChainKpis(chains);
+  const csv = createInvoiceQualityChainCsv(chains, { label: "2026 gesamt" }, ["Kettentest"]);
+
+  assert.equal(chains.length, 1);
+  assert.equal(chains[0].anchorCode, "8000");
+  assert.deepEqual(chains[0].companions.map((companion) => companion.code).sort(), ["8010", "8020"]);
+  assert.equal(chains[0].catalogPlausibilityLevel, "A");
+  assert.equal(chains[0].catalogPlausibilityStatus, "regel_hinterlegt");
+  assert.equal(kpis.count, 1);
+  assert.equal(kpis.companionCount, 2);
+  assert.match(csv, /8010/);
+  assert.match(csv, /8020/);
+  assert.match(csv, /A · regelmäßig naheliegend/);
+  assert.match(csv, /Kettentest/);
+});
+
+test("Leistungsketten markieren unbekannte und Seed-Ketten mit Katalog-Plausibilität", () => {
+  const unknownFindings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-1", "gruppe-a", "Vergleich A", ["7777", "8888", "9999"], "Neuer Falltyp"),
+    invoiceQualityProfile("gruppe-2", "gruppe-a", "Vergleich A", ["7777", "8888", "9999"], "Neuer Falltyp"),
+    invoiceQualityProfile("gruppe-3", "gruppe-b", "Vergleich B", ["7777", "8888", "9999"], "Neuer Falltyp"),
+    invoiceQualityProfile("ziel-1", "ziel", "Zielpraxis", ["7777"], "Neuer Falltyp"),
+    invoiceQualityProfile("ziel-2", "ziel", "Zielpraxis", ["7777"], "Neuer Falltyp"),
+    invoiceQualityProfile("ziel-3", "ziel", "Zielpraxis", ["7777"], "Neuer Falltyp")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+  const unknownChain = buildInvoiceQualityChainFindings(unknownFindings)[0];
+
+  assert.equal(unknownChain.riskLevel, "yellow");
+  assert.equal(unknownChain.reviewStatus, "ungeprüft");
+  assert.equal(unknownChain.sourceStatus, "keine_quelle");
+  assert.equal(unknownChain.classification, "nur Datenmuster");
+  assert.equal(unknownChain.ruleStatus, "Nur Datenmuster");
+  assert.equal(unknownChain.hintType, "Datenmuster");
+  assert.equal(unknownChain.catalogPlausibilityLevel, "E");
+  assert.equal(unknownChain.catalogPlausibilityStatus, "keine_regel");
+  assert.match(unknownChain.catalogPlausibilityLabel, /Datenmuster/);
+  assert.match(unknownChain.shortHint, /Nur Datenmuster/);
+
+  const seedFindings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-a-1", "gruppe-a", "Vergleich A", ["0010", "2010", "Ä1"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("gruppe-a-2", "gruppe-a", "Vergleich A", ["0010", "2010", "Ä1"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("gruppe-b-1", "gruppe-b", "Vergleich B", ["0010", "2010", "Ä1"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-1", "ziel", "Zielpraxis", ["0010"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-2", "ziel", "Zielpraxis", ["0010"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-3", "ziel", "Zielpraxis", ["0010"], "Prophylaxe/PZR")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+  const seedChain = buildInvoiceQualityChainFindings(seedFindings)[0];
+  const seedCsv = createInvoiceQualityChainCsv([seedChain], { label: "2026 gesamt" });
+
+  assert.equal(seedChain.riskLevel, "yellow");
+  assert.equal(seedChain.reviewStatus, "seed_ungeprüft");
+  assert.equal(seedChain.sourceStatus, "keine_quelle");
+  assert.equal(seedChain.ruleStatus, "Vorsichtig einordnen");
+  assert.equal(seedChain.classification, "vorsichtig einordnen");
+  assert.equal(seedChain.catalogPlausibilityLevel, "B");
+  assert.equal(seedChain.catalogPlausibilityStatus, "regel_hinterlegt");
+  assert.match(seedChain.ruleSummary, /als Orientierung geeignet/);
+  assert.match(seedCsv, /B · einzelfallabhängig/);
+  assert.match(seedCsv, /Keine automatische Abrechnungsempfehlung/);
+  assert.doesNotMatch(seedCsv, /Nachberechnung/);
+});
+
+test("Leistungsketten kennzeichnen Behandlungsverlauf und gruppieren Begleitpositionen", () => {
+  const flowFindings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-a-1", "gruppe-a", "Vergleich A", ["3290", "9010", "0530", "Ä5004"], "Implantat-Fallverlauf"),
+    invoiceQualityProfile("gruppe-a-2", "gruppe-a", "Vergleich A", ["3290", "9010", "0530", "Ä5004"], "Implantat-Fallverlauf"),
+    invoiceQualityProfile("gruppe-b-1", "gruppe-b", "Vergleich B", ["3290", "9010", "0530", "Ä5004"], "Implantat-Fallverlauf"),
+    invoiceQualityProfile("ziel-a-1", "ziel", "Zielpraxis", ["3290"], "Implantat-Fallverlauf"),
+    invoiceQualityProfile("ziel-a-2", "ziel", "Zielpraxis", ["3290"], "Implantat-Fallverlauf"),
+    invoiceQualityProfile("ziel-a-3", "ziel", "Zielpraxis", ["3290"], "Implantat-Fallverlauf")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+  const flowChain = buildInvoiceQualityChainFindings(flowFindings)[0];
+
+  assert.equal(flowChain.classification, "vorsichtig einordnen");
+  assert.equal(flowChain.hintType, "Behandlungsverlauf");
+  assert.equal(flowChain.ruleStatus, "Vorsichtig einordnen");
+  assert.equal(flowChain.catalogPlausibilityLevel, "C");
+  assert.equal(flowChain.catalogPlausibilityLabel, "Behandlungsverlauf");
+  assert.match(flowChain.detailHint, /Behandlungsverlauf/);
+  assert.ok(flowChain.companions.every((companion) => companion.topic));
+});
+
+test("Leistungsketten markieren PZR-Kontext mit 1020 als vorsichtig einzuordnen", () => {
+  const findings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-a-1", "gruppe-a", "Vergleich A", ["1040", "1020"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("gruppe-a-2", "gruppe-a", "Vergleich A", ["1040", "1020"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("gruppe-b-1", "gruppe-b", "Vergleich B", ["1040", "1020"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-1", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-2", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR"),
+    invoiceQualityProfile("ziel-a-3", "ziel", "Zielpraxis", ["1040"], "Prophylaxe/PZR")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+  const chain = buildInvoiceQualityChainFindings(findings, 1)[0];
+
+  assert.equal(chain.anchorCode, "1040");
+  assert.equal(chain.companions[0].code, "1020");
+  assert.equal(chain.catalogPlausibilityLevel, "D");
+  assert.equal(chain.catalogPlausibilityLabel, "vorsichtig einordnen");
+  assert.match(chain.catalogPlausibilityExplanation, /Fluoridierung/);
+});
+
+test("Leistungsketten erkennen Ein-Begleitpositions-Kette 2360 zu 2410 als A", () => {
+  const findings = buildInvoiceQualityFindingsFromProfiles([
+    invoiceQualityProfile("gruppe-a-1", "gruppe-a", "Vergleich A", ["2360", "2410"], "Endodontie"),
+    invoiceQualityProfile("gruppe-a-2", "gruppe-a", "Vergleich A", ["2360", "2410"], "Endodontie"),
+    invoiceQualityProfile("gruppe-b-1", "gruppe-b", "Vergleich B", ["2360", "2410"], "Endodontie"),
+    invoiceQualityProfile("ziel-a-1", "ziel", "Zielpraxis", ["2360"], "Endodontie"),
+    invoiceQualityProfile("ziel-a-2", "ziel", "Zielpraxis", ["2360"], "Endodontie"),
+    invoiceQualityProfile("ziel-a-3", "ziel", "Zielpraxis", ["2360"], "Endodontie")
+  ], [testStandort("ziel", "Zielpraxis")], { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 });
+  const chain = buildInvoiceQualityChainFindings(findings, 1)[0];
+
+  assert.equal(chain.anchorCode, "2360");
+  assert.equal(chain.companions[0].code, "2410");
+  assert.equal(chain.catalogPlausibilityLevel, "A");
+  assert.equal(chain.catalogPlausibilityLabel, "regelmäßig naheliegend");
+});
+
+function invoiceQualityProfile(key: string, standortId: string, standortName: string, codes: string[], caseType = "Allgemein", factors: Record<string, number> = {}): InvoiceQualityProfile {
   const lineByCode = new Map<string, ParsedInvoiceLine>();
   codes.forEach((code) => {
     lineByCode.set(code, {
       code,
-      description: code === "8010" ? "Registrierung der gelenkbezüglichen Zentrallage" : "Klinische Funktionsanalyse",
+      description: code === "8010" ? "Registrierung der gelenkbezüglichen Zentrallage" : code === "7777" || code === "8888" ? "Neue Leistungsart" : "Klinische Funktionsanalyse",
+      factor: factors[code],
       amount: code === "8010" ? 50 : 100,
       category: "leistung",
       sourceSection: "test"
@@ -561,7 +864,25 @@ function invoiceQualityProfile(key: string, standortId: string, standortName: st
     codes,
     codeSet: new Set(codes),
     lineByCode,
-    caseType: "Allgemein"
+    caseType
+  };
+}
+
+function testStandort(id: string, name: string) {
+  return {
+    id,
+    name,
+    praxisname: name,
+    mandantNo: "1",
+    goLiveDate: "2024-01-01",
+    goLiveLabel: "01.01.2024",
+    lastImport: "",
+    submittedThisMonth: 0,
+    feesThisMonth: 0,
+    openCases: 0,
+    openChargebacks: 0,
+    withoutProtection: 0,
+    olderThan30: 0
   };
 }
 

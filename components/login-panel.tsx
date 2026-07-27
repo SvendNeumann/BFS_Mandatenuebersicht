@@ -3,19 +3,20 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Eye, Fingerprint, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
-import { canUsePasskeys, getCurrentSession, hasSavedPasskey, loginWithEmail, loginWithPasskey, requestPasswordReset, type DemoSession } from "@/lib/auth";
+import { canUsePasskeys, getCurrentSession, hasSavedPasskey, loginWithEmail, loginWithPasskey, logout, requestPasswordReset, type DemoSession } from "@/lib/auth";
 
 type LoginPanelProps = {
   variant?: "card" | "landing";
 };
 
 export function LoginPanel({ variant = "card" }: LoginPanelProps) {
-  const [email, setEmail] = useState("svend.neumann@orisus.de");
+  const [email, setEmail] = useState(() => initialLoginEmail());
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionCheckDone, setSessionCheckDone] = useState(false);
+  const [existingSession, setExistingSession] = useState<DemoSession | null>(null);
   const [message, setMessage] = useState("Geschützter interner Bereich für berechtigte Nutzer der Orisus-Gruppe.");
 
   useEffect(() => {
@@ -28,6 +29,22 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       .then((session) => {
         if (!active) return;
         if (session?.active) {
+          const requestedEmail = initialLoginEmail();
+          if (variant === "card") {
+            if (requestedEmail && requestedEmail.toLowerCase() !== session.email.toLowerCase()) {
+              void logout().finally(() => {
+                if (!active) return;
+                setExistingSession(null);
+                setSessionCheckDone(true);
+                setMessage("Bitte mit der eigenen E-Mail-Adresse anmelden.");
+              });
+              return;
+            }
+            setExistingSession(session);
+            setSessionCheckDone(true);
+            setMessage(`Aktuell ist ${session.email} angemeldet. Für einen anderen Nutzer bitte zuerst abmelden.`);
+            return;
+          }
           window.location.replace(nextPathFromLocation() ?? dashboardPathForSession(session));
           return;
         }
@@ -47,6 +64,7 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
     setMessage("Login wird geprüft...");
     try {
       const session = await loginWithEmail(email, password, remember);
+      resetStoredDashboardView(session);
       window.location.href = session.mustChangePassword
         ? "/passwort-aendern"
         : nextPathFromLocation() ?? dashboardPathForSession(session);
@@ -66,8 +84,30 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
   }
 
   async function resetPassword() {
-    await requestPasswordReset(email);
-    setMessage("Wenn die E-Mail bekannt ist, wurde ein Link zum Zurücksetzen versendet.");
+    if (!email.trim()) {
+      setMessage("Bitte zuerst die E-Mail-Adresse eintragen.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await requestPasswordReset(email);
+      setMessage("Wenn die E-Mail bekannt ist, wurde ein Link zum Zurücksetzen versendet.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Passwort-Link konnte nicht versendet werden.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function switchAccount() {
+    setIsSubmitting(true);
+    setMessage("Bestehende Anmeldung wird entfernt...");
+    await logout();
+    setExistingSession(null);
+    setPassword("");
+    setIsSubmitting(false);
+    setSessionCheckDone(true);
+    setMessage("Bitte mit der eigenen E-Mail-Adresse anmelden.");
   }
 
   return (
@@ -86,6 +126,11 @@ export function LoginPanel({ variant = "card" }: LoginPanelProps) {
       <p>{message}</p>
 
       {!sessionCheckDone && <p className="form-hint">Bestehende Anmeldung wird geprüft...</p>}
+      {existingSession && (
+        <button className="secondary-button wide-button" type="button" onClick={switchAccount} disabled={isSubmitting}>
+          Andere Person anmelden
+        </button>
+      )}
       <form className="login-form" onSubmit={submitLogin}>
         <label>
           Login-Name
@@ -116,9 +161,21 @@ function dashboardPathForSession(session: Pick<DemoSession, "role">) {
   return "/dashboard";
 }
 
+function resetStoredDashboardView(session: Pick<DemoSession, "role">) {
+  if (typeof window === "undefined") return;
+  if (session.role === "abrechnungsmanagement") {
+    window.localStorage.removeItem("orisus_bfs_monitor_view_state:/dashboard");
+  }
+}
+
 function nextPathFromLocation() {
   if (typeof window === "undefined") return null;
   return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+}
+
+function initialLoginEmail() {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("email")?.trim().toLowerCase() ?? "";
 }
 
 function safeNextPath(value: string | null) {

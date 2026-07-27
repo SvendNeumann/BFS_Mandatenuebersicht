@@ -1,23 +1,24 @@
 # Orisus BFS Monitor - Projektkontext
 
-Stand: 02.07.2026, ca. 19:30 Uhr
+Stand: 03.07.2026, ca. 20:25 Uhr
 Repo: `/Users/svendneumann/Documents/BFS_Mandantenportal`  
 Live: `https://bfs-mandatenuebersicht.vercel.app`  
 GitHub: `https://github.com/SvendNeumann/BFS_Mandatenuebersicht.git`  
-Aktueller Fokus: Orisus BFS Monitor mit drei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit, BFS-Rechnungsanalyse und Abrechnungsqualitaet. BFS-Abrechnungen laufen ueber Geldfluss, Saldo-/Prueflistenlogik und manuelle Klaerung. BFS-Rechnungsanalyse ist fachlich getrennt und arbeitet mit Einzelrechnungen, Leistungspositionen, Faktoren, Katalogabgleich, Benchmarking, Potenzial, Trends und Patientenprofil. Abrechnungsqualitaet nutzt Einzelrechnungen fuer Leistungsketten, Plausibilitaets-/Vollstaendigkeitspruefung und Praxis-Feedback.
+Aktueller Fokus: Orisus BFS Monitor mit drei Hauptbereichen: BFS-Abrechnungen/operative Fallarbeit, BFS-Rechnungsanalyse und Abrechnungsqualitaet. BFS-Abrechnungen laufen ueber Geldfluss, Saldo-/Prueflistenlogik, Ausfallhonorar-Erkennung, Ohne-Ausfallschutz-Auswertung und manuelle Klaerung. BFS-Rechnungsanalyse ist fachlich getrennt und arbeitet mit Einzelrechnungen, Leistungspositionen, Faktoren, Katalogabgleich, Benchmarking, Potenzial, Trends und Patientenprofil. Abrechnungsqualitaet nutzt Einzelrechnungen fuer Qualitaetscockpit und Leistungsketten als Standortleiter-Gespraechsgrundlage.
 
 ## Aktuelle Wahrheit kurz
 
-- Live-Stand ist produktiv deployed auf `https://bfs-mandatenuebersicht.vercel.app`; letzter Deploy am 02.07.2026 nach der neuen Benchmark-Mindestregel.
-- Letzte Pruefung nach Codeaenderung: `pnpm lint` gruen und `pnpm test` gruen, 15 Tests bestanden. Ein Next/Vercel-Build wurde erfolgreich abgeschlossen und als Production aliasiert.
+- Live-Stand ist produktiv deployed auf `https://bfs-mandatenuebersicht.vercel.app`; letzter Deploy am 03.07.2026 ca. 21:05 Uhr: `dpl_A9BEQLsEo21JAH9xgMtdoaPWNXFM`, Status `Ready`.
+- Letzte Pruefung nach Codeaenderung: `pnpm test` gruen (25 Tests), `pnpm build` gruen, `git diff --check` gruen. Ein Vercel-Production-Build wurde erfolgreich abgeschlossen und als Production aliasiert.
 - `BFS-Abrechnungen` nutzt die zentrale Geldflusslogik: `Eingereichter Umsatz - BFS-Gebuehr netto - MwSt - EWMA/Adresspruefung = Auszahlung laut BFS`.
 - Separat gilt die operative Abzugslogik: `Offene Pruefsumme = Brutto Storno/Rueckgabe - Bereits geklaert - Endgueltig verloren`.
 - `Bereits geklaert` umfasst echte Neueinreichung/Ersatzrechnung, manuell bezahlt/geklaert und Ratenplan laut BFS.
 - `Saldo 0` ohne Ratenplan ist kein Zahlungsnachweis. Bei Storno/Rueckgabe bleibt der Fall pruefpflichtig, bis er manuell geklaert, endgueltig storniert oder durch echte Neueinreichung/Ersatzrechnung erklaert ist.
-- Die sichtbare operative Fallarbeit ist eine gemeinsame `Pruefliste`. Alte sichtbare Mehrkorb-Listen wie `Praxis nachfassen`, `Zahlung/Grund pruefen` und `Noch nicht zugeordnet` sind keine fuehrenden Haupttabs mehr.
+- Die sichtbare operative Fallarbeit ist eine gemeinsame `Pruefliste`. Alte sichtbare Mehrkorb-Listen wie `Praxis nachfassen`, `Zahlung/Grund pruefen` und `Noch nicht zugeordnet` sind keine fuehrenden Haupttabs mehr. Die Ampel in der Pruefliste soll Ausfallschutz-Risiko anzeigen: rot bei Ausfallschutz, gruen ohne Ausfallschutz.
 - Gegencheck mit echtem Upload `/Users/svendneumann/Desktop/BFS Uploads`: 839 Abrechnungs-PDFs + 5 Saldolisten, ca. 4.652.836,91 EUR eingereicht, 4.470.324,62 EUR Auszahlung, 74.806,85 EUR Brutto Storno/Rueckgabe, 15.079,31 EUR automatisch geklaert und 59.727,54 EUR offene Pruefsumme vor manuellen Entscheidungen.
 - `BFS-Rechnungsanalyse` ist fachlich getrennt von der Storno-/Saldo-Logik. Aktuelle Tabs: `Leistungsuebersicht`, `Katalogpruefung`, `Benchmarking`, `Faktor-Trend`, `Patientenprofil`, `Potenzialanalyse`, `Standortvergleich`, `Import-Center Rechnungen`.
-- Neuer dritter Hauptbereich `Abrechnungsqualitaet`: Starttabs `Qualitaetscockpit`, `Leistungsketten`, `Praxis-Feedback`. Die erste Version erkennt datengetriebene Wenn-dann-Muster aus Rechnungspositionen, erzeugt Pruefhinweise fuer auffaellig seltene Begleitleistungen je Standort und bietet PDF-/CSV-Export fuer Praxisgespraeche. Hinweise sind fachliche Pruefansaetze, keine automatische Fehler- oder Rechtsbewertung.
+- Dritter Hauptbereich `Abrechnungsqualitaet`: Aktuelle Tabs sind `Qualitaetscockpit` und `Leistungsketten`. `Praxis-Feedback` wurde entfernt. Leistungsketten sind Standortleiter-Hinweise/Gespraechsgrundlagen, keine Abhakliste, keine automatische Abrechnungsempfehlung, kein Nachberechnungsmodul und kein rechtliches Gutachten.
+- CSV-Exporte sollen appweit nicht mehr sichtbar angeboten werden. Wenn Export gebraucht wird, bevorzugt PDF/Druck direkt in der jeweiligen Fachansicht.
 - Neue Benchmark-Regel ab 02.07.2026: Leistungspositionen, die nur von 1 oder 2 Standorten verwendet werden, fliessen nicht in `Benchmarking` und nicht in `Potenzialanalyse` ein. Benchmarkfaehig ist eine Leistungsnummer erst ab mindestens 3 verwendenden Standorten mit Faktor. Importdaten bleiben unveraendert; nur die Auswertung filtert.
 - Einzelrechnungen: BEMA/Festzuschuss-Rechnungen ohne GOZ-Faktor werden als Beleg erkannt, aber nicht in die GOZ-Faktor-/Faktor-Potenzialanalyse eingerechnet.
 - Katalogpruefung veraendert keine Original-Importdaten. Sie normalisiert/markiert Leistungsnummern fuer Auswertungen, z. B. `Ä0001 -> Ä1`, `13BO -> 13B0`, fuehrende Nullvarianten und offensichtliche OCR-/Schreibvarianten. Automatisch eindeutige Faelle sollen nicht als manuelle Prueffaelle erscheinen.
@@ -30,7 +31,7 @@ Aktueller Fokus: Orisus BFS Monitor mit drei Hauptbereichen: BFS-Abrechnungen/op
 - PDF-/Druckfenster in der App sollen eine eigene Toolbar/Schliessen-Option haben und nicht als leeres Zwischenfenster stehen bleiben, wenn die Browser-Druckvorschau abgebrochen wird.
 - Praxissoftware-Sammeldrucke koennen als alternative Quelle fuer die Rechnungsanalyse relevant werden. Beispiel Kallweit-Sammeldruck: 756 A4-Seiten, bildbasiert ohne eingebetteten PDF-Text; normale PDF-Textextraktion liefert 0 Zeichen. Inhaltlich sind Rechnungsnummer, Patient, Rechnungsdatum, Betrag und Leistungszeilen visuell klar vorhanden, technisch braucht dieser Import aber OCR oder besser einen echten strukturierten Praxissoftware-Export.
 - Leistungsnummern: Zahn-/Regionangaben wie `36` werden nicht als Leistungsnummer gruppiert, wenn danach eine echte Leistungsnummer wie `2180` folgt. Die Tabelle zeigt `Leistungsnr.`.
-- Prueflisten-Export: PDF/Druck und CSV enden mit den manuellen Spalten `Kommentar` und `Wenn storniert: in der Praxissoftware ausgebucht?`.
+- Prueflisten-Export: PDF/Druck enthaelt die manuelle Praxisspalte `Kommentar` und den Hinweis `Wenn storniert: in der Praxissoftware ausgebucht?`. CSV-Export wird nicht mehr gewuenscht.
 
 ## Prompt fuer den naechsten Chat
 
@@ -60,7 +61,7 @@ Wichtige Dateien:
 - `proxy.ts`
 - `supabase/migrations/*`
 
-App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen und BFS-Patientenrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als Management-/Operativ-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark, Rechnungspositionen/Faktoren/Laboranteile, BFS-Zahlungsstatus, Mahnstufen, Ratenplaene, Saldo-Pruefung und Reports.
+App: Orisus BFS Monitor. Ziel: BFS-Abrechnungen und BFS-Patientenrechnungen fuer Orisus-Standorte produktiv importieren, auswerten, steuern und als Management-/Operativ-Cockpit sichtbar machen: Umsatz eingereicht, Auszahlung, BFS-Gebuehren, MwSt, EWMA/Meldeamtabfragen, Rueckgaben, Stornos, offene Klaerfaelle, Matching/Neueinreichungen, ohne Ausfallschutz, Patientenqualitaet, Standort-Benchmark, Rechnungspositionen/Faktoren/Laboranteile, BFS-Zahlungsstatus, Mahnstufen, Ratenplaene und Saldo-Pruefung.
 ```
 
 ## Permanente Arbeitsregel Kontextdatei
@@ -153,7 +154,7 @@ Sie soll nicht nur Daten anzeigen, sondern fachlich beantworten:
 - Welche Patienten/Standorte sind auffaellig?
 - Welche Stornos/Rueckgaben wurden spaeter wieder reingeholt oder manuell als bezahlt geklaert?
 - Was muss eine Standortleitung konkret bearbeiten?
-- Welche Reports koennen direkt als PDF/CSV an Standortleitungen gehen?
+- Welche bestehenden Ansichten liefern passende PDF-/Druckexporte fuer Standortleitungen?
 
 Das Zielbild ist: "Das ist die Lage. Das ist auffaellig. Hier musst du handeln." Nicht: "Hier sind alle Tabellen."
 
@@ -161,10 +162,10 @@ Das Zielbild ist: "Das ist die Lage. Das ist auffaellig. Hier musst du handeln."
 
 Die App soll fachlich in drei Ebenen denken:
 
-1. Management-Cockpit
+1. Zusammenfassung
    - Erste Sicht nach Login.
-   - Fokus auf Lage, Entwicklung und Handlung.
-   - KPI-Kacheln, Trends, Vorjahresvergleich, Standortvergleich, Ampeln und klare Hinweise.
+   - Fokus auf Lage, Entwicklung und Handlung ohne doppelte Cockpit-Ebene.
+   - KPI-Kacheln, zentrale Diagramme, Benchmark, Export und klare Hinweise.
    - Tabellen nur sehr nachgelagert.
 
 2. Analyse & Benchmarking
@@ -180,9 +181,10 @@ Die App soll fachlich in drei Ebenen denken:
 Navigationslogik aktuell:
 - Oberreiter `BFS-Abrechnungen`
   - Management
+    - `Zusammenfassung`
+    - `Schnellantworten`
   - Analyse & Benchmarking
   - Operative Fallarbeit mit gemeinsamer `Pruefliste`
-  - Reports
   - Import-Center Abrechnung
 - Oberreiter `BFS-Rechnungsanalyse`
   - `Leistungsuebersicht`
@@ -196,7 +198,6 @@ Navigationslogik aktuell:
 - Oberreiter `Abrechnungsqualitaet`
   - `Qualitaetscockpit`
   - `Leistungsketten`
-  - `Praxis-Feedback`
 - Admin Bereich
 
 Wichtig: Der fruehere Reiter `Import & Pruefung` wurde fachlich geteilt:
@@ -205,6 +206,7 @@ Wichtig: Der fruehere Reiter `Import & Pruefung` wurde fachlich geteilt:
 
 Wichtige aktuelle Sichten:
 - `Zusammenfassung`
+  - Seit 02.07.2026 ist dies der Startpunkt statt des frueheren `Management Cockpit`.
   - Frei gestalteter KPI-/Chart-/Benchmark-Bereich fuer zentrale Steuerungskennzahlen.
   - Eigene KPI-Zeitraum- und Standortauswahl.
   - Eigene Diagramm-Zeitraum- und Standortauswahl.
@@ -213,15 +215,25 @@ Wichtige aktuelle Sichten:
   - PDF-Export des gesamten Tabs im Querformat, seitenbreit und mehrseitig paginiert. Nicht mehr auf eine einzige Seite zusammenquetschen.
   - Zusaetzlicher `Standort-Export`: Zielstandort mit Klarnamen/Klarzahlen, andere Standorte anonymisiert als Vergleichsstandorte und in der Benchmark-Tabelle nur relativ als Index zum Zielstandort.
 - `Management Cockpit`
-  - Managementsicht mit Zeitraum- und Standortfilter, KPI-Kacheln, Kombi-Charts, Standortbenchmark und Signalkarten.
-  - Obere Standort-Tabreihen wurden entfernt; dafuer sind Filter zustaendig.
+  - Als sichtbarer Tab entfernt. `/dashboard` und `/standort/dashboard` oeffnen nun `Zusammenfassung`.
+  - Alte interne Komponenten duerfen nur mit Bedacht entfernt werden, weil einzelne Hilfsfunktionen noch von Reports/Benchmarking genutzt werden koennen.
 - `Schnellantworten`
   - Schnellantwort-Kacheln stehen nur noch hier, nicht doppelt im Cockpit.
+- Navigation/Sidebar
+  - Oberreiter klappen nur auf/zu und laden nicht automatisch den ersten Untertab.
+  - Unterreiter sind optisch als zweite Ebene eingerueckt und vom Hauptreiter getrennt.
+- Technik-/Performance-Check 02.07.2026
+  - `components/monitor-app.tsx` bleibt mit ca. 13k Zeilen der zentrale technische Hotspot; groesster naechster Hebel waere echtes Code-Splitting nach Bereichen, aber nur in separatem, kontrolliertem Refactor.
+  - `MonitorAppLoader` laedt das grosse Client-App-Modul mit `ssr: false`, damit der Server die interne App nicht unnoetig vor-rendern muss.
+  - Grosse OCR-/Icon-Assets unter `/ocr/*` und `/icons/*` bekommen lange immutable Cache-Header.
+  - Keine fachlichen Berechnungen, Importparser, Exporte oder sichtbaren Reportinhalte geaendert.
 - `Standorte`
   - Standort-Benchmark mit KPI-Dreierreihe, vier Erklaerkacheln, zwei Umsatzdiagrammen und Standortvergleich.
   - `Standorte im Vergleich` hat einen eigenen Zeitraumfilter.
 - `Standortdetails`
   - Ehemals `Forderungen & Geldfluss`.
+  - KPI-Liste enthaelt unten zusaetzlich `Endgueltig storniert` auf Basis manuell endgueltig stornierter Faelle im gewaehlten Zeitraum/Standortfilter.
+  - Der fruehere Block `Monatstrend` wurde komplett entfernt, inklusive zugehoeriger Monatsberechnung.
 - `Forderungen und Geldfluss`
   - Neuer/ausgelagerter Tab fuer den frueheren Geldfluss-Teil aus Standortdetails.
   - Standortleiste oben wurde entfernt; Steuerung erfolgt ueber Filter.
@@ -237,7 +249,7 @@ Wichtige aktuelle Sichten:
   - Fuehrende Sicht ist eine gemeinsame `Pruefliste offene Faelle`.
   - Die Praxis entscheidet je Zeile `Bezahlt / geklaert`, `Neu eingereicht` oder `Endgueltig storniert`.
   - Die offene Pruefsumme reduziert sich durch bezahlt/geklaert oder neu eingereicht; endgueltig stornierte Faelle laufen separat in `Endgueltig verloren`.
-  - PDF-/Druckexport und CSV sind als Praxisausdruck gedacht und enthalten am Ende `Kommentar` sowie `Wenn storniert: in der Praxissoftware ausgebucht?`.
+  - PDF-/Druckexport ist als Praxisausdruck gedacht und enthaelt am Ende `Kommentar` sowie `Wenn storniert: in der Praxissoftware ausgebucht?`.
 - `Prioritaeten heute`
   - Wurde komplett entfernt, inklusive Querverlinkungen.
 - `BFS-Rechnungsanalyse > Leistungsuebersicht`
@@ -731,26 +743,15 @@ Gewuenschte Steuerungsfrage:
 
 ## Reports
 
-Reports sollen Standortleitungen direkt helfen.
+Separate Report-Center-/Gruppenreport-Tabs wurden am 03.07.2026 entfernt. Reports/Exporte sollen nur noch dort bleiben, wo sie direkt zur jeweiligen Arbeitsansicht gehoeren.
 
 Gewuenscht/teilweise umgesetzt:
 - PDF-/Druckexport fuer offene Faelle.
-- CSV-Export.
-- Report-Center ohne ueberfluessige Kacheln wie Exportformate/Empfaengerlogik.
+- PDF-/Druckexporte in bestehenden Fachansichten, z. B. Pruefliste, Zusammenfassung, Rechnungsanalyse und Abrechnungsqualitaet.
+- CSV-Exporte sollen appweit nicht mehr sichtbar angeboten werden.
 - Kommentare/Quellen in Tabellen kurz halten: wenn moeglich nur Abrechnungsnummer statt langer Pfade.
-- Offene-Faelle-Reports sollen nach Standort und Zeitraum filterbar sein.
 - Im Tab `Zusammenfassung` existiert ein PDF-Export fuer den gesamten Tab. Ziel: A4 Querformat, volle Seitenbreite, mehrseitig sauber paginiert. Nicht auf eine Einzelseite skalieren, weil das unlesbar wird. Technisch oeffnet die App ein Druckfenster; bei blockiertem Popup gibt es einen HTML-Fallback.
 - Im Tab `Zusammenfassung` existiert zusaetzlich `Standort-Export`. Dieser ist nur aktiv, wenn genau ein Standort in der KPI-Auswahl gewaehlt ist. Der Zielstandort bleibt klar sichtbar; andere Standortnamen werden im Export anonymisiert und Benchmark-Klarzahlen anderer Standorte werden als relative Indexwerte zum Zielstandort dargestellt.
-
-Naechster sinnvoller Report-Ausbau:
-- Standortleiter-Monatsreport mit:
-  - Eingereicht, Auszahlung, BFS-Kosten, Gebuehrenquote
-  - offene Klaerfaelle
-  - Stornos/Rueckgaben
-  - Ohne-Ausfallschutz-Risiko
-  - Wiederholer
-  - konkrete Fallliste
-  - Management-Kommentar / Handlungsempfehlung
 
 ## UI / Responsive / Bedienung
 
@@ -849,10 +850,6 @@ Weitere aktuelle Seitenentscheidungen:
   - Keine Standortleiste, sondern klassische Zeitraum-/Standortfilter.
   - `Patientenklassen` und `Ohne Ausfallschutz` als Saeulendiagramme.
   - `Risikoentwicklung` und `Patientenqualitaet` entfernt.
-- `Report-Center`
-  - KPI-Kacheln auf Desktop drei oben / drei unten.
-  - Zeitraumfilter oben fuer Druck/Konvertierung.
-  - Patientendaten im Report duerfen ausformuliert bleiben; sonst Tabellen scrollen.
 - `Schnellantworten`
   - Kacheln auf Desktop gleichmaessig angeordnet.
 
@@ -1055,7 +1052,7 @@ Prioritaet 3: Patientenqualitaet als Managementsicht
 Prioritaet 4: Operative Arbeit sauber getrennt halten
 - Klaerfaelle als Arbeitsliste/Kanban
 - Jede Fallentscheidung persistent und importuebergreifend
-- Reports fuer Standortleitung auf Knopfdruck
+- Exporte direkt aus den jeweiligen Arbeitsansichten
 - Tabellen immer kompakt, scrollbar, exportierbar
 
 Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf zeigen. Die Detailtabelle ist Beleg und Arbeitswerkzeug, nicht die Hauptgeschichte.
@@ -1901,3 +1898,681 @@ Kurz: Die App soll im ersten Blick Entwicklung, Vergleich und Handlungsbedarf ze
 - Vercel Production Deploys:
   - Datenpfad/Session-Zwischenstaende: `dpl_5NrLM7AUu9CuMEdbrKmWj8oK7sx8`, `dpl_BpJ6o7BGm8Tu5GhC62vwnXQ55Biw`, `dpl_J3PKXjopUsbJ4GE2u5nNF69Vtkqn`.
   - Finale bereinigte sichere Optimierungen: 02.07.2026 ca. 21:00 Uhr, Deployment `dpl_7pQg8XimqBLCMpifvuJe2ekQ8Cmr`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Performance Runde 7 / Ruecknahme
+
+- Der fehlerhafte Versuch, `/dashboard` durch eine reduzierte neue Management-Zusammenfassung zu ersetzen, wurde vollstaendig zurueckgebaut.
+- Danach getestete layoutneutrale Lade-/Cache-Optimierungen wurden wegen gemeldeter Klickprobleme ebenfalls wieder aus `components/monitor-app.tsx` entfernt.
+- Aktueller Produktionsstand nutzt wieder den bestehenden Monitor-Ladepfad ohne die Runde-7-Optimierungen. Sichtbare Bereiche, Navigation, Layout, Fachlogik, Filter, Exporte und Berechnungen entsprechen wieder dem vorherigen Monitor-Stand.
+- Geprueft vor Ruecknahme-Deploy:
+  - `pnpm run typecheck` gruen
+  - `pnpm run lint` gruen
+  - `pnpm test` gruen (17 Tests)
+  - `pnpm run build` gruen
+- Vercel Production Deploy der Ruecknahme am 02.07.2026 erfolgreich: Deployment `dpl_ALTCt8a5B8cXgXkr686q6MLHxxyb`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-02: Report-Center Responsive Fix
+
+- Auf Desktop-Screenshot wurde ein horizontales Layout-Overflow im Report-Center sichtbar: KPI-Karten liefen rechts aus dem Workspace.
+- CSS-only Fix in `app/globals.css`:
+  - Desktop-Workspace wird auf die sichtbare Breite neben der festen Sidebar begrenzt.
+  - Report-Screen, Grids, Panels und Periodenfilter bekommen defensive `min-width: 0` / `max-width: 100%`.
+  - Report-KPI-Grid bleibt auf breitem Desktop 3-spaltig, wechselt bei schmalerem Desktop/Tablet auf 2 Spalten und mobil auf 1 Spalte.
+  - KPI-Werte und Texte duerfen innerhalb der Karten umbrechen; keine Fachlogik, keine JSX-Struktur und keine Berechnungen geaendert.
+- Geprueft: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build`, `git diff --check`.
+- Vercel Production Deploy am 02.07.2026 erfolgreich: Deployment `dpl_DDFPuGKRTf32pYpFH8sDPout9RpY`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+- Desktop-DOM-Check nach Deploy: Viewport 1710px, Workspace 1418px, Report-KPI-Grid 1358px, 3 Spalten je 443px, kein horizontaler Overflow, keine Console-Fehler.
+
+## Update 2026-07-02: Performance Runde 8 / Lazy Abrechnungsqualitaet
+
+- Scope bewusst klein gehalten nach Ruecknahme der vorherigen Optimierungen: keine View-Aufteilung, keine JSX-/Layout-Umbauten, keine fachliche Berechnungslogik geaendert.
+- `lib/invoice-quality-analysis` wird in `components/monitor-app.tsx` nicht mehr statisch beim Monitor-Start importiert, sondern erst innerhalb des Reiters Abrechnungsqualitaet per dynamic import geladen.
+- Die vorhandene Fachlogik bleibt in `lib/invoice-quality-analysis.ts`; Berechnungsfunktionen, CSV-Export, Trendlabel und Empfehlungen werden nachgeladen und unveraendert verwendet.
+- Erwarteter Effekt: Dashboard/Reports/Management muessen die Abrechnungsqualitaetslogik nicht mehr im initialen Client-Bundle mittragen; der Build erzeugt einen separaten Chunk fuer `lib_invoice-quality-analysis`.
+- Geprueft lokal: `pnpm run typecheck`, `pnpm run lint`, `pnpm test` (17 Tests), `pnpm run build`, `git diff --check`.
+- Vercel Production Deploy nach expliziter Freigabe am 02.07.2026 ca. 22:17 Uhr erfolgreich: Deployment `dpl_G1H9X1LcsfdwyCuq98iK48GooUXv`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Zusammenfassung Info-Herleitungen je Standort
+
+- Die `i`-Info-Texte der Zusammenfassung-Kacheln wurden erweitert.
+- Jede Kachel beginnt jetzt mit einem kurzen Satz, was die Kennzahl darstellt, und zeigt danach die Herleitung des Gesamtwerts.
+- Fuer alle sichtbaren Kacheln der Zusammenfassung wird der Betrag zusaetzlich je Standort aufgeschluesselt: Eingereichter Umsatz, BFS-Gebuehr netto, MwSt, EWMA/Adresspruefung, ausgezahlter Umsatz, Brutto Storno/Rueckgabe, bereits geklaert, offene Pruefsumme und endgueltig verloren.
+- Die Berechnung nutzt dieselben vorhandenen Metriken und dieselbe `buildDeductionRecovery`-/manuelle Fallentscheidungslogik wie die Kachelwerte selbst; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Schnellantworten Info-Herleitungen je Standort
+
+- Die `i`-Info-Texte der Kachelgruppe `Cockpit-Schnellantworten` wurden analog erweitert.
+- Jede Kachel beginnt mit einem kurzen Satz zur Bedeutung und zeigt danach die Herleitung des angezeigten Werts.
+- Standortaufschluesselung wurde ergaenzt fuer Umsatz eingereicht, Ø Rechnungswert inkl. Rechnungsanzahl, BFS-Kosten, Umsatz ausgezahlt, Ohne Ausfallschutz, Brutto Storno/Rueckgabe, bereits geklaert, offene Pruefsumme inkl. Fallanzahl und Wiederholer.
+- Die Berechnung nutzt die vorhandenen gefilterten Importzeilen, `buildDeductionRecovery`, offene Fallliste und Wiederholerprofile; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen.
+
+## Update 2026-07-03: Standortdetails KPI-Grid 5/5
+
+- Die KPI-Kacheln im Tab `Standortdetails` sind auf Desktop jetzt buendig als 5 Karten oben und 5 Karten unten angeordnet.
+- Die fruehere Sonderlogik, bei der Karten ab Position 6 breiter waren, wurde entfernt; dadurch faellt `Endgueltig storniert` nicht mehr allein in eine dritte Zeile.
+- Tablet/kleiner Desktop nutzt fuer diesen Block 2 Spalten, mobil faellt er ueber die vorhandenen globalen Regeln auf 1 Spalte zurueck.
+- Reine CSS-Aenderung in `app/globals.css`; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run lint` gruen, `pnpm run build` gruen.
+
+## Update 2026-07-03: Quartalsvergleich Standortdetails vollbreit
+
+- Der Block `Quartalsvergleich` im Tab `Standortdetails` spannt auf Desktop jetzt ueber die volle Inhaltsbreite statt nur in einer halben Dashboard-Spalte zu stehen.
+- Der Tabellencontainer bleibt horizontal scrollbar, damit Tablet und Mobilgeraete nicht durch die Tabelle in die Breite gezogen werden.
+- Fuer Tablet/Mobil wurden defensive Tabellen-Mindestbreiten und kompaktere Zellabstaende gesetzt.
+- Reine Layout-Aenderung in `components/monitor-app.tsx` und `app/globals.css`; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run lint` gruen, `pnpm run build` gruen.
+
+## Update 2026-07-03: Report-Center und Gruppenreports entfernt
+
+- Die Tabs `Report-Center` und `Gruppenreports` wurden komplett aus der Navigation entfernt.
+- Die zugehoerigen Renderpfade `reports` und `groupReports`, `ReportsView`, `GroupReportsView`, Report-Center-CSS und der ungenutzte Falllisten-CSV-Helfer wurden entfernt.
+- Die alten Routen `/reports` und `/standort/reports` wurden geloescht; der Build erzeugt diese Seiten nicht mehr.
+- Andere Exportfunktionen bleiben erhalten, z. B. PDF/CSV in Rechnungsanalyse und Abrechnungsqualitaet sowie der Prueflisten-PDF-Export.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen.
+
+## Update 2026-07-03: Massnahmenkontrolle und Reports-Hauptreiter entfernt
+
+- Der Tab `Massnahmenkontrolle` wurde komplett entfernt.
+- Unter `BFS-Abrechnungen` gibt es keinen Hauptreiter `Reports` mehr, weil `Report-Center`, `Gruppenreports` und `Massnahmenkontrolle` nicht mehr benoetigt werden.
+- Entfernt wurden Navigationseintraege, Renderpfad `outcomes`, Titelmapping, `OutcomeControlView`, Outcome-Aggregationshelfer und zugehoerige Textreferenzen.
+- Der Import-Bestaetigungstext nennt jetzt nur noch die verbleibenden Zielbereiche: Cockpit, Pruefliste, Matching und Patientenklassifizierung.
+- Andere bestehende Exporte direkt in Fachansichten bleiben erhalten.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 08:10 Uhr erfolgreich: Deployment `dpl_EcXEn1sRaD1hvc5uSPg6WGeZEiiz`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`. Build zeigt 18 App-Routen; `/reports` und `/standort/reports` werden nicht mehr erzeugt.
+
+## Update 2026-07-03: Standortvergleich Auszahlungsquote
+
+- In den Kacheln `Standorte im Vergleich` zeigt die Teilkachel `Auszahlung` jetzt zusaetzlich die Quote der Auszahlung vom eingereichten Umsatz, z. B. `96,1 % vom Umsatz`.
+- Berechnung je Standort: `Auszahlung / Umsatz eingereicht * 100`; bei 0 EUR eingereicht wird 0,0 % angezeigt.
+- Die bestehende Vorjahreszeile bleibt erhalten; die neue Quote steht als separate dezente Zeile in der Auszahlung-Kachel.
+- Reine UI-/Darstellungsänderung in `components/monitor-app.tsx` und `app/globals.css`; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Auszahlungsquote appweit in Auszahlungskacheln
+
+- Auszahlungskacheln zeigen jetzt appweit die Quote der Auszahlung vom eingereichten Umsatz direkt sichtbar in der Kachel.
+- Betroffene sichtbare Bereiche: `Zusammenfassung` (`Ausgezahlter Umsatz`), `Schnellantworten` (`Umsatz ausgezahlt`), `Standortdetails` (`Auszahlungsbetrag`), generische KPI-Grids, Standortvergleich und Import-Historie.
+- In den Standort-Cashflow-Karten wird die Quote ebenfalls direkt unter dem Auszahlungsbetrag angezeigt.
+- Berechnung einheitlich: `Auszahlung / eingereichter Umsatz * 100`; bei 0 EUR Umsatz wird 0,0 % angezeigt.
+- Reine UI-/Darstellungsänderung; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen.
+
+## Update 2026-07-03: Schnellantworten Ohne-Schutz-Nichtzahlung
+
+- Im Bereich `Schnellantworten` wurde die Kachel `Ohne Schutz nicht gezahlt` ergaenzt.
+- Die Kachel zeigt die erkannte kritische Summe fuer Patienten ohne Ausfallschutz, bei denen eine nicht erledigte Storno-, Rueckgabe- oder Rueckbelastungsbewegung gefunden wurde.
+- Der Untertitel zeigt Patientenzahl und Nichtzahlungsquote bezogen auf alle Ohne-Schutz-Patienten im aktuellen Standort- und Zeitraumfilter.
+- Das `i` erklaert die Herleitung inklusive Standortaufschluesselung nach Betrag und betroffenen Patienten.
+- Berechnung nutzt die bestehende `riskClaimsFromImportRows`-/`summarizeNoProtectionPaymentRisk`-Logik; keine Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Zusammenfassung Auszahlungsquote sichtbar
+
+- In der Zusammenfassung-Kachel `Ausgezahlter Umsatz` steht die Auszahlungsquote jetzt direkt im sichtbaren Untertitel zusammen mit dem BFS-Abrechnungshinweis, z. B. `94,3 % vom Umsatz · nach BFS-Abrechnung`.
+- Berechnung unveraendert: `Auszahlung / eingereichter Umsatz * 100`; nur die sichtbare Beschriftung wurde nachgeschaerft.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:15 Uhr erfolgreich: Deployment `dpl_HYLY7HEwZ3Zfv7djVE94pydnrrcu`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Benchmark Tabellen-Download entfernt
+
+- In der Rechnungsanalyse-Sektion `Standort-Benchmark nach Faktor, Relativindex und Hebelklasse` wurde der Button `Tabelle` oben rechts entfernt.
+- Die sichtbare Benchmark-Tabelle bleibt unveraendert erhalten; nur der CSV-/Download-Zugriff aus diesem Panel wurde entfernt.
+- Der ungenutzte CSV-Helfer fuer diesen spezifischen Benchmark-Download wurde ebenfalls entfernt.
+- Andere Download-/CSV-Buttons in der App bleiben unveraendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:19 Uhr erfolgreich: Deployment `dpl_8KPgEuYzSAW7YVazyHZLb6GSvCcM`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Benchmark-PDF Schrift und Layout
+
+- Der PDF-Export `Benchmarking Management` wurde anhand der gerenderten PDF-Vorschau geprueft.
+- Problem: Der Export wurde auf weissem Papier dargestellt, waehrend mehrere Texte noch fuer den dunklen App-Hintergrund gefaerbt waren; dadurch waren Titel und Beschreibung zu blass.
+- Die zentrale Druckvorlage `printCustomTabPdf` setzt im Print-Modus nun helle PDF-Farben fuer Panel, Ueberschrift, Beschreibung und Benchmark-Tabellen.
+- Benchmark-Tabellen bekommen im PDF feste volle Breite, besser lesbare Schriftgroessen, kraeftigere Kopfzeilen, klarere Trennlinien und definierte Spaltenbreiten.
+- Keine App-Ansicht, Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: bestehende PDF mit Poppler als PNG gerendert, `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:26 Uhr erfolgreich: Deployment `dpl_5yYEk5LsD6zqLpwuGD9bJma4iDun`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Praxis-Benchmark-PDF Layout
+
+- Der PDF-Export `Benchmarking Praxis` wurde anhand der gerenderten PDF-Vorschau geprueft.
+- Problem: Die vier Kennzahlen-Kacheln waren im PDF zu hoch und nahmen zu viel der ersten Seite ein; die Detailtabelle lief rechts sehr knapp, wodurch die Spalte `Prioritaet` angeschnitten wirkte.
+- Der Praxis-Benchmark-Print nutzt nun kompakte vier Kacheln in einer Zeile, helle PDF-Flaechen, kleinere aber lesbare KPI-Schrift und einen unaufdringlichen Kontextbalken.
+- Die Detailtabelle bekommt im PDF feste Spaltenbreiten fuer Leistung, Beschreibung, Faktoren, Luecke, Relativindex und Prioritaet.
+- Keine App-Ansicht, Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: bestehende PDF mit Poppler als PNG gerendert, `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:32 Uhr erfolgreich: Deployment `dpl_FaFoBfGFXYTMnkp97H99qfaBLcwN`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Praxis-Benchmark zweiter PDF-Button entfernt
+
+- Im Praxis-Benchmark wurde der redundante `PDF Export`-Button im Kontextbalken direkt ueber der Detailtabelle entfernt.
+- Der obere PDF-Export der Ansicht bleibt erhalten.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:35 Uhr erfolgreich: Deployment `dpl_9Gdtr6NGtiR4xBgmKE9bZb7ZXkJH`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Patientenprofil PDF-Button entfernt
+
+- Im Tab `Patientenprofil` wurde der `PDF Export`-Button aus dem Filterbalken entfernt.
+- Zeitraum-, Standort- und Patientensuche bleiben unveraendert.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:38 Uhr erfolgreich: Deployment `dpl_BvFm8EJBR8JRenbjEyNGBzTrAJ2X`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Potenzialanalyse Navigation verschoben
+
+- In `BFS-Rechnungsanalyse > Auswertungen` steht `Potenzialanalyse` jetzt direkt unter `Benchmarking`.
+- Reihenfolge fuer alle Rollen mit Rechnungsanalyse-Zugriff: `Leistungsuebersicht`, `Benchmarking`, `Potenzialanalyse`, `Faktor-Trend`, `Patientenprofil`, `Standortvergleich`.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:41 Uhr erfolgreich: Deployment `dpl_FkyHHMZx3s2oPAyHh2Mjq2zZn9Km`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Potenzialanalyse-PDF kompakter
+
+- Der PDF-Export `Potenzialanalyse` wurde anhand der gerenderten PDF-Vorschau geprueft.
+- Problem: Die sechs KPI-Kacheln wurden im PDF als grosse 2-Spalten-Karten gedruckt und haben fast die gesamte erste Seite belegt.
+- Der Potenzialanalyse-Print nutzt nun sechs schmale Kacheln in einer Zeile, helle PDF-Flaechen, kleinere aber lesbare KPI-Schrift und kompaktere Abstaende.
+- Die Top-Hebel-Tabelle bekommt im PDF feste Spaltenbreiten fuer Nr., Beschreibung, Praxis-Faktor, Gruppen-Faktor, Delta und Potenzial.
+- Keine App-Ansicht, Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: bestehende PDF mit Poppler als PNG gerendert, `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:50 Uhr erfolgreich: Deployment `dpl_5uaXDZ4xzGnjkhKiFy4RPu2buwmL`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Potenzialanalyse Tabellen-/PDF-Button entfernt
+
+- In der Potenzialanalyse wurde die Aktionsgruppe `Tabelle` und `PDF` im Top-Hebel-Balken entfernt.
+- Der obere PDF-Export im Filterbereich bleibt erhalten.
+- Der nun ungenutzte CSV-Helfer fuer den Potenzialanalyse-Tabellenexport wurde entfernt.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:54 Uhr erfolgreich: Deployment `dpl_7So9igZ5PCRrjKc4N5z7ivMkKf47`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Sidebar-Scrollbalken ausgeblendet
+
+- Der sichtbare native Scrollbalken in der linken Sidebar wurde ausgeblendet.
+- Die Sidebar bleibt weiterhin scrollbar per Mausrad, Trackpad und Touch-Geste.
+- Auf der Sidebar wurde `overscroll-behavior: contain` gesetzt, damit Scrollen im Menue nicht ungewollt die Hauptseite mitzieht.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 09:57 Uhr erfolgreich: Deployment `dpl_8rw6WJqWRfjYEDaQLH5UzTZgZ5ZV`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Performance-Diagnose und Tabellenexport Abrechnungsqualitaet
+
+- Nach Supabase-Observability-Check zeigte die Datenbank keine Compute-Saettigung: CPU/RAM/Disk/Connections niedrig, Query Performance ueberwiegend kurz; Hauptbremse daher eher App-Ladepfad/Berechnungen/Rendering.
+- In der Monitor-App wurde ein Admin-Diagnosemodus ergaenzt:
+  - Aufruf per `https://bfs-mandatenuebersicht.vercel.app/dashboard?perf=1`.
+  - Fuer Super-Admins erscheint unten rechts eine kompakte `Performance Diagnose`.
+  - Gemessen werden u.a. lokale Session, Session-Pruefung, Importdaten, manuelle Klaerungen, Saldo-Status, Einzelrechnungen, Katalog-Mappings und sichtbare Ansicht.
+  - Der Modus speichert sich in `localStorage` mit `orisus_perf_diagnostics=1` und kann ueber den Schliessen-Button wieder deaktiviert werden.
+  - Normale Nutzer/Ansichten bleiben unveraendert; keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Im Bereich Abrechnungsqualitaet wurde der redundante lokale Tabellen-/PDF-Export in der `Informationsliste je Standort` entfernt; der obere Exportbereich bleibt erhalten.
+- Der Text in diesem Balken lautet nun nur noch `{Standort/Scope} · {Zeitraum} · {Anzahl} Hinweise`.
+- Hinweis zur Pruefung: Ein erster Check ohne Runtime-Pfad schlug nur fehl, weil `node` im Shell-Pfad nicht gefunden wurde. Danach mit dem bekannten Projekt-Node-Pfad erneut ausgefuehrt.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 10:22 Uhr erfolgreich: Deployment `dpl_3DqJfFTpuH51JoAtwrfty8S52spT`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Qualitaetscockpit-PDF vereinfacht
+
+- Der PDF-/Druckexport des Tabs `Qualitaetscockpit` wurde leichter und tabellarischer aufgebaut.
+- Innerhalb des Exportbereichs gibt es nun eine kompakte `Exportuebersicht` als Tabelle mit Zeitraum, Scope, Hinweisanzahl, betroffenen Rechnungen, Orientierungswert und Basis.
+- Fuer den Druck wurde eine eigene schlanke `invoice-quality-print-table` ergaenzt:
+  - Spalten: Standort, Falltyp, Ausloeser, Begleitleistung, Gruppe, Praxis, Luecke, Wert, Einordnung.
+  - Die Tabelle ist nur im PDF/Druck sichtbar; die bisherige breite App-Tabelle bleibt in der App-Ansicht erhalten.
+- Im PDF werden die schweren Hinweis-Karten und die ausfuehrliche Einordnungs-Textsektion ausgeblendet, damit der Export nicht doppelt und ueberladen wirkt.
+- Druck-CSS in `printCustomTabPdf` setzt fuer `invoice-quality-report` helle, kompakte Tabellenfarben, feste Spaltenbreiten und kleinere Schrift.
+- Keine Fachlogik, Importlogik, Filterlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 10:26 Uhr erfolgreich: Deployment `dpl_4paxDb8U97VB3M5sZrWnfmcYscXi`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Performance-Diagnose Stufe 2
+
+- Der vorhandene Diagnosemodus `/dashboard?perf=1` misst nun nicht nur Datenladezeiten, sondern auch konkrete Berechnungszeiten in wichtigen Ansichten.
+- Ergaenzt wurde ein interner Messkanal `orisus:perf-metric`; Unterkomponenten melden ihre Berechnungsdauer an die bestehende Admin-Diagnosebox.
+- Neue gemessene Bereiche:
+  - Appweite operative Fallliste.
+  - Zusammenfassung: Importfilter, Diagrammfilter, Summen, KPIs, Storno-Review, Diagrammdaten, Standortvergleich, Abzugserholung und Standortaufschluesselung.
+  - Standort-Dashboard: Importfilter, Summen, KPIs, Prueffaelle, Vergleich und Peer-Schnitt.
+  - Schnellantworten: Importfilter, Fallliste, Summen, KPIs, Ohne-Schutz-Risiken, Nichtzahler, Wiederholer, Abzugserholung und Standortaufschluesselung.
+  - Rechnungsanalyse: Leistungsuebersicht Zusammenfassung/Filter/Sortierung/KPIs, Benchmarking Standortzeilen/Praxisleistungen/KPIs/Gruppenleistungen.
+  - Qualitaetscockpit: Standortliste, Hinweise, Vorperiode, Filter und KPIs.
+- In der Diagnosebox erscheinen diese Punkte als `Berechnung: ...` inklusive Dauer und kleiner Detailangabe wie Zeilen/Faelle/Hinweise.
+- Damit laesst sich jetzt beim Durchklicken erkennen, ob Ladezeit, fachliche Berechnung oder Tabellen-/Ansichtswechsel der groesste Blocker ist.
+- Keine Fachlogik, Importlogik, Berechnungsformeln oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen, `pnpm test` gruen (17 Tests), `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:02 Uhr erfolgreich: Deployment `dpl_7hAFjWpQKH2j3H9XTBhwTmcBiunQ`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ausfallhonorar automatisch endgueltig storniert
+
+- In der Prueflisten-/Abzugslogik gibt es jetzt eine feste Systemregel fuer Einzelrechnungen mit Leistungsbeschreibung `Ausfallhonorar`.
+- Sobald eine passende Rechnung anhand BFS-Nr., Rechnungsnummer/Patient oder Patient/Standort/Betrag einem Prueffall zugeordnet werden kann, wird der Fall automatisch wie `endgueltig storniert` behandelt.
+- Die Regel erkennt `Ausfallhonorar` allgemein, nicht nur die Variante `Ausfallhonorar gemaess § 615 BGB`.
+- Dadurch verschwindet der Fall aus der offenen Pruefliste und fliesst in `Endgueltig storniert`/final verlorene Abzuege ein, ohne eine manuelle Nutzerentscheidung in der Datenbank anzulegen.
+- Die Einzelrechnungsdaten werden fuer diese Regel auch in den relevanten Management-/Prueflistenansichten geladen, nicht nur in der Rechnungsanalyse.
+- Geprueft: erster Check ohne Runtime-Pfad schlug wegen fehlendem `node` im Shell-Pfad fehl; danach `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:33 Uhr erfolgreich: Deployment `dpl_HhFmpH96zWYQu4xPwJCCyuvbJcqv`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ausfallhonorar-Auswertung in Pruefliste
+
+- In der Pruefliste gibt es jetzt zusaetzliche Kennzahlen fuer `Ausfallhonorar`:
+  - Eingereichtes Ausfallhonorar.
+  - Bezahltes/gesichertes Ausfallhonorar.
+  - Quote bezahlt von eingereicht.
+  - Anzahl bezahlte/gesicherte Rechnungen zu gesamten Ausfallhonorar-Rechnungen.
+- Die Auswertung nutzt Einzelrechnungen mit Leistungsbeschreibung `Ausfallhonorar` und gleicht sie gegen die BFS-Saldo-/Statusliste ab.
+- Die Werte folgen den Prueflistenfiltern fuer Standort, Zeitraum und Suche.
+- Der Prueflisten-PDF-Export enthaelt nun einen eigenen Abschnitt `Ausfallhonorar` mit Eingereicht, Bezahlt, Quote und Rechnungsanzahl.
+- Der Exportbutton bleibt auch nutzbar, wenn keine offenen Prueflistenfaelle vorhanden sind, aber Ausfallhonorar-Daten im Filter existieren.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:38 Uhr erfolgreich: Deployment `dpl_Bg9J45AybydRRj3xeyTndZjgEjS6`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Refresh bleibt auf aktueller Ansicht
+
+- Beim Laden/Browser-Refresh hat nun die zuletzt gespeicherte Ansicht Vorrang vor der Route-Startansicht.
+- Dadurch bleibt die App nach Aktualisieren in demselben Tab/Unterbereich, statt wieder auf `Zusammenfassung` bzw. die Startansicht der Route zu springen.
+- Direkte Routen wie `/importe`, `/nutzer` oder Standort-Seiten nutzen weiterhin ihre definierte Startansicht, wenn fuer diese Route noch kein letzter Tab gespeichert ist.
+- Keine Fachlogik, Importlogik oder gespeicherten Daten geaendert.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:49 Uhr erfolgreich: Deployment `dpl_GvxBWgrcbbvTTc7eVGBfY63dRUmf`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ausfallhonorar-Zahlungen vor Auto-Storno geschuetzt
+
+- Die Ausfallhonorar-Kacheln in der Pruefliste werten weiterhin alle passenden Einzelrechnungen im Filter aus, nicht nur offene Prueflistenfaelle.
+- Die Zahlung wird ueber die BFS-Saldo-/Statusliste erkannt:
+  - `bezahlt`/Saldo 0 zaehlt mit vollem Ausfallhonorar-Betrag als bezahlt.
+  - Ratenzahlung bzw. Ratenplan zaehlt als gesichert/bezahlt fuer die Quote.
+  - Teilzahlung zaehlt anteilig anhand Betrag minus offenem Saldo.
+  - Storno/offen ohne Zahlung zaehlt nicht als bezahlt.
+- Die automatische Systemregel `Ausfallhonorar => endgueltig storniert` wird nun nur noch auf Ausfallhonorar-Rechnungen ohne erkannte Zahlung angewendet.
+- Dadurch werden bezahlte oder teilbezahlte Ausfallhonorare nicht versehentlich als final verloren geschlossen.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:53 Uhr erfolgreich: Deployment `dpl_F9iuLFPwfVuVnohT6stYrjLhiNDi`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ohne-Ausfallschutz-Uebersicht in Pruefliste
+
+- In der Pruefliste gibt es jetzt zusaetzliche Kacheln fuer Patienten/Forderungen ohne Ausfallschutz:
+  - `Ohne Schutz Patienten`: eindeutige Patienten im aktuellen Filter plus Forderungsanzahl und Betrag.
+  - `Zahlen regelmaessig`: Patienten mit Zahlung/gesichertem Status bzw. erkannter Erledigung.
+  - `Endgueltig storniert`: Patienten/Forderungen ohne Ausfallschutz, die final storniert wurden.
+- Die Auswertung nutzt alle Ohne-Ausfallschutz-Claims aus dem Import im aktuellen Standort-/Zeitraum-/Suchfilter, nicht nur offene Prueflistenfaelle.
+- Zahlung wird ueber BFS-Saldo-/Statusliste erkannt: bezahlt, Ratenplan/Ratenzahlung und anteilige Teilzahlung.
+- Endgueltige Stornos werden ueber manuelle Prueflisten-Erledigungen und BFS-Status `storniert` erkannt.
+- Der Prueflisten-PDF-Export enthaelt nun ebenfalls einen Abschnitt `Ohne Ausfallschutz` mit Patienten, regelmaessig zahlenden Patienten, Quote, Stornos und Betraegen.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 11:59 Uhr erfolgreich: Deployment `dpl_3cjt8gP4Xd7zZHTKLM1zeq389MZW`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ausfallhonorar-Kacheln nur bei Treffer
+
+- Die drei Prueflisten-Kacheln `Ausfallhonorar eingereicht`, `Ausfallhonorar bezahlt` und `Ausfallhonorar-Quote` erscheinen nur noch, wenn der aktuelle Standort-/Zeitraum-/Suchfilter mindestens eine Ausfallhonorar-Rechnung findet.
+- Standorte ohne Ausfallhonorar-Treffer zeigen diese Kacheln nicht mehr als Nullwerte.
+- Der Prueflisten-PDF-Export enthaelt den Abschnitt `Ausfallhonorar` ebenfalls nur noch bei vorhandenen Treffern.
+- Standorte mit Ausfallhonorar-Daten bleiben im Prueflisten-Standortfilter auswählbar, auch wenn dort keine offenen Prueflistenfaelle vorhanden sind.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 12:02 Uhr erfolgreich: Deployment `dpl_GL8ACNqL35fxfcxZB3V8oFgV7veX`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Hueenberg Terminversaeumnis als Ausfallhonorar erkannt
+
+- Die Ausfallhonorar-Erkennung wurde erweitert um die Hueenberg-Schreibweise aus der Leistungszeile:
+  - Code/Region `Vers_`.
+  - Beschreibung `Versaeumnis Termin` bzw. `Versäumnis Termin`.
+- Rechnungszeilen werden fuer diese Regel nun anhand Code plus Beschreibung geprueft, damit `Vers_ Versaeumnis Termin` in Ausfallhonorar-Kacheln, Quote, PDF-Export und Auto-Storno-/Zahlungslogik einfliesst.
+- Der Core-Test `Ausfallhonorar wird als feste Storno-Regel erkannt` deckt diese Schreibweise nun mit ab.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 12:06 Uhr erfolgreich: Deployment `dpl_E38H9dKDCoY9zESV2a2CHhfSaCsy`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Robuster Saldo-Match fuer bezahltes Ausfallhonorar
+
+- Anlass: Ulmet-Beispiel `5-19260-72260078` / `044-025685` mit Ausfallhonorar und Saldo 0 wurde nicht als `Ausfallhonorar bezahlt` in der Prueflisten-Kachel beruecksichtigt.
+- Ursache in der App-Logik: Das Matching zwischen Einzelrechnung und BFS-Saldo-/Statusliste war bei BFS-Nr. und Rechnungsnummern zu streng, wenn Trennzeichen unterschiedlich erkannt wurden.
+- Die zentrale Match-Normalisierung entfernt nun Sonderzeichen und bildet zusaetzlich kompakte Match-Keys ohne Leer-/Trennzeichen.
+- Dadurch matchen Varianten wie `5-19260-72260078`, `5 19260 72260078` oder aehnliche OCR-/Parser-Trennungen auf dieselbe Rechnung.
+- Das betrifft die Ausfallhonorar-Bezahlt-Kachel, Quote, Auto-Storno-Schutz fuer bezahlte Faelle und weitere Saldo-basierte Korrekturen.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (18 Tests), `pnpm run lint` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 12:11 Uhr erfolgreich: Deployment `dpl_EGzuLxeh9184ZNEmiVkcDYggJwCN`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Ausfallhonorar, Pruefliste und Saldo-Logik final nachgeschaerft
+
+- Ausfallhonorar-Erkennung ist nicht auf feste Betraege begrenzt. Der Betrag kann je Praxis/Rechnung abweichen; entscheidend sind Leistungsnummer/Region und Leistungsbeschreibung.
+- Erkannte Ausfallhonorar-/Versaeumnis-Varianten:
+  - Ulmet/Kirchberg: Code `§615` bzw. Beschreibung `Ausfallhonorar gemaess § 615 BGB`.
+  - Hueettenberg: Code/Region `Vers_` plus Beschreibung `Versaeumnis Termin`.
+  - Kehl: Code/Region `AG` plus Beschreibung `Ausfallgebuehr`.
+  - Essen/Krause: Beschreibung/Text `AHON`.
+  - Allgemein: Beschreibung enthaelt `Ausfallhonorar`, `Ausfallgebuehr`, `Versaeumnis Termin` oder passende normalisierte Varianten.
+- Ausfallhonorar-Kacheln in der Pruefliste werden aus den vorhandenen Einzelrechnungen plus BFS-Saldo-/Statusliste abgeleitet, nicht manuell gepflegt.
+- Zahlungserkennung fuer Ausfallhonorar:
+  - Saldo 0 / bezahlt zaehlt als bezahlt.
+  - Ratenplan/Ratenzahlung zaehlt als gesichert/bezahlt.
+  - Teilzahlung zaehlt anteilig.
+  - Offen/Storno ohne Zahlung zaehlt nicht bezahlt.
+- Auto-Storno-Regel fuer Ausfallhonorar gilt nur, wenn keine Zahlung/gesicherter Status erkannt wird. Bezahlte Ausfallhonorare duerfen nicht als final verloren geschlossen werden.
+- Saldo-Listen muessen aktiv/importiert sein; wenn der Importbereich 0 Statuszeilen zeigt, fehlen der App die Zahlungs-/Saldo-Daten fuer bezahlt/offen/RP/MS.
+- Ratenplan allein soll nicht als offener Prueffall landen; Ratenplan wird als gesicherter Status behandelt.
+- Ohne-Ausfallschutz-Kacheln:
+  - `Ohne Schutz Patienten` basiert auf Forderungen/Patienten ohne Ausfallschutz im aktuellen Filter.
+  - `Zahlen regelmaessig` ist streng: nur Patienten ohne Ausfallschutz mit vollstaendiger Zahlungshistorie/100% Zahlungsmoral; Patienten mit Storno, Rueckgabe, Rueckzug oder aehnlichem duerfen nicht hineinlaufen.
+  - `Endgueltig storniert` beruecksichtigt final stornierte Ohne-Schutz-Forderungen inklusive Ausfallhonorar-Faellen, soweit sie aus Import-/Saldo-/Rechnungsdaten ableitbar sind.
+- Ampel in der Pruefliste: rot bedeutet Patient/Fall mit Ausfallschutz, gruen bedeutet ohne Ausfallschutz. Die Ampel soll nicht mehr nur allgemein `Fall zur Pruefung` anzeigen.
+- Prueflisten-PDF wurde breiter/lesbarer gemacht; Statuszeile breiter, Ampel im PDF mit `ohne AS`-Kennzeichnung gewuenscht/umgesetzt.
+
+## Update 2026-07-03: Appweite Export- und Report-Bereinigung
+
+- CSV-Exporte werden vom Nutzer appweit nicht mehr benoetigt und sollen nicht sichtbar angeboten werden.
+- Entfernt/ausgeblendet wurden u. a. lokale Tabellen-/CSV-Buttons in Benchmark, Potenzialanalyse, Qualitaetscockpit/Informationsliste und weiteren Fachpanels.
+- Redundante PDF-Buttons in Untertabellen wurden entfernt, wenn oben bereits ein Export vorhanden ist.
+- Report-Center, Gruppenreports, Massnahmenkontrolle und der komplette Hauptreiter `Reports` unter `BFS-Abrechnungen` sind entfernt.
+- `Praxis-Feedback` im Bereich `Abrechnungsqualitaet` ist komplett entfernt. Aktuelle Qualitaetssteuerung besteht nur aus `Qualitaetscockpit` und `Leistungsketten`.
+- Der Admin-/Regelmatrix-Bereich fuer Leistungsketten ist aus der sichtbaren App entfernt; Standortleiter sollen keine Regeln manuell freigeben/pflegen.
+
+## Update 2026-07-03: Leistungsketten als Standortleiterbericht finalisiert
+
+- Das bestehende Tab `Leistungsketten` wurde nicht neu gebaut, sondern als Standortleiter-Gespraechsgrundlage verbessert.
+- Zieltext/Logik:
+  - Wenn eine Hauptposition abgerechnet wird, rechnen andere Standorte bei aehnlichen Faellen bestimmte Begleitpositionen haeufiger mit.
+  - Am ausgewaehlten Standort sind diese Begleitpositionen seltener sichtbar.
+  - Standortleitung/Behandler/Abrechnung sollen schauen, ob diese Begleitpositionen bei passenden Faellen fachlich zutreffen, erbracht und dokumentiert sind.
+- Leistungsketten sind ausdruecklich:
+  - Orientierung, Gruppenvergleich und Gespraechsgrundlage.
+  - Keine automatische Abrechnungsempfehlung.
+  - Kein Nachberechnungsmodul.
+  - Keine Fehlerbewertung.
+  - Kein rechtliches Gutachten.
+- Verbotenes Wording fuer diesen Bereich: `Pflichtpruefung`, `Fehler`, `fehlende Position`, `Abrechnungsluecke`, `Nachberechnung`, `Umsatzverlust`, `muss abgerechnet werden`, `rechtlich zulaessig/geprueft`.
+- Tabellenstruktur:
+  - Standort
+  - Falltyp
+  - Hauptposition
+  - Haeufige Begleitpositionen in der Gruppe
+  - Gruppe / Standort
+  - Abweichung
+  - Orientierungswert
+  - Einordnung
+  - Hinweis fuer Standortleiter
+  - Aktion `Details ansehen`
+- Mehrfachketten zeigen mehrere Begleitpositionen je Hauptposition, nicht nur eine einzelne Begleitleistung.
+- Einordnung je Kette:
+  - `naheliegend`
+  - `einzelfallabhaengig`
+  - `vorsichtig einordnen`
+  - `nur Datenmuster`
+  - `Regel hinterlegt`
+- Behandlungsverlauf-Ketten werden als `vorsichtig einordnen` und Hinweisart `Behandlungsverlauf` gekennzeichnet.
+- Unbekannte/neue Codes oder Falltypen werden nicht verworfen. Wenn keine Regel vorhanden ist, erscheinen sie als `Nur Datenmuster`.
+- Begleitpositionen werden thematisch geclustert, u. a. Prophylaxe/PZR, Beratung/Diagnostik, Endodontie, Fuellungstherapie, ZE/Implantat/Labor, FAL/Funktion, Chirurgie/Nachbehandlung, Implantat-Fallverlauf, Anaesthesie, Adhaesive Befestigung, Digitale Abformung, Okklusion, Sonstige.
+- Detailansicht zeigt Hauptposition, Beschreibung, Falltyp, Standort, Praxisfaelle, Begleitpositionen, Gruppe/Standort je Begleitposition, Abweichung, Orientierungswert, Einordnung, Hinweisart, Regelstatus, thematische Cluster und konkrete Standortleiter-Frage.
+- Keine Status-/Freigabe-Auswahl in der Leistungsketten-Detailansicht. Es soll keine manuelle Pruef-/Abhakliste entstehen.
+- PDF-Button heisst `Standortbericht als PDF exportieren`.
+- PDF-Struktur:
+  - Titel `Leistungsketten - Standort [Standort] - Zeitraum [Zeitraum]`
+  - kurze Einordnung
+  - Zusammenfassung mit Ketten, Begleitpositionen, Rechnungen, Orientierungswert, Einordnung, Top-Themen
+  - Top-Leistungsketten
+  - Themenbereiche
+  - Handlungshinweise fuer Standortleiter
+  - Datenschutz: interne Abrechnungs- und Qualitaetsinformationen, nur intern und zweckgebunden.
+- `Rechnungsbeispiele` / `Beispiele aus den staerksten Mehrfachketten` wurden aus dem Leistungsketten-Report entfernt.
+- Letzte Pruefung fuer diesen Stand: `pnpm test` gruen (24 Tests), `pnpm build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 20:25 Uhr erfolgreich: Deployment `dpl_8sRbmNrCJXQTm5PUuPAv1Zczo22K`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Patientenklassifizierung PDF
+
+- In der Ansicht `Patientenklassifizierung Gruppe` wurde ein PDF-Export ergaenzt, damit die auffaelligen Patienten/Klassen als Standortleiterbericht uebergeben werden koennen.
+- Der PDF-Export ist als kompakter Bericht gedacht, nicht als CSV/Tabelle zum Weiterverarbeiten.
+- Patientennamen koennen in dieser konkreten internen Patientenklassifizierungsansicht enthalten sein; fuer Standortleiter nur intern und zweckgebunden verwenden.
+
+## Update 2026-07-03: Leistungsketten Tabellen-PDF
+
+- Im Tab `Leistungsketten` gibt es jetzt zusaetzlich zum grossen `Standortbericht als PDF exportieren` einen eigenen Button direkt an der Top-Leistungsketten-Tabelle: `Tabelle als PDF exportieren`.
+- Der neue Button exportiert nur den Tabellenblock `Top-Leistungsketten` im aktuellen Filter, nicht den kompletten Bericht mit Einordnung, Themenbereichen und Handlungshinweisen.
+- Die Aktionsspalte `Details ansehen` wird im Druck/PDF ausgeblendet, damit der Tabellenexport als Standortleiter-Unterlage sauber bleibt.
+- Geprueft: `pnpm test` gruen (25 Tests), `pnpm build` gruen, `git diff --check` gruen.
+- Vercel Production Deploy am 03.07.2026 ca. 21:05 Uhr erfolgreich: Deployment `dpl_A9BEQLsEo21JAH9xgMtdoaPWNXFM`, Alias `https://bfs-mandatenuebersicht.vercel.app`, Status `Ready`.
+
+## Update 2026-07-03: Qualitaetscockpit generische Hinweise und Standortbericht
+
+- Das bestehende `Qualitaetscockpit` wurde gezielt erweitert, nicht neu gebaut.
+- Die zentrale Analyse in `lib/invoice-quality-analysis.ts` fuehrt pro Hinweis jetzt generische Metadaten:
+  - `analysisType`
+  - `hintType`
+  - `precheckStatus`
+  - `orientationLevel`
+  - `topicCluster`
+  - `status`
+  - `shortTitle`, `explanation`, Kontext-/Dokumentationshinweise, Vorsichtshinweise und Quellen.
+- Bekannte Regeln laufen als `Kataloghinweis` mit `Regel hinterlegt`; unbekannte Kombinationen, neue Falltypen, neue Codes oder neue Leistungsbereiche werden nicht verworfen, sondern als `Datenmuster`, `Keine Regel vorhanden`, `einzelfallabhaengig`, `offen` und bei fehlender Zuordnung als `Sonstige / ungeklaert` angezeigt.
+- Start-Cluster im Qualitaetscockpit: Adhaesive Befestigung, ZE/FAL-Zentrallage, Endodontie, Implantat-Fallverlauf, Prophylaxe/PZR, Beratung/Diagnostik, Chirurgie/Nachbehandlung, Faktoren/Steigerungssaetze, Analogpositionen, Material/Labor/Fremdlabor und Sonstige/ungeklaert.
+- Die Cockpit-Filter sind dynamisch erweitert um Themencluster, Hinweisart, Einordnung, Fachliche Vorpruefung und Status.
+- Die Tabelle nutzt jetzt `Abweichung`/`Potenzialfaelle` statt `Luecke`; `Orientierungswert` bleibt ausdruecklich eine rechnerische Orientierung aus dem Standortvergleich und keine automatische Fehler- oder Nachberechnungslogik.
+- Neue Spalte `Fachliche Vorpruefung` zeigt `Regel hinterlegt`, `Nur Datenmuster`, `Keine Regel vorhanden` oder `Vorsichtig einordnen`.
+- `Details ansehen` zeigt pro Hinweis den Grund, Gruppe-vs-Standort-Vergleich, Abweichung, Orientierungswert, Hinweisart, Einordnung, fachliche Vorpruefung, Kontext, Dokumentationshinweise, Quellen/Regelstatus und eine konkrete Frage an die Standortleitung.
+- Der Button im Qualitaetscockpit heisst jetzt `Standortbericht als PDF exportieren`.
+- Der PDF-/Druckbereich enthaelt Titel `Qualitaetscockpit - Standort [Standort] - Zeitraum [Zeitraum]`, Einordnungstext, Zusammenfassung, Top-Hinweise, Themencluster, Handlungshinweise und Datenschutztext. Der Bericht bleibt aggregiert/datenschutzarm; im normalen Cockpit-Export werden keine Patientennamen ausgegeben.
+- Tests ergaenzt: unbekannte Kombination bleibt sichtbar und wird als Datenmuster/keine Regel markiert; Export enthaelt Fachliche Vorpruefung und kein `Luecke`/`Nachberechnen`.
+- Nach Gegencheck gegen den Nutzerprompt nachgeschaerft:
+  - Echte Faktorhinweise werden jetzt aus vorhandenen Rechnungszeilen-Faktoren erzeugt, wenn Standortdurchschnitt und Gruppenmuster deutlich abweichen. Diese Hinweise laufen als `factor_deviation`, `Faktorhinweis`, Themencluster `Faktoren / Steigerungssaetze`, `Keine Regel vorhanden`, `einzelfallabhaengig`.
+  - Qualitaetscockpit wertet fuer Faktorhinweise auch Rechnungen mit nur einer auswertbaren Leistungsposition aus; Positionskombinationen bleiben davon unveraendert.
+  - Tabellenkoepfe sind generischer: `Ausloeser / Hinweisbereich` und `Begleitleistung / Auffaelligkeit`, damit Faktor- und Leistungsbereichshinweise nicht in reine Begleitleistungslogik gezwungen werden.
+  - Der Hinweistext bleibt im PDF/Druck sichtbar; Themencluster erscheinen im Bericht; Druckfenster erhaelt eine Fusszeile mit Exportdatum und Seitenhinweis.
+  - Sichtbares Wording `abrechenbar` wurde aus dem Orientierungswert-Hinweis entfernt. Verbotene Begriffe stehen nur noch im Sanitizer-Code, der externe/alte Regeltexte bereinigt.
+- Geprueft nach Nachschaerfung: `pnpm run typecheck` gruen, `pnpm test` gruen (26 Tests), `pnpm run lint` gruen mit bestehenden Warnungen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Leistungsketten Katalog-Plausibilitaet A-E
+
+- Das bestehende Tab `Leistungsketten` wurde um eine fachliche Katalog-Plausibilitaet erweitert, ohne ein neues Modul oder Adminsystem zu bauen.
+- Neue Felder pro Leistungskette:
+  - `catalogPlausibilityLevel`: `A`, `B`, `C`, `D`, `E`
+  - `catalogPlausibilityLabel`
+  - `catalogPlausibilityExplanation`
+  - `catalogPlausibilitySources`
+  - `catalogPlausibilityRuleId`
+  - `catalogPlausibilityStatus`
+  - Kontext-, Dokumentations- und Vorsichtshinweise.
+- Bedeutung:
+  - `A`: regelmaessig naheliegend
+  - `B`: einzelfallabhaengig
+  - `C`: Behandlungsverlauf / zeitliche Zuordnung
+  - `D`: vorsichtig einordnen wegen Ueberschneidungs-/Ausschlussrisiko
+  - `E`: nur Datenmuster / keine Regel hinterlegt.
+- Regelmatching nutzt eine einfache dynamische Regelstruktur mit `exact_chain`, `trigger_companion`, `trigger_only`, `companion_only`, `falltype_context` und `cluster_context`. Konkrete Code-Regeln greifen vor Clusterkontext; wenn keine Regel passt, bleibt die Kette sichtbar und faellt automatisch auf `E`.
+- Startregeln umgesetzt:
+  - `2360 -> 2410` und `2410 -> 2420` als A / Endodontie.
+  - `8000 -> 8010/8020/8050` als A / FAL-Funktion.
+  - typische `2197`-Kontexte und `0065` als A, wenn fachlich passend.
+  - `0010 -> 2010 + A1`, `A1 -> 0010 + 2010`, `4005 -> 2010/A1/0010`, `2020`-Endo-Kontext als B.
+  - `3290/3300 -> 9010/0530/A5004`, `9000 -> 9010`, `A5004 -> 9010`, `9110`-Kontext als C.
+  - PZR-Kontext mit `1020`, `4050`, `4055` sowie breite `4080`-Sammelkette als D.
+- Leistungsketten werden nun ab mindestens einer seltener sichtbaren Begleitposition gebildet, damit Ein-Begleitpositions-Ketten wie `2360 -> 2410` sichtbar werden.
+- UI:
+  - Neue Spalte `Katalog-Plausibilitaet` mit farbigem A-E-Badge.
+  - Neuer Filter `Katalog-Plausibilitaet`.
+  - Neue Sortierung nach Katalog-Plausibilitaet oder Orientierungswert.
+  - Detailansicht zeigt passende Regel, Begründung, Quellen/Regelbasis, Dokumentationshinweise, Vorsichtshinweise und Untercluster.
+  - Neue interne Uebersicht `Neue Ketten ohne Regel` fuer E-Ketten inklusive Hauptposition, Begleitpositionen, Falltyp, Standort, Fallzahl, Orientierungswert, erstem Auftreten/Zeitraum und Status.
+- PDF-/Druckbericht:
+  - Zusammenfassung enthaelt Anzahl nach A-E.
+  - Top-Ketten-Tabelle enthaelt Katalog-Plausibilitaet.
+  - UI-Filter nach A-E wirkt auf den PDF-Bericht.
+  - Themenbereiche zeigen Plausibilitaetsverteilung und wichtigste Ketten mit A-E-Kennung.
+- Datenschutz/Wording:
+  - Alter Rechnungsbeispiele-Block mit Patientennamen wurde aus dem Leistungsketten-Report entfernt.
+  - Sichtbares Wording vermeidet `Nachberechnung`, `fehlende Position`, harte Rechtsfreigabe und automatische Abrechnungsaussagen.
+- Tests erweitert:
+  - Unbekannte neue Ketten fallen auf E und bleiben sichtbar.
+  - `8000 -> 8010/8020` wird A.
+  - `2360 -> 2410` wird A.
+  - `0010 -> 2010/A1` wird B.
+  - `3290 -> 9010/0530/A5004` wird C.
+  - PZR-Kontext mit `1020` wird D.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (28 Tests), `pnpm run lint` gruen mit bestehenden Warnungen, `pnpm run build` gruen.
+
+## Update 2026-07-03: Leistungsketten Responsive-Tabelle
+
+- Die Top-Leistungsketten-Tabelle wurde fuer die zusaetzliche Spalte `Katalog-Plausibilitaet` responsiv nachgezogen.
+- Desktop:
+  - feste Spaltenbreiten fuer alle 11 Spalten;
+  - horizontales Scrollen im Tabellencontainer statt Zusammendruecken/Abschneiden;
+  - Katalog-Badge und lange Hinweis-/Leistungstexte umbrechen sauber innerhalb ihrer Spalten.
+- Tablet/schmale Viewports:
+  - die Top-Leistungsketten wechseln unterhalb ca. 820px in eine Kartenansicht mit sichtbaren Feldlabels;
+  - Begleitpositionen, Katalog-Plausibilitaet, Einordnung, Hinweis und Aktion bleiben pro Kette lesbar.
+- Deployment:
+  - Production neu deployt auf `https://bfs-mandatenuebersicht.vercel.app`.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run build` gruen, `pnpm run lint` gruen mit bestehenden Warnungen, `git diff --check` gruen.
+
+## Update 2026-07-03: Appweite Desktop-/Tablet-/Mobil-Kompatibilitaet
+
+- Responsive-Nachpruefung fuer die Hauptbereiche der App durchgefuehrt: Landing/Login, Dashboard/Zusammenfassung, operative BFS-Ansichten, Importbereiche, Rechnungsanalyse, Qualitaetscockpit und Leistungsketten.
+- Globale Layout-Schutzregeln ergaenzt:
+  - Panels, direkte Panel-Inhalte, Content-Stacks, Grids und Tabellencontainer erhalten sichere `min-width: 0`/`max-width: 100%`.
+  - Breite Tabellencontainer (`table-wrap`, `invoice-services-scroll`, `case-table-scroll`, Import-/Status-Scrollbereiche) duerfen auf Tablet/Mobil horizontal scrollen statt vom Panel abgeschnitten zu werden.
+  - Exportleisten und Buttons brechen auf mobilen Viewports sauber um; Export-/Aktionsbuttons koennen volle Breite einnehmen.
+  - Mobile Page-Headings und lange Feldtexte umbrechen ohne horizontales Seiten-Overflow.
+- Zielverhalten:
+  - Desktop: Tabellen bleiben vollstaendig per Container-Scroll erreichbar.
+  - Tablet: Filterleisten und KPI-Grids fallen auf 1-2 Spalten zurueck, Tabellen scrollen seitlich.
+  - Mobil: Filter/Exportleisten sind einspaltig, Aktionsbuttons lesbar, Qualitaets-/Leistungskettenbereiche nutzen Karten bzw. kontrollierten Scroll.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run lint` gruen mit bestehenden Warnungen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Leistungsketten Mehrfachfilter Katalog-Plausibilitaet
+
+- Im Tab `Leistungsketten` ist der Filter `Katalog-Plausibilitaet` von Einzelauswahl auf Mehrfachauswahl umgestellt.
+- Bedienung:
+  - Chip `Alle` setzt die Auswahl zurueck.
+  - A-E-Chips koennen kombiniert werden, z. B. `A + B` oder `C + D`.
+  - Die aktuelle Auswahl wird unter den Chips als Klartext angezeigt.
+- Die bestehende Filterlogik, KPIs, Tabellenansicht, `Neue Ketten ohne Regel` und PDF-/Druckexport nutzen automatisch die kombinierten aktuell sichtbaren Ketten.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm test` gruen (28 Tests), `pnpm run lint` gruen mit bestehenden Warnungen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Leistungsketten Mobile Kartenansicht repariert
+
+- Die Top-Leistungsketten-Tabelle ist mobil von der generischen Tabellen-Scrollklasse entkoppelt.
+- Auf Viewports unter ca. 820px wird die Tabelle erzwungen als Kartenliste gerendert:
+  - kein Tabellen-Minwidth/Horizontalversatz;
+  - keine abgeschnittenen linken Labels;
+  - Feldlabels (`Standort`, `Falltyp`, `Hauptposition`, `Begleitpositionen`, `Katalog`, `Hinweis`, `Aktion`) stehen links innerhalb der Karte;
+  - Werte, Badges und Aktionsbutton umbrechen innerhalb der Karte.
+- Desktop und Tablet bleiben bei kontrolliertem horizontalem Tabellen-Scroll.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Leistungsketten Mobile Fokusansicht
+
+- Fuer Mobilgeraete ist das Tab `Leistungsketten` auf den Standortleiter-Use-Case verdichtet:
+  - Filterformular, KPI-Karten, Berichtsvorspann, Top-Leistungsketten-Tabelle, Detailblock und `Neue Ketten ohne Regel` werden mobil ausgeblendet.
+  - Die mobile Ansicht startet nach dem App-Header direkt bei `Themenbereiche`.
+  - Desktop/PDF behalten die vollstaendige Tabellen- und Exportansicht.
+- Hintergrund: Auf dem Handy soll nicht nach einzelnen Leistungen gesucht werden; alle relevanten Ketten bleiben in den Themenbereichen zusammengefasst sichtbar.
+- Geprueft: `pnpm run typecheck` gruen, `pnpm run build` gruen, `git diff --check` gruen.
+
+## Update 2026-07-03: Leistungsketten als Standortleiter-Report ohne Arbeitstabelle
+
+- Die Reduktion gilt jetzt nicht nur mobil, sondern auch auf Desktop.
+- Sichtbar bleiben im Tab `Leistungsketten`:
+  - kurze Einordnung;
+  - Filter-/Exportblock mit Themenbereich, Einordnung, Regelstatus, Katalog-Plausibilitaet und Sortierung;
+  - Button `Standortbericht als PDF exportieren`;
+  - Themenbereiche;
+  - Handlungshinweise.
+- Aus der sichtbaren Reportansicht entfernt:
+  - Zeitraum-/Standort-/Falltyp-/Basis-Auswahl;
+  - Suchfelder nach Leistung, Hauptposition und Begleitposition;
+  - Schwellenwertfilter fuer Gruppenquote, Mindestfaelle, Mindestabweichung und Orientierungswert;
+  - KPI-Karten;
+  - Berichtsvorspann-Tabelle;
+  - Top-Leistungsketten-Tabelle;
+  - Detailblock einzelner Ketten;
+  - `Neue Ketten ohne Regel`.
+- Die interne Berechnung bleibt erhalten, damit Themenbereiche, Katalog-Plausibilitaet und PDF-Daten weiterhin aus denselben Leistungsketten abgeleitet werden.
+- Hintergrund: Standortleiter sollen den Report lesen und besprechen, nicht in einer grossen Arbeitstabelle arbeiten. Der sichtbare Steuerblock bleibt fuer fachliche Eingrenzung und Export sichtbar.
+
+## Update 2026-07-04: Tablet-Fix Info-Icons in KPI-Karten
+
+- Die Info-Buttons in KPI-/Priority-Karten reservieren nun dauerhaft rechten Platz im Kartentitel.
+- Lange Titel wie `Eingereichter Umsatz`, `BFS-Gebuehr netto` oder `EWMA / Adresspruefung` umbrechen auf Tablet sauber, statt unter den Info-Kreis zu laufen.
+- Der Fix ist bewusst allgemein fuer die KPI-Kartenfamilie gesetzt, damit Zusammenfassung, Standortdetails und weitere Reportkarten konsistent bleiben.
+
+## Update 2026-07-04: Qualitaetscockpit Detailklick sichtbar machen
+
+- `Details ansehen` in der Informationsliste je Standort oeffnet weiterhin den vorhandenen Detailblock, scrollt nun aber automatisch dorthin und setzt Fokus auf den Bereich.
+- Die ausgewaehlte Tabellenzeile bzw. mobile Karte wird optisch hervorgehoben, damit klar ist, welcher Hinweis gerade geoeffnet ist.
+- Fachliche Qualitaetslogik, Filter, Sortierung und Reportdaten bleiben unveraendert.
+
+## Update 2026-07-04: Qualitaetscockpit Filter- und Faktorlogik geprueft
+
+- Die Auswahlfelder im Qualitaetscockpit wurden gegen die Datenkette geprueft: Zeitraum, Standort, Falltyp, Basis, Suche, Gruppenquote, Mindestfaelle, Orientierungswert, Themencluster, Hinweisart, Einordnung, Fachliche Vorpruefung und Status speisen dieselbe gefilterte Ergebnismenge fuer KPI-Karten, Tabelle, mobile Karten und PDF-Export.
+- Abhaengige Filteroptionen werden nun aus der aktuellen Grundmenge gebildet; nicht mehr gueltige Alt-Auswahlen springen automatisch auf `Alle` zurueck, damit ein Standort-/Zeitraumwechsel nicht scheinbar leere Daten erzeugt.
+- Faktorhinweise werden in Qualitaetscockpit-Tabelle, mobilen Karten, Detailansicht und Drucktabelle als Faktorwerte (`Ø Faktor ...`, Faktorabweichung) dargestellt, nicht mehr als Prozentquoten.
+- Fachliche Kernlogik bleibt erhalten: Leistungsketten nutzen Gruppenquote/Praxisquote, Faktorhinweise nutzen Faktorabweichung; beide Hinweisarten laufen weiter in denselben Report.
+
+## Update 2026-07-04: Leistungsketten Standortauswahl wieder sichtbar
+
+- Im reduzierten Standortleiter-Report `Leistungsketten` ist die Standortauswahl wieder sichtbar.
+- Die Auswahl nutzt die bereits vorhandene Berechnungslogik: Bei `Alle Standorte` werden alle Standorte gelistet, bei einem einzelnen Standort werden genau die dort seltener sichtbaren Leistungsketten gegen die Gruppe berechnet.
+- Die alte Arbeitstabelle und die entfernten Detail-Suchfilter bleiben weiterhin ausgeblendet; sichtbar bleibt nur der fachlich notwendige Standortfilter plus Themenbereich, Einordnung, Regelstatus, Katalog-Plausibilitaet, Sortierung und PDF-Export.
+
+## Update 2026-07-04: PDF-Exportfenster robuster fuer Benchmarking
+
+- Der gemeinsame Tab-PDF-Export (`printCustomTabPdf`) oeffnet das Druckfenster jetzt sofort direkt im Button-Klick und schreibt den fertigen Report danach hinein.
+- Hintergrund: iPad/Safari und strenge Popup-Blocker koennen Fenster blockieren, wenn erst HTML/Styles vorbereitet werden und das Fenster danach geoeffnet wird.
+- Die automatische Druckausloesung wartet nun etwas laenger, damit Styles und Tabelleninhalte geladen sind.
+- Betrifft u. a. `Benchmarking` mit `Management PDF` und `Praxis PDF`, aber auch weitere Fachansichten, die denselben PDF-Helfer nutzen.
+
+## Update 2026-07-04: PDF-Export mit manuellem Druckknopf
+
+- Das Exportfenster enthaelt nun zusaetzlich den Button `PDF/Drucken oeffnen`.
+- Wenn Safari/iPad den automatisch gestarteten Druckdialog blockiert, bleibt das Reportfenster offen und der Druckdialog kann manuell aus dem Exportfenster gestartet werden.
+- Das automatische sofortige Schliessen nach dem Print-Aufruf wurde entfernt; geschlossen wird nur noch nach echtem `afterprint` oder ueber `Fenster schliessen`.
+- Betrifft u. a. `Potenzialanalyse`, `Benchmarking`, Qualitaetsreports und weitere Ansichten mit dem gemeinsamen Tab-PDF-Export.
+
+## Update 2026-07-06: Login nicht mehr auf Svend vorbelegt
+
+- Das Loginformular startet nicht mehr hart mit `svend.neumann@orisus.de`, sondern leer bzw. optional mit einem `?email=`-Parameter.
+- Die direkte Loginseite `/login` ist jetzt als Wechsel-Login nutzbar: Wenn auf dem Geraet noch eine bestehende Session aktiv ist, wird nicht automatisch weitergeleitet, sondern es erscheint `Andere Person anmelden`.
+- Bei Aufruf von `/login?email=...` wird eine abweichende bestehende Session automatisch entfernt, damit neu angelegte Nutzer sich mit ihrer eigenen Mail anmelden koennen.
+- Die Landing-Startseite bleibt fuer bereits angemeldete Nutzer beim bisherigen Auto-Redirect ins Dashboard.
+
+## Update 2026-07-06: Erster Passwortwechsel nach Server-Login
+
+- Der erste Passwortwechsel fuer neu angelegte Nutzer laeuft jetzt ueber `/api/auth/password` und nutzt die sichere serverseitige Login-Session aus den App-Cookies.
+- Dadurch funktioniert der Wechsel auch fuer Nutzer, die sich ueber den serverseitigen Login anmelden und keine separate Supabase-Browser-Session im Client haben.
+- Nach erfolgreichem Passwortwechsel wird `must_change_password` direkt zurueckgesetzt.
+
+## Update 2026-07-06: Nutzer in der Admin-Verwaltung loeschen
+
+- Super Admins koennen Nutzer jetzt in der Nutzerverwaltung loeschen.
+- Die Aktion hat eine Browser-Bestaetigung und verhindert, dass Admin-Konten geloescht werden.
+- Beim Loeschen werden Standortzuordnungen entfernt und der Supabase-Auth-Nutzer geloescht; das Profil wird danach bereinigt bzw. per Cascade entfernt.
+
+## Update 2026-07-06: Passwort vergessen stabilisiert
+
+- `Passwort vergessen?` sendet Reset-Mails jetzt mit explizitem Ruecksprung auf `/passwort-aendern?reset=1`.
+- Die Passwort-ändern-Logik kann jetzt zwischen App-Session und Supabase-Recovery-Session unterscheiden.
+- Nach einem Reset wird die Supabase-Recovery-Session in eine App-Session uebernommen und der Passwortwechsel-Status bereinigt.
+- Der Button zeigt nun klare Fehler, wenn keine E-Mail eingetragen ist oder Supabase den Versand ablehnt.
+
+## Update 2026-07-06: Admin vergibt feste Nutzerpasswoerter
+
+- Beim Anlegen eines Nutzers vergibt der Admin jetzt ein festes Passwort, das sofort fuer den Login gilt.
+- Neu angelegte Nutzer muessen dieses Passwort nicht mehr beim ersten Login aendern.
+- Auch ein spaeter vom Admin gesetztes Passwort setzt `must_change_password` auf false und entfernt den offenen Passwortwechsel-Status.
+
+## Update 2026-07-06: Abrechnungsmanagement Login-Weiterleitung
+
+- `/dashboard` ist in der Proxy-Schutzlogik jetzt auch fuer `abrechnungsmanagement` freigegeben.
+- Admin-Seiten wie `/nutzer`, `/importe` und `/standorte` bleiben nur fuer `super_admin`.
+- `/passwort-aendern` bleibt fuer alle aktiven App-Rollen erreichbar, damit Reset- und Passwortprozesse nicht blockieren.
+- Beim Login von `abrechnungsmanagement` wird ein lokal gespeicherter alter Dashboard-Tab geloescht, damit der Einstieg immer bei `BFS-Rechnungsanalyse > Leistungsuebersicht` beginnt.
+
+## Update 2026-07-06: Abrechnungsmanagement als gruppenweite Fachrolle
+
+- `abrechnungsmanagement` sieht jetzt alle fachlichen Hauptbereiche inklusive BFS-Abrechnungen, BFS-Rechnungsanalyse und Abrechnungsqualitaet.
+- Admin-Bereiche wie Nutzer, Standorte und Admin-Sicherheit bleiben weiter nur fuer `super_admin`.
+- `abrechnungsmanagement` darf Abrechnungsdaten, Rechnungsstatus und Einzelrechnungen importieren bzw. bestaetigen.
+- Die Rolle arbeitet gruppenweit ueber alle Standorte statt mit Einzelstandortfilter.
+
+## Update 2026-07-07: Abrechnungsmanagement Upload- und Fachzugriff finalisiert
+
+- Die Rolle `abrechnungsmanagement` nutzt jetzt die gruppenweite Fachnavigation ohne Adminbereich.
+- Erlaubt sind Dashboard, Import-Center Abrechnung, Rechnungsanalyse, Abrechnungsqualitaet und operative Fachlisten.
+- Gesperrt bleiben Nutzerverwaltung, Standortverwaltung und Super-Admin-Konfiguration.
+- Serverrechte fuer BFS-Abrechnungsimport, Rechnungsstatusimport, Rechnungsimport, Katalog-Mappings und Fallbearbeitung sind auf `super_admin` + `abrechnungsmanagement` erweitert.

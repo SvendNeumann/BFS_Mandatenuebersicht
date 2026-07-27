@@ -8,7 +8,7 @@ import { updateOwnPassword } from "@/lib/auth";
 export default function ChangePasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [message, setMessage] = useState("Bitte ersetze dein temporäres Passwort durch ein eigenes Passwort.");
+  const [message, setMessage] = useState("Bitte vergib ein neues Passwort.");
   const [saving, setSaving] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { parseInvoiceStatusPdfBytes } from "@/lib/invoice-status-parser";
-import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
+import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export async function GET() {
 
     const payload = parseStoredInvoiceStatusPayload(data?.[0]?.new_value);
     const allowedStandortIds = await readableStandortIds(supabase, auth.profile.id, auth.profile.role);
-    const documents = auth.profile.role === "super_admin"
+    const documents = canManageInvoiceStatus(auth.profile.role)
       ? payload.documents
       : filterInvoiceStatusDocumentsByStandort(payload.documents, allowedStandortIds);
 
@@ -44,7 +44,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireInvoiceStatusAccess();
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const formData = await request.formData();
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireInvoiceStatusAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -127,7 +127,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireInvoiceStatusAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -214,7 +214,7 @@ function filterInvoiceStatusDocumentsByStandort(documents: ParsedInvoiceStatusDo
 }
 
 async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string) {
-  if (role === "super_admin") return new Set(appStandorte.map((standort) => standort.id));
+  if (canManageInvoiceStatus(role)) return new Set(appStandorte.map((standort) => standort.id));
   const { data, error } = await supabase.from("user_standorte").select("standort_id").eq("user_id", userId);
   if (error) throw error;
   const dbStandortIds = (data ?? []).map((entry: { standort_id: string }) => entry.standort_id).filter(Boolean);
@@ -227,6 +227,17 @@ async function readableStandortIds(supabase: SupabaseDbClient, userId: string, r
     if (appStandort) ids.add(appStandort.id);
   });
   return ids;
+}
+
+async function requireInvoiceStatusAccess() {
+  const result = await getRequestProfile();
+  if ("error" in result) return result;
+  if (!canManageInvoiceStatus(result.profile.role)) return { error: "Nur Super Admins und Abrechnungsmanagement dürfen Rechnungsstatus importieren.", status: 403 };
+  return result;
+}
+
+function canManageInvoiceStatus(role: string) {
+  return role === "super_admin" || role === "abrechnungsmanagement";
 }
 
 function standortFromMandantNo(mandantNo: string) {

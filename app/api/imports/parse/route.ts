@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
 import { importRowBusinessIdentity } from "@/lib/import-identity";
-import { createServiceClient, getRequestProfile, requireSuperAdmin } from "@/lib/server-auth";
+import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -29,15 +29,11 @@ export async function GET() {
     }
 
     const readableIds = await readableStandortIds(supabase, auth.profile.id, auth.profile.role);
-    if (auth.profile.role !== "super_admin" && !readableIds.size) {
+    if (!canManageBfsImports(auth.profile.role) && !readableIds.size) {
       return NextResponse.json({ rows: [] }, { headers: noStoreHeaders() });
     }
 
-    if (auth.profile.role === "super_admin") {
-      await cleanupImportedDocumentStorage(supabase, auth.profile.id).catch(() => undefined);
-    }
-
-    const documents = await fetchImportedDocuments(supabase, auth.profile.role === "super_admin" ? undefined : readableIds);
+    const documents = await fetchImportedDocuments(supabase, canManageBfsImports(auth.profile.role) ? undefined : readableIds);
     const rows = documents
       .map((entry: { extracted_json: unknown }) => entry.extracted_json)
       .filter(isImportPreviewRow)
@@ -54,7 +50,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireBfsImportAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -87,7 +83,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const auth = await requireSuperAdmin();
+    const auth = await requireBfsImportAccess();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const supabase = createServiceClient();
@@ -499,8 +495,19 @@ async function throwIfSupabaseError(query: PromiseLike<{ error?: { message?: str
 }
 
 async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string): Promise<Set<string>> {
-  if (role === "super_admin") return allStandortIds(supabase);
+  if (canManageBfsImports(role)) return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
+}
+
+async function requireBfsImportAccess() {
+  const result = await getRequestProfile();
+  if ("error" in result) return result;
+  if (!canManageBfsImports(result.profile.role)) return { error: "Nur Super Admins und Abrechnungsmanagement dürfen Abrechnungen importieren.", status: 403 };
+  return result;
+}
+
+function canManageBfsImports(role: string) {
+  return role === "super_admin" || role === "abrechnungsmanagement";
 }
 
 async function allStandortIds(supabase: SupabaseDbClient): Promise<Set<string>> {

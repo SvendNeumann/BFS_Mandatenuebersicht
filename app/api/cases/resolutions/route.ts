@@ -196,13 +196,17 @@ function defaultResolutionComment(status: unknown) {
 }
 
 async function readableStandortIds(supabase: SupabaseDbClient, userId: string, role: string) {
-  if (role === "super_admin") return allStandortIds(supabase);
+  if (canManageGroupCases(role)) return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
 }
 
 async function writableStandortIds(supabase: SupabaseDbClient, userId: string, role: string) {
-  if (role === "super_admin") return allStandortIds(supabase);
+  if (canManageGroupCases(role)) return allStandortIds(supabase);
   return assignedStandortIds(supabase, userId);
+}
+
+function canManageGroupCases(role: string) {
+  return role === "super_admin" || role === "abrechnungsmanagement";
 }
 
 async function allStandortIds(supabase: SupabaseDbClient) {

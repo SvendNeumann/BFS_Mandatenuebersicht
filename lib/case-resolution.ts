@@ -92,10 +92,15 @@ export function isAusfallhonorarDescription(value: string | null | undefined) {
   const normalized = normalizeResolutionPart(value ?? "");
   return normalized === "ausfallhonorar"
     || /\bausfall(?:\s+|-)?honorar\b/.test(normalized)
+    || /\bausfall(?:\s+|-)?gebuhr\b/.test(normalized)
+    || /\btermin(?:\s+|-)?ausfall\b/.test(normalized)
     || /(?:^|\s)615(?:\s|$)/.test(normalized)
     || /\bvers\s+versaumnis\s+termin\b/.test(normalized)
     || /\bversaeumnis\s+termin\b/.test(normalized)
-    || /\bversaumnis\s+termin\b/.test(normalized);
+    || /\bversaumnis\s+termin\b/.test(normalized)
+    || /\btermin(?:\s+|-)?versaumnis\b/.test(normalized)
+    || /\bversaeumnis(?:\s+|-)?gebuhr\b/.test(normalized)
+    || /\bversaumnis(?:\s+|-)?gebuhr\b/.test(normalized);
 }
 
 export function normalizeResolutionPart(value: string) {

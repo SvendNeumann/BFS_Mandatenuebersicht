@@ -61,20 +61,20 @@ export async function POST(request: Request) {
   const email = body?.email?.trim().toLowerCase();
   const fullName = body?.fullName?.trim() ?? "";
   const role = body?.role;
-  const temporaryPassword = body?.temporaryPassword ?? "";
+  const password = body?.temporaryPassword ?? "";
   const active = body?.active ?? true;
   const standortIds = body?.standortIds ?? [];
 
   if (!email || !email.includes("@")) return NextResponse.json({ error: "Bitte eine gültige E-Mail angeben." }, { status: 400 });
   if (!isManageableRole(role)) return NextResponse.json({ error: "Bitte eine gültige Rolle wählen." }, { status: 400 });
-  if (temporaryPassword.length < 8) return NextResponse.json({ error: "Das temporäre Passwort muss mindestens 8 Zeichen haben." }, { status: 400 });
+  if (password.length < 8) return NextResponse.json({ error: "Das Passwort muss mindestens 8 Zeichen haben." }, { status: 400 });
 
   const supabase = createServiceClient();
   if (!supabase) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY fehlt in der Server-Konfiguration." }, { status: 500 });
 
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
     email,
-    password: temporaryPassword,
+    password,
     email_confirm: true,
     user_metadata: { full_name: fullName }
   });
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
   if (!created.user) {
     const { error: updateAuthError } = await supabase.auth.admin.updateUserById(userId, {
-      password: temporaryPassword,
+      password,
       email_confirm: true,
       user_metadata: { full_name: fullName }
     });
@@ -104,9 +104,9 @@ export async function POST(request: Request) {
       full_name: fullName || null,
       role,
       active,
-      must_change_password: true,
+      must_change_password: false,
       created_by: auth.profile.id,
-      temp_password_set_at: new Date().toISOString()
+      temp_password_set_at: null
     }, { onConflict: "id" });
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });

@@ -4,8 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 const accessCookie = "orisus_bfs_access_token";
 const refreshCookie = "orisus_bfs_refresh_token";
 
-const superAdminPaths = ["/dashboard", "/importe", "/nutzer", "/reports", "/standorte"];
-const standortPaths = ["/standort", "/passwort-aendern"];
+const appDashboardPaths = ["/dashboard"];
+const importPaths = ["/importe"];
+const superAdminPaths = ["/nutzer", "/reports", "/standorte"];
+const standortPaths = ["/standort"];
+const passwordPaths = ["/passwort-aendern"];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -42,6 +45,12 @@ export async function proxy(request: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
+  if (appDashboardPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`)) && !["super_admin", "abrechnungsmanagement"].includes(profile.role)) {
+    return redirectToLogin(request, session.response);
+  }
+  if (importPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`)) && !["super_admin", "abrechnungsmanagement"].includes(profile.role)) {
+    return redirectToLogin(request, session.response);
+  }
   if (superAdminPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`)) && profile.role !== "super_admin") {
     return redirectToLogin(request, session.response);
   }
@@ -65,7 +74,7 @@ export const config = {
 };
 
 function isProtectedPath(pathname: string) {
-  return [...superAdminPaths, ...standortPaths].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return [...appDashboardPaths, ...importPaths, ...superAdminPaths, ...standortPaths, ...passwordPaths].some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 async function resolveSession(request: NextRequest, supabaseUrl: string, supabaseAnonKey: string) {

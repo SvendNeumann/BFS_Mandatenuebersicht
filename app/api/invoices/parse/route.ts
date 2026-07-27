@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
+import { isAusfallhonorarDescription } from "@/lib/case-resolution";
 import { parseInvoicePdfBytes, parsePracticeSoftwareInvoicePdfBytes } from "@/lib/invoice-parser";
 import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ParsedInvoiceDocument, ParsedInvoiceLine } from "@/lib/types";
@@ -32,7 +33,7 @@ type InvoicePersistenceResult = {
   errors: Array<{ file: string; message: string }>;
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await getRequestProfile();
     if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -45,7 +46,11 @@ export async function GET() {
       return NextResponse.json({ rows: [] }, { headers: noStoreHeaders() });
     }
 
-    const rows = await fetchPersistedInvoiceRows(supabase, canReadInvoiceAnalysis(auth.profile.role) ? undefined : readableIds);
+    const allowedStandortIds = canReadInvoiceAnalysis(auth.profile.role) ? undefined : readableIds;
+    const scope = request.nextUrl.searchParams.get("scope");
+    const rows = scope === "ausfallhonorar"
+      ? await fetchAusfallhonorarInvoiceRows(supabase, allowedStandortIds)
+      : await fetchPersistedInvoiceRows(supabase, allowedStandortIds);
     return NextResponse.json({ rows }, { headers: noStoreHeaders() });
   } catch (error) {
     return NextResponse.json(
@@ -355,78 +360,171 @@ function invoicePersistenceKey(row: ParsedInvoiceDocument) {
 
 async function fetchPersistedInvoiceRows(supabase: SupabaseDbClient, allowedStandortIds?: Set<string>) {
   const maps = await fetchStandortMaps(supabase);
-  const allInvoices: Array<Record<string, unknown>> = [];
   const standortChunks = allowedStandortIds ? chunkArray([...allowedStandortIds], 100) : [undefined];
-  const invoiceSelect = [
-    "id",
-    "standort_id",
-    "original_filename",
-    "file_hash",
-    "file_size_bytes",
-    "bfs_nr",
-    "mandant_nr",
-    "praxisname",
-    "rechnungsnummer",
-    "rechnungsdatum",
-    "patient_name",
-    "treated_person",
-    "birth_date",
-    "treatment_period",
-    "integration_date",
-    "total_amount",
-    "open_amount",
-    "subsidy_amount",
-    "honorar_bema",
-    "honorar_goz",
-    "eigenlabor_total",
-    "fremdlabor_net",
-    "fremdlabor_gross",
-    "material_auslagen",
-    "has_eigenlabor",
-    "has_fremdlabor",
-    "lab_providers",
-    "parse_status",
-    "parse_notes"
-  ].join(", ");
-
-  for (const standortChunk of standortChunks) {
-    let offset = 0;
-    while (true) {
-      let query = supabase
-        .from("bfs_patient_invoices")
-        .select(invoiceSelect)
-        .order("rechnungsdatum", { ascending: true })
-        .order("created_at", { ascending: true })
-        .range(offset, offset + 999);
-      if (standortChunk) query = query.in("standort_id", standortChunk);
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      allInvoices.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
-      if (!data || data.length < 1000) break;
-      offset += 1000;
-    }
-  }
+  const invoiceGroups = await mapWithConcurrency(standortChunks, 3, (standortChunk) =>
+    fetchInvoiceHeaders(supabase, standortChunk)
+  );
+  const allInvoices = invoiceGroups.flat();
 
   if (!allInvoices.length) return [];
   const linesByInvoiceId = await fetchLinesByInvoiceId(supabase, allInvoices.map((invoice) => String(invoice.id)));
   return allInvoices.map((invoice) => invoiceRowFromDb(invoice, linesByInvoiceId.get(String(invoice.id)) ?? [], maps));
 }
 
+async function fetchInvoiceHeaders(supabase: SupabaseDbClient, standortIds?: string[]) {
+  const pageSize = 1000;
+  const runPage = async (offset: number, withCount = false) => {
+    let query = supabase
+      .from("bfs_patient_invoices")
+      .select(persistedInvoiceSelect, withCount ? { count: "exact" } : undefined)
+      .order("rechnungsdatum", { ascending: true })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (standortIds) query = query.in("standort_id", standortIds);
+    const { data, error, count } = await query;
+    if (error) throw new Error(error.message);
+    return {
+      rows: (data ?? []) as unknown as Array<Record<string, unknown>>,
+      count: count ?? 0
+    };
+  };
+
+  const firstPage = await runPage(0, true);
+  const totalRows = Math.max(firstPage.count, firstPage.rows.length);
+  const remainingOffsets = Array.from(
+    { length: Math.max(0, Math.ceil(totalRows / pageSize) - 1) },
+    (_, index) => (index + 1) * pageSize
+  );
+  const remainingPages = await mapWithConcurrency(remainingOffsets, 6, (offset) => runPage(offset));
+  return [firstPage.rows, ...remainingPages.map((page) => page.rows)].flat();
+}
+
 async function fetchLinesByInvoiceId(supabase: SupabaseDbClient, invoiceIds: string[]) {
   const linesByInvoiceId = new Map<string, Array<Record<string, unknown>>>();
-  for (const chunk of chunkArray(invoiceIds, 200)) {
+  const lineGroups = await mapWithConcurrency(chunkArray(invoiceIds, 200), 6, async (chunk) => {
     const { data, error } = await supabase
       .from("bfs_patient_invoice_lines")
       .select("invoice_id, line_kind, sort_order, line_date, region, code, description, factor, quantity, amount, category, source_section")
       .in("invoice_id", chunk)
       .order("sort_order", { ascending: true });
     if (error) throw new Error(error.message);
-    (data ?? []).forEach((line: Record<string, unknown>) => {
+    return (data ?? []) as unknown as Array<Record<string, unknown>>;
+  });
+  lineGroups.flat().forEach((line) => {
       const invoiceId = String(line.invoice_id);
-      linesByInvoiceId.set(invoiceId, [...(linesByInvoiceId.get(invoiceId) ?? []), line]);
-    });
-  }
+      const invoiceLines = linesByInvoiceId.get(invoiceId);
+      if (invoiceLines) invoiceLines.push(line);
+      else linesByInvoiceId.set(invoiceId, [line]);
+  });
   return linesByInvoiceId;
+}
+
+async function fetchAusfallhonorarInvoiceRows(supabase: SupabaseDbClient, allowedStandortIds?: Set<string>) {
+  const candidateLineGroups = await fetchAusfallhonorarCandidateLines(supabase);
+  const matchingLines = candidateLineGroups.filter((line) =>
+    isAusfallhonorarDescription(`${String(line.code ?? "")} ${String(line.description ?? "")}`)
+  );
+  const invoiceIds = Array.from(new Set(matchingLines.map((line) => String(line.invoice_id)).filter(Boolean)));
+  if (!invoiceIds.length) return [];
+
+  const maps = await fetchStandortMaps(supabase);
+  const invoiceGroups = await mapWithConcurrency(chunkArray(invoiceIds, 200), 6, async (invoiceIdChunk) => {
+    let query = supabase
+      .from("bfs_patient_invoices")
+      .select(persistedInvoiceSelect)
+      .in("id", invoiceIdChunk)
+      .order("rechnungsdatum", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (allowedStandortIds) query = query.in("standort_id", [...allowedStandortIds]);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? []) as unknown as Array<Record<string, unknown>>;
+  });
+  const invoices = invoiceGroups.flat();
+  const allowedInvoiceIds = new Set(invoices.map((invoice) => String(invoice.id)));
+  const linesByInvoiceId = new Map<string, Array<Record<string, unknown>>>();
+  matchingLines.forEach((line) => {
+    const invoiceId = String(line.invoice_id);
+    if (!allowedInvoiceIds.has(invoiceId)) return;
+    const invoiceLines = linesByInvoiceId.get(invoiceId);
+    if (invoiceLines) invoiceLines.push(line);
+    else linesByInvoiceId.set(invoiceId, [line]);
+  });
+  return invoices.map((invoice) => invoiceRowFromDb(invoice, linesByInvoiceId.get(String(invoice.id)) ?? [], maps));
+}
+
+async function fetchAusfallhonorarCandidateLines(supabase: SupabaseDbClient) {
+  const pageSize = 1000;
+  const rows: Array<Record<string, unknown>> = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("bfs_patient_invoice_lines")
+      .select("invoice_id, line_kind, sort_order, line_date, region, code, description, factor, quantity, amount, category, source_section")
+      .eq("line_kind", "service")
+      .or([
+        "code.ilike.%615%",
+        "description.ilike.%ausfall%",
+        "description.ilike.%versäum%",
+        "description.ilike.%versaeum%",
+        "description.ilike.%versaumn%",
+        "description.ilike.%terminvers%"
+      ].join(","))
+      .order("invoice_id", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
+    if (!data || data.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
+}
+
+const persistedInvoiceSelect = [
+  "id",
+  "standort_id",
+  "original_filename",
+  "file_hash",
+  "file_size_bytes",
+  "bfs_nr",
+  "mandant_nr",
+  "praxisname",
+  "rechnungsnummer",
+  "rechnungsdatum",
+  "patient_name",
+  "treated_person",
+  "birth_date",
+  "treatment_period",
+  "integration_date",
+  "total_amount",
+  "open_amount",
+  "subsidy_amount",
+  "honorar_bema",
+  "honorar_goz",
+  "eigenlabor_total",
+  "fremdlabor_net",
+  "fremdlabor_gross",
+  "material_auslagen",
+  "has_eigenlabor",
+  "has_fremdlabor",
+  "lab_providers",
+  "parse_status",
+  "parse_notes"
+].join(", ");
+
+async function mapWithConcurrency<T, R>(values: T[], concurrency: number, mapper: (value: T, index: number) => Promise<R>) {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(values[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 function invoiceRowFromDb(invoice: Record<string, unknown>, lines: Array<Record<string, unknown>>, maps: StandortMaps): ParsedInvoiceDocument {
@@ -532,7 +630,7 @@ async function readableStandortIds(supabase: SupabaseDbClient, userId: string, r
 async function requireInvoiceAnalysisAccess() {
   const result = await getRequestProfile();
   if ("error" in result) return result;
-  if (!canWriteInvoiceAnalysis(result.profile.role)) return { error: "Nur Super Admins dürfen Rechnungen importieren oder ändern.", status: 403 };
+  if (!canWriteInvoiceAnalysis(result.profile.role)) return { error: "Nur Super Admins und Abrechnungsmanagement dürfen Rechnungen importieren oder ändern.", status: 403 };
   return result;
 }
 
@@ -541,7 +639,7 @@ function canReadInvoiceAnalysis(role: string) {
 }
 
 function canWriteInvoiceAnalysis(role: string) {
-  return role === "super_admin";
+  return role === "super_admin" || role === "abrechnungsmanagement";
 }
 
 async function allStandortIds(supabase: SupabaseDbClient): Promise<Set<string>> {

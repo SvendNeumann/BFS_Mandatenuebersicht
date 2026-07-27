@@ -31,7 +31,7 @@ const featureCards = [
   },
   {
     title: "Exporte",
-    text: "PDF- und CSV-Ausgaben sitzen direkt in den passenden Fachansichten und Arbeitslisten.",
+    text: "PDF-Ausgaben sitzen direkt in den passenden Fachansichten und Arbeitslisten.",
     icon: FileText
   }
 ];

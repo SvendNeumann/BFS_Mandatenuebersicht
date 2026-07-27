@@ -14,9 +14,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
-  Download,
   ChevronDown,
-  FileText,
   FolderUp,
   HardDriveUpload,
   Info,
@@ -29,7 +27,9 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
+  Trash2,
   Upload,
   UserRoundCheck,
   Users,
@@ -49,14 +49,17 @@ import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, lo
 import { importRowBusinessIdentity, reconcileImportRows } from "@/lib/import-identity";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys, isAusfallhonorarDescription, normalizeResolutionPart } from "@/lib/case-resolution";
 import {
+  buildInvoiceQualityChainFindings,
   buildInvoiceQualityProfile,
+  buildInvoiceQualityFactorDeviationFindingsFromProfiles,
   buildInvoiceQualityFindingsFromProfiles,
-  createInvoiceQualityCsv,
   filterInvoiceQualityFindings,
-  invoiceQualityDefaultRecommendation,
-  invoiceQualityExportIntro,
+  invoiceQualityClassificationLabel,
+  invoiceQualityChainRules,
+  invoiceQualityChainKpis,
   invoiceQualityKpis,
   invoiceQualityTrendLabel,
+  type InvoiceQualityChainFinding,
   type InvoiceQualityFinding,
   type InvoiceQualityProfile
 } from "@/lib/invoice-quality-analysis";
@@ -91,6 +94,20 @@ const formatFeeRate = (value: number) => `${feeRateNumber.format(Number.isFinite
 const defaultStandorteSnapshot = standorte.map(locationConfigSnapshot);
 const locationConfigStorageKey = "orisus_bfs_monitor_locations";
 const viewStateStorageKey = "orisus_bfs_monitor_view_state";
+const qualityDisclaimer = "Dieser Bereich zeigt statistische Auffälligkeiten im Abrechnungsverhalten im Vergleich zur Gruppe. Er dient ausschließlich als interne Prüf- und Benchmarkinghilfe. Er ersetzt keine fachliche Einzelfallprüfung und begründet keine automatische Abrechnungsempfehlung. Eine Leistung ist nur abrechenbar, wenn sie im konkreten Behandlungsfall tatsächlich erbracht, fachlich indiziert und nachvollziehbar dokumentiert wurde.";
+
+type AiPlausibilityResult = {
+  plausibility: "hoch" | "mittel" | "niedrig" | "unklar";
+  fundamentalPlausibility?: "ja" | "eher_ja" | "kontextabhaengig" | "eher_nein" | "unklar";
+  missingProbability?: "hoch" | "mittel" | "niedrig" | "unklar";
+  missingProbabilityPercent?: number;
+  summary: string;
+  reasons: string[];
+  checkQuestions: string[];
+  documentationHints: string[];
+  cautions: string[];
+  disclaimer: string;
+};
 
 type NavItem = readonly [string, string, LucideIcon];
 type NavSection = {
@@ -147,6 +164,7 @@ const superAdminNavGroups: NavGroup[] = [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
           ["invoicePotential", "Potenzialanalyse", TrendingUp],
+          ["invoiceRiskPatients", "Risikopatienten", AlertTriangle],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
           ["invoiceLocations", "Standortvergleich", Building2]
@@ -168,8 +186,7 @@ const superAdminNavGroups: NavGroup[] = [
         title: "Qualitätssteuerung",
         items: [
           ["billingQualityCockpit", "Qualitätscockpit", LayoutDashboard],
-          ["billingQualityChains", "Leistungsketten", ClipboardList],
-          ["billingQualityFeedback", "Praxis-Feedback", FileText]
+          ["billingQualityChains", "Leistungsketten", ClipboardList]
         ]
       }
     ]
@@ -226,6 +243,7 @@ const leadNavGroups: NavGroup[] = [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
           ["invoicePotential", "Potenzialanalyse", TrendingUp],
+          ["invoiceRiskPatients", "Risikopatienten", AlertTriangle],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
           ["invoiceLocations", "Standortvergleich", Building2]
@@ -247,8 +265,7 @@ const leadNavGroups: NavGroup[] = [
         title: "Qualitätssteuerung",
         items: [
           ["billingQualityCockpit", "Qualitätscockpit", LayoutDashboard],
-          ["billingQualityChains", "Leistungsketten", ClipboardList],
-          ["billingQualityFeedback", "Praxis-Feedback", FileText]
+          ["billingQualityChains", "Leistungsketten", ClipboardList]
         ]
       }
     ]
@@ -268,6 +285,40 @@ const leadNavGroups: NavGroup[] = [
 
 const billingNavGroups: NavGroup[] = [
   {
+    title: "BFS-Abrechnungen",
+    sections: [
+      {
+        title: "Management",
+        items: [
+          ["custom", "Zusammenfassung", BarChart3],
+          ["answers", "Schnellantworten", ClipboardList]
+        ]
+      },
+      {
+        title: "Analyse & Benchmarking",
+        items: [
+          ["benchmark", "Standorte", Building2],
+          ["claims", "Standortdetails", ReceiptText],
+          ["cashflow", "Forderungen und Geldfluss", CircleDollarSign],
+          ["quality", "Forderungsqualität", ShieldCheck],
+          ["patientClasses", "Patientenklassifizierung", Users]
+        ]
+      },
+      {
+        title: "Operative Fallarbeit",
+        items: [
+          ["practiceFollowup", "Prüfliste", ClipboardCheck]
+        ]
+      },
+      {
+        title: "Import & Prüfung",
+        items: [
+          ["upload", "Import-Center Abrechnung", FolderUp]
+        ]
+      }
+    ]
+  },
+  {
     title: "BFS-Rechnungsanalyse",
     sections: [
       {
@@ -276,6 +327,7 @@ const billingNavGroups: NavGroup[] = [
           ["invoiceServices", "Leistungsübersicht", BarChart3],
           ["invoiceBenchmark", "Benchmarking", ClipboardList],
           ["invoicePotential", "Potenzialanalyse", TrendingUp],
+          ["invoiceRiskPatients", "Risikopatienten", AlertTriangle],
           ["invoiceTrends", "Faktor-Trend", TrendingUp],
           ["invoicePatients", "Patientenprofil", Users],
           ["invoiceLocations", "Standortvergleich", Building2]
@@ -284,6 +336,7 @@ const billingNavGroups: NavGroup[] = [
       {
         title: "Import & Prüfung",
         items: [
+          ["invoiceImport", "Import-Center Rechnungen", FolderUp],
           ["invoiceCatalog", "Katalogprüfung", ClipboardCheck]
         ]
       },
@@ -296,8 +349,7 @@ const billingNavGroups: NavGroup[] = [
         title: "Qualitätssteuerung",
         items: [
           ["billingQualityCockpit", "Qualitätscockpit", LayoutDashboard],
-          ["billingQualityChains", "Leistungsketten", ClipboardList],
-          ["billingQualityFeedback", "Praxis-Feedback", FileText]
+          ["billingQualityChains", "Leistungsketten", ClipboardList]
         ]
       }
     ]
@@ -361,6 +413,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   const [sessionChecked, setSessionChecked] = useState(false);
   const appDataLoaded = true;
   const role = lockedRole ?? session?.role ?? "super_admin";
+  const hasGroupAccess = role === "super_admin" || role === "abrechnungsmanagement";
   const [activeView, setActiveView] = useState(() => {
     const storedView = readStoredViewState()?.activeView;
     if (storedView && isKnownViewForRole(storedView, role)) return storedView;
@@ -370,7 +423,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   const [, setLocationConfigVersion] = useState(0);
   const [selectedStandortId, setSelectedStandortId] = useState(() => {
     const storedStandortId = readStoredViewState()?.selectedStandortId;
-    return storedStandortId && isKnownStandortScopeForRole(storedStandortId, role) ? storedStandortId : role === "super_admin" ? "gruppe" : standorte[0].id;
+    return storedStandortId && isKnownStandortScopeForRole(storedStandortId, role) ? storedStandortId : hasGroupAccess ? "gruppe" : standorte[0].id;
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -378,10 +431,12 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   const [liveImportRows, setLiveImportRows] = useState<ImportPreviewRow[]>([]);
   const [importRowsHydrating, setImportRowsHydrating] = useState(true);
   const [invoiceRows, setInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
+  const [operationalInvoiceRows, setOperationalInvoiceRows] = useState<ParsedInvoiceDocument[]>([]);
   const [invoiceCatalogMappings, setInvoiceCatalogMappings] = useState<InvoiceCatalogMapping[]>([]);
   const [invoiceStatusDocuments, setInvoiceStatusDocuments] = useState<ParsedInvoiceStatusDocument[]>([]);
   const [manualCaseResolutions, setManualCaseResolutions] = useState<ManualCaseResolution[]>([]);
   const [invoiceRowsLoaded, setInvoiceRowsLoaded] = useState(false);
+  const [operationalInvoiceRowsLoaded, setOperationalInvoiceRowsLoaded] = useState(false);
   const [invoiceStatusLoaded, setInvoiceStatusLoaded] = useState(false);
   const [caseResolutionsLoaded, setCaseResolutionsLoaded] = useState(false);
   const [caseToResolve, setCaseToResolve] = useState<BfsCase | null>(null);
@@ -392,29 +447,31 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   const [perfMetrics, setPerfMetrics] = useState<PerfMetric[]>([]);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const invoiceRowsLoadRef = useRef<Promise<void> | null>(null);
+  const operationalInvoiceRowsLoadRef = useRef<Promise<void> | null>(null);
   const perfDiagnosticsEnabledRef = useRef(false);
   const perfBootStartedAtRef = useRef<number | null>(null);
   const permittedStandorte = useMemo(() => permittedStandorteForRole(role, session), [role, session]);
   const selectedStandort = permittedStandorte.find((standort) => standort.id === selectedStandortId) ?? permittedStandorte[0] ?? standorte[0];
-  const isGroupScope = role === "super_admin" && selectedStandortId === "gruppe";
+  const isGroupScope = hasGroupAccess && selectedStandortId === "gruppe";
   const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
-  const hasAssignedStandort = role === "super_admin" || permittedStandorte.length > 0;
+  const hasAssignedStandort = hasGroupAccess || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
   const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
-  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "billingQualityFeedback", "locations", "users", "settings"];
-  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "billingQualityFeedback"];
+  const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceRiskPatients", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "locations", "users", "settings"];
+  const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceRiskPatients", "invoiceLocations", "billingQualityCockpit", "billingQualityChains"];
   const pageScopeLabel = role === "abrechnungsmanagement"
     ? "BFS-Rechnungsanalyse"
-    : role === "super_admin" && (isGroupScope || groupLevelViews.includes(activeView))
+    : hasGroupAccess && (isGroupScope || groupLevelViews.includes(activeView))
     ? "Alle Standorte"
     : selectedStandort.name;
   const showNoUploadData = !importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView);
   const usesOperationalResolutionMetrics = activeView === "dashboard" || activeView === "custom" || activeView === "answers" || activeView === "benchmark" || activeView === "quality" || activeView === "claims" || activeView === "cashflow" || activeView === "cases" || activeView === "practiceFollowup";
   const needsOperationalCases = activeView === "answers" || activeView === "cases" || activeView === "practiceFollowup";
-  const needsInvoiceRowsForAusfallhonorarRule = hasUploadData && usesOperationalResolutionMetrics;
+  const needsOperationalInvoiceRows = hasUploadData && usesOperationalResolutionMetrics;
+  const invoiceRowsForOperationalMetrics = invoiceRowsLoaded ? invoiceRows : operationalInvoiceRows;
   const effectiveManualCaseResolutions = useMemo(
-    () => buildAusfallhonorarAutoCancelledResolutions(privacyScopedImportRows, invoiceRows, invoiceStatusRows, manualCaseResolutions),
-    [invoiceRows, invoiceStatusRows, manualCaseResolutions, privacyScopedImportRows]
+    () => buildAusfallhonorarAutoCancelledResolutions(privacyScopedImportRows, invoiceRowsForOperationalMetrics, invoiceStatusRows, manualCaseResolutions),
+    [invoiceRowsForOperationalMetrics, invoiceStatusRows, manualCaseResolutions, privacyScopedImportRows]
   );
   const operationalReviewCases = useMeasuredMemo(
     "App operative Fallliste",
@@ -525,7 +582,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   }, []);
 
   useEffect(() => {
-    if (!(isInvoiceAnalysisView(activeView) || needsInvoiceRowsForAusfallhonorarRule) || invoiceRowsLoaded || invoiceRowsLoadRef.current) return;
+    if (!requiresFullInvoiceRows(activeView) || invoiceRowsLoaded || invoiceRowsLoadRef.current) return;
     let active = true;
     const invoiceRowsStartedAt = performance.now();
     const loadPromise = loadConfirmedInvoiceRows({ forceServer: shouldLoadDatasetFromServer(appCacheKeys.invoiceRows) })
@@ -544,13 +601,35 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
     return () => {
       active = false;
     };
-  }, [activeView, invoiceRowsLoaded, needsInvoiceRowsForAusfallhonorarRule]);
+  }, [activeView, invoiceRowsLoaded]);
 
   useEffect(() => {
-    if (!isInvoiceAnalysisView(activeView)) return;
+    if (!needsOperationalInvoiceRows || operationalInvoiceRowsLoaded || operationalInvoiceRowsLoadRef.current || invoiceRowsLoaded) return;
+    let active = true;
+    const operationalInvoiceRowsStartedAt = performance.now();
+    const loadPromise = loadOperationalInvoiceRows({ forceServer: shouldLoadDatasetFromServer(appCacheKeys.operationalInvoiceRows) })
+      .then((rows) => {
+        if (active) startTransition(() => setOperationalInvoiceRows(rows));
+        recordPerfMetric("Ausfallhonorar-Rechnungen", operationalInvoiceRowsStartedAt, `${integerNumber.format(rows.length)} relevante Rechnungen`);
+      })
+      .catch((error) => {
+        recordPerfMetric("Ausfallhonorar-Rechnungen Fehler", operationalInvoiceRowsStartedAt, error instanceof Error ? error.message : "unbekannter Fehler");
+      })
+      .finally(() => {
+        if (active) setOperationalInvoiceRowsLoaded(true);
+        operationalInvoiceRowsLoadRef.current = null;
+      });
+    operationalInvoiceRowsLoadRef.current = loadPromise;
+    return () => {
+      active = false;
+    };
+  }, [invoiceRowsLoaded, needsOperationalInvoiceRows, operationalInvoiceRowsLoaded]);
+
+  useEffect(() => {
+    if (!requiresFullInvoiceRows(activeView)) return;
     let active = true;
     const catalogStartedAt = performance.now();
-    loadInvoiceCatalogMappings()
+    loadInvoiceCatalogMappings({ forceServer: shouldLoadDatasetFromServer(appCacheKeys.invoiceCatalogMappings) })
       .then((mappings) => {
         if (active) setInvoiceCatalogMappings(mappings);
         recordPerfMetric("Katalog-Mappings geladen", catalogStartedAt, `${integerNumber.format(mappings.length)} Regeln`);
@@ -583,7 +662,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   }, [activeView, role]);
 
   useEffect(() => {
-    if (role !== "super_admin" && permittedStandorte.length && !permittedStandorte.some((standort) => standort.id === selectedStandortId)) {
+    if (!hasGroupAccess && permittedStandorte.length && !permittedStandorte.some((standort) => standort.id === selectedStandortId)) {
       setSelectedStandortId(permittedStandorte[0].id);
       return;
     }
@@ -606,7 +685,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
     return <AccessGate title="Kein Standort zugeordnet." message="Deinem Nutzer ist aktuell kein Standort freigegeben. Bitte die Nutzerverwaltung prüfen." />;
   }
 
-  if (!appDataLoaded || (importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView)) || (isInvoiceAnalysisView(activeView) && !invoiceRowsLoaded) || (needsOperationalCases && (!caseResolutionsLoaded || !invoiceStatusLoaded))) {
+  if (!appDataLoaded || (importRowsHydrating && !hasUploadData && !emptyDataAllowedViews.includes(activeView)) || (requiresFullInvoiceRows(activeView) && !invoiceRowsLoaded) || (needsOperationalCases && (!caseResolutionsLoaded || !invoiceStatusLoaded || (!operationalInvoiceRowsLoaded && !invoiceRowsLoaded)))) {
     return <AppLoadingScreen title="Dashboard wird geladen" message="Importdaten, Rechnungen, Fallstände, Saldo-Status und Standortfilter werden synchronisiert." />;
   }
 
@@ -624,8 +703,8 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
 
   function goToCockpit() {
     const defaultView = defaultViewForRole(role);
-    if (!(activeView === defaultView && (role !== "super_admin" || selectedStandortId === "gruppe"))) pushCurrentViewToHistory();
-    if (role === "super_admin") setSelectedStandortId("gruppe");
+    if (!(activeView === defaultView && (!hasGroupAccess || selectedStandortId === "gruppe"))) pushCurrentViewToHistory();
+    if (hasGroupAccess) setSelectedStandortId("gruppe");
     setActiveView(defaultView);
     setMobileNavOpen(false);
     openNavSectionForView(defaultView);
@@ -645,10 +724,10 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
     const previous = viewHistory[viewHistory.length - 1];
     if (!previous) return;
     setViewHistory((current) => current.slice(0, -1));
-    const nextStandortId = role !== "super_admin" && previous.selectedStandortId === "gruppe"
+    const nextStandortId = !hasGroupAccess && previous.selectedStandortId === "gruppe"
       ? permittedStandorte[0]?.id ?? selectedStandort.id
       : previous.selectedStandortId;
-    setSelectedStandortId(isKnownStandortScopeForRole(nextStandortId, role) ? nextStandortId : role === "super_admin" ? "gruppe" : permittedStandorte[0]?.id ?? selectedStandort.id);
+    setSelectedStandortId(isKnownStandortScopeForRole(nextStandortId, role) ? nextStandortId : hasGroupAccess ? "gruppe" : permittedStandorte[0]?.id ?? selectedStandort.id);
     setActiveView(isKnownViewForRole(previous.activeView, role) ? previous.activeView : defaultViewForRole(role));
     setMobileNavOpen(false);
     openNavSectionForView(previous.activeView);
@@ -712,8 +791,8 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
     window.location.reload();
   }
 
-  const tabFilterStandort = role === "super_admin" ? undefined : selectedStandort;
-  const operativeCases = role === "super_admin" ? operationalReviewCases : visibleOperationalReviewCases;
+  const tabFilterStandort = hasGroupAccess ? undefined : selectedStandort;
+  const operativeCases = hasGroupAccess ? operationalReviewCases : visibleOperationalReviewCases;
 
   return (
     <main className={mobileNavOpen ? "app-shell nav-open" : "app-shell"}>
@@ -810,13 +889,13 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
         ) : (
           <>
             {activeView === "dashboard" && (
-              role === "super_admin" && isGroupScope
+              hasGroupAccess && isGroupScope
                 ? <GroupDashboard importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
                 : <LocationDashboard standort={selectedStandort} onNavigate={navigateTo} onScopeChange={setSelectedStandortId} importRows={privacyScopedImportRows} peerImportRows={liveImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />
             )}
-            {activeView === "custom" && <CustomKpiView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "answers" && <AnswerCockpit scope={role === "super_admin" ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
-            {activeView === "benchmark" && role === "super_admin" && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "custom" && <CustomKpiView standort={hasGroupAccess ? undefined : selectedStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "answers" && <AnswerCockpit scope={hasGroupAccess ? "group" : "location"} standort={tabFilterStandort} cases={operativeCases} onNavigate={navigateTo} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
+            {activeView === "benchmark" && hasGroupAccess && <BenchmarkView importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "quality" && <QualityView standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "claims" && <ClaimsFlowView mode="details" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
             {activeView === "cashflow" && <ClaimsFlowView mode="cashflow" standort={tabFilterStandort} importRows={privacyScopedImportRows} manualCaseResolutions={effectiveManualCaseResolutions} invoiceStatusRows={invoiceStatusRows} />}
@@ -828,20 +907,20 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
             {activeView === "invoiceTrends" && <InvoiceTrendView invoiceRows={invoiceRows} />}
             {activeView === "invoicePatients" && <InvoicePatientValueView invoiceRows={invoiceRows} />}
             {activeView === "invoicePotential" && <InvoicePotentialView invoiceRows={invoiceRows} />}
+            {activeView === "invoiceRiskPatients" && <InvoiceRiskPatientsView importRows={privacyScopedImportRows} />}
             {activeView === "invoiceLocations" && <InvoiceLocationsView invoiceRows={invoiceRows} />}
             {activeView === "billingQualityCockpit" && <BillingQualityView invoiceRows={invoiceRows} mode="cockpit" />}
             {activeView === "billingQualityChains" && <BillingQualityView invoiceRows={invoiceRows} mode="chains" />}
-            {activeView === "billingQualityFeedback" && <BillingQualityView invoiceRows={invoiceRows} mode="feedback" />}
             {(activeView === "cases" || activeView === "practiceFollowup") && (
               <CasesView
                 title="Prüfliste offene Fälle"
                 description="Eine gemeinsame Arbeitsliste für alle noch zu prüfenden Abzüge. Die Praxis hakt je Fall ab: bezahlt/geklärt, neu eingereicht oder endgültig storniert."
-                cases={role === "super_admin" ? operationalReviewCases : visibleOperationalReviewCases}
+                cases={hasGroupAccess ? operationalReviewCases : visibleOperationalReviewCases}
                 importRows={privacyScopedImportRows}
-                invoiceRows={invoiceRows}
+                invoiceRows={invoiceRowsForOperationalMetrics}
                 invoiceStatusRows={invoiceStatusRows}
                 manualCaseResolutions={effectiveManualCaseResolutions}
-                allowedStandortIds={role === "super_admin" ? undefined : [selectedStandort.id]}
+                allowedStandortIds={hasGroupAccess ? undefined : [selectedStandort.id]}
                 onResolvePaid={resolveCaseAsPaid}
                 onResolveResubmitted={resolveCaseAsResubmitted}
                 onCancelFinal={cancelCaseFinally}
@@ -851,7 +930,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
             )}
             {activeView === "risks" && <RiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
             {activeView === "repeatRisks" && <RecurringRiskView standortId={tabFilterStandort?.id} importRows={privacyScopedImportRows} />}
-            {activeView === "patientClasses" && <PatientClassificationView standort={role === "super_admin" ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
+            {activeView === "patientClasses" && <PatientClassificationView standort={hasGroupAccess ? undefined : selectedStandort} importRows={privacyScopedImportRows} />}
             {activeView === "locations" && <LocationsView onLocationsChange={() => setLocationConfigVersion((version) => version + 1)} />}
             {activeView === "users" && <UsersView />}
             {activeView === "settings" && <SettingsView />}
@@ -974,7 +1053,7 @@ function permittedStandorteForRole(role: AppRole, session: DemoSession | null) {
 }
 
 function scopeImportRowsForRole(rows: ImportPreviewRow[], role: AppRole, permittedStandorte: Standort[]) {
-  if (role === "super_admin") return rows;
+  if (role === "super_admin" || role === "abrechnungsmanagement") return rows;
   const permittedNames = new Set(permittedStandorte.map((standort) => standort.name));
   return rows.filter((row) => permittedNames.has(row.location));
 }
@@ -1098,7 +1177,11 @@ function roleLabel(role: AppRole) {
 }
 
 function isInvoiceAnalysisView(view: string) {
-  return view === "invoiceImport" || view === "invoiceServices" || view === "invoiceCatalog" || view === "invoiceBenchmark" || view === "invoiceTrends" || view === "invoicePatients" || view === "invoicePotential" || view === "invoiceLocations" || view === "billingQualityCockpit" || view === "billingQualityChains" || view === "billingQualityFeedback";
+  return view === "invoiceImport" || view === "invoiceServices" || view === "invoiceCatalog" || view === "invoiceBenchmark" || view === "invoiceTrends" || view === "invoicePatients" || view === "invoicePotential" || view === "invoiceRiskPatients" || view === "invoiceLocations" || view === "billingQualityCockpit" || view === "billingQualityChains";
+}
+
+function requiresFullInvoiceRows(view: string) {
+  return isInvoiceAnalysisView(view) && view !== "invoiceRiskPatients";
 }
 
 function isKnownStandortScope(standortId: string) {
@@ -1106,7 +1189,7 @@ function isKnownStandortScope(standortId: string) {
 }
 
 function isKnownStandortScopeForRole(standortId: string, role: AppRole) {
-  if (role !== "super_admin" && standortId === "gruppe") return false;
+  if (!["super_admin", "abrechnungsmanagement"].includes(role) && standortId === "gruppe") return false;
   return isKnownStandortScope(standortId);
 }
 
@@ -1128,10 +1211,10 @@ function titleFor(view: string) {
     invoiceTrends: "Faktor-Trend",
     invoicePatients: "Patientenprofil",
     invoicePotential: "Potenzialanalyse",
+    invoiceRiskPatients: "Risikopatienten",
     invoiceLocations: "Standortvergleich",
     billingQualityCockpit: "Qualitätscockpit",
     billingQualityChains: "Leistungsketten",
-    billingQualityFeedback: "Praxis-Feedback",
     cases: "Prüfliste",
     practiceFollowup: "Prüfliste",
     risks: "Laufend ohne Ausfallschutz",
@@ -5059,32 +5142,35 @@ function casesFromImportRows(rows: ImportPreviewRow[]): BfsCase[] {
   return cases;
 }
 
-function buildAusfallhonorarAutoCancelledResolutions(importRows: ImportPreviewRow[], invoiceRows: ParsedInvoiceDocument[], invoiceStatusRows: ParsedInvoiceStatusRow[] = [], manualCaseResolutions: ManualCaseResolution[] = []) {
+function buildAusfallhonorarAutoCancelledResolutions(importRows: ImportPreviewRow[], invoiceRows: ParsedInvoiceDocument[], invoiceStatusRows: ParsedInvoiceStatusRow[] = [], manualCaseResolutions: ManualCaseResolution[] = []): ManualCaseResolution[] {
   if (!invoiceRows.length || !importRows.length) return manualCaseResolutions;
   const statusRowsByKey = new Map<string, ParsedInvoiceStatusRow>();
   invoiceStatusRows.forEach((row) => invoiceStatusMatchKeys(row).forEach((key) => statusRowsByKey.set(key, row)));
-  const ausfallhonorarInvoices = invoiceRows
-    .filter(invoiceHasAusfallhonorarLine)
-    .filter((invoice) => !ausfallhonorarInvoiceHasRecognizedPayment(invoice, statusRowsByKey));
+  const ausfallhonorarInvoices = invoiceRows.filter(invoiceHasAusfallhonorarLine);
   if (!ausfallhonorarInvoices.length) return manualCaseResolutions;
 
   const existingCancelledIdentityKeys = buildClosedResolutionKeySet(manualCaseResolutions);
   const autoResolutions = casesFromImportRows(importRows)
     .filter((fall) => !caseOperationalResolutionKeys(fall).some((key) => existingCancelledIdentityKeys.has(key)))
-    .filter((fall) => ausfallhonorarInvoices.some((invoice) => caseMatchesAusfallhonorarInvoice(fall, invoice)))
-    .map((fall) => ({
-      caseKey: caseResolutionKey(fall),
-      standortId: fall.standortId,
-      patientName: fall.patientName,
-      invoiceNo: fall.invoiceNo,
-      bfsNo: fall.bfsNo,
-      amount: fall.amount,
-      reason: fall.reason,
-      status: "cancelled_manual" as const,
-      comment: "Systemregel: Leistungsbeschreibung enthält Ausfallhonorar.",
-      resolvedAt: "system:ausfallhonorar",
-      resolvedBy: "Systemregel"
-    }));
+    .map((fall): ManualCaseResolution | null => {
+      const invoice = ausfallhonorarInvoices.find((entry) => caseMatchesAusfallhonorarInvoice(fall, entry));
+      if (!invoice) return null;
+      const paid = ausfallhonorarInvoiceHasRecognizedPayment(invoice, statusRowsByKey);
+      return {
+        caseKey: caseResolutionKey(fall),
+        standortId: fall.standortId,
+        patientName: fall.patientName,
+        invoiceNo: fall.invoiceNo,
+        bfsNo: fall.bfsNo,
+        amount: fall.amount,
+        reason: fall.reason,
+        status: paid ? "paid_manual" as const : "cancelled_manual" as const,
+        comment: paid ? "Systemregel: Ausfallhonorar laut Saldoliste bezahlt/gesichert." : "Systemregel: Leistungsbeschreibung enthält Ausfallhonorar.",
+        resolvedAt: paid ? "system:ausfallhonorar-paid" : "system:ausfallhonorar",
+        resolvedBy: "Systemregel"
+      };
+    })
+    .filter((resolution): resolution is ManualCaseResolution => Boolean(resolution));
 
   return autoResolutions.length ? [...manualCaseResolutions, ...autoResolutions] : manualCaseResolutions;
 }
@@ -5104,8 +5190,7 @@ function caseMatchesAusfallhonorarInvoice(fall: BfsCase, invoice: ParsedInvoiceD
   if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && sameResolvedField(fall.patientName, invoice.patientName)) return true;
   if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && (!invoice.standortId || invoice.standortId === fall.standortId)) return true;
   return sameResolvedField(fall.patientName, invoice.patientName)
-    && (!invoice.standortId || invoice.standortId === fall.standortId)
-    && Math.abs(Math.abs(fall.amount) - Math.abs(invoice.totalAmount)) < 0.01;
+    && (!invoice.standortId || invoice.standortId === fall.standortId);
 }
 
 function sameResolvedField(left: string | undefined, right: string | undefined) {
@@ -6641,8 +6726,6 @@ function UploadView({
         <PriorityCard label="Statuszeilen" value={integerNumber.format(isStatusProcessing ? selectedStatusFileCount : statusRows.length)} hint={isStatusProcessing ? "Listen werden gelesen" : hasPendingStatusImport ? "Vorschau aus Saldo-Listen" : "bestätigte Saldo-Listen"} tone="blue" />
         <PriorityCard label="Standorte erkannt" value={`${statusSummary.coveredStandortCount}/${standorte.length}`} hint={statusSummary.unknownMandantCount ? `${integerNumber.format(statusSummary.unknownMandantCount)} Zeilen ohne Standort` : "über Mandant-Nr. zugeordnet"} tone={statusSummary.coveredStandortCount === standorte.length && !statusSummary.unknownMandantCount ? "green" : "amber"} />
         <PriorityCard label="Brutto-Prüfbasis" value={integerNumber.format(statusSummary.importCaseCount)} hint="Storno/Rückgabe aus Abrechnung" tone="amber" info="Grundmenge aus dem Abrechnungsimport. Die Saldo-Liste hilft zu erkennen, was bereits geregelt ist und was in die offene Prüfliste wandert." />
-        <PriorityCard label="Ratenplan erkannt" value={integerNumber.format(statusSummary.correctedCaseCount)} hint="RP-Treffer in Prüffällen" tone="green" info="Nur Ratenplan gilt in der offenen Abzugslogik automatisch als geregelt. Saldo 0 allein ist kein Zahlungsnachweis." />
-        <PriorityCard label="Ratenplan mit Storno-Bezug" value={integerNumber.format(statusSummary.cancelledCorrectedCaseCount)} hint="RP bei Storno-/Rückgabefall" tone={statusSummary.cancelledCorrectedCaseCount ? "amber" : "green"} info="Diese Storno-/Rückgabefälle haben einen Ratenplan und gelten daher als wirtschaftlich geregelt. Saldo 0 ohne Ratenplan bleibt prüfpflichtig." />
         <PriorityCard label="Ratenplan-Status" value={integerNumber.format(statusSummary.autoResolvedCount)} hint="RP laut Saldo-Liste" tone="green" info="Reiner BFS-Status aus der Saldo-Liste: Ratenplan ist geregelt. Saldo 0 wird hier nicht als bezahlt gezählt." />
         <PriorityCard label="BFS kritisch offen" value={integerNumber.format(statusSummary.criticalOpenCount)} hint={money.format(statusSummary.criticalOpenSaldo)} tone="red" info="Saldo in der BFS-Liste ist negativ und es gibt keinen Ratenplan. Das bleibt ein offenes BFS-Zahlungsrisiko." />
         <PriorityCard label="Mahnstufen kritisch" value={integerNumber.format(statusSummary.criticalReminderCount)} hint="MS > 0 ohne RP" tone="amber" />
@@ -6976,28 +7059,6 @@ function buildInvoiceStatusReviewBasket(rows: ParsedInvoiceStatusRow[], importRo
         source: "Abrechnungsimport",
         sourceDate: fall.sourceDate,
         nextStep: "Prüfen, warum der Abrechnungsfall in der aktuellen Saldo-Liste fehlt."
-      });
-    });
-
-  importCases
-    .filter((fall) => isStornoClarificationCase(fall) && !isNoProtectionReturnCase(fall))
-    .forEach((fall) => {
-      const statusRow = caseInvoiceMatchKeys(fall).map((key) => statusRowsByKey.get(key)).find(Boolean);
-      if (!statusRow || !isInvoiceStatusAutoResolved(statusRow)) return;
-      items.push({
-        id: `saldo-economic-check-${fall.id}`,
-        category: "economic_check",
-        categoryLabel: "Beleg prüfen",
-        standortId: fall.standortId,
-        locationName: fall.locationName,
-        patientName: fall.patientName,
-        invoiceNo: fall.invoiceNo,
-        bfsNo: fall.bfsNo,
-        amount: fall.amount,
-        detail: `${fall.reason}; ${invoiceStatusLabel(statusRow)} mit Saldo ${money.format(statusRow.saldo)}`,
-        source: "Abrechnung + Saldo-Liste",
-        sourceDate: fall.sourceDate,
-        nextStep: "BFS ist geschlossen; Zahlung, Neueinreichung oder Storno-Grund wirtschaftlich belegen."
       });
     });
 
@@ -7765,7 +7826,7 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
             <Printer size={16} /> PDF Export
           </button>
         </div>
-        <section className="priority-grid invoice-service-kpi-grid">
+        <section className="priority-grid invoice-service-kpi-grid chain-mobile-secondary">
           <PriorityCard label="Katalogisiert" value={formatPercent(kpis.matchRate)} hint={`${integerNumber.format(kpis.known)} von ${integerNumber.format(kpis.total)} Positionen`} tone={kpis.review ? "amber" : "green"} />
           <PriorityCard label="Automatisch korrigiert" value={integerNumber.format(kpis.corrected)} hint="eindeutige Synonyme/OCR-Fälle" tone={kpis.corrected ? "green" : "blue"} />
           <PriorityCard label="Zu prüfen" value={integerNumber.format(kpis.review)} hint="kein eindeutiger Katalogtreffer" tone={kpis.review ? "amber" : "green"} />
@@ -8605,14 +8666,15 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
       </section>
       <div className="content-stack invoice-potential-report" ref={reportExportRef}>
         <section className="priority-grid">
-          <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" tone={totalPotential ? "green" : "blue"} />
-          <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" tone={monthlyPotential ? "green" : "blue"} />
-          <PriorityCard label="Potenzial p. Jahr" value={money.format(annualPotential)} hint="aus Zeitraum hochgerechnet" tone={annualPotential ? "green" : "blue"} info="Jahreswert aus dem aktuellen Zeitraum. Bei Jahresauswahl entspricht er im Wesentlichen dem Zeitraumwert." />
-          <PriorityCard label="Unter Benchmark" value={integerNumber.format(underBenchmarkRows)} hint="Leistungsnummern" tone={underBenchmarkRows ? "amber" : "green"} />
+          <PriorityCard label="Potenzial Zeitraum" value={money.format(totalPotential)} hint="gegen Gruppenschnitt" period={selectedPeriod.label} tone={totalPotential ? "green" : "blue"} />
+          <PriorityCard label="Potenzial p. Monat" value={money.format(monthlyPotential)} hint="hochgerechnet" period={selectedPeriod.label} tone={monthlyPotential ? "green" : "blue"} />
+          <PriorityCard label="Potenzial p. Jahr" value={money.format(annualPotential)} hint="aus Zeitraum hochgerechnet" period={selectedPeriod.label} tone={annualPotential ? "green" : "blue"} info="Jahreswert aus dem aktuellen Zeitraum. Bei Jahresauswahl entspricht er im Wesentlichen dem Zeitraumwert." />
+          <PriorityCard label="Unter Benchmark" value={integerNumber.format(underBenchmarkRows)} hint="Leistungsnummern" period={selectedPeriod.label} tone={underBenchmarkRows ? "amber" : "green"} />
           <PriorityCard
             label="Top-Hebel"
             value={topLever?.code ?? "-"}
             hint={topLever ? `Potenzial ${money.format(topLever.potential)} · Ø ${feeRateNumber.format(topLever.avgFactor)} statt ${feeRateNumber.format(topLever.groupAvgFactor)}` : "kein Potenzial"}
+            period={selectedPeriod.label}
             tone={topLever?.potential ? "green" : "blue"}
             info={topLever ? `${topLever.code}: ${topLever.description}. Das Potenzial beschreibt den geschätzten Mehrumsatz im gewählten Zeitraum, wenn der eigene Durchschnittsfaktor dieser Position den Gruppenschnitt ohne diesen Standort erreichen würde.` : undefined}
           />
@@ -8620,6 +8682,7 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
             label="Größte Faktor-Lücke"
             value={biggestFactorGap?.code ?? "-"}
             hint={biggestFactorGap ? `${formatFactorDelta(biggestFactorGap.factorDelta ?? 0)} · Ø ${feeRateNumber.format(biggestFactorGap.avgFactor)} statt ${feeRateNumber.format(biggestFactorGap.groupAvgFactor)}` : "keine Abweichung"}
+            period={selectedPeriod.label}
             tone={biggestFactorGap ? "amber" : "blue"}
             info={biggestFactorGap ? `${biggestFactorGap.code}: ${biggestFactorGap.description}. Zeigt die Position mit der größten negativen Faktorabweichung zum Gruppenschnitt, unabhängig vom Euro-Potenzial.` : undefined}
           />
@@ -8657,6 +8720,193 @@ function InvoicePotentialView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
                     <td><strong>{money.format(row.potential)}</strong></td>
                   </tr>
                 )) : <EmptyTableRow colSpan={6} label="Noch kein Potenzial im gewählten Filter." />}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+type InvoiceRiskPatientStatus = "kritisch" | "beobachten" | "geklaert";
+
+type InvoiceRiskPatientRow = {
+  id: string;
+  patientName: string;
+  standortId: string;
+  standortName: string;
+  status: InvoiceRiskPatientStatus;
+  statusLabel: string;
+  recommendation: string;
+  reasons: string[];
+  claimCount: number;
+  invoiceNos: string[];
+  bfsNos: string[];
+  totalAmount: number;
+  eventAmount: number;
+  lastClaim: RiskClaim;
+  lastDate: Date | null;
+  lastDateLabel: string;
+  daysSinceLastInvoice: number | null;
+};
+
+function InvoiceRiskPatientsView({ importRows = [] }: { importRows?: ImportPreviewRow[] }) {
+  const reportExportRef = useRef<HTMLDivElement | null>(null);
+  const periodOptions = useMemo(() => buildCashflowPeriods(), []);
+  const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
+  const [selectedStandortId, setSelectedStandortId] = useState("alle");
+  const [statusFilter, setStatusFilter] = useState<"kritisch" | "beobachten" | "geklaert" | "alle">("kritisch");
+  const [searchTerm, setSearchTerm] = useState("");
+  const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
+  const availableStandorte = useMemo(() => orderedStandorte().filter((standort) => importRows.some((row) => row.location === standort.name)), [importRows]);
+  const selectedStandort = availableStandorte.find((standort) => standort.id === selectedStandortId);
+  const scopedRows = useMemo(() => importRows.filter((row) => {
+    const rowStandort = standorte.find((entry) => entry.name === row.location);
+    if (!rowStandort) return false;
+    if (selectedStandort && rowStandort.id !== selectedStandort.id) return false;
+    return importRowInPeriod(row, selectedPeriod, rowStandort);
+  }), [importRows, selectedPeriod, selectedStandort]);
+  const riskPatients = useMemo(() => buildInvoiceRiskPatientRows(scopedRows), [scopedRows]);
+  const query = normalizeSearchQuery(searchTerm);
+  const filteredPatients = useMemo(() => riskPatients
+    .filter((patient) => statusFilter === "alle" || patient.status === statusFilter)
+    .filter((patient) => !query || searchHaystack(
+      patient.patientName,
+      patient.standortName,
+      patient.invoiceNos.join(" "),
+      patient.bfsNos.join(" "),
+      patient.reasons.join(" "),
+      patient.statusLabel
+    ).includes(query)), [riskPatients, statusFilter, query]);
+  const criticalPatients = riskPatients.filter((patient) => patient.status === "kritisch");
+  const watchPatients = riskPatients.filter((patient) => patient.status === "beobachten");
+  const clearedPatients = riskPatients.filter((patient) => patient.status === "geklaert");
+  const criticalAmount = criticalPatients.reduce((sum, patient) => sum + patient.eventAmount, 0);
+  const latestRiskDate = riskPatients.map((patient) => patient.lastDate).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0];
+  const scopeLabel = selectedStandort?.name ?? "Alle Standorte";
+  const pdfTitle = `Risikopatienten · ${scopeLabel} · ${selectedPeriod.label}`;
+
+  return (
+    <div className="content-stack invoice-risk-patients-view">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">BFS-Rechnungsanalyse</span>
+            <h2>Risikopatienten</h2>
+            <p>Liste der Patienten ohne Ausfallschutz mit offenen oder auffälligen Zahlungs-, Storno-, Rückgabe- oder Rückbelastungshinweisen.</p>
+          </div>
+        </div>
+        <div className="period-filter custom-kpi-period invoice-risk-filter">
+          <label>
+            Zeitraum
+            <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+              {periodOptions.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Standort
+            <select value={selectedStandortId} onChange={(event) => setSelectedStandortId(event.target.value)}>
+              <option value="alle">Alle Standorte</option>
+              {availableStandorte.map((standort) => (
+                <option key={standort.id} value={standort.id}>{standort.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+              <option value="kritisch">Kritisch</option>
+              <option value="beobachten">Beobachten</option>
+              <option value="geklaert">Geklärt</option>
+              <option value="alle">Alle</option>
+            </select>
+          </label>
+          <label className="search-label">
+            Suche
+            <span className="search-input-wrap">
+              <Search size={16} />
+              <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Patient, Rechnung, BFS" />
+            </span>
+          </label>
+          <span>{selectedPeriod.detail} · {scopeLabel} · {filteredPatients.length} Patient(en) im aktuellen Filter</span>
+          <button
+            className="secondary-button custom-export-action"
+            type="button"
+            onClick={() => printCustomTabPdf(reportExportRef.current, pdfTitle)}
+            disabled={!filteredPatients.length}
+          >
+            <Printer size={16} /> Standortliste als PDF exportieren
+          </button>
+        </div>
+      </section>
+
+      <div className="content-stack invoice-risk-patient-report" ref={reportExportRef}>
+        <section className="panel invoice-quality-export-summary">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Standortliste</span>
+              <h2>Patienten vor weiterer Behandlung prüfen</h2>
+              <p>{scopeLabel} · {selectedPeriod.label}. Diese Liste ist eine Arbeitsgrundlage: Vor weiterer Behandlung bitte Zahlungsstand, Ausfallschutz, Storno/Rückgabe und interne Klärung prüfen.</p>
+            </div>
+          </div>
+        </section>
+        <section className="priority-grid">
+          <PriorityCard label="Kritische Patienten" value={integerNumber.format(criticalPatients.length)} hint="offen/auffällig ohne Schutz" period={selectedPeriod.label} tone={criticalPatients.length ? "red" : "green"} />
+          <PriorityCard label="Auffälliger Betrag" value={money.format(criticalAmount)} hint="kritische Patienten" period={scopeLabel} tone={criticalAmount ? "red" : "green"} />
+          <PriorityCard label="Beobachten" value={integerNumber.format(watchPatients.length)} hint="ohne Schutz, aber nicht rot" period={selectedPeriod.label} tone={watchPatients.length ? "amber" : "green"} />
+          <PriorityCard label="Geklärt" value={integerNumber.format(clearedPatients.length)} hint="bezahlt/gesichert laut Daten" period={selectedPeriod.label} tone="green" />
+          <PriorityCard label="Letzte Auffälligkeit" value={latestRiskDate ? germanDateFromIsoDate(latestRiskDate.toISOString()) : "-"} hint="neuester Treffer" period={scopeLabel} tone={latestRiskDate ? "amber" : "blue"} />
+          <PriorityCard label="Im Report" value={integerNumber.format(filteredPatients.length)} hint="Patienten nach Filter" period={statusFilter === "alle" ? "alle Status" : statusLabelForInvoiceRisk(statusFilter)} tone={filteredPatients.length ? "amber" : "green"} />
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Leselogik</span>
+              <h2>So ist die Liste zu lesen</h2>
+              <p>Rot bedeutet: ohne Ausfallschutz und nicht geklärter Zahlungs- oder Stornohinweis. Gelb bedeutet: ohne Ausfallschutz sichtbar, aber aktuell kein harter offener Hinweis. Grün bedeutet: laut Daten bezahlt oder geklärt.</p>
+            </div>
+          </div>
+          <div className="table-export-bar">
+            <span>Keine automatische Sperrliste · vor Ort fachlich und administrativ prüfen</span>
+          </div>
+          <div className="table-wrap compact-table invoice-risk-table-wrap">
+            <table className="invoice-risk-patient-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Patient</th>
+                  <th>Standort</th>
+                  <th>Letzte Rechnung</th>
+                  <th>Betrag</th>
+                  <th>Grund</th>
+                  <th>Empfehlung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPatients.length ? filteredPatients.map((patient) => (
+                  <tr key={patient.id}>
+                    <td><StatusBadge status={patient.statusLabel} /></td>
+                    <td>
+                      <strong>{patient.patientName}</strong>
+                      <small>{patient.claimCount} Rechnung(en) ohne Ausfallschutz</small>
+                    </td>
+                    <td>{patient.standortName}</td>
+                    <td>
+                      <strong>{patient.lastClaim.invoiceNo || "-"}</strong>
+                      <small>{patient.lastDateLabel}{patient.daysSinceLastInvoice !== null ? ` · vor ${integerNumber.format(patient.daysSinceLastInvoice)} Tagen` : ""}</small>
+                      <small>BFS {patient.lastClaim.bfsNo || "-"}</small>
+                    </td>
+                    <td>
+                      <strong>{money.format(patient.eventAmount || patient.totalAmount)}</strong>
+                      <small>gesamt {money.format(patient.totalAmount)}</small>
+                    </td>
+                    <td>{patient.reasons.slice(0, 4).join(" · ") || "ohne Ausfallschutz"}</td>
+                    <td><strong>{patient.recommendation}</strong></td>
+                  </tr>
+                )) : <EmptyTableRow colSpan={7} label="Keine Risikopatienten im aktuellen Filter." />}
               </tbody>
             </table>
           </div>
@@ -8743,21 +8993,177 @@ function InvoiceLocationsView({ invoiceRows }: { invoiceRows: ParsedInvoiceDocum
   );
 }
 
-type BillingQualityMode = "cockpit" | "chains" | "feedback";
+type BillingQualityMode = "cockpit" | "chains";
 
 const invoiceQualityProfileCache = new WeakMap<ParsedInvoiceDocument, InvoiceQualityProfile>();
 
+function buildChainAiContext(row: InvoiceQualityChainFinding, periodLabel: string, scopeLabel: string) {
+  return {
+    scope: scopeLabel,
+    period: periodLabel,
+    standort: row.standortName,
+    caseType: row.caseType,
+    basisleistung: { code: row.anchorCode, description: row.anchorDescription, casesAtStandort: row.targetAnchorCount },
+    begleitleistungen: row.companions.map((companion) => ({
+      code: companion.code,
+      description: companion.description,
+      topic: companion.topic,
+      groupRate: formatPercent(companion.groupRate * 100),
+      standortRate: formatPercent(companion.targetRate * 100),
+      deviation: formatPercent(companion.confidenceGap * 100),
+      potentialCheckCases: companion.missingEstimate,
+      orientationValue: money.format(companion.potential)
+    })),
+    orientationValue: money.format(row.potential),
+    totalPotentialCheckCases: row.companions.reduce((sum, companion) => sum + companion.missingEstimate, 0),
+    affectedInvoices: row.affectedInvoices.length,
+    classification: row.classification,
+    hintType: row.hintType,
+    ruleStatus: row.ruleStatus,
+    ruleSummary: row.ruleSummary,
+    catalogPlausibility: catalogPlausibilityDisplay(row.catalogPlausibilityLevel),
+    catalogExplanation: row.catalogPlausibilityExplanation,
+    requiredContext: row.catalogRequiredContext,
+    documentationHints: row.catalogDocumentationHints,
+    cautionNotes: row.catalogCautionNotes,
+    exclusions: row.exclusions,
+    sources: row.catalogPlausibilitySources.map((source) => source.title),
+    checkQuestion: row.leaderQuestion,
+    instruction: "Bitte prüfen: Macht die Begleitleistung fachlich grundsätzlich Sinn, und wie wahrscheinlich ist es anhand der Daten, dass sie in den markierten Fällen tatsächlich prüfrelevant ist? Keine Abrechnungsempfehlung aussprechen."
+  };
+}
+
+function buildQualityAiContext(row: InvoiceQualityFinding, periodLabel: string, scopeLabel: string) {
+  const comparison = invoiceQualityComparisonDisplay(row);
+  return {
+    scope: scopeLabel,
+    period: periodLabel,
+    standort: row.standortName,
+    caseType: row.caseType,
+    hintArea: row.hintArea,
+    analysisType: row.analysisType,
+    ausloeser: { code: row.anchorCode, description: row.anchorDescription },
+    auffaelligkeit: { code: row.companionCode, description: row.companionDescription },
+    groupComparison: comparison.group,
+    standortComparison: comparison.practice,
+    deviation: comparison.deviation,
+    potentialCheckCases: row.missingEstimate,
+    affectedInvoices: row.affectedInvoices.length,
+    groupRate: formatPercent(row.groupRate * 100),
+    standortRate: formatPercent(row.targetRate * 100),
+    confidenceGap: formatPercent(row.confidenceGap * 100),
+    lowCaseCount: row.lowCaseCount,
+    comparisonBasis: row.comparisonBasis,
+    orientationValue: money.format(row.potential),
+    hintType: row.hintType,
+    topicCluster: row.topicCluster,
+    orientationLevel: row.orientationLevel,
+    precheckStatus: row.precheckStatus,
+    status: row.status,
+    explanation: row.explanation,
+    requiredContext: row.requiredContext,
+    documentationHints: row.documentationHints,
+    cautionNotes: row.cautionNotes,
+    sources: row.sources.map((source) => source.title),
+    checkQuestion: row.leaderQuestion,
+    instruction: "Bitte prüfen: Macht die Begleitziffer fachlich grundsätzlich Sinn, und wie wahrscheinlich ist es anhand der Daten, dass sie in den markierten Fällen tatsächlich prüfrelevant ist? Keine Abrechnungsempfehlung aussprechen."
+  };
+}
+
+function AiPlausibilityBox({ result, error }: { result: AiPlausibilityResult | null; error: string }) {
+  if (!result && !error) return null;
+  return (
+    <div className="ai-plausibility-box">
+      <div className="ai-plausibility-head">
+        <Sparkles size={18} />
+        <div>
+          <strong>Gemini-Plausibilitätscheck</strong>
+          <span>{result ? `Tatsächlich prüfrelevant: ${aiProbabilityLabel(result.missingProbability ?? result.plausibility)}${typeof result.missingProbabilityPercent === "number" && result.missingProbabilityPercent > 0 ? ` · ca. ${result.missingProbabilityPercent} %` : ""}` : "Hinweis"}</span>
+        </div>
+      </div>
+      {error ? (
+        <p className="ai-plausibility-error">{error}</p>
+      ) : result ? (
+        <>
+          <div className="ai-plausibility-summary-grid">
+            <article>
+              <span>Fachlich grundsätzlich sinnvoll</span>
+              <strong>{aiFundamentalPlausibilityLabel(result.fundamentalPlausibility)}</strong>
+            </article>
+            <article>
+              <span>Wahrscheinlichkeit für fachliche Prüfrelevanz</span>
+              <strong>{aiProbabilityLabel(result.missingProbability ?? result.plausibility)}</strong>
+              {typeof result.missingProbabilityPercent === "number" && result.missingProbabilityPercent > 0 && <small>vorsichtige Einordnung: ca. {result.missingProbabilityPercent} %</small>}
+            </article>
+          </div>
+          <p>{result.summary}</p>
+          <AiPlausibilityList title="Begründung" items={result.reasons} />
+          <AiPlausibilityList title="Prüffragen" items={result.checkQuestions} />
+          <AiPlausibilityList title="Dokumentation" items={result.documentationHints} />
+          <AiPlausibilityList title="Vorsicht" items={result.cautions} />
+          <small>{result.disclaimer}</small>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function aiProbabilityLabel(value: string | undefined) {
+  if (value === "hoch") return "hoch";
+  if (value === "mittel") return "mittel";
+  if (value === "niedrig") return "niedrig";
+  return "unklar";
+}
+
+function aiFundamentalPlausibilityLabel(value: string | undefined) {
+  if (value === "ja") return "ja";
+  if (value === "eher_ja") return "eher ja";
+  if (value === "kontextabhaengig") return "kontextabhängig";
+  if (value === "eher_nein") return "eher nein";
+  return "unklar";
+}
+
+function AiPlausibilityList({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="ai-plausibility-list">
+      <strong>{title}</strong>
+      <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div>
+  );
+}
+
 function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceDocument[]; mode: BillingQualityMode }) {
   const exportRef = useRef<HTMLDivElement | null>(null);
+  const chainTableExportRef = useRef<HTMLElement | null>(null);
+  const qualityDetailRef = useRef<HTMLElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortId, setStandortId] = useState("gruppe");
   const [caseType, setCaseType] = useState("alle");
   const [searchTerm, setSearchTerm] = useState("");
-  const [basisFilter, setBasisFilter] = useState<"regeln" | "alle">(() => mode === "feedback" ? "regeln" : "alle");
+  const [basisFilter, setBasisFilter] = useState<"regeln" | "alle">("alle");
   const [minGroupRate, setMinGroupRate] = useState(70);
   const [minCaseCount, setMinCaseCount] = useState(8);
   const [minPotential, setMinPotential] = useState(0);
+  const [chainMainCodeFilter] = useState("");
+  const [chainCompanionCodeFilter] = useState("");
+  const [chainMinDeviation] = useState(18);
+  const [chainTopicFilter, setChainTopicFilter] = useState("alle");
+  const [chainClassificationFilter, setChainClassificationFilter] = useState("alle");
+  const [chainRuleStatusFilter, setChainRuleStatusFilter] = useState("alle");
+  const [chainCatalogPlausibilityFilter, setChainCatalogPlausibilityFilter] = useState<string[]>([]);
+  const [chainSortMode, setChainSortMode] = useState<"catalog" | "potential">("catalog");
+  const [selectedChainKey, setSelectedChainKey] = useState("");
+  const [qualityTopicFilter, setQualityTopicFilter] = useState("alle");
+  const [qualityHintTypeFilter, setQualityHintTypeFilter] = useState("alle");
+  const [qualityPrecheckFilter, setQualityPrecheckFilter] = useState("alle");
+  const [qualityOrientationFilter, setQualityOrientationFilter] = useState("alle");
+  const [qualityStatusFilter, setQualityStatusFilter] = useState("alle");
+  const [selectedQualityKey, setSelectedQualityKey] = useState("");
+  const [aiPlausibility, setAiPlausibility] = useState<AiPlausibilityResult | null>(null);
+  const [aiPlausibilityError, setAiPlausibilityError] = useState("");
+  const [aiPlausibilityLoading, setAiPlausibilityLoading] = useState<"chain" | "quality" | null>(null);
   const selectedPeriod = useMemo(() => periodOptions.find((period) => period.id === periodId) ?? periodOptions[0], [periodOptions, periodId]);
   const previousPeriod = useMemo(() => previousComparablePeriod(selectedPeriod), [selectedPeriod]);
   const invoiceStandorte = useMeasuredMemo("Qualitätscockpit Standortliste", () => orderedStandorte().filter((standort) => invoiceRows.some((row) => invoiceReadyForAnalysis(row) && (row.standortId === standort.id || row.standortName === standort.name))), [invoiceRows], (rows) => `${integerNumber.format(rows.length)} Standorte`);
@@ -8773,35 +9179,549 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
     return new Map(buildInvoiceQualityFindings(invoiceRows, previousPeriod, selectedStandort, { minGroupRate: 0.4, minCaseCount: 3, minPotential: 0 }).map((row) => [row.key, row]));
   }, [invoiceRows, previousPeriod, selectedStandort], (rows) => `${integerNumber.format(rows.size)} Hinweise`);
   const caseTypes = useMemo(() => ["alle", ...Array.from(new Set(findings.map((row) => row.caseType))).sort((a, b) => a.localeCompare(b, "de"))], [findings]);
-  const visibleFindings = useMeasuredMemo("Qualitätscockpit Filter", () => filterInvoiceQualityFindings(findings, caseType, searchTerm, basisFilter), [basisFilter, caseType, findings, searchTerm], (rows) => `${integerNumber.format(rows.length)} Treffer`);
+  const baseVisibleFindings = useMeasuredMemo("Qualitätscockpit Basisfilter", () => filterInvoiceQualityFindings(findings, caseType, searchTerm, basisFilter), [basisFilter, caseType, findings, searchTerm], (rows) => `${integerNumber.format(rows.length)} Treffer`);
+  const visibleFindings = useMeasuredMemo("Qualitätscockpit Filter", () => baseVisibleFindings.filter((row) =>
+    (qualityTopicFilter === "alle" || row.topicCluster === qualityTopicFilter)
+    && (qualityHintTypeFilter === "alle" || row.hintType === qualityHintTypeFilter)
+    && (qualityPrecheckFilter === "alle" || row.precheckStatus === qualityPrecheckFilter)
+    && (qualityOrientationFilter === "alle" || row.orientationLevel === qualityOrientationFilter)
+    && (qualityStatusFilter === "alle" || row.status === qualityStatusFilter)
+  ), [baseVisibleFindings, qualityHintTypeFilter, qualityOrientationFilter, qualityPrecheckFilter, qualityStatusFilter, qualityTopicFilter], (rows) => `${integerNumber.format(rows.length)} Treffer`);
   const kpis = useMeasuredMemo("Qualitätscockpit KPIs", () => invoiceQualityKpis(visibleFindings), [visibleFindings], (value) => `${integerNumber.format(value.count)} Hinweise`);
-  const reportRows = mode === "feedback" ? visibleFindings.slice(0, 18) : visibleFindings.slice(0, 80);
+  const chainFindings = useMeasuredMemo("Leistungsketten Muster", () => buildInvoiceQualityChainFindings(visibleFindings, 1, invoiceQualityChainRules), [visibleFindings], (rows) => `${integerNumber.format(rows.length)} Ketten`);
+  const visibleChainFindings = useMeasuredMemo("Leistungsketten Filter", () => chainFindings.filter((row) =>
+    (!chainMainCodeFilter.trim() || row.anchorCode.toLowerCase().includes(chainMainCodeFilter.trim().toLowerCase()))
+    && (!chainCompanionCodeFilter.trim() || row.companions.some((companion) => companion.code.toLowerCase().includes(chainCompanionCodeFilter.trim().toLowerCase())))
+    && (chainTopicFilter === "alle" || row.topic === chainTopicFilter || row.companions.some((companion) => companion.topic === chainTopicFilter))
+    && (chainClassificationFilter === "alle" || row.classification === chainClassificationFilter)
+    && (chainRuleStatusFilter === "alle" || row.ruleStatus === chainRuleStatusFilter)
+    && (!chainCatalogPlausibilityFilter.length || chainCatalogPlausibilityFilter.includes(row.catalogPlausibilityLevel))
+    && row.companions.some((companion) => companion.confidenceGap >= chainMinDeviation / 100)
+  ), [chainCatalogPlausibilityFilter, chainClassificationFilter, chainCompanionCodeFilter, chainFindings, chainMainCodeFilter, chainMinDeviation, chainRuleStatusFilter, chainTopicFilter], (rows) => `${integerNumber.format(rows.length)} Ketten`);
+  const chainKpis = useMeasuredMemo("Leistungsketten KPIs", () => invoiceQualityChainKpis(visibleChainFindings), [visibleChainFindings], (value) => `${integerNumber.format(value.count)} Ketten`);
+  const chainTopics = useMemo(() => ["alle", ...Array.from(new Set(chainFindings.flatMap((row) => [row.topic, ...row.companions.map((companion) => companion.topic)]))).sort((a, b) => a.localeCompare(b, "de"))], [chainFindings]);
+  const chainClassifications = useMemo(() => ["alle", ...Array.from(new Set(chainFindings.map((row) => row.classification))).sort((a, b) => a.localeCompare(b, "de"))], [chainFindings]);
+  const chainRuleStatuses = useMemo(() => ["alle", ...Array.from(new Set(chainFindings.map((row) => row.ruleStatus))).sort((a, b) => a.localeCompare(b, "de"))], [chainFindings]);
+  const chainCatalogPlausibilityOptions = useMemo(() => ["A", "B", "C", "D", "E"].filter((entry) => chainFindings.some((row) => row.catalogPlausibilityLevel === entry)), [chainFindings]);
+  const chainCatalogPlausibilityFilterLabel = chainCatalogPlausibilityFilter.length
+    ? chainCatalogPlausibilityFilter.map(catalogPlausibilityDisplay).join(" · ")
+    : "Alle Plausibilitäten";
+  const qualityTopics = useMemo(() => ["alle", ...Array.from(new Set(baseVisibleFindings.map((row) => row.topicCluster))).sort((a, b) => a.localeCompare(b, "de"))], [baseVisibleFindings]);
+  const qualityHintTypes = useMemo(() => ["alle", ...Array.from(new Set(baseVisibleFindings.map((row) => row.hintType))).sort((a, b) => a.localeCompare(b, "de"))], [baseVisibleFindings]);
+  const qualityPrecheckStatuses = useMemo(() => ["alle", ...Array.from(new Set(baseVisibleFindings.map((row) => row.precheckStatus))).sort((a, b) => a.localeCompare(b, "de"))], [baseVisibleFindings]);
+  const qualityOrientations = useMemo(() => ["alle", ...Array.from(new Set(baseVisibleFindings.map((row) => row.orientationLevel))).sort((a, b) => a.localeCompare(b, "de"))], [baseVisibleFindings]);
+  const qualityStatuses = useMemo(() => ["alle", ...Array.from(new Set(baseVisibleFindings.map((row) => row.status))).sort((a, b) => a.localeCompare(b, "de"))], [baseVisibleFindings]);
+  const qualityPatternRows = useMeasuredMemo(
+    "Qualitätscockpit Ziffernmuster",
+    () => visibleFindings.filter((row) => row.analysisType === "position_combination"),
+    [visibleFindings],
+    (rows) => `${integerNumber.format(rows.length)} Ziffernmuster`
+  );
+  const reportRows = sortInvoiceQualityRowsForLeaderReport(qualityPatternRows).slice(0, 80);
+  const reportKpis = invoiceQualityKpis(reportRows);
+  const qualityContextSummaries = useMemo(() => buildQualityContextSummaries(reportRows), [reportRows]);
+  const chainRows = sortChainRowsForLeaderReport(visibleChainFindings, chainSortMode).slice(0, 25);
+  const selectedChain = selectedChainKey ? visibleChainFindings.find((row) => row.key === selectedChainKey) ?? null : null;
+  const selectedQualityFinding = selectedQualityKey ? visibleFindings.find((row) => row.key === selectedQualityKey) ?? null : null;
+  const chainTopicSummaries = useMemo(() => buildChainTopicSummaries(visibleChainFindings), [visibleChainFindings]);
+  const chainClassificationSummary = useMemo(() => buildChainClassificationSummary(visibleChainFindings), [visibleChainFindings]);
+  const chainCatalogPlausibilitySummary = useMemo(() => buildChainCatalogPlausibilitySummary(visibleChainFindings), [visibleChainFindings]);
+  const newChainsWithoutRule = useMemo(() => sortChainRowsForLeaderReport(visibleChainFindings.filter((row) => row.catalogPlausibilityLevel === "E"), "potential").slice(0, 25), [visibleChainFindings]);
+  const qualityTopicSummaries = useMemo(() => buildQualityTopicSummaries(visibleFindings), [visibleFindings]);
+  const qualityOrientationSummary = useMemo(() => buildQualityCountSummary(visibleFindings, "orientationLevel"), [visibleFindings]);
+  const qualityPrecheckSummary = useMemo(() => buildQualityCountSummary(visibleFindings, "precheckStatus"), [visibleFindings]);
+  const qualityHintSummary = useMemo(() => buildQualityCountSummary(visibleFindings, "hintType"), [visibleFindings]);
   const scopeLabel = selectedStandort?.name ?? "Alle Standorte";
-  const modeTitle = mode === "chains" ? "Leistungsketten" : mode === "feedback" ? "Praxis-Feedback" : "Qualitätscockpit";
-  const exportIntro = invoiceQualityExportIntro(scopeLabel);
-  const modeDescription = mode === "chains"
-    ? "Katalog- und plausibilitätsorientierte Leistungsketten aus vorhandenen Einzelrechnungen. Die Quote zeigt, wie häufig eine mögliche Begleitleistung bei gleicher Hauptleistung in der anonymisierten Gruppe mitläuft."
-    : mode === "feedback"
-      ? "Exportfähiger Praxisblick mit verständlichen Katalog-, Plausibilitäts- und Gruppenvergleichshinweisen. Andere Standorte bleiben anonym."
-      : "Informationscockpit für Abrechnungsqualität: Kataloglogik, Plausibilität, Gruppenvergleich und mögliche Leistungsketten als fachliche Orientierung.";
+  const modeTitle = mode === "chains" ? "Leistungsketten" : "Qualitätscockpit";
 
   useEffect(() => {
-    if (mode === "feedback" && standortId === "gruppe" && invoiceStandorte[0]) {
-      setStandortId(invoiceStandorte[0].id);
+    if (!selectedQualityFinding) return;
+    window.requestAnimationFrame(() => {
+      qualityDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      qualityDetailRef.current?.focus({ preventScroll: true });
+    });
+  }, [selectedQualityFinding]);
+
+  useEffect(() => {
+    if (caseType !== "alle" && !caseTypes.includes(caseType)) setCaseType("alle");
+  }, [caseType, caseTypes]);
+
+  useEffect(() => {
+    if (qualityTopicFilter !== "alle" && !qualityTopics.includes(qualityTopicFilter)) setQualityTopicFilter("alle");
+    if (qualityHintTypeFilter !== "alle" && !qualityHintTypes.includes(qualityHintTypeFilter)) setQualityHintTypeFilter("alle");
+    if (qualityPrecheckFilter !== "alle" && !qualityPrecheckStatuses.includes(qualityPrecheckFilter)) setQualityPrecheckFilter("alle");
+    if (qualityOrientationFilter !== "alle" && !qualityOrientations.includes(qualityOrientationFilter)) setQualityOrientationFilter("alle");
+    if (qualityStatusFilter !== "alle" && !qualityStatuses.includes(qualityStatusFilter)) setQualityStatusFilter("alle");
+  }, [qualityHintTypeFilter, qualityHintTypes, qualityOrientationFilter, qualityOrientations, qualityPrecheckFilter, qualityPrecheckStatuses, qualityStatusFilter, qualityStatuses, qualityTopicFilter, qualityTopics]);
+
+  useEffect(() => {
+    if (selectedQualityKey && !visibleFindings.some((row) => row.key === selectedQualityKey)) setSelectedQualityKey("");
+  }, [selectedQualityKey, visibleFindings]);
+
+  useEffect(() => {
+    setAiPlausibility(null);
+    setAiPlausibilityError("");
+  }, [selectedChainKey, selectedQualityKey, mode]);
+
+  async function requestAiPlausibility(kind: "chain" | "quality") {
+    const context = kind === "chain" && selectedChain
+      ? buildChainAiContext(selectedChain, selectedPeriod.label, scopeLabel)
+      : kind === "quality" && selectedQualityFinding
+        ? buildQualityAiContext(selectedQualityFinding, selectedPeriod.label, scopeLabel)
+        : null;
+    if (!context) return;
+
+    setAiPlausibilityLoading(kind);
+    setAiPlausibilityError("");
+    setAiPlausibility(null);
+
+    const response = await fetch("/api/ai/plausibility", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: kind === "chain" ? "service_chain" : "quality_finding",
+        context
+      })
+    }).catch(() => null);
+
+    if (!response) {
+      setAiPlausibilityError("Gemini konnte nicht erreicht werden.");
+      setAiPlausibilityLoading(null);
+      return;
     }
-  }, [invoiceStandorte, mode, standortId]);
+
+    const payload = await response.json().catch(() => null) as { result?: AiPlausibilityResult; error?: string } | null;
+    if (!response.ok || !payload?.result) {
+      setAiPlausibilityError(payload?.error ?? "Gemini-Prüfung fehlgeschlagen.");
+      setAiPlausibilityLoading(null);
+      return;
+    }
+
+    setAiPlausibility(payload.result);
+    setAiPlausibilityLoading(null);
+  }
+  const modeDescription = mode === "chains"
+    ? "Katalog- und plausibilitätsorientierte Leistungsketten aus vorhandenen Einzelrechnungen. Die Quote zeigt, wie häufig eine mögliche Begleitleistung bei gleicher Hauptleistung in der anonymisierten Gruppe mitläuft."
+    : "Das Qualitätscockpit zeigt, welche Begleitleistungen, Faktoren oder Abrechnungsmuster bei ähnlichen Fällen in der Gruppe häufiger sichtbar sind als am ausgewählten Standort. Die Hinweise sind eine fachliche Vergleichshilfe, keine automatische Fehlerbewertung und keine Abrechnungsempfehlung.";
+
+  if (mode === "chains") {
+    return (
+      <div className="content-stack">
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Abrechnungsqualität</span>
+              <h2>Leistungsketten</h2>
+              <p>Dieses Tab zeigt Leistungsketten aus echten Einzelrechnungen: eine Basisleistung und dazu Begleitleistungen, die in der Gruppe häufig mitlaufen, am ausgewählten Standort aber seltener sichtbar sind. Die Auswertung ist eine fachliche Vergleichshilfe und keine automatische Abrechnungsempfehlung.</p>
+            </div>
+          </div>
+          <div className="period-filter custom-kpi-period">
+            <label>
+              Standort
+              <select value={standortId} onChange={(event) => setStandortId(event.target.value)}>
+                <option value="gruppe">Alle Standorte</option>
+                {invoiceStandorte.map((standort) => (
+                  <option key={standort.id} value={standort.id}>{standort.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Themenbereich
+              <select value={chainTopicFilter} onChange={(event) => setChainTopicFilter(event.target.value)}>
+                {chainTopics.map((topic) => <option key={topic} value={topic}>{topic === "alle" ? "Alle Themenbereiche" : topic}</option>)}
+              </select>
+            </label>
+            <label>
+              Einordnung
+              <select value={chainClassificationFilter} onChange={(event) => setChainClassificationFilter(event.target.value)}>
+                {chainClassifications.map((entry) => <option key={entry} value={entry}>{entry === "alle" ? "Alle Einordnungen" : entry}</option>)}
+              </select>
+            </label>
+            <label>
+              Regelstatus
+              <select value={chainRuleStatusFilter} onChange={(event) => setChainRuleStatusFilter(event.target.value)}>
+                {chainRuleStatuses.map((entry) => <option key={entry} value={entry}>{entry === "alle" ? "Alle Regelstatus" : entry}</option>)}
+              </select>
+            </label>
+            <fieldset className="catalog-plausibility-filter">
+              <legend>Katalog-Plausibilität</legend>
+              <div className="catalog-plausibility-filter-row" aria-label="Katalog-Plausibilität mehrfach auswählen">
+                <button
+                  type="button"
+                  className={!chainCatalogPlausibilityFilter.length ? "active" : ""}
+                  onClick={() => setChainCatalogPlausibilityFilter([])}
+                >
+                  Alle
+                </button>
+                {chainCatalogPlausibilityOptions.map((entry) => {
+                  const active = chainCatalogPlausibilityFilter.includes(entry);
+                  return (
+                    <button
+                      key={entry}
+                      type="button"
+                      className={active ? `active level-${entry.toLowerCase()}` : `level-${entry.toLowerCase()}`}
+                      onClick={() => setChainCatalogPlausibilityFilter((current) => active ? current.filter((level) => level !== entry) : [...current, entry])}
+                    >
+                      {catalogPlausibilityDisplay(entry)}
+                    </button>
+                  );
+                })}
+              </div>
+              <small>{chainCatalogPlausibilityFilterLabel}</small>
+            </fieldset>
+            <label>
+              Sortierung
+              <select value={chainSortMode} onChange={(event) => setChainSortMode(event.target.value as "catalog" | "potential")}>
+                <option value="catalog">Katalog-Plausibilität</option>
+                <option value="potential">Orientierungswert</option>
+              </select>
+            </label>
+            <span>{selectedPeriod.detail} · {scopeLabel} · alle Leistungsketten als Report</span>
+            <button
+              className="secondary-button custom-export-action"
+              type="button"
+              onClick={() => printCustomTabPdf(exportRef.current, `Leistungsketten · Standort ${scopeLabel} · ${selectedPeriod.label}`)}
+              disabled={!chainRows.length}
+            >
+              <Printer size={16} /> Report als PDF exportieren
+            </button>
+          </div>
+        </section>
+
+        <section className="panel chain-reading-guide">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Leselogik</span>
+              <h2>So sind die Leistungsketten zu lesen</h2>
+              <p>Eine Kette beantwortet immer dieselbe Frage: Welche Begleitleistungen werden bei ähnlichen Rechnungen in der Gruppe häufiger zusammen mit einer Basisleistung genutzt als am gewählten Standort?</p>
+            </div>
+          </div>
+          <div className="chain-reading-grid">
+            <article>
+              <strong>Basisleistung</strong>
+              <span>Die Ausgangsleistung der Rechnung, zum Beispiel 9000. Verglichen werden nur Fälle, in denen diese Leistung vorkommt.</span>
+            </article>
+            <article>
+              <strong>Selten genutzte Begleitleistungen</strong>
+              <span>Leistungen, die in der Gruppe häufig zur Basisleistung erscheinen, am Standort aber deutlich seltener.</span>
+            </article>
+            <article>
+              <strong>Gruppe / Standort</strong>
+              <span>Zeigt die Quote in der anonymisierten Gruppe im Vergleich zur Quote des ausgewählten Standorts.</span>
+            </article>
+            <article>
+              <strong>Abweichung</strong>
+              <span>Schätzt, in wie vielen Fällen die Begleitleistung im Vergleich zur Gruppe seltener sichtbar ist.</span>
+            </article>
+          </div>
+        </section>
+
+        <section className="priority-grid invoice-service-kpi-grid">
+          <PriorityCard label="Leistungsketten" value={integerNumber.format(chainKpis.count)} hint={`${integerNumber.format(chainKpis.companionCount)} Begleitleistungen`} tone={chainKpis.count ? "amber" : "green"} info="Gezählt werden Basisleistungen, zu denen Begleitleistungen im Gruppenvergleich am Standort seltener sichtbar sind." />
+          <PriorityCard label="Betroffene Rechnungen" value={integerNumber.format(chainKpis.affectedInvoices)} hint="aus den stärksten Ketten" tone={chainKpis.affectedInvoices ? "amber" : "blue"} />
+          <PriorityCard label="Orientierungswert" value={money.format(chainKpis.potential)} hint="keine Abrechnungsempfehlung" tone={chainKpis.potential ? "green" : "blue"} info="Der Orientierungswert zeigt ein rechnerisches Potenzial aus dem Gruppenvergleich. Ob die Begleitleistungen fachlich passen, muss anhand Behandlungsablauf, Dokumentation und Abrechnungsvoraussetzungen eingeordnet werden." />
+          <PriorityCard label="Stärkste Kette" value={chainKpis.topChain ? `${chainKpis.topChain.anchorCode} -> ${chainKpis.topChain.companions.map((item) => item.code).join(" + ")}` : "-"} hint={chainKpis.topChain ? `${chainKpis.topChain.standortName} · ${money.format(chainKpis.topChain.potential)}` : "keine Kette"} tone={chainKpis.topChain ? "amber" : "blue"} />
+          <PriorityCard label="Einordnung" value="Hinweis" hint="GOZ/BEMA/GOÄ + Dokumentation" tone="blue" info="Die Kette zeigt ein Datenmuster. Ob eine Begleitleistung im konkreten Fall fachlich passt, muss anhand Katalog, Kommentar, Dokumentation und Behandlungsablauf eingeordnet werden." />
+        </section>
+
+        <div className="content-stack invoice-quality-report" ref={exportRef}>
+          <section className="panel invoice-quality-export-summary chain-report-print-only">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Report</span>
+                <h2>Leistungsketten – Standort {scopeLabel} – Zeitraum {selectedPeriod.label}</h2>
+                <p>Dieser Report zeigt, welche Begleitleistungen bei ähnlichen Fällen in der Gruppe häufig gemeinsam mit einer Basisleistung abgerechnet werden und am ausgewählten Standort seltener sichtbar sind. Die Werte sind eine fachliche Vergleichshilfe und keine automatische Abrechnungsempfehlung.</p>
+              </div>
+            </div>
+            <div className="table-wrap compact-table invoice-quality-summary-table-wrap">
+              <table>
+                <tbody>
+                  <tr><th>Zeitraum</th><td>{selectedPeriod.label}</td><th>Scope</th><td>{scopeLabel}</td></tr>
+                  <tr><th>Ketten</th><td>{integerNumber.format(chainKpis.count)}</td><th>Begleitleistungen</th><td>{integerNumber.format(chainKpis.companionCount)}</td></tr>
+                  <tr><th>Rechnungen</th><td>{integerNumber.format(chainKpis.affectedInvoices)}</td><th>Orientierungswert</th><td>{money.format(chainKpis.potential)} · keine Abrechnungsempfehlung</td></tr>
+                  <tr><th>Einordnung</th><td>{chainClassificationSummary.map((entry) => `${entry.label}: ${entry.count}`).join(" · ") || "-"}</td><th>Top-Themen</th><td>{chainTopicSummaries.slice(0, 3).map((entry) => `${entry.topic}: ${entry.count}`).join(" · ") || "-"}</td></tr>
+                  <tr><th>Katalog-Plausibilität</th><td colSpan={3}>{chainCatalogPlausibilitySummary.map((entry) => `${catalogPlausibilityDisplay(entry.level)}: ${entry.count}`).join(" · ") || "-"}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel invoice-quality-export-note chain-reading-guide chain-report-print-only">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Leselogik</span>
+                <h2>Wie dieser Report zu lesen ist</h2>
+                <p><strong>Basisleistung:</strong> Die Ausgangsleistung der Rechnung. Nur Fälle mit dieser Leistung werden verglichen.</p>
+                <p><strong>Selten genutzte Begleitleistungen:</strong> Diese Leistungen laufen in der Gruppe häufig mit der Basisleistung mit, sind am ausgewählten Standort aber seltener sichtbar.</p>
+                <p><strong>Gruppe / Standort:</strong> Die erste Quote zeigt die anonymisierte Gruppe, die zweite Quote den ausgewählten Standort. Je größer der Abstand, desto stärker ist das Datenmuster.</p>
+                <p><strong>Abweichung und Orientierungswert:</strong> Die Werte beschreiben das rechnerische Vergleichspotenzial. Sie sind keine automatische Abrechnungsempfehlung.</p>
+                <p><strong>Katalog-Plausibilität:</strong> Die Stufen A bis E ordnen ein, wie plausibel die Kette fachlich ist. Auch bei Stufe A bleibt die Einzelfallprüfung anhand Behandlungsablauf, Dokumentation und Abrechnungsvorgaben notwendig.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel chain-report-table-section" ref={chainTableExportRef}>
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Vergleich Gruppe / Standort</span>
+                <h2>Welche Leistungsketten werden seltener genutzt?</h2>
+                <p>Die Basisleistung ist die Ausgangsleistung. Die Begleitleistungen rechts daneben sind im Gruppenvergleich häufiger zu sehen als am ausgewählten Standort.</p>
+              </div>
+            </div>
+            <div className="table-export-bar">
+              <span>{scopeLabel} · {selectedPeriod.label} · {integerNumber.format(chainRows.length)} Ketten · keine Abrechnungsempfehlung</span>
+              <button
+                className="secondary-button custom-export-action"
+                type="button"
+                onClick={() => printCustomTabPdf(chainTableExportRef.current, `Top-Leistungsketten · ${scopeLabel} · ${selectedPeriod.label}`)}
+                disabled={!chainRows.length}
+              >
+                <Printer size={16} /> Tabelle als PDF exportieren
+              </button>
+            </div>
+            <div className="table-wrap compact-table invoice-quality-chain-table-wrap">
+              <table className="invoice-quality-chain-table">
+                <thead>
+                  <tr>
+                    <th>Standort</th>
+                    <th>Falltyp</th>
+                    <th>Basisleistung</th>
+                    <th>Selten genutzte Begleitleistungen</th>
+                    <th>Gruppe / Standort</th>
+                    <th>Abweichung</th>
+                    <th>Orientierungswert</th>
+                    <th>Katalog-Plausibilität</th>
+                    <th>Einordnung</th>
+                    <th>Wie lesen?</th>
+                    <th>Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chainRows.length ? chainRows.map((row) => (
+                    <tr key={row.key} className={selectedQualityKey === row.key ? "is-selected" : undefined}>
+                      <td><strong>{row.standortName}</strong></td>
+                      <td>{row.caseType}</td>
+                      <td><strong>{row.anchorCode}</strong><small>{row.anchorDescription}</small><small>{integerNumber.format(row.targetAnchorCount)} Fälle mit Basisleistung</small></td>
+                      <td>
+                        <div className="chain-code-list">
+                          {row.companions.map((companion) => (
+                            <span key={companion.code} className="chain-code-pill">{companion.code}<small>{companion.description}</small></span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        {row.companions.map((companion) => (
+                          <small key={companion.code}><strong>{companion.code}</strong> Gruppe {formatPercent(companion.groupRate * 100)} · Praxis {formatPercent(companion.targetRate * 100)}</small>
+                        ))}
+                      </td>
+                      <td>{integerNumber.format(row.companions.reduce((sum, companion) => sum + companion.missingEstimate, 0))} Fälle<small>{integerNumber.format(row.affectedInvoices.length)} Rechnungen</small></td>
+                      <td><strong>{money.format(row.potential)}</strong><small>keine Abrechnungsempfehlung</small></td>
+                      <td><span className={`catalog-plausibility-badge level-${row.catalogPlausibilityLevel.toLowerCase()}`}>{catalogPlausibilityDisplay(row.catalogPlausibilityLevel)}</span><small>{row.catalogPlausibilityStatus === "regel_hinterlegt" ? "Regel hinterlegt" : "keine Regel"}</small></td>
+                      <td><strong>{row.classification}</strong><small>{row.hintType}</small><small>{row.ruleStatus}</small></td>
+                      <td>
+                        <strong>{row.catalogPlausibilityExplanation}</strong>
+                        <small>{row.leaderQuestion}</small>
+                      </td>
+                      <td><button type="button" className="secondary-button compact-action-button" onClick={() => setSelectedChainKey(row.key)}>Details ansehen</button></td>
+                    </tr>
+                  )) : <EmptyTableRow colSpan={11} label="Keine Mehrfachketten im gewählten Filter. Schwellenwerte ggf. senken oder Zeitraum erweitern." />}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {selectedChain && (
+            <section className="panel chain-detail-panel chain-mobile-secondary">
+              <div className="panel-heading">
+                <div>
+                  <span className="eyebrow">Details ansehen</span>
+                  <h2>{selectedChain.anchorCode} · {selectedChain.anchorDescription}</h2>
+                  <p>{selectedChain.detailHint}</p>
+                </div>
+                <button type="button" className="secondary-button" onClick={() => setSelectedChainKey("")}>Schließen</button>
+              </div>
+              <div className="chain-detail-grid">
+                <article>
+                  <span>Standort</span>
+                  <strong>{selectedChain.standortName}</strong>
+                  <small>{selectedChain.caseType} · {integerNumber.format(selectedChain.targetAnchorCount)} Praxisfälle</small>
+                </article>
+                <article>
+                  <span>Orientierungswert</span>
+                  <strong>{money.format(selectedChain.potential)}</strong>
+                  <small>keine Abrechnungsempfehlung</small>
+                </article>
+                <article>
+                  <span>Einordnung</span>
+                  <strong>{selectedChain.classification}</strong>
+                  <small>{selectedChain.hintType} · {selectedChain.ruleStatus}</small>
+                </article>
+                <article>
+                  <span>Katalog-Plausibilität</span>
+                  <strong>{catalogPlausibilityDisplay(selectedChain.catalogPlausibilityLevel)}</strong>
+                  <small>{selectedChain.catalogPlausibilityStatus === "regel_hinterlegt" ? selectedChain.catalogPlausibilityRuleId : "keine Regel hinterlegt"}</small>
+                </article>
+              </div>
+              <div className="chain-detail-question">
+                <strong>Prüffrage</strong>
+                <p>{selectedChain.leaderQuestion}</p>
+              </div>
+              <div className="ai-plausibility-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => requestAiPlausibility("chain")}
+                  disabled={aiPlausibilityLoading === "chain"}
+                >
+                  <Sparkles size={16} /> {aiPlausibilityLoading === "chain" ? "Gemini prüft..." : "KI-Plausibilität prüfen"}
+                </button>
+                <span>Anonymisierter Kontext: Codes, Quoten, Regelstatus und Prüfhints.</span>
+              </div>
+              <AiPlausibilityBox result={aiPlausibility} error={aiPlausibilityError} />
+              <div className="table-wrap compact-table invoice-services-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Themenbereich</th>
+                      <th>Begleitleistung</th>
+                      <th>Gruppe / Standort</th>
+                      <th>Abweichung</th>
+                      <th>Orientierungswert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupChainCompanionsByTopic(selectedChain).map((group) => group.companions.map((companion, index) => (
+                      <tr key={`${group.topic}-${companion.code}`}>
+                        {index === 0 && <td rowSpan={group.companions.length}><strong>{group.topic}</strong></td>}
+                        <td><strong>{companion.code}</strong><small>{companion.description}</small></td>
+                        <td>Gruppe {formatPercent(companion.groupRate * 100)}<small>Standort {formatPercent(companion.targetRate * 100)}</small></td>
+                        <td>{integerNumber.format(companion.missingEstimate)} Fälle<small>{formatPercent(companion.confidenceGap * 100)} Differenz</small></td>
+                        <td>{money.format(companion.potential)}</td>
+                      </tr>
+                    )))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="chain-detail-notes">
+                <article>
+                  <strong>Fachliche Vorprüfung / Regelstatus</strong>
+                  <p>{selectedChain.ruleStatus}. {selectedChain.ruleSummary}</p>
+                </article>
+                <article>
+                  <strong>Katalog-Plausibilität</strong>
+                  <p>{catalogPlausibilityDisplay(selectedChain.catalogPlausibilityLevel)}. {selectedChain.catalogPlausibilityExplanation}</p>
+                </article>
+                <article>
+                  <strong>Dokumentation und Ablauf</strong>
+                  <p>{[...selectedChain.catalogRequiredContext, ...selectedChain.catalogDocumentationHints, ...selectedChain.exclusions].slice(0, 9).join(" · ")}</p>
+                </article>
+                <article>
+                  <strong>Quellen / Regelbasis</strong>
+                  <p>{selectedChain.catalogPlausibilitySources.map((source) => `${source.title}${source.note ? ` (${source.note})` : ""}`).join(" · ") || "Keine Regelquelle hinterlegt. Als neue Kette ohne Regel fachlich nachziehbar."}</p>
+                </article>
+                <article>
+                  <strong>Vorsichtshinweise</strong>
+                  <p>{selectedChain.catalogCautionNotes.join(" · ")}</p>
+                </article>
+                <article>
+                  <strong>Untercluster bei breiten Ketten</strong>
+                  <p>{groupChainCompanionsByTopic(selectedChain).map((group) => `${group.topic}: ${group.companions.map((companion) => companion.code).join(", ")}`).join(" · ")}</p>
+                </article>
+              </div>
+            </section>
+          )}
+
+          <section className="panel chain-unruled-section chain-mobile-secondary">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Neue Ketten ohne Regel</span>
+                <h2>E · nur Datenmuster</h2>
+                <p>Diese Kombinationen stammen aus dem Standortvergleich, haben aber noch keine fachlich hinterlegte Katalog-Plausibilitätsregel. Sie bleiben sichtbar und können später fachlich eingeordnet werden.</p>
+              </div>
+            </div>
+            <div className="table-wrap compact-table invoice-services-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Basisleistung</th>
+                    <th>Begleitleistungen</th>
+                    <th>Falltyp</th>
+                    <th>Standort</th>
+                    <th>Fälle</th>
+                    <th>Orientierungswert</th>
+                    <th>Erstes Auftreten / Zeitraum</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {newChainsWithoutRule.length ? newChainsWithoutRule.map((row) => (
+                    <tr key={`unruled-${row.key}`}>
+                      <td><strong>{row.anchorCode}</strong><small>{row.anchorDescription}</small></td>
+                      <td>{row.companions.map((companion) => companion.code).join(" + ")}<small>{row.companions.map((companion) => companion.description).join(" · ")}</small></td>
+                      <td>{row.caseType}</td>
+                      <td>{row.standortName}</td>
+                      <td>{integerNumber.format(row.targetAnchorCount)} Fälle<small>{integerNumber.format(row.affectedInvoices.length)} Rechnungen</small></td>
+                      <td>{money.format(row.potential)}</td>
+                      <td>{chainFirstOccurrenceLabel(row, selectedPeriod.label)}</td>
+                      <td>{catalogPlausibilityDisplay(row.catalogPlausibilityLevel)}<small>{row.catalogPlausibilityStatus === "keine_regel" ? "keine Regel" : "Regel hinterlegt"}</small></td>
+                    </tr>
+                  )) : <EmptyTableRow colSpan={8} label="Keine neuen Ketten ohne Regel im aktuellen Filter." />}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel chain-topic-report-section chain-mobile-primary">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Themenbereiche</span>
+                <h2>Schwerpunkte im aktuellen Filter</h2>
+                <p>Gruppiert nach Themenbereich. Pro Bereich werden die wichtigsten Ketten inklusive Katalog-Plausibilität gezeigt.</p>
+              </div>
+            </div>
+            <div className="chain-topic-summary-grid">
+              {chainTopicSummaries.slice(0, 8).map((summary) => (
+                <article key={summary.topic}>
+                  <strong>{summary.topic}</strong>
+                  <span>{integerNumber.format(summary.count)} Ketten · {money.format(summary.potential)}</span>
+                  <small>{buildChainCatalogPlausibilitySummary(summary.rows).map((entry) => `${entry.level}: ${entry.count}`).join(" · ")}</small>
+                  <small>{summary.rows.slice(0, 3).map((row) => `${row.anchorCode} -> ${row.companions.map((companion) => companion.code).join(" + ")} (${row.catalogPlausibilityLevel})`).join(" · ")}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel chain-leader-actions">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Handlungshinweise</span>
+              <h2>Kurzinterpretation</h2>
+              </div>
+            </div>
+            <ul>
+              <li>Die Tabelle zeigt, welche Begleitleistungen am ausgewählten Standort seltener sichtbar sind als in der Gruppe.</li>
+              <li>Die Basisleistung ist immer die Ausgangsleistung, zu der die Begleitleistungen verglichen werden.</li>
+              <li>Der Orientierungswert ist ein rechnerischer Vergleichswert und keine automatische Abrechnungsempfehlung.</li>
+              <li>Ob eine Leistung fachlich passt, hängt immer von Behandlung, Dokumentation und Abrechnungsvorgaben ab.</li>
+            </ul>
+          </section>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="content-stack">
-      <section className="panel">
+    <div className="content-stack quality-cockpit-simple">
+      <section className="panel quality-cockpit-hero">
         <div className="panel-heading">
           <div>
             <span className="eyebrow">Abrechnungsqualität</span>
-            <h2>{modeTitle}</h2>
-            <p>{modeDescription}</p>
+            <h2>Ziffern-Muster im Standortvergleich</h2>
+            <p>Diese Ansicht zeigt statistische Prüfhinweise: Wenn eine Auslöser-Ziffer vorkommt, welche Begleitziffer ist im Gruppenvergleich am gewählten Standort auffällig seltener sichtbar?</p>
           </div>
         </div>
-        <div className="period-filter custom-kpi-period">
+        <div className="quality-simple-controls">
           <label>
             Zeitraum
             <select value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -8813,280 +9733,624 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
           <label>
             Standort
             <select value={standortId} onChange={(event) => setStandortId(event.target.value)}>
-              {mode !== "feedback" && <option value="gruppe">Alle Standorte</option>}
+              <option value="gruppe">Alle Standorte</option>
               {invoiceStandorte.map((standort) => (
                 <option key={standort.id} value={standort.id}>{standort.name}</option>
               ))}
             </select>
           </label>
-          <label>
-            Falltyp
-            <select value={caseType} onChange={(event) => setCaseType(event.target.value)}>
-              {caseTypes.map((type) => (
-                <option key={type} value={type}>{type === "alle" ? "Alle Falltypen" : type}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Basis
-            <select value={basisFilter} onChange={(event) => setBasisFilter(event.target.value as "regeln" | "alle")}>
-              <option value="regeln">Nur kuratierte Regeln</option>
-              <option value="alle">Regeln + Datenmuster</option>
-            </select>
-          </label>
-          <label>
+          <label className="quality-search-control">
             Suchen
-            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Leistung, Standort, Falltyp" />
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="z. B. 9000, 9010 oder Standort" />
           </label>
-          <label>
-            Gruppenquote ab %
-            <input type="number" min={40} max={95} step={5} value={minGroupRate} onChange={(event) => setMinGroupRate(Number(event.target.value) || 70)} />
-          </label>
-          <label>
-            Mindestfälle
-            <input type="number" min={3} max={100} step={1} value={minCaseCount} onChange={(event) => setMinCaseCount(Number(event.target.value) || 8)} />
-          </label>
-          <label>
-            Orientierungswert ab EUR
-            <input type="number" min={0} step={50} value={minPotential} onChange={(event) => setMinPotential(Number(event.target.value) || 0)} />
-          </label>
-          <span>{selectedPeriod.detail} · {scopeLabel} · Norm-/Katalogbezug und Anwendbarkeit fachlich einordnen</span>
           <button
             className="secondary-button custom-export-action"
             type="button"
             onClick={() => printCustomTabPdf(exportRef.current, `${modeTitle} · ${scopeLabel} · ${selectedPeriod.label}`)}
-            disabled={!visibleFindings.length}
+            disabled={!reportRows.length}
           >
-            <Printer size={16} /> PDF Export
-          </button>
-          <button
-            className="secondary-button custom-export-action"
-            type="button"
-            onClick={() => downloadTextFile(`abrechnungsqualitaet-${fileSlug(scopeLabel)}-${fileSlug(selectedPeriod.label)}.csv`, createInvoiceQualityCsv(visibleFindings, selectedPeriod, previousFindingsByKey, exportIntro))}
-            disabled={!visibleFindings.length}
-          >
-            <Download size={16} /> CSV
+            <Printer size={16} /> Report als PDF exportieren
           </button>
         </div>
       </section>
 
-      <section className="priority-grid invoice-service-kpi-grid">
-        <PriorityCard label="Info-Hinweise" value={integerNumber.format(kpis.count)} hint={`${integerNumber.format(kpis.affectedInvoices)} betroffene Rechnungen`} tone={kpis.count ? "amber" : "green"} info="Katalog-, Plausibilitäts- und Gruppenvergleichshinweise aus wiederkehrenden Leistungsketten. Ein Hinweis ist eine Informationsgrundlage, keine automatische Fehlerbewertung." />
-        <PriorityCard label="Orientierungswert" value={money.format(kpis.potential)} hint="aus erwarteter Lücke" tone={kpis.potential ? "green" : "blue"} info="Orientierung: erwartete Lücke nach Gruppenquote mal durchschnittlichem Betrag der möglichen Begleitleistung. Der Wert ist kein gesicherter Nachberechnungsbetrag." />
-        <PriorityCard label="Stärkste Leistungskette" value={kpis.topFinding ? `${kpis.topFinding.anchorCode} -> ${kpis.topFinding.companionCode}` : "-"} hint={kpis.topFinding ? `${kpis.topFinding.standortName} · ${money.format(kpis.topFinding.potential)}` : "keine Auffälligkeit"} tone={kpis.topFinding ? "amber" : "blue"} />
-        <PriorityCard label="Höchste Abweichung" value={kpis.biggestGap ? `${integerNumber.format(kpis.biggestGap.confidenceGap * 100)} %-Punkte` : "-"} hint={kpis.biggestGap ? `${kpis.biggestGap.standortName}: ${kpis.biggestGap.companionCode}` : "keine Abweichung"} tone={kpis.biggestGap ? "amber" : "green"} />
-        <PriorityCard label="Export" value="PDF / CSV" hint="für Praxisgespräch" tone="blue" info="Die Liste ist als Informationsgrundlage gedacht: bitte vor Ort anhand Katalog, Dokumentation und Behandlung fachlich einordnen, ob ein Hinweis anwendbar ist." />
+      <section className="quality-simple-summary">
+        <article>
+          <span>Gefundene Muster</span>
+          <strong>{integerNumber.format(reportRows.length)}</strong>
+          <small>{scopeLabel} · {selectedPeriod.label}</small>
+        </article>
+        <article>
+          <span>Betroffene Rechnungen</span>
+          <strong>{integerNumber.format(reportKpis.affectedInvoices)}</strong>
+          <small>potenzielle Prüffälle</small>
+        </article>
+        <article>
+          <span>Hohe Prüfpriorität</span>
+          <strong>{integerNumber.format(reportKpis.highPriority)}</strong>
+          <small>Benchmark-Auffälligkeit, keine Abrechnungssicherheit</small>
+        </article>
+        <article>
+          <span>Orientierungswert</span>
+          <strong>{money.format(reportKpis.potential)}</strong>
+          <small>Vergleichswert, keine automatische Empfehlung</small>
+        </article>
+        <article>
+          <span>Mittlere Prüfpriorität</span>
+          <strong>{integerNumber.format(reportKpis.mediumPriority)}</strong>
+          <small>Score 45 bis 74</small>
+        </article>
+        <article>
+          <span>Niedrige Prüfpriorität</span>
+          <strong>{integerNumber.format(reportKpis.lowPriority)}</strong>
+          <small>vorsichtig interpretieren</small>
+        </article>
+        <article>
+          <span>Unklassifiziert</span>
+          <strong>{integerNumber.format(reportKpis.unclassified)}</strong>
+          <small>fachliche Regel noch nicht hinterlegt</small>
+        </article>
+        <article>
+          <span>Vergleichsbasis</span>
+          <strong>{reportRows[0]?.comparisonBasis.includes("ohne") ? "übrige Gruppe" : "Gruppe"}</strong>
+          <small>{reportRows[0]?.comparisonBasis ?? "abhängig von Standortauswahl"}</small>
+        </article>
+      </section>
+
+      <section className="panel quality-disclaimer-panel">
+        <p>{qualityDisclaimer}</p>
+      </section>
+
+      <section className="panel quality-explainer-panel">
+        <div className="quality-explainer-grid">
+          <article>
+            <strong>1. Auslöser</strong>
+            <span>Diese Ziffer kommt auf der Rechnung vor.</span>
+          </article>
+          <article>
+            <strong>2. Auffällige Begleitziffer im Gruppenvergleich</strong>
+            <span>Diese Ziffer ist bei ähnlichen Rechnungen in der Gruppe häufiger sichtbar.</span>
+          </article>
+          <article>
+            <strong>3. Standortvergleich</strong>
+            <span>Hier sieht man, ob der Standort sie ähnlich häufig nutzt.</span>
+          </article>
+          <article>
+            <strong>4. Prüffrage</strong>
+            <span>Ist die Begleitziffer bei den betroffenen Rechnungen fachlich zu prüfen?</span>
+          </article>
+        </div>
       </section>
 
       <div className="content-stack invoice-quality-report" ref={exportRef}>
-        <section className="panel invoice-quality-export-summary">
+        <section className="panel invoice-quality-export-summary quality-report-print-only">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">Exportübersicht</span>
-              <h2>{modeTitle} · {scopeLabel}</h2>
-              <p>Schlichte Tabellenübersicht der Hinweise im gewählten Filter.</p>
+              <span className="eyebrow">Report</span>
+              <h2>Ziffern-Muster – {scopeLabel} – {selectedPeriod.label}</h2>
+              <p>Der Report zeigt dieselben statistischen Prüfhinweise wie das Qualitätscockpit: auffällige Begleitziffern im Gruppenvergleich, Priorität, Score, Kontext und Prüffälle.</p>
             </div>
           </div>
           <div className="table-wrap compact-table invoice-quality-summary-table-wrap">
             <table>
               <tbody>
-                <tr><th>Zeitraum</th><td>{selectedPeriod.label}</td><th>Scope</th><td>{scopeLabel}</td></tr>
-                <tr><th>Hinweise</th><td>{integerNumber.format(kpis.count)}</td><th>Betroffene Rechnungen</th><td>{integerNumber.format(kpis.affectedInvoices)}</td></tr>
-                <tr><th>Orientierungswert</th><td>{money.format(kpis.potential)}</td><th>Basis</th><td>{basisFilter === "regeln" ? "kuratiert" : "Regeln + Datenmuster"}</td></tr>
+                <tr><th>Zeitraum</th><td>{selectedPeriod.label}</td><th>Standort</th><td>{scopeLabel}</td></tr>
+                <tr><th>Vergleichsbasis</th><td>{reportRows[0]?.comparisonBasis ?? "abhängig von Standortauswahl"}</td><th>Betroffene Rechnungen</th><td>{integerNumber.format(reportKpis.affectedInvoices)}</td></tr>
+                <tr><th>Muster</th><td>{integerNumber.format(reportRows.length)}</td><th>Orientierungswert</th><td>{money.format(reportKpis.potential)}</td></tr>
+                <tr><th>Hohe Prüfpriorität</th><td>{integerNumber.format(reportKpis.highPriority)}</td><th>Mittlere / niedrige Prüfpriorität</th><td>{integerNumber.format(reportKpis.mediumPriority)} / {integerNumber.format(reportKpis.lowPriority)}</td></tr>
+                <tr><th>Unklassifiziert</th><td>{integerNumber.format(reportKpis.unclassified)}</td><th>Hinweis</th><td>Keine automatische Abrechnungsempfehlung</td></tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        <section className="panel invoice-quality-export-note">
+        <section className="panel quality-report-reading quality-report-print-only">
+          <div className="chain-reading-grid">
+            <article>
+              <strong>Auslöser</strong>
+              <span>Diese Ziffer kommt auf der Rechnung vor und bildet die Vergleichsbasis.</span>
+            </article>
+            <article>
+              <strong>Auffällige Begleitziffer</strong>
+              <span>Diese Ziffer kommt in der Gruppe bei ähnlichen Rechnungen häufig zusätzlich vor.</span>
+            </article>
+            <article>
+              <strong>Gruppe / Standort</strong>
+              <span>Die Quote zeigt, wie oft die Begleitziffer bei gleicher Auslöser-Ziffer sichtbar ist.</span>
+            </article>
+            <article>
+              <strong>Prüfung</strong>
+              <span>Relevant ist, ob die Begleitziffer bei den betroffenen Fällen fachlich passt.</span>
+            </article>
+          </div>
+        </section>
+
+        <section className="panel quality-report-print-only">
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Einordnung</span>
-              <h2>Wie dieser Report zu lesen ist</h2>
-              {exportIntro.map((line) => <p key={line}>{line}</p>)}
+              <h2>Keine automatische Abrechnungsempfehlung</h2>
+              <p>{qualityDisclaimer}</p>
             </div>
           </div>
         </section>
 
-        {mode === "feedback" && (
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <span className="eyebrow">Praxisbericht</span>
-                <h2>{scopeLabel}: Abrechnungsqualität fachlich einordnen</h2>
-                <p>Die folgenden Hinweise verbinden Katalog-/Kommentarbezug, Plausibilitätslogik und anonymisierten Gruppenvergleich. Bitte vor Ort einordnen, ob sie zur Dokumentation und zum konkreten Behandlungsablauf passen.</p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="panel">
+        <section className="panel quality-pattern-print-panel quality-report-print-only">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">{mode === "feedback" ? "Praxis-Feedback" : mode === "chains" ? "Leistungsketten" : "Katalog-/Plausibilitätsinfos"}</span>
-              <h2>{mode === "chains" ? "Wenn-dann-Muster mit auffälliger Praxislücke" : "Informationsliste je Standort"}</h2>
+              <span className="eyebrow">Musterliste</span>
+              <h2>Top-Auffälligkeiten nach Score</h2>
+              <p>Kompakte Lesefassung für die Weitergabe. Priorität bedeutet statistische Auffälligkeit im Standortvergleich, keine automatische Abrechnungssicherheit.</p>
             </div>
           </div>
-          <div className="table-export-bar">
-            <span>{scopeLabel} · {selectedPeriod.label} · {integerNumber.format(visibleFindings.length)} Hinweise</span>
-          </div>
-          <div className="table-wrap compact-table invoice-quality-print-table-wrap">
-            <table className="invoice-quality-print-table">
-              <thead>
-                <tr>
-                  <th>Standort</th>
-                  <th>Falltyp</th>
-                  <th>Auslöser</th>
-                  <th>Begleitleistung</th>
-                  <th>Gruppe</th>
-                  <th>Praxis</th>
-                  <th>Lücke</th>
-                  <th>Wert</th>
-                  <th>Einordnung</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportRows.length ? reportRows.map((row) => (
-                  <tr key={`print-${row.key}`}>
-                    <td><strong>{row.standortName}</strong></td>
-                    <td>{row.caseType}</td>
-                    <td><strong>{row.anchorCode}</strong><small>{row.anchorDescription}</small></td>
-                    <td><strong>{row.companionCode}</strong><small>{row.companionDescription}</small></td>
-                    <td>{formatPercent(row.groupRate * 100)}<small>{integerNumber.format(row.groupTogetherCount)} / {integerNumber.format(row.groupAnchorCount)}</small></td>
-                    <td>{formatPercent(row.targetRate * 100)}<small>{integerNumber.format(row.targetTogetherCount)} / {integerNumber.format(row.targetAnchorCount)}</small></td>
-                    <td>{integerNumber.format(row.missingEstimate)}</td>
-                    <td><strong>{money.format(row.potential)}</strong></td>
-                    <td>{row.rule ? row.rule.title : "Datenmuster"}<small>{row.rule?.rationale ?? invoiceQualityDefaultRecommendation(row)}</small></td>
-                  </tr>
-                )) : <EmptyTableRow colSpan={9} label="Keine Hinweise im gewählten Filter. Schwellenwerte ggf. senken oder Zeitraum erweitern." />}
-              </tbody>
-            </table>
-          </div>
-          <div className="table-wrap compact-table invoice-services-scroll invoice-quality-table-wrap">
-            <table className="invoice-quality-table">
-              <thead>
-                <tr>
-                  <th>Standort</th>
-                  <th>Falltyp</th>
-                  <th>Wenn abgerechnet</th>
-                  <th>Häufige Begleitleistung</th>
-                  <th>Gruppe</th>
-                  <th>Praxis</th>
-                  <th>Lücke</th>
-                  <th>Entwicklung</th>
-                  <th>Basis</th>
-                  <th>Orientierungswert</th>
-                  <th>Einordnung</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportRows.length ? reportRows.map((row) => {
-                  const previous = previousFindingsByKey.get(row.key);
-                  return (
-                    <tr key={row.key}>
-                      <td><strong>{row.standortName}</strong></td>
-                      <td>{row.caseType}</td>
-                      <td><strong>{row.anchorCode}</strong><small>{row.anchorDescription}</small></td>
-                      <td><strong>{row.companionCode}</strong><small>{row.companionDescription}</small></td>
-                      <td>{formatPercent(row.groupRate * 100)}<small>{integerNumber.format(row.groupTogetherCount)} von {integerNumber.format(row.groupAnchorCount)}</small></td>
-                      <td>{formatPercent(row.targetRate * 100)}<small>{integerNumber.format(row.targetTogetherCount)} von {integerNumber.format(row.targetAnchorCount)}</small></td>
-                      <td>{integerNumber.format(row.missingEstimate)} Fälle</td>
-                      <td>{invoiceQualityTrendLabel(row, previous)}<small>{previousPeriod ? `gegen ${previousPeriod.label}` : "keine Vorperiode"}</small></td>
-                      <td><strong>{row.rule ? row.rule.title : "Datenmuster"}</strong><small>{row.rule ? `${row.rule.confidence} · ${row.rule.source}` : "statistisch, fachlich einordnen"}</small></td>
-                      <td><strong>{money.format(row.potential)}</strong></td>
-                      <td>{row.rule?.rationale ?? invoiceQualityDefaultRecommendation(row)}</td>
-                    </tr>
-                  );
-                }) : <EmptyTableRow colSpan={11} label="Keine Hinweise im gewählten Filter. Schwellenwerte ggf. senken oder Zeitraum erweitern." />}
-              </tbody>
-            </table>
-          </div>
-          <div className="invoice-quality-card-list">
-            {reportRows.length ? reportRows.map((row) => {
+          <div className="quality-pattern-print-list">
+            {reportRows.length ? reportRows.map((row, index) => {
               const previous = previousFindingsByKey.get(row.key);
+              const comparison = invoiceQualityComparisonDisplay(row);
               return (
-                <article className="invoice-quality-card" key={row.key}>
-                  <div className="invoice-quality-card-head">
-                    <div>
-                      <span>{row.standortName}</span>
-                      <strong>{row.anchorCode} {"->"} {row.companionCode}</strong>
-                    </div>
+                <article className="quality-pattern-print-card" key={`print-${row.key}`}>
+                  <div className="quality-print-card-head">
+                    <span>#{index + 1}</span>
+                    <strong>{row.anchorCode} -&gt; {row.companionCode}</strong>
+                    <small>{qualityPriorityLabel(row.priority)} · Score {row.score}</small>
                   </div>
-                  <div className="invoice-quality-card-services">
+                  <div className="quality-print-code-grid">
                     <div>
-                      <span>Wenn abgerechnet</span>
+                      <span>Auslöser</span>
                       <strong>{row.anchorCode}</strong>
                       <small>{row.anchorDescription}</small>
                     </div>
                     <div>
-                      <span>Häufige Begleitleistung</span>
+                      <span>Auffällige Begleitziffer im Gruppenvergleich</span>
                       <strong>{row.companionCode}</strong>
                       <small>{row.companionDescription}</small>
                     </div>
                   </div>
-                  <div className="invoice-quality-card-metrics">
-                    <div><span>Gruppe</span><strong>{formatPercent(row.groupRate * 100)}</strong><small>{integerNumber.format(row.groupTogetherCount)} von {integerNumber.format(row.groupAnchorCount)}</small></div>
-                    <div><span>Praxis</span><strong>{formatPercent(row.targetRate * 100)}</strong><small>{integerNumber.format(row.targetTogetherCount)} von {integerNumber.format(row.targetAnchorCount)}</small></div>
-                    <div><span>Lücke</span><strong>{integerNumber.format(row.missingEstimate)}</strong><small>Fälle</small></div>
-                    <div><span>Orientierungswert</span><strong>{money.format(row.potential)}</strong><small>{invoiceQualityTrendLabel(row, previous)}</small></div>
+                  <div className="quality-print-metrics">
+                    <div><span>Gruppe</span><strong>{comparison.group}</strong><small>{comparison.groupHint}</small></div>
+                    <div><span>Standort</span><strong>{comparison.practice}</strong><small>{comparison.practiceHint}</small></div>
+                    <div><span>Potenzielle Prüffälle</span><strong>{comparison.deviation}</strong><small>{qualitySampleLabel(row)}</small></div>
+                    <div><span>Wert</span><strong>{money.format(row.potential)}</strong><small>{invoiceQualityTrendLabel(row, previous)}</small></div>
                   </div>
-                  <div className="invoice-quality-card-basis">
-                    <span>{row.caseType}</span>
-                    <strong>{row.rule ? row.rule.title : "Datenmuster"}</strong>
-                    <small>{row.rule ? `${row.rule.confidence} · ${row.rule.source}` : "statistisch, fachlich einordnen"}</small>
+                  <div className="quality-print-metrics">
+                    <div><span>Klassifikation</span><strong>{invoiceQualityClassificationLabel(row.classification)}</strong><small>{row.contextLabel}</small></div>
+                    <div><span>Vergleichsbasis</span><strong>{row.comparisonBasis.includes("ohne") ? "übrige Gruppe" : "Gruppe"}</strong><small>{row.comparisonBasis}</small></div>
+                    <div><span>Fallzahl</span><strong>{qualitySampleLabel(row)}</strong><small>{qualitySampleHint(row)}</small></div>
+                    <div><span>Betroffene Rechnungen</span><strong>{integerNumber.format(row.affectedInvoices.length)}</strong><small>Prüffälle</small></div>
                   </div>
-                  <div className="invoice-quality-card-recommendation">
-                    <span>Einordnung</span>
-                    <p>{row.rule?.rationale ?? invoiceQualityDefaultRecommendation(row)}</p>
-                  </div>
+                  <p><strong>Prüffrage:</strong> {row.leaderQuestion}</p>
                 </article>
               );
             }) : (
-              <div className="invoice-quality-empty">Keine Hinweise im gewählten Filter. Schwellenwerte ggf. senken oder Zeitraum erweitern.</div>
+              <div className="invoice-quality-empty">Keine Ziffern-Muster im aktuellen Zeitraum oder Suchfilter.</div>
             )}
           </div>
         </section>
 
-        {mode !== "cockpit" && (
-          <section className="panel">
+        <section className="panel quality-pattern-panel quality-pattern-screen">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Mustererkennung</span>
+              <h2>Welche Begleitziffer ist im Standortvergleich auffällig seltener sichtbar?</h2>
+              <p>Sortiert nach Priorität und Score. Die Muster sind statistische Prüfhinweise, keine automatische Abrechnungsempfehlung.</p>
+            </div>
+          </div>
+          <div className="quality-pattern-list">
+            {reportRows.length ? reportRows.map((row) => {
+              const previous = previousFindingsByKey.get(row.key);
+              const comparison = invoiceQualityComparisonDisplay(row);
+              return (
+                <article className={selectedQualityKey === row.key ? "quality-pattern-card is-selected" : "quality-pattern-card"} key={row.key}>
+                  <div className="quality-pattern-main">
+                    <div className="quality-code-block trigger">
+                      <span>Auslöser</span>
+                      <strong>{row.anchorCode}</strong>
+                      <small>{row.anchorDescription}</small>
+                    </div>
+                    <div className="quality-pattern-arrow" aria-hidden="true">-&gt;</div>
+                    <div className="quality-code-block companion">
+                      <span>Auffällige Begleitziffer im Gruppenvergleich</span>
+                      <strong>{row.companionCode}</strong>
+                      <small>{row.companionDescription}</small>
+                    </div>
+                  </div>
+
+                  <div className="quality-pattern-comparison">
+                    <div>
+                      <span>Priorität / Score</span>
+                      <strong>{qualityPriorityLabel(row.priority)}</strong>
+                      <small>Score {row.score} · {qualitySampleLabel(row)}</small>
+                    </div>
+                    <div>
+                      <span>Klassifikation</span>
+                      <strong>{qualityShortClassificationLabel(row.classification)}</strong>
+                      <small>{row.contextLabel}</small>
+                    </div>
+                    <div>
+                      <span>Gruppe nutzt Begleitziffer</span>
+                      <strong>{comparison.group}</strong>
+                      <small>{comparison.groupHint} · {row.comparisonBasis}</small>
+                    </div>
+                    <div>
+                      <span>{row.standortName} nutzt Begleitziffer</span>
+                      <strong>{comparison.practice}</strong>
+                      <small>{comparison.practiceHint}</small>
+                    </div>
+                    <div>
+                      <span>Potenzielle Prüffälle</span>
+                      <strong>{comparison.deviation}</strong>
+                      <small>{row.lowCaseCount ? "Geringe Fallzahl · vorsichtig interpretieren" : `${integerNumber.format(row.missingEstimate)} Prüffälle · ${qualitySampleHint(row)}`}</small>
+                    </div>
+                    <div>
+                      <span>Vergleichswert</span>
+                      <strong>{money.format(row.potential)}</strong>
+                      <small>{invoiceQualityTrendLabel(row, previous)}</small>
+                    </div>
+                  </div>
+
+                  <div className="quality-pattern-footer">
+                    <p>{row.leaderQuestion}</p>
+                    <button type="button" className="secondary-button compact-action-button" onClick={() => setSelectedQualityKey(row.key)}>Prüffälle ansehen</button>
+                  </div>
+                </article>
+              );
+            }) : (
+              <div className="invoice-quality-empty">Keine Ziffern-Muster im aktuellen Zeitraum oder Suchfilter.</div>
+            )}
+          </div>
+        </section>
+
+        <section className="panel quality-context-section">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Kontextanalyse</span>
+              <h2>Schwerpunkte nach fachlichem Kontext</h2>
+              <p>Gleiche gefilterte Auswertung, gruppiert nach Kontext, Priorität und Orientierungswert.</p>
+            </div>
+          </div>
+          <div className="quality-context-grid">
+            {qualityContextSummaries.map((summary) => (
+              <article key={summary.context}>
+                <span>{summary.context}</span>
+                <strong>{integerNumber.format(summary.count)} Muster</strong>
+                <small>{money.format(summary.potential)} · hoch {summary.high} · mittel {summary.medium} · niedrig {summary.low}</small>
+                <small>{summary.topPattern}</small>
+              </article>
+            ))}
+            {!qualityContextSummaries.length && <div className="invoice-quality-empty">Keine Kontextdaten im aktuellen Filter.</div>}
+          </div>
+        </section>
+
+        {selectedQualityFinding && (
+          <section className="panel chain-detail-panel quality-detail-panel" ref={qualityDetailRef} tabIndex={-1}>
             <div className="panel-heading">
               <div>
-                <span className="eyebrow">Rechnungsbeispiele</span>
-                <h2>Betroffene Rechnungen aus den stärksten Hinweisen</h2>
+                <span className="eyebrow">Muster im Detail</span>
+                <h2>{selectedQualityFinding.anchorCode} {"->"} {selectedQualityFinding.companionCode}</h2>
+                <p>{invoiceQualityClassificationLabel(selectedQualityFinding.classification)} · {selectedQualityFinding.contextLabel} · Score {selectedQualityFinding.score}</p>
               </div>
+              <button type="button" className="secondary-button" onClick={() => setSelectedQualityKey("")}>Schließen</button>
             </div>
-            <div className="table-wrap compact-table invoice-services-scroll">
+            <div className="chain-detail-grid">
+              <article>
+                <span>Auslöser</span>
+                <strong>{selectedQualityFinding.anchorCode}</strong>
+                <small>{selectedQualityFinding.anchorDescription}</small>
+              </article>
+              <article>
+                <span>Auffällige Begleitziffer</span>
+                <strong>{selectedQualityFinding.companionCode}</strong>
+                <small>{selectedQualityFinding.companionDescription}</small>
+              </article>
+              <article>
+                <span>Gruppe / Standort</span>
+                <strong>{invoiceQualityComparisonDisplay(selectedQualityFinding).group} / {invoiceQualityComparisonDisplay(selectedQualityFinding).practice}</strong>
+                <small>{invoiceQualityComparisonDisplay(selectedQualityFinding).deviation}</small>
+              </article>
+              <article>
+                <span>Vergleichswert</span>
+                <strong>{money.format(selectedQualityFinding.potential)}</strong>
+                <small>{qualityPriorityLabel(selectedQualityFinding.priority)} · Score {selectedQualityFinding.score}</small>
+              </article>
+              <article>
+                <span>Vergleichsbasis</span>
+                <strong>{selectedQualityFinding.comparisonBasis.includes("ohne") ? "übrige Gruppe" : "Gruppe"}</strong>
+                <small>{selectedQualityFinding.comparisonBasis}</small>
+              </article>
+              <article>
+                <span>Fallzahlhinweis</span>
+                <strong>{qualitySampleLabel(selectedQualityFinding)}</strong>
+                <small>{selectedQualityFinding.lowCaseCount ? "vorsichtig interpretieren" : `${integerNumber.format(selectedQualityFinding.targetAnchorCount)} Standortfälle · ${qualitySampleHint(selectedQualityFinding)}`}</small>
+              </article>
+            </div>
+            <div className="chain-detail-question">
+              <strong>Prüffrage</strong>
+              <p>{selectedQualityFinding.leaderQuestion}</p>
+            </div>
+            <div className="ai-plausibility-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => requestAiPlausibility("quality")}
+                disabled={aiPlausibilityLoading === "quality"}
+              >
+                <Sparkles size={16} /> {aiPlausibilityLoading === "quality" ? "Gemini prüft..." : "KI-Plausibilität prüfen"}
+              </button>
+              <span>Anonymisierter Kontext: Ziffern, Vergleichswerte, Regelstatus und Prüfhints.</span>
+            </div>
+            <AiPlausibilityBox result={aiPlausibility} error={aiPlausibilityError} />
+            <div className="table-wrap compact-table quality-affected-table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Hinweis</th>
+                    <th>Patient / ID</th>
                     <th>Rechnung</th>
                     <th>Datum</th>
-                    <th>Patient</th>
+                    <th>Standort</th>
+                    <th>Auslöser</th>
+                    <th>Auffällige Begleitziffer</th>
                     <th>Betrag</th>
-                    <th>Abgerechnet</th>
+                    <th>Hinweis</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportRows.flatMap((finding) => finding.affectedInvoices.slice(0, mode === "feedback" ? 8 : 4).map((invoice) => ({ finding, invoice }))).slice(0, 120).map(({ finding, invoice }) => (
-                    <tr key={`${finding.key}-${invoice.key}`}>
-                      <td><strong>{finding.anchorCode} {"->"} {finding.companionCode}</strong><small>{finding.standortName}</small></td>
-                      <td><strong>{invoice.invoiceNo}</strong><small>{invoice.bfsNo}</small></td>
+                  {selectedQualityFinding.affectedInvoices.slice(0, 40).map((invoice) => (
+                    <tr key={invoice.key}>
+                      <td>{invoice.patientName || "-"}</td>
+                      <td><strong>{invoice.invoiceNo}</strong><small>BFS {invoice.bfsNo}</small></td>
                       <td>{invoice.invoiceDate}</td>
-                      <td>{invoice.patientName}</td>
+                      <td>{selectedQualityFinding.standortName}</td>
+                      <td>{selectedQualityFinding.anchorCode}</td>
+                      <td>{selectedQualityFinding.companionCode}</td>
                       <td>{money.format(invoice.amount)}</td>
-                      <td>{invoice.presentCodes.slice(0, 8).join(", ")}{invoice.presentCodes.length > 8 ? " ..." : ""}</td>
+                      <td>Auslöser vorhanden, Begleitziffer im Gruppenvergleich seltener sichtbar. Fachlich prüfen.</td>
                     </tr>
                   ))}
-                  {!reportRows.some((finding) => finding.affectedInvoices.length) && <EmptyTableRow colSpan={6} label="Keine betroffenen Rechnungen im gewählten Filter." />}
+                  {!selectedQualityFinding.affectedInvoices.length && <EmptyTableRow colSpan={8} label="Keine betroffenen Rechnungen im aktuellen Filter." />}
                 </tbody>
               </table>
             </div>
+            <div className="chain-detail-notes">
+              <article>
+                <strong>Wann prüfen?</strong>
+                <p>{selectedQualityFinding.requiredContext.join(" · ") || "Bei passenden Behandlungsabläufen und Dokumentation prüfen."}</p>
+              </article>
+              <article>
+                <strong>Dokumentation</strong>
+                <p>{selectedQualityFinding.documentationHints.join(" · ") || "Behandlungsablauf und Abrechnungsvoraussetzungen prüfen."}</p>
+              </article>
+              <article>
+                <strong>Vorsicht</strong>
+                <p>{selectedQualityFinding.cautionNotes.join(" · ") || "Kein automatischer Fehlerhinweis."}</p>
+              </article>
+              <article>
+                <strong>Regelbasis</strong>
+                <p>{selectedQualityFinding.sources.map((source) => source.title).join(" · ") || "Standortvergleich ohne hinterlegte Regel"}</p>
+              </article>
+            </div>
           </section>
         )}
+
+        <section className="panel chain-leader-actions">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Kurzinterpretation</span>
+              <h2>So ist diese Liste gemeint</h2>
+            </div>
+          </div>
+          <ul>
+            <li>Eine Karte zeigt immer genau ein Muster: Auslöser-Ziffer plus eine mögliche Begleitziffer.</li>
+            <li>Die Gruppe zeigt, wie häufig diese Begleitziffer bei ähnlichen Rechnungen vorkommt.</li>
+            <li>Der Standortwert zeigt, ob diese Begleitziffer dort seltener sichtbar ist.</li>
+            <li>Das ist eine Prüfliste für fachliche Einordnung, keine automatische Abrechnungsempfehlung.</li>
+          </ul>
+        </section>
       </div>
     </div>
   );
+}
+
+function sortChainRowsForLeaderReport(rows: InvoiceQualityChainFinding[], mode: "catalog" | "potential" = "catalog") {
+  const rank = (row: InvoiceQualityChainFinding) => ({ D: 0, C: 1, A: 2, B: 3, E: 4 })[row.catalogPlausibilityLevel] ?? 5;
+  const gap = (row: InvoiceQualityChainFinding) => Math.max(0, ...row.companions.map((companion) => companion.confidenceGap));
+  return [...rows].sort((a, b) =>
+    (mode === "catalog" ? rank(a) - rank(b) : 0)
+    || b.potential - a.potential
+    || gap(b) - gap(a)
+    || b.targetAnchorCount - a.targetAnchorCount
+    || a.anchorCode.localeCompare(b.anchorCode, "de", { numeric: true })
+  );
+}
+
+function sortInvoiceQualityRowsForLeaderReport(rows: InvoiceQualityFinding[]) {
+  const priorityRank = (row: InvoiceQualityFinding) => row.priority === "hoch" ? 0 : row.priority === "mittel" ? 1 : 2;
+  const classificationRank = (row: InvoiceQualityFinding) => {
+    if (row.classification === "fachlich_naheliegend") return 0;
+    if (row.classification === "kontextabhaengig") return 1;
+    if (row.classification === "schwach_statistisch") return 2;
+    return row.potential >= 2500 && row.confidenceGap >= 0.45 ? 3 : 4;
+  };
+  return [...rows].sort((a, b) =>
+    priorityRank(a) - priorityRank(b)
+    || Number(a.lowCaseCount) - Number(b.lowCaseCount)
+    || classificationRank(a) - classificationRank(b)
+    || b.score - a.score
+    || b.potential - a.potential
+    || b.confidenceGap - a.confidenceGap
+    || b.missingEstimate - a.missingEstimate
+    || a.anchorCode.localeCompare(b.anchorCode, "de", { numeric: true })
+  );
+}
+
+function qualityPriorityLabel(priority: InvoiceQualityFinding["priority"]) {
+  if (priority === "hoch") return "Hohe Prüfpriorität";
+  if (priority === "mittel") return "Mittlere Prüfpriorität";
+  return "Niedrige Prüfpriorität";
+}
+
+function qualityShortClassificationLabel(classification: InvoiceQualityFinding["classification"]) {
+  if (classification === "fachlich_naheliegend") return "Fachlich zu prüfen";
+  if (classification === "kontextabhaengig") return "Kontextabhängig";
+  if (classification === "schwach_statistisch") return "Statistische Auffälligkeit";
+  return "Unklassifiziert";
+}
+
+function qualitySampleLabel(row: InvoiceQualityFinding) {
+  if (row.lowCaseCount) return "Geringe Fallzahl";
+  return "Statistische Basis ausreichend";
+}
+
+function qualitySampleHint(row: InvoiceQualityFinding) {
+  if (row.lowCaseCount) return "statistisch schwache Basis";
+  return "belastbarere Vergleichsbasis";
+}
+
+function buildQualityContextSummaries(rows: InvoiceQualityFinding[]) {
+  const byContext = new Map<string, InvoiceQualityFinding[]>();
+  rows.forEach((row) => byContext.set(row.contextLabel, [...(byContext.get(row.contextLabel) ?? []), row]));
+  return [...byContext.entries()]
+    .map(([context, contextRows]) => {
+      const sortedRows = sortInvoiceQualityRowsForLeaderReport(contextRows);
+      return {
+        context,
+        count: contextRows.length,
+        potential: contextRows.reduce((sum, row) => sum + row.potential, 0),
+        high: contextRows.filter((row) => row.priority === "hoch").length,
+        medium: contextRows.filter((row) => row.priority === "mittel").length,
+        low: contextRows.filter((row) => row.priority === "niedrig").length,
+        topPattern: sortedRows[0] ? `${sortedRows[0].anchorCode} -> ${sortedRows[0].companionCode} · Score ${sortedRows[0].score}` : "kein Muster"
+      };
+    })
+    .sort((a, b) => b.potential - a.potential || b.count - a.count || a.context.localeCompare(b.context, "de"));
+}
+
+function invoiceQualityComparisonDisplay(row: InvoiceQualityFinding) {
+  if (row.analysisType === "factor_deviation") {
+    const groupFactor = row.groupAverageFactor ?? row.groupRate;
+    const practiceFactor = row.practiceAverageFactor ?? row.targetRate;
+    const factorDelta = row.factorDeviation ?? practiceFactor - groupFactor;
+    return {
+      group: `Ø Faktor ${feeRateNumber.format(groupFactor)}`,
+      groupHint: `${integerNumber.format(row.groupAnchorCount)} Faktorpositionen`,
+      practice: `Ø Faktor ${feeRateNumber.format(practiceFactor)}`,
+      practiceHint: `${integerNumber.format(row.targetAnchorCount)} Standortpositionen`,
+      deviation: formatFactorDelta(factorDelta),
+      deviationHint: "Faktorabweichung"
+    };
+  }
+
+  return {
+    group: formatPercent(row.groupRate * 100),
+    groupHint: `${integerNumber.format(row.groupTogetherCount)} von ${integerNumber.format(row.groupAnchorCount)}`,
+    practice: formatPercent(row.targetRate * 100),
+    practiceHint: `${integerNumber.format(row.targetTogetherCount)} von ${integerNumber.format(row.targetAnchorCount)}`,
+    deviation: `${integerNumber.format(row.missingEstimate)} Potenzialfälle`,
+    deviationHint: "potenzielle Prüffälle"
+  };
+}
+
+function buildChainClassificationSummary(rows: InvoiceQualityChainFinding[]) {
+  const order = ["naheliegend", "einzelfallabhängig", "vorsichtig einordnen", "nur Datenmuster", "Regel hinterlegt"];
+  return order.map((label) => ({
+    label,
+    count: rows.filter((row) => row.classification === label).length
+  })).filter((entry) => entry.count);
+}
+
+function catalogPlausibilityDisplay(level: string) {
+  const labels: Record<string, string> = {
+    A: "A · regelmäßig naheliegend",
+    B: "B · einzelfallabhängig",
+    C: "C · Behandlungsverlauf",
+    D: "D · vorsichtig einordnen",
+    E: "E · nur Datenmuster"
+  };
+  return labels[level] ?? level;
+}
+
+function buildChainCatalogPlausibilitySummary(rows: InvoiceQualityChainFinding[]) {
+  return ["A", "B", "C", "D", "E"].map((level) => ({
+    level,
+    count: rows.filter((row) => row.catalogPlausibilityLevel === level).length
+  })).filter((entry) => entry.count);
+}
+
+function chainFirstOccurrenceLabel(row: InvoiceQualityChainFinding, periodLabel: string) {
+  const datedInvoices = row.affectedInvoices
+    .map((invoice) => invoice.invoiceDate)
+    .filter((date) => date && date !== "-")
+    .sort((a, b) => {
+      const dateA = parseGermanDate(a);
+      const dateB = parseGermanDate(b);
+      return (Number.isNaN(dateA.getTime()) ? Number.MAX_SAFE_INTEGER : dateA.getTime())
+        - (Number.isNaN(dateB.getTime()) ? Number.MAX_SAFE_INTEGER : dateB.getTime());
+    });
+  return datedInvoices[0] ? `${datedInvoices[0]} · ${periodLabel}` : periodLabel;
+}
+
+function buildChainTopicSummaries(rows: InvoiceQualityChainFinding[]) {
+  const byTopic = new Map<string, InvoiceQualityChainFinding[]>();
+  rows.forEach((row) => {
+    byTopic.set(row.topic, [...(byTopic.get(row.topic) ?? []), row]);
+  });
+  return [...byTopic.entries()].map(([topic, topicRows]) => ({
+    topic,
+    count: topicRows.length,
+    potential: topicRows.reduce((sum, row) => sum + row.potential, 0),
+    rows: sortChainRowsForLeaderReport(topicRows).slice(0, 5)
+  })).sort((a, b) => b.potential - a.potential || b.count - a.count || a.topic.localeCompare(b.topic, "de"));
+}
+
+function buildQualityCountSummary<T extends "orientationLevel" | "precheckStatus" | "hintType">(rows: InvoiceQualityFinding[], field: T) {
+  const order = field === "orientationLevel"
+    ? ["naheliegend", "einzelfallabhängig", "vorsichtig einordnen"]
+    : field === "precheckStatus"
+      ? ["Regel hinterlegt", "Nur Datenmuster", "Keine Regel vorhanden", "Vorsichtig einordnen"]
+      : ["Kataloghinweis", "Plausibilitätshinweis", "Datenmuster", "Behandlungsverlauf", "Überschneidungsrisiko", "Faktorhinweis", "Leistungsbereichshinweis", "Analoghinweis", "Material-/Labor-Hinweis"];
+  return order.map((label) => ({
+    label,
+    count: rows.filter((row) => row[field] === label).length
+  })).filter((entry) => entry.count);
+}
+
+function buildQualityTopicSummaries(rows: InvoiceQualityFinding[]) {
+  const byTopic = new Map<string, InvoiceQualityFinding[]>();
+  rows.forEach((row) => {
+    byTopic.set(row.topicCluster, [...(byTopic.get(row.topicCluster) ?? []), row]);
+  });
+  return [...byTopic.entries()].map(([topic, topicRows]) => ({
+    topic,
+    count: topicRows.length,
+    potential: topicRows.reduce((sum, row) => sum + row.potential, 0),
+    rows: sortInvoiceQualityRowsForLeaderReport(topicRows).slice(0, 5)
+  })).sort((a, b) => b.potential - a.potential || b.count - a.count || a.topic.localeCompare(b.topic, "de"));
+}
+
+function qualityTopicOrientationText(topic: string) {
+  const texts: Record<string, string> = {
+    "Adhäsive Befestigung": "Bei Kronen-, Provisorien- oder Wiedereingliederungsfällen wird in der Gruppe häufig zusätzlich eine adhäsive Befestigung sichtbar. Bitte schauen Sie, ob dies bei Ihren Fällen fachlich zutrifft und entsprechend dokumentiert ist.",
+    "ZE/FAL-Zentrallage": "Bei komplexeren prothetischen Fällen wird in der Gruppe häufiger eine Zentrallage-Registrierung sichtbar. Bitte schauen Sie, ob diese Leistung bei Ihren Fällen tatsächlich erbracht und dokumentiert wurde.",
+    "Endodontie": "Bei Endodontie-Fällen werden in der Gruppe häufig weitere Endo-Leistungen sichtbar. Bitte prüfen Sie den tatsächlichen Behandlungsablauf.",
+    "Implantat-Fallverlauf": "Dieser Hinweis betrifft eher den Behandlungsverlauf. Bitte prüfen Sie, ob die Leistung zeitlich getrennt, bereits anderweitig berücksichtigt, noch geplant oder fachlich nicht einschlägig ist.",
+    "Prophylaxe/PZR": "Bei Prophylaxe- oder PZR-nahen Fällen werden in der Gruppe bestimmte Untersuchungs-, Beratungs- oder Behandlungsleistungen häufiger sichtbar. Bitte schauen Sie, ob dies fachlich und dokumentarisch passt.",
+    "Beratung/Diagnostik": "Beratungs- und Diagnostikleistungen können zusätzlich relevant sein, wenn sie eigenständig erbracht und dokumentiert wurden.",
+    "Chirurgie/Nachbehandlung": "Bei chirurgischen Fällen können Anästhesien, Kontrollen, Nachbehandlungen oder Zuschläge relevant sein. Bitte ordnen Sie dies anhand des konkreten Behandlungsablaufs ein.",
+    "Faktoren / Steigerungssätze": "Bei dieser Position oder diesem Leistungsbereich weicht der verwendete Faktor vom Gruppenmuster ab. Bitte schauen Sie, ob der Faktor fachlich begründet, dokumentiert und konsistent angewendet wird.",
+    "Analogpositionen": "Diese Analogposition oder analoge Abrechnungslogik weicht vom Gruppenmuster ab. Bitte schauen Sie, ob Begründung, Leistungsbeschreibung und interne Linie konsistent sind.",
+    "Material / Labor / Fremdlabor": "Bei vergleichbaren Fällen werden Material-, Labor- oder Fremdlaborpositionen in der Gruppe anders oder häufiger sichtbar. Bitte prüfen Sie, ob dies durch Behandlungsablauf, Eigen-/Fremdlabor oder Dokumentation erklärbar ist."
+  };
+  return texts[topic] ?? "Dieser Hinweis wurde aus dem Standortvergleich erkannt. Für diese Kombination ist noch keine fachlich hinterlegte Regel vorhanden. Bitte vor Ort einordnen, ob dies fachlich relevant sein kann.";
+}
+
+function groupChainCompanionsByTopic(row: InvoiceQualityChainFinding) {
+  const byTopic = new Map<string, typeof row.companions>();
+  row.companions.forEach((companion) => {
+    byTopic.set(companion.topic, [...(byTopic.get(companion.topic) ?? []), companion]);
+  });
+  return [...byTopic.entries()].map(([topic, companions]) => ({
+    topic,
+    companions: [...companions].sort((a, b) => b.potential - a.potential || a.code.localeCompare(b.code, "de", { numeric: true }))
+  })).sort((a, b) => b.companions.reduce((sum, companion) => sum + companion.potential, 0) - a.companions.reduce((sum, companion) => sum + companion.potential, 0));
 }
 
 function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDocument[]; compact?: boolean }) {
@@ -9404,6 +10668,7 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
   const byCode = new Map<string, {
     code: string;
     description: string;
+    specialCategory?: "ausfallhonorar";
     catalogStatus: InvoiceCatalogStatus;
     catalogSystems: Set<string>;
     catalogReviewCount: number;
@@ -9433,9 +10698,11 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
       const canonicalLine = canonicalInvoiceServiceLine(line, catalogContext);
       const canonicalCode = canonicalLine.code;
       if (!invoiceLineReadyForAnalysis(canonicalLine)) return;
+      const isAusfallhonorar = isAusfallhonorarLine(canonicalLine);
       const entry = byCode.get(canonicalCode) ?? {
         code: canonicalCode,
         description: canonicalLine.description,
+        specialCategory: isAusfallhonorar ? "ausfallhonorar" : undefined,
         catalogStatus: "ok",
         catalogSystems: new Set<string>(),
         catalogReviewCount: 0,
@@ -9451,27 +10718,32 @@ function invoiceServiceSummary(invoiceRows: ParsedInvoiceDocument[], period?: Pe
         groupFactorSum: 0,
         groupFactorCount: 0
       };
-      if (canonicalLine.factor && invoice.standortName) {
+      if (!isAusfallhonorar && canonicalLine.factor && invoice.standortName) {
         entry.benchmarkLocations.add(invoice.standortName);
       }
       if (isSelectedStandort) {
         entry.count += 1;
         entry.amount += canonicalLine.amount;
         entry.locations.add(invoice.standortName);
-        entry.catalogSystems.add(catalogCheck.system);
-        if (catalogCheck.status === "review") entry.catalogReviewCount += 1;
-        if (catalogCheck.status === "corrected") entry.catalogCorrectionCount += 1;
-        entry.catalogStatus = invoiceCatalogStatusPriority(catalogCheck.status) < invoiceCatalogStatusPriority(entry.catalogStatus)
-          ? catalogCheck.status
-          : entry.catalogStatus;
+        entry.specialCategory ||= isAusfallhonorar ? "ausfallhonorar" : undefined;
+        if (isAusfallhonorar) {
+          entry.catalogSystems.add("Ausfallhonorar");
+        } else {
+          entry.catalogSystems.add(catalogCheck.system);
+          if (catalogCheck.status === "review") entry.catalogReviewCount += 1;
+          if (catalogCheck.status === "corrected") entry.catalogCorrectionCount += 1;
+          entry.catalogStatus = invoiceCatalogStatusPriority(catalogCheck.status) < invoiceCatalogStatusPriority(entry.catalogStatus)
+            ? catalogCheck.status
+            : entry.catalogStatus;
+        }
       }
-      if (isSelectedStandort && canonicalLine.factor) {
+      if (!isAusfallhonorar && isSelectedStandort && canonicalLine.factor) {
         entry.factorSum += canonicalLine.factor;
         entry.factorCount += 1;
         entry.minFactor = Math.min(entry.minFactor, canonicalLine.factor);
         entry.maxFactor = Math.max(entry.maxFactor, canonicalLine.factor);
       }
-      if (isComparisonStandort && canonicalLine.factor) {
+      if (!isAusfallhonorar && isComparisonStandort && canonicalLine.factor) {
         entry.groupFactorSum += canonicalLine.factor;
         entry.groupFactorCount += 1;
       }
@@ -9580,7 +10852,7 @@ function invoiceServicesKpis(
   const locationFactors = orderedStandorte()
     .map((standort) => {
       const rows = invoiceRows.filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period) && (invoice.standortId === standort.id || invoice.standortName === standort.name));
-      const factorLines = rows.flatMap((invoice) => invoice.serviceLines.map((line) => canonicalInvoiceServiceLine(line))).filter((line) => invoiceLineReadyForAnalysis(line) && line.factor);
+      const factorLines = rows.flatMap((invoice) => invoice.serviceLines.map((line) => canonicalInvoiceServiceLine(line))).filter((line) => invoiceLineReadyForAnalysis(line) && !isAusfallhonorarLine(line) && line.factor);
       if (!factorLines.length) return null;
       return {
         standortId: standort.id,
@@ -10018,11 +11290,14 @@ function buildInvoiceQualityFindings(
   const analysisInvoices = invoiceRows
     .filter((invoice) => invoiceReadyForAnalysis(invoice) && invoiceInPeriod(invoice, period))
     .map((invoice) => invoiceQualityInvoiceProfile(invoice))
-    .filter((invoice) => invoice.codes.length >= 2);
+    .filter((invoice) => invoice.codes.length >= 1);
   const targetStandorte = selectedStandort
     ? [selectedStandort]
     : orderedStandorte().filter((standort) => analysisInvoices.some((invoice) => invoice.standortId === standort.id || invoice.standortName === standort.name));
-  return buildInvoiceQualityFindingsFromProfiles(analysisInvoices, targetStandorte, options);
+  return [
+    ...buildInvoiceQualityFindingsFromProfiles(analysisInvoices, targetStandorte, options),
+    ...buildInvoiceQualityFactorDeviationFindingsFromProfiles(analysisInvoices, targetStandorte, { minCaseCount: options.minCaseCount, minPotential: options.minPotential })
+  ];
 }
 
 function invoiceQualityInvoiceProfile(invoice: ParsedInvoiceDocument) {
@@ -10105,6 +11380,7 @@ function invoiceReadyForAnalysis(invoice: ParsedInvoiceDocument) {
 }
 
 function invoiceLineReadyForAnalysis(line: ParsedInvoiceLine) {
+  if (isAusfallhonorarLine(line)) return true;
   return suspiciousInvoiceLineReason(line) === null;
 }
 
@@ -10128,6 +11404,7 @@ function suspiciousInvoiceLineReason(line: ParsedInvoiceLine) {
   const code = line.code.trim();
   const description = line.description.trim();
   const descriptionWithoutPrefix = description.replace(/^\([a-z0-9]{1,3}\)\s*/i, "").trim();
+  if (isAusfallhonorarLine(line)) return null;
   if (line.category !== "leistung") return "Keine Gebührenposition.";
   if (!isPlausibleInvoiceServiceCode(code)) return "Gebührennummer nicht plausibel.";
   if (line.factor && line.factor > 15) return "Faktor liegt außerhalb des plausiblen Gebührenrahmens.";
@@ -10163,6 +11440,14 @@ function invoiceInPeriod(invoice: ParsedInvoiceDocument, period: PeriodOption) {
   if (period.start && date < period.start) return false;
   if (period.end && date > period.end) return false;
   return true;
+}
+
+function standortForInvoice(invoice: ParsedInvoiceDocument) {
+  return standorte.find((standort) =>
+    standort.id === invoice.standortId
+    || standort.name === invoice.standortName
+    || [standort.mandantNo, ...(standort.mandantNos ?? [])].includes(invoice.mandantNo)
+  );
 }
 
 function formatFactorDelta(value: number) {
@@ -10558,6 +11843,13 @@ function printWindowControlStyles() {
       font: 13px Arial, Helvetica, sans-serif;
     }
     .print-window-toolbar strong { font-size: 13px; }
+    .print-window-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .print-window-toolbar button {
       border: 1px solid rgba(121, 238, 231, 0.45);
       border-radius: 8px;
@@ -10577,13 +11869,22 @@ function printWindowControlStyles() {
 
 function printWindowToolbarHtml() {
   return `<div class="print-window-toolbar">
-    <div><strong>PDF-/Druckexport</strong> <span class="print-window-hint">Falls das Fenster offen bleibt, bitte hier schließen.</span></div>
-    <button type="button" onclick="orisusClosePrintWindow()">Fenster schließen</button>
+    <div><strong>PDF-/Druckexport</strong> <span class="print-window-hint">Falls der Dialog nicht automatisch startet, bitte PDF/Drucken öffnen.</span></div>
+    <div class="print-window-actions">
+      <button type="button" onclick="orisusPrintWindow()">PDF/Drucken öffnen</button>
+      <button type="button" onclick="orisusClosePrintWindow()">Fenster schließen</button>
+    </div>
   </div>`;
 }
 
 function printWindowAutoCloseScript(onLoadExtra = "", printDelayMs = 150) {
   return `<script>
+    function orisusPrintWindow() {
+      window.print();
+      window.setTimeout(function () {
+        document.body.classList.add("print-close-blocked");
+      }, 500);
+    }
     function orisusClosePrintWindow() {
       window.close();
       window.setTimeout(function () {
@@ -10596,8 +11897,7 @@ function printWindowAutoCloseScript(onLoadExtra = "", printDelayMs = 150) {
     window.addEventListener("load", function () {
       ${onLoadExtra}
       window.setTimeout(function () {
-        window.print();
-        window.setTimeout(orisusClosePrintWindow, 500);
+        orisusPrintWindow();
       }, ${printDelayMs});
     });
   </script>`;
@@ -11005,6 +12305,12 @@ function importRowNeedsReview(row: ImportPreviewRow) {
 
 function printCustomTabPdf(element: HTMLElement | null, title: string, locationExport?: { targetStandortName: string; locationNames: string[] }) {
   if (!element) return;
+  const reportWindow = window.open("", "_blank", "width=1400,height=900");
+  if (reportWindow) {
+    reportWindow.document.open();
+    reportWindow.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8" /><title>${escapeHtml(title)} - Orisus BFS Monitor</title><style>body{margin:0;background:#061c2a;color:#f8ffff;font:16px Arial,sans-serif;padding:24px}</style></head><body>PDF-Export wird vorbereitet...</body></html>`);
+    reportWindow.document.close();
+  }
   const stylesheetLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
     .map((link) => `<link rel="stylesheet" href="${escapeHtml(link.href)}" />`)
     .join("");
@@ -11018,13 +12324,14 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
   <style>
     @page { size: A4 landscape; margin: 8mm; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; overflow: visible; background: #061c2a !important; }
+    html, body { margin: 0; width: 100%; min-height: 100%; overflow: visible; background: #061c2a !important; }
     body { color: #f8ffff; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     ${printWindowControlStyles()}
-    .print-page { width: 100%; max-width: none; margin: 0; }
+    .print-page { width: 100%; max-width: none; margin: 0 auto; }
     .content-stack { width: 100% !important; max-width: none !important; gap: 12px !important; }
     .panel, .priority-card, .custom-chart-card, .custom-benchmark-panel { box-shadow: none !important; }
     .custom-export-action, .metric-info-button { display: none !important; }
+    .print-window-footer { display: none; }
     .custom-kpi-period { grid-template-columns: minmax(160px, 0.18fr) minmax(160px, 0.18fr) minmax(0, 1fr) !important; padding: 12px !important; break-inside: avoid; page-break-inside: avoid; }
     .custom-kpi-slider { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 10px !important; overflow: visible !important; padding: 0 !important; }
     .priority-card { min-height: 154px !important; padding: 12px !important; gap: 6px !important; break-inside: avoid; page-break-inside: avoid; }
@@ -11062,8 +12369,8 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
     .status { padding: 3px 6px !important; font-size: 9px !important; }
     .location-export-note { border: 1px solid rgba(121, 238, 231, 0.32); border-radius: 8px; background: rgba(48, 213, 200, 0.08); padding: 9px 10px; margin-bottom: 10px; font-size: 11px; color: #dffcff; break-inside: avoid; page-break-inside: avoid; }
     @media print {
-      html, body { width: auto; height: auto; background: #ffffff !important; color: #111827 !important; }
-      .print-page { width: 100%; }
+      html, body { width: 100% !important; height: auto; margin: 0 !important; padding: 0 !important; background: #ffffff !important; color: #111827 !important; }
+      .print-page { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; }
       .content-stack,
       .panel,
       .table-wrap,
@@ -11103,7 +12410,8 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-benchmark-table,
       .invoice-benchmark-group-table,
       .invoice-benchmark-detail-table,
-      .invoice-potential-table {
+      .invoice-potential-table,
+      .invoice-risk-patient-table {
         width: 100% !important;
         min-width: 0 !important;
         table-layout: fixed !important;
@@ -11117,7 +12425,9 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-benchmark-detail-table th,
       .invoice-benchmark-detail-table td,
       .invoice-potential-table th,
-      .invoice-potential-table td {
+      .invoice-potential-table td,
+      .invoice-risk-patient-table th,
+      .invoice-risk-patient-table td {
         color: #111827 !important;
         border-bottom: 1px solid #e2e8f0 !important;
         padding: 9px 8px !important;
@@ -11128,7 +12438,8 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-benchmark-table th,
       .invoice-benchmark-group-table th,
       .invoice-benchmark-detail-table th,
-      .invoice-potential-table th {
+      .invoice-potential-table th,
+      .invoice-risk-patient-table th {
         background: #f1f5f9 !important;
         color: #334155 !important;
         font-size: 10px !important;
@@ -11138,14 +12449,16 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-benchmark-table td strong,
       .invoice-benchmark-group-table td strong,
       .invoice-benchmark-detail-table td strong,
-      .invoice-potential-table td strong {
+      .invoice-potential-table td strong,
+      .invoice-risk-patient-table td strong {
         color: #0f172a !important;
         font-weight: 800 !important;
       }
       .invoice-benchmark-table td small,
       .invoice-benchmark-group-table td small,
       .invoice-benchmark-detail-table td small,
-      .invoice-potential-table td small {
+      .invoice-potential-table td small,
+      .invoice-risk-patient-table td small {
         display: block !important;
         margin-top: 3px !important;
         color: #64748b !important;
@@ -11303,12 +12616,243 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-potential-report .invoice-potential-table td:nth-child(5) { width: 12% !important; }
       .invoice-potential-report .invoice-potential-table th:nth-child(6),
       .invoice-potential-report .invoice-potential-table td:nth-child(6) { width: 15% !important; }
+      .invoice-risk-patient-report .priority-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+        margin: 0 0 10px !important;
+      }
+      .invoice-risk-patient-report .priority-card {
+        min-height: 82px !important;
+        padding: 8px 9px !important;
+        gap: 4px !important;
+        border: 1px solid #d7e3ea !important;
+        background: #f8fafc !important;
+        color: #111827 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-risk-patient-report .priority-card.red {
+        border-color: #f0a3a3 !important;
+        background: #fff5f5 !important;
+      }
+      .invoice-risk-patient-report .priority-card.amber {
+        border-color: #f0cc83 !important;
+        background: #fffaf0 !important;
+      }
+      .invoice-risk-patient-report .priority-card.green {
+        border-color: #9bdcc9 !important;
+        background: #f1fcf8 !important;
+      }
+      .invoice-risk-patient-report .priority-card > span {
+        color: #64748b !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
+        font-weight: 800 !important;
+      }
+      .invoice-risk-patient-report .priority-card strong {
+        color: #0f172a !important;
+        font-size: 19px !important;
+        line-height: 1.05 !important;
+        overflow-wrap: anywhere !important;
+      }
+      .invoice-risk-patient-report .priority-card small {
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.16 !important;
+      }
+      .invoice-risk-patient-report .table-export-bar {
+        min-height: 0 !important;
+        margin: 8px 0 10px !important;
+        padding: 8px 10px !important;
+        border: 1px solid #d7e3ea !important;
+        border-radius: 7px !important;
+        background: #f8fafc !important;
+        color: #334155 !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+      }
+      .invoice-risk-patient-report .invoice-risk-table-wrap {
+        overflow: visible !important;
+        max-height: none !important;
+      }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(1),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(1) { width: 11% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(2),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(2) { width: 18% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(3),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(3) { width: 10% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(4),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(4) { width: 16% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(5),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(5) { width: 12% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(6),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(6) { width: 20% !important; }
+      .invoice-risk-patient-report .invoice-risk-patient-table th:nth-child(7),
+      .invoice-risk-patient-report .invoice-risk-patient-table td:nth-child(7) { width: 13% !important; }
+      .patient-classification-report {
+        gap: 9px !important;
+      }
+      .patient-classification-report .patient-classification-screen-only {
+        display: none !important;
+      }
+      .patient-classification-report .priority-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+        margin: 0 0 8px !important;
+      }
+      .patient-classification-report .priority-card {
+        min-height: 76px !important;
+        padding: 8px !important;
+        gap: 4px !important;
+        border: 1px solid #d7e3ea !important;
+        background: #f8fafc !important;
+        color: #111827 !important;
+      }
+      .patient-classification-report .priority-card > span {
+        color: #64748b !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
+        font-weight: 900 !important;
+      }
+      .patient-classification-report .priority-card strong {
+        color: #0f172a !important;
+        font-size: 20px !important;
+        line-height: 1.05 !important;
+      }
+      .patient-classification-report .priority-card small {
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.16 !important;
+      }
+      .patient-classification-report .dashboard-grid {
+        display: grid !important;
+        grid-template-columns: 1.2fr 0.8fr !important;
+        gap: 8px !important;
+      }
+      .patient-classification-report .command-panel,
+      .patient-classification-report .process-panel {
+        padding: 10px !important;
+        min-height: 0 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .patient-classification-report .command-panel h2,
+      .patient-classification-report .process-panel h2 {
+        color: #0f172a !important;
+        font-size: 15px !important;
+        line-height: 1.2 !important;
+        margin: 2px 0 5px !important;
+      }
+      .patient-classification-report .command-panel p,
+      .patient-classification-report .stacked-checks span {
+        color: #475569 !important;
+        font-size: 9.5px !important;
+        line-height: 1.25 !important;
+      }
+      .patient-classification-report .stacked-checks {
+        gap: 5px !important;
+      }
+      .patient-classification-table-wrap {
+        overflow: visible !important;
+        max-height: none !important;
+        border-radius: 6px !important;
+      }
+      .patient-classification-table,
+      .patient-history-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        background: #ffffff !important;
+      }
+      .patient-classification-table th,
+      .patient-classification-table td,
+      .patient-history-table th,
+      .patient-history-table td {
+        color: #111827 !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 6px 6px !important;
+        font-size: 9.5px !important;
+        line-height: 1.22 !important;
+        vertical-align: top !important;
+        overflow-wrap: anywhere !important;
+        hyphens: auto !important;
+      }
+      .patient-classification-table th,
+      .patient-history-table th {
+        background: #f1f5f9 !important;
+        color: #334155 !important;
+        font-size: 8.5px !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+      }
+      .patient-classification-table td strong,
+      .patient-history-table td strong {
+        display: block !important;
+        color: #0f172a !important;
+        font-weight: 900 !important;
+        margin-bottom: 2px !important;
+      }
+      .patient-classification-table td span {
+        display: block !important;
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.18 !important;
+      }
+      .patient-classification-table th:nth-child(1),
+      .patient-classification-table td:nth-child(1) { width: 8% !important; }
+      .patient-classification-table th:nth-child(2),
+      .patient-classification-table td:nth-child(2) { width: 18% !important; }
+      .patient-classification-table th:nth-child(3),
+      .patient-classification-table td:nth-child(3) { width: 9% !important; }
+      .patient-classification-table th:nth-child(4),
+      .patient-classification-table td:nth-child(4),
+      .patient-classification-table th:nth-child(5),
+      .patient-classification-table td:nth-child(5),
+      .patient-classification-table th:nth-child(6),
+      .patient-classification-table td:nth-child(6) { width: 8% !important; }
+      .patient-classification-table th:nth-child(7),
+      .patient-classification-table td:nth-child(7) { width: 10% !important; }
+      .patient-classification-table th:nth-child(8),
+      .patient-classification-table td:nth-child(8) { width: 8% !important; }
+      .patient-classification-table th:nth-child(9),
+      .patient-classification-table td:nth-child(9) { width: 23% !important; }
+      .patient-history-table th:nth-child(1),
+      .patient-history-table td:nth-child(1) { width: 9% !important; }
+      .patient-history-table th:nth-child(2),
+      .patient-history-table td:nth-child(2) { width: 18% !important; }
+      .patient-history-table th:nth-child(3),
+      .patient-history-table td:nth-child(3) { width: 9% !important; }
+      .patient-history-table th:nth-child(4),
+      .patient-history-table td:nth-child(4) { width: 13% !important; }
+      .patient-history-table th:nth-child(5),
+      .patient-history-table td:nth-child(5) { width: 10% !important; }
+      .patient-history-table th:nth-child(6),
+      .patient-history-table td:nth-child(6) { width: 14% !important; }
+      .patient-history-table th:nth-child(7),
+      .patient-history-table td:nth-child(7) { width: 9% !important; }
+      .patient-history-table th:nth-child(8),
+      .patient-history-table td:nth-child(8) { width: 18% !important; }
       .invoice-quality-report {
         gap: 9px !important;
       }
-      .invoice-quality-report .invoice-quality-export-note,
       .invoice-quality-report .invoice-quality-card-list,
       .invoice-quality-report .invoice-quality-table-wrap {
+        display: none !important;
+      }
+      .invoice-quality-report .invoice-quality-export-note {
+        display: block !important;
+      }
+      .invoice-quality-report .chain-report-print-only {
+        display: block !important;
+      }
+      .invoice-quality-report .quality-report-print-only {
+        display: block !important;
+      }
+      .invoice-quality-report .quality-pattern-screen,
+      .invoice-quality-report .quality-detail-panel {
         display: none !important;
       }
       .invoice-quality-report .invoice-quality-print-table-wrap,
@@ -11345,8 +12889,178 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
         font-size: 10px !important;
         font-weight: 800 !important;
       }
+      .invoice-quality-report .chain-reading-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-quality-report .chain-reading-grid article {
+        border: 1px solid #d7e3ea !important;
+        border-radius: 6px !important;
+        background: #f8fafc !important;
+        color: #111827 !important;
+        padding: 8px !important;
+      }
+      .invoice-quality-report .chain-reading-grid strong {
+        color: #0f172a !important;
+        font-size: 10.5px !important;
+        line-height: 1.18 !important;
+      }
+      .invoice-quality-report .chain-reading-grid span {
+        color: #475569 !important;
+        font-size: 9px !important;
+        line-height: 1.22 !important;
+      }
+      .invoice-quality-report .quality-context-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+      }
+      .invoice-quality-report .quality-context-grid article {
+        border: 1px solid #d7e3ea !important;
+        border-radius: 6px !important;
+        background: #f8fafc !important;
+        color: #111827 !important;
+        padding: 8px !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-quality-report .quality-context-grid span {
+        color: #64748b !important;
+        font-size: 8.5px !important;
+      }
+      .invoice-quality-report .quality-context-grid strong {
+        color: #0f172a !important;
+        font-size: 11px !important;
+      }
+      .invoice-quality-report .quality-context-grid small {
+        color: #475569 !important;
+        font-size: 8.5px !important;
+        line-height: 1.16 !important;
+      }
+      .invoice-quality-report .quality-report-reading {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-quality-report .quality-pattern-print-panel {
+        display: block !important;
+      }
+      .invoice-quality-report .quality-pattern-print-list {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card {
+        display: grid !important;
+        gap: 7px !important;
+        min-width: 0 !important;
+        border: 1px solid #d7e3ea !important;
+        border-left: 3px solid #38bdf8 !important;
+        border-radius: 6px !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        padding: 8px !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .invoice-quality-report .quality-print-card-head {
+        display: grid !important;
+        grid-template-columns: auto minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 6px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        padding-bottom: 5px !important;
+      }
+      .invoice-quality-report .quality-print-card-head span {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 22px !important;
+        min-height: 22px !important;
+        border-radius: 999px !important;
+        background: #e0f2fe !important;
+        color: #0369a1 !important;
+        font-size: 8.5px !important;
+        font-weight: 900 !important;
+      }
+      .invoice-quality-report .quality-print-card-head strong {
+        color: #0f172a !important;
+        font-size: 12.5px !important;
+        line-height: 1.15 !important;
+      }
+      .invoice-quality-report .quality-print-card-head small {
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        line-height: 1.15 !important;
+        text-align: right !important;
+      }
+      .invoice-quality-report .quality-print-code-grid,
+      .invoice-quality-report .quality-print-metrics {
+        display: grid !important;
+        gap: 5px !important;
+      }
+      .invoice-quality-report .quality-print-code-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+      .invoice-quality-report .quality-print-metrics {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      }
+      .invoice-quality-report .quality-print-code-grid div,
+      .invoice-quality-report .quality-print-metrics div {
+        min-width: 0 !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 5px !important;
+        background: #f8fafc !important;
+        padding: 5px !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card span {
+        display: block !important;
+        color: #64748b !important;
+        font-size: 7.8px !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+        text-transform: uppercase !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card strong {
+        display: block !important;
+        color: #0f172a !important;
+        font-weight: 900 !important;
+        overflow-wrap: anywhere !important;
+      }
+      .invoice-quality-report .quality-print-code-grid strong {
+        margin-top: 2px !important;
+        font-size: 17px !important;
+        line-height: 1 !important;
+      }
+      .invoice-quality-report .quality-print-metrics strong {
+        margin-top: 2px !important;
+        font-size: 12px !important;
+        line-height: 1.08 !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card small {
+        display: block !important;
+        margin-top: 2px !important;
+        color: #64748b !important;
+        font-size: 8px !important;
+        line-height: 1.15 !important;
+        overflow-wrap: anywhere !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card p {
+        margin: 0 !important;
+        color: #334155 !important;
+        font-size: 8.7px !important;
+        line-height: 1.2 !important;
+        overflow-wrap: anywhere !important;
+      }
+      .invoice-quality-report .quality-pattern-print-card p strong {
+        display: inline !important;
+        font-size: inherit !important;
+      }
       .invoice-quality-summary-table-wrap table,
-      .invoice-quality-print-table {
+      .invoice-quality-print-table,
+      .invoice-quality-chain-table {
         width: 100% !important;
         min-width: 0 !important;
         table-layout: fixed !important;
@@ -11356,7 +13070,9 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
       .invoice-quality-summary-table-wrap th,
       .invoice-quality-summary-table-wrap td,
       .invoice-quality-print-table th,
-      .invoice-quality-print-table td {
+      .invoice-quality-print-table td,
+      .invoice-quality-chain-table th,
+      .invoice-quality-chain-table td {
         color: #111827 !important;
         border: 1px solid #e2e8f0 !important;
         padding: 6px 6px !important;
@@ -11367,7 +13083,8 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
         hyphens: auto !important;
       }
       .invoice-quality-summary-table-wrap th,
-      .invoice-quality-print-table th {
+      .invoice-quality-print-table th,
+      .invoice-quality-chain-table th {
         background: #f1f5f9 !important;
         color: #334155 !important;
         font-size: 8.5px !important;
@@ -11381,13 +13098,15 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
         width: 32% !important;
         font-weight: 800 !important;
       }
-      .invoice-quality-print-table td strong {
+      .invoice-quality-print-table td strong,
+      .invoice-quality-chain-table td strong {
         display: block !important;
         color: #0f172a !important;
         font-weight: 900 !important;
         margin-bottom: 2px !important;
       }
-      .invoice-quality-print-table td small {
+      .invoice-quality-print-table td small,
+      .invoice-quality-chain-table td small {
         display: block !important;
         color: #64748b !important;
         font-size: 8.5px !important;
@@ -11395,34 +13114,140 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
         margin-top: 2px !important;
       }
       .invoice-quality-print-table th:nth-child(1),
-      .invoice-quality-print-table td:nth-child(1) { width: 10% !important; }
+      .invoice-quality-print-table td:nth-child(1) { width: 8% !important; }
       .invoice-quality-print-table th:nth-child(2),
-      .invoice-quality-print-table td:nth-child(2) { width: 10% !important; }
+      .invoice-quality-print-table td:nth-child(2) { width: 8% !important; }
       .invoice-quality-print-table th:nth-child(3),
-      .invoice-quality-print-table td:nth-child(3) { width: 13% !important; }
+      .invoice-quality-print-table td:nth-child(3) { width: 14% !important; }
       .invoice-quality-print-table th:nth-child(4),
-      .invoice-quality-print-table td:nth-child(4) { width: 13% !important; }
+      .invoice-quality-print-table td:nth-child(4) { width: 14% !important; }
       .invoice-quality-print-table th:nth-child(5),
       .invoice-quality-print-table td:nth-child(5),
       .invoice-quality-print-table th:nth-child(6),
-      .invoice-quality-print-table td:nth-child(6) { width: 7% !important; }
+      .invoice-quality-print-table td:nth-child(6) { width: 8% !important; }
       .invoice-quality-print-table th:nth-child(7),
-      .invoice-quality-print-table td:nth-child(7) { width: 6% !important; }
+      .invoice-quality-print-table td:nth-child(7) { width: 8% !important; }
       .invoice-quality-print-table th:nth-child(8),
       .invoice-quality-print-table td:nth-child(8) { width: 9% !important; }
       .invoice-quality-print-table th:nth-child(9),
-      .invoice-quality-print-table td:nth-child(9) { width: 25% !important; }
+      .invoice-quality-print-table td:nth-child(9) { width: 10% !important; }
+      .invoice-quality-print-table th:nth-child(10),
+      .invoice-quality-print-table td:nth-child(10) { width: 13% !important; }
+      .invoice-quality-print-table th:nth-child(11),
+      .invoice-quality-print-table td:nth-child(11) { display: none !important; }
+      .invoice-quality-chain-table-wrap {
+        overflow: visible !important;
+        max-height: none !important;
+      }
+      .invoice-quality-chain-table th:nth-child(1),
+      .invoice-quality-chain-table td:nth-child(1) { width: 8% !important; }
+      .invoice-quality-chain-table th:nth-child(2),
+      .invoice-quality-chain-table td:nth-child(2) { width: 9% !important; }
+      .invoice-quality-chain-table th:nth-child(3),
+      .invoice-quality-chain-table td:nth-child(3) { width: 14% !important; }
+      .invoice-quality-chain-table th:nth-child(4),
+      .invoice-quality-chain-table td:nth-child(4) { width: 24% !important; }
+      .invoice-quality-chain-table th:nth-child(5),
+      .invoice-quality-chain-table td:nth-child(5) { width: 13% !important; }
+      .invoice-quality-chain-table th:nth-child(6),
+      .invoice-quality-chain-table td:nth-child(6) { width: 8% !important; }
+      .invoice-quality-chain-table th:nth-child(7),
+      .invoice-quality-chain-table td:nth-child(7) { width: 9% !important; }
+      .invoice-quality-chain-table th:nth-child(8),
+      .invoice-quality-chain-table td:nth-child(8) { width: 15% !important; }
+      .invoice-quality-chain-table th:nth-child(9),
+      .invoice-quality-chain-table td:nth-child(9),
+      .invoice-quality-chain-table th:nth-child(10),
+      .invoice-quality-chain-table td:nth-child(10),
+      .invoice-quality-chain-table th:nth-child(11),
+      .invoice-quality-chain-table td:nth-child(11) { display: none !important; }
+      .chain-code-list {
+        display: block !important;
+      }
+      .chain-code-pill {
+        display: block !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 0 4px !important;
+        padding: 4px 5px !important;
+        border: 1px solid #b6d7dc !important;
+        border-radius: 5px !important;
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        font-size: 9px !important;
+        font-weight: 900 !important;
+      }
+      .chain-code-pill small {
+        color: #475569 !important;
+        font-size: 8px !important;
+        line-height: 1.15 !important;
+      }
+      .chain-detail-panel,
+      .chain-topic-report-section {
+        break-before: page !important;
+      }
+      .chain-detail-grid,
+      .chain-topic-summary-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+      }
+      .chain-detail-grid article,
+      .chain-topic-summary-grid article,
+      .chain-detail-question,
+      .chain-detail-notes article {
+        border: 1px solid #d7e3ea !important;
+        background: #f8fafc !important;
+        color: #111827 !important;
+        padding: 8px !important;
+      }
+      .chain-detail-grid select,
+      .chain-detail-panel .secondary-button {
+        display: none !important;
+      }
+      .chain-topic-summary-grid article strong,
+      .chain-detail-grid article strong,
+      .chain-detail-question strong,
+      .chain-detail-notes strong {
+        color: #0f172a !important;
+        font-size: 11px !important;
+      }
+      .chain-topic-summary-grid article span,
+      .chain-topic-summary-grid article small,
+      .chain-detail-grid article span,
+      .chain-detail-grid article small,
+      .chain-detail-question p,
+      .chain-detail-notes p {
+        color: #475569 !important;
+        font-size: 9px !important;
+        line-height: 1.22 !important;
+      }
       a { color: inherit; text-decoration: none; }
+      .print-window-footer {
+        display: flex !important;
+        position: fixed;
+        left: 8mm;
+        right: 8mm;
+        bottom: 3mm;
+        justify-content: space-between;
+        color: #64748b !important;
+        font-size: 8.5px !important;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 2mm;
+      }
+      .print-window-footer .page-marker::after {
+        content: "Seite " counter(page);
+      }
     }
   </style>
 </head>
 <body>
   ${printWindowToolbarHtml()}
   <main class="print-page">${element.outerHTML}</main>
-  ${printWindowAutoCloseScript(locationExportScript, 250)}
+  <footer class="print-window-footer"><span>${escapeHtml(title)}</span><span>Exportdatum ${escapeHtml(new Date().toLocaleDateString("de-DE"))}</span><span class="page-marker"></span></footer>
+  ${printWindowAutoCloseScript(locationExportScript, 650)}
 </body>
 </html>`;
-  const reportWindow = window.open("", "_blank", "width=1400,height=900");
   if (!reportWindow) {
     downloadTextFile("orisus-bfs-individuell-export.html", html);
     return;
@@ -11514,11 +13339,11 @@ function printImportIssueReport(rows: ImportPreviewRow[]) {
   <style>
     @page { size: A4 landscape; margin: 12mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
     ${printWindowControlStyles()}
     header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 10px; margin-bottom: 12px; }
     h1 { margin: 0 0 4px; font-size: 22px; }
-    h2 { margin: 16px 0 8px; font-size: 15px; }
+    h2 { margin: 16px 0 8px; font-size: 14px; }
     p { margin: 0; color: #48606c; line-height: 1.35; }
     .meta { text-align: right; color: #48606c; }
     .summary { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 10px 0 12px; }
@@ -11670,6 +13495,7 @@ const appCacheKeys = {
   caseResolutions: "case-resolutions",
   invoiceStatusDocuments: "invoice-status-documents",
   invoiceRows: "invoice-rows",
+  operationalInvoiceRows: "operational-invoice-rows",
   invoiceCatalogMappings: "invoice-catalog-mappings"
 } as const;
 
@@ -11767,6 +13593,7 @@ async function loadManualCaseResolutions(options?: { forceServer?: boolean }) {
 async function loadConfirmedInvoiceStatusDocuments(options?: { forceServer?: boolean }) {
   if (typeof window === "undefined") return [];
   const cached = await loadCachedJson<ParsedInvoiceStatusDocument[]>(appCacheKeys.invoiceStatusDocuments).catch(() => null);
+  if (!options?.forceServer && cached) return cached;
   try {
     const response = await fetch("/api/invoice-status/parse", { method: "GET", cache: "no-store" });
     if (!response.ok) throw new Error("Bestätigter Rechnungsstatus konnte nicht geladen werden.");
@@ -11783,26 +13610,50 @@ async function loadConfirmedInvoiceStatusDocuments(options?: { forceServer?: boo
 
 async function loadConfirmedInvoiceRows(options?: { forceServer?: boolean }) {
   if (typeof window === "undefined") return [];
-  if (!options?.forceServer) {
-    const cached = await loadCachedJson<ParsedInvoiceDocument[]>(appCacheKeys.invoiceRows).catch(() => null);
+  const cached = await loadCachedJson<ParsedInvoiceDocument[]>(appCacheKeys.invoiceRows).catch(() => null);
+  if (!options?.forceServer && cached) return cached;
+  try {
+    const response = await fetch("/api/invoices/parse", { method: "GET", cache: "no-store" });
+    if (!response.ok) throw new Error("Bestätigte Rechnungen konnten nicht geladen werden.");
+    const payload = await response.json() as { rows?: ParsedInvoiceDocument[] };
+    const rows = payload.rows ?? [];
+    await storeCachedJson(appCacheKeys.invoiceRows, rows).catch(() => undefined);
+    markDatasetSynced(appCacheKeys.invoiceRows);
+    return rows;
+  } catch (error) {
     if (cached) return cached;
+    throw error;
   }
-  const response = await fetch("/api/invoices/parse", { method: "GET", cache: "no-store" });
-  if (!response.ok) throw new Error("Bestätigte Rechnungen konnten nicht geladen werden.");
-  const payload = await response.json() as { rows?: ParsedInvoiceDocument[] };
-  const rows = payload.rows ?? [];
-  await storeCachedJson(appCacheKeys.invoiceRows, rows).catch(() => undefined);
-  markDatasetSynced(appCacheKeys.invoiceRows);
-  return rows;
 }
 
-async function loadInvoiceCatalogMappings() {
+async function loadOperationalInvoiceRows(options?: { forceServer?: boolean }) {
   if (typeof window === "undefined") return [];
+  const cached = await loadCachedJson<ParsedInvoiceDocument[]>(appCacheKeys.operationalInvoiceRows).catch(() => null);
+  if (!options?.forceServer && cached) return cached;
+  try {
+    const response = await fetch("/api/invoices/parse?scope=ausfallhonorar", { method: "GET", cache: "no-store" });
+    if (!response.ok) throw new Error("Ausfallhonorar-Rechnungen konnten nicht geladen werden.");
+    const payload = await response.json() as { rows?: ParsedInvoiceDocument[] };
+    const rows = payload.rows ?? [];
+    await storeCachedJson(appCacheKeys.operationalInvoiceRows, rows).catch(() => undefined);
+    markDatasetSynced(appCacheKeys.operationalInvoiceRows);
+    return rows;
+  } catch (error) {
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+async function loadInvoiceCatalogMappings(options?: { forceServer?: boolean }) {
+  if (typeof window === "undefined") return [];
+  const cached = await loadCachedJson<InvoiceCatalogMapping[]>(appCacheKeys.invoiceCatalogMappings).catch(() => null);
+  if (!options?.forceServer && cached) return cached;
   const response = await fetch("/api/invoices/catalog-mappings", { method: "GET", cache: "no-store" });
   if (!response.ok) throw new Error("Katalog-Mappings konnten nicht geladen werden.");
   const payload = await response.json() as { mappings?: InvoiceCatalogMapping[] };
   const mappings = payload.mappings ?? [];
   await storeCachedJson(appCacheKeys.invoiceCatalogMappings, mappings).catch(() => undefined);
+  markDatasetSynced(appCacheKeys.invoiceCatalogMappings);
   return mappings;
 }
 
@@ -11817,6 +13668,7 @@ async function saveInvoiceCatalogMapping(mapping: InvoiceCatalogMapping) {
   if (!response.ok || !payload?.mapping) throw new Error(payload?.error ?? "Mapping konnte nicht gespeichert werden.");
   const mappings = payload.mappings ?? await loadInvoiceCatalogMappings();
   await storeCachedJson(appCacheKeys.invoiceCatalogMappings, mappings).catch(() => undefined);
+  markDatasetSynced(appCacheKeys.invoiceCatalogMappings);
   return mappings;
 }
 
@@ -11836,6 +13688,7 @@ async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
     const savedRows = await loadConfirmedInvoiceRows({ forceServer: true });
     await storeCachedJson(appCacheKeys.invoiceRows, savedRows).catch(() => undefined);
     markDatasetSynced(appCacheKeys.invoiceRows);
+    await invalidateOperationalInvoiceRowsCache();
     return {
       rows: savedRows,
       persistence
@@ -11844,6 +13697,7 @@ async function saveConfirmedInvoiceRows(rows: ParsedInvoiceDocument[]) {
   const result = await saveConfirmedInvoiceRowsChunk(rows, true);
   await storeCachedJson(appCacheKeys.invoiceRows, result.rows).catch(() => undefined);
   markDatasetSynced(appCacheKeys.invoiceRows);
+  await invalidateOperationalInvoiceRowsCache();
   return result;
 }
 
@@ -11903,6 +13757,7 @@ async function clearConfirmedInvoiceRows(options?: { source?: ParsedInvoiceDocum
   } else {
     await clearCachedJson(appCacheKeys.invoiceRows).catch(() => undefined);
   }
+  await invalidateOperationalInvoiceRowsCache();
   markDatasetSynced(appCacheKeys.invoiceRows);
   return {
     rows: payload?.rows
@@ -12053,6 +13908,13 @@ async function clearCachedJson(key: string) {
       reject(transaction.error);
     };
   });
+}
+
+async function invalidateOperationalInvoiceRowsCache() {
+  await clearCachedJson(appCacheKeys.operationalInvoiceRows).catch(() => undefined);
+  if (typeof window !== "undefined") {
+    window.sessionStorage.removeItem(datasetSyncStorageKey(appCacheKeys.operationalInvoiceRows));
+  }
 }
 
 function shouldLoadDatasetFromServer(key: string) {
@@ -12219,14 +14081,14 @@ function CasesView({
     searchTerm: caseSearchTerm,
     standortId: caseStandortFilter
   }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, invoiceRows, invoiceStatusRows]);
-  const showAusfallhonorarSummary = ausfallhonorarSummary.invoiceCount > 0;
+  const showAusfallhonorarSummary = true;
   const hasInvoiceStatusRows = invoiceStatusRows.length > 0;
-  const noProtectionSummary = useMemo(() => buildNoProtectionPatientSummary(importRows, invoiceStatusRows, manualCaseResolutions, {
+  const noProtectionSummary = useMemo(() => buildNoProtectionPatientSummary(importRows, invoiceRows, invoiceStatusRows, manualCaseResolutions, {
     allowedStandortIds,
     period: casePeriod,
     searchTerm: caseSearchTerm,
     standortId: caseStandortFilter
-  }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, importRows, invoiceStatusRows, manualCaseResolutions]);
+  }), [allowedStandortIds, casePeriod, caseSearchTerm, caseStandortFilter, importRows, invoiceRows, invoiceStatusRows, manualCaseResolutions]);
   const reportTitle = title ?? (compact ? "Prüfliste am Standort" : "Prüfliste");
   const hasCaseActions = Boolean(onResolvePaid || onResolveResubmitted || onKeepOpen || onCancelFinal);
   useEffect(() => {
@@ -12365,7 +14227,7 @@ function CasesView({
         <article className="case-kpi-card">
           <span>Zahlen regelmäßig</span>
           <strong>{integerNumber.format(noProtectionSummary.regularPaidPatients)}</strong>
-          <small>{formatPercent(noProtectionSummary.regularPaidRate)} der Ohne-Schutz-Patienten</small>
+          <small>{formatPercent(noProtectionSummary.regularPaidRate)} · 100 % sauber bezahlt</small>
         </article>
         <article className="case-kpi-card">
           <span>Endgültig storniert</span>
@@ -12423,7 +14285,7 @@ function CasesView({
           <tbody>
             {sortedRows.map((fall) => (
               <tr key={fall.id}>
-                <td><span className={`traffic traffic-${fall.traffic}`} /></td>
+                <td><span className={`traffic traffic-${caseProtectionTraffic(fall)}`} /></td>
                 <td>{fall.sourceDate ?? "-"}</td>
                 <td><strong>{fall.patientName}</strong><span>{fall.locationName}</span></td>
                 <td>{fall.invoiceNo}</td>
@@ -12453,7 +14315,7 @@ function CasesView({
         {sortedRows.map((fall) => (
           <article className="case-mobile-card" key={fall.id}>
             <div className="case-mobile-card-head">
-              <span className={`traffic traffic-${fall.traffic}`} />
+              <span className={`traffic traffic-${caseProtectionTraffic(fall)}`} />
               <div>
                 <strong>{fall.patientName}</strong>
                 <span>{fall.locationName}</span>
@@ -12493,6 +14355,10 @@ function buildCaseListKpis(rows: BfsCase[]) {
     topLocationCount: topLocation?.count ?? 0,
     topLocationAmount: topLocation?.amount ?? 0
   };
+}
+
+function caseProtectionTraffic(fall: BfsCase): "green" | "red" {
+  return isNoProtectionReturnCase(fall) ? "green" : "red";
 }
 
 type AusfallhonorarPaymentSummary = {
@@ -12602,6 +14468,7 @@ type NoProtectionPatientSummary = {
 
 function buildNoProtectionPatientSummary(
   importRows: ImportPreviewRow[],
+  invoiceRows: ParsedInvoiceDocument[],
   invoiceStatusRows: ParsedInvoiceStatusRow[],
   manualCaseResolutions: ManualCaseResolution[],
   options: {
@@ -12631,9 +14498,25 @@ function buildNoProtectionPatientSummary(
 
   const claims = riskClaimsFromImportRows(scopedRows)
     .filter((claim) => !query || matchesNoProtectionClaimSearch(claim, query));
+  const claimIdentityKeys = new Set(claims.flatMap((claim) => riskClaimMatchKeys(claim)));
+  const ausfallhonorarInvoices = invoiceRows
+    .filter(invoiceReadyForAnalysis)
+    .filter(invoiceHasAusfallhonorarLine)
+    .filter((invoice) => invoiceInPeriod(invoice, options.period))
+    .filter((invoice) => {
+      const invoiceStandort = standortForInvoice(invoice);
+      if (!invoiceStandort) return false;
+      if (allowedStandortIds && !allowedStandortIds.has(invoiceStandort.id)) return false;
+      if (selectedStandort && invoiceStandort.id !== selectedStandort.id) return false;
+      return true;
+    })
+    .filter((invoice) => !query || matchesAusfallhonorarInvoiceSearch(invoice, query))
+    .filter((invoice) => !invoiceDocumentMatchKeys(invoice).some((key) => claimIdentityKeys.has(key)));
   const patients = new Map<string, {
     claims: RiskClaim[];
-    regularPaid: boolean;
+    paidClaimCount: number;
+    totalClaimCount: number;
+    disqualified: boolean;
     finalCancelled: boolean;
     openRisk: boolean;
     regularPaidAmount: number;
@@ -12645,7 +14528,9 @@ function buildNoProtectionPatientSummary(
     const key = noProtectionPatientKey(claim);
     const current = patients.get(key) ?? {
       claims: [],
-      regularPaid: false,
+      paidClaimCount: 0,
+      totalClaimCount: 0,
+      disqualified: false,
       finalCancelled: false,
       openRisk: false,
       regularPaidAmount: 0,
@@ -12654,31 +14539,90 @@ function buildNoProtectionPatientSummary(
     };
     const statusRow = riskClaimMatchKeys(claim).map((matchKey) => statusRowsByKey.get(matchKey)).find(Boolean);
     const paidAmount = paidAmountForNoProtectionClaim(claim, statusRow);
-    const finalCancelled = riskActivityKeys(claim.standortId, claim.patientName, claim.invoiceNo, claim.bfsNo).some((matchKey) => finalCancelledCaseKeys.has(matchKey)) || statusRow?.paymentStatus === "storniert";
+    const manuallyCancelled = riskActivityKeys(claim.standortId, claim.patientName, claim.invoiceNo, claim.bfsNo).some((matchKey) => finalCancelledCaseKeys.has(matchKey));
+    const saldoCancelled = statusRow?.paymentStatus === "storniert";
+    const unresolvedNegativeMovement = paidAmount <= 0.005 && claim.assessment === "auffaellig";
+    const finalCancelled = manuallyCancelled || saldoCancelled || unresolvedNegativeMovement;
     const openRisk = !paidAmount && !finalCancelled && claim.assessment === "auffaellig";
     current.claims.push(claim);
-    current.regularPaid ||= paidAmount > 0.005 || claim.assessment === "erledigt";
+    current.totalClaimCount += 1;
+    const fullyPaid = paidAmount >= Math.max(claim.amount - 0.005, 0.005) || claim.assessment === "erledigt";
+    if (fullyPaid) current.paidClaimCount += 1;
+    current.disqualified ||= !fullyPaid || finalCancelled || openRisk || claim.assessment === "auffaellig";
     current.finalCancelled ||= finalCancelled;
     current.openRisk ||= openRisk;
     current.regularPaidAmount += paidAmount;
-    if (finalCancelled) current.finalCancelledAmount += claim.amount;
+    if (finalCancelled) current.finalCancelledAmount += claim.eventAmount && claim.eventAmount > 0.005 ? claim.eventAmount : claim.amount;
     if (openRisk) current.openRiskAmount += claim.eventAmount ?? claim.amount;
+    patients.set(key, current);
+  });
+
+  ausfallhonorarInvoices.forEach((invoice) => {
+    const invoiceStandort = standortForInvoice(invoice);
+    if (!invoiceStandort) return;
+    const submittedAmount = ausfallhonorarSubmittedAmount(invoice);
+    const statusRow = invoiceDocumentMatchKeys(invoice).map((matchKey) => statusRowsByKey.get(matchKey)).find(Boolean);
+    const paidAmount = paidAmountForAusfallhonorarInvoice(submittedAmount, statusRow);
+    const key = `${invoiceStandort.id}:${normalizePatientName(invoice.patientName)}`;
+    const current = patients.get(key) ?? {
+      claims: [],
+      paidClaimCount: 0,
+      totalClaimCount: 0,
+      disqualified: false,
+      finalCancelled: false,
+      openRisk: false,
+      regularPaidAmount: 0,
+      finalCancelledAmount: 0,
+      openRiskAmount: 0
+    };
+    current.claims.push({
+      id: `ausfallhonorar-risk-${invoice.fileHash ?? invoice.file}-${invoice.bfsNo}-${invoice.invoiceNo}`,
+      standortId: invoiceStandort.id,
+      patientName: invoice.patientName,
+      invoiceNo: invoice.invoiceNo,
+      bfsNo: invoice.bfsNo,
+      amount: submittedAmount,
+      statementNo: "-",
+      date: invoice.invoiceDate,
+      marker: "Ausfallhonorar",
+      markerReason: "Ausfallhonorar / Versäumnis",
+      markerCategory: "ausfallhonorar",
+      eventAmount: submittedAmount,
+      eventCount: 1,
+      eventLabels: ["Ausfallhonorar"],
+      assessment: paidAmount > 0.005 ? "erledigt" : "auffaellig",
+      assessmentLabel: paidAmount > 0.005 ? "bezahlt/gesichert" : "endgültig storniert"
+    });
+    current.totalClaimCount += 1;
+    const fullyPaid = paidAmount >= Math.max(submittedAmount - 0.005, 0.005);
+    if (fullyPaid) current.paidClaimCount += 1;
+    current.disqualified ||= !fullyPaid;
+    current.finalCancelled ||= !fullyPaid;
+    current.regularPaidAmount += paidAmount;
+    if (!fullyPaid) current.finalCancelledAmount += Math.max(submittedAmount - paidAmount, 0);
     patients.set(key, current);
   });
 
   const patientRows = [...patients.values()];
   const patientCount = patientRows.length;
-  const regularPaidPatients = patientRows.filter((row) => row.regularPaid && !row.finalCancelled).length;
+  const regularPaidPatients = patientRows.filter((row) =>
+    row.totalClaimCount > 0
+    && row.paidClaimCount === row.totalClaimCount
+    && !row.disqualified
+    && !row.finalCancelled
+    && !row.openRisk
+  ).length;
   const finalCancelledPatients = patientRows.filter((row) => row.finalCancelled).length;
-  const openRiskPatients = patientRows.filter((row) => row.openRisk && !row.finalCancelled && !row.regularPaid).length;
-  const amount = claims.reduce((sum, claim) => sum + claim.amount, 0);
+  const openRiskPatients = patientRows.filter((row) => row.openRisk && !row.finalCancelled && row.paidClaimCount < 2).length;
+  const allClaims = patientRows.flatMap((row) => row.claims);
+  const amount = allClaims.reduce((sum, claim) => sum + claim.amount, 0);
   const regularPaidAmount = patientRows.reduce((sum, row) => sum + row.regularPaidAmount, 0);
   const finalCancelledAmount = patientRows.reduce((sum, row) => sum + row.finalCancelledAmount, 0);
   const openRiskAmount = patientRows.reduce((sum, row) => sum + row.openRiskAmount, 0);
 
   return {
     patientCount,
-    claimCount: claims.length,
+    claimCount: allClaims.length,
     amount,
     regularPaidPatients,
     regularPaidAmount,
@@ -12711,6 +14655,98 @@ function noProtectionPatientKey(claim: RiskClaim) {
   return `${claim.standortId}:${normalizePatientName(claim.patientName)}`;
 }
 
+function buildInvoiceRiskPatientRows(rows: ImportPreviewRow[]): InvoiceRiskPatientRow[] {
+  const claims = riskClaimsFromImportRows(rows);
+  const grouped = new Map<string, RiskClaim[]>();
+  claims.forEach((claim) => {
+    const key = noProtectionPatientKey(claim);
+    grouped.set(key, [...(grouped.get(key) ?? []), claim]);
+  });
+
+  return [...grouped.entries()].map(([id, patientClaims]) => {
+    const sortedClaims = [...patientClaims].sort((a, b) => riskClaimTimestamp(b) - riskClaimTimestamp(a));
+    const lastClaim = sortedClaims[0];
+    const standort = standorte.find((entry) => entry.id === lastClaim.standortId);
+    const hasOpenNegative = sortedClaims.some((claim) => claim.assessment === "auffaellig");
+    const hasResolvedOnly = sortedClaims.every((claim) => claim.assessment === "erledigt");
+    const hasNegativeEvent = sortedClaims.some((claim) => (claim.eventCount ?? 0) > 0 || (claim.eventAmount ?? 0) > 0.005);
+    const status: InvoiceRiskPatientStatus = hasOpenNegative
+      ? "kritisch"
+      : hasResolvedOnly
+        ? "geklaert"
+        : hasNegativeEvent || sortedClaims.length > 1
+          ? "beobachten"
+          : "beobachten";
+    const totalAmount = sortedClaims.reduce((sum, claim) => sum + Math.abs(claim.amount ?? 0), 0);
+    const eventAmount = sortedClaims.reduce((sum, claim) => sum + Math.abs(claim.eventAmount ?? 0), 0);
+    const lastDate = validRiskClaimDate(lastClaim);
+    const reasons = uniqueValues(sortedClaims.flatMap((claim) => [
+      "ohne Ausfallschutz",
+      claim.assessmentLabel,
+      claim.markerReason,
+      ...(claim.eventLabels ?? [])
+    ]).filter(Boolean) as string[]);
+
+    return {
+      id,
+      patientName: lastClaim.patientName || "Unbekannter Patient",
+      standortId: lastClaim.standortId,
+      standortName: standort?.name ?? lastClaim.standortId,
+      status,
+      statusLabel: statusLabelForInvoiceRisk(status),
+      recommendation: recommendationForInvoiceRisk(status),
+      reasons,
+      claimCount: sortedClaims.length,
+      invoiceNos: uniqueValues(sortedClaims.map((claim) => claim.invoiceNo).filter(Boolean)),
+      bfsNos: uniqueValues(sortedClaims.map((claim) => claim.bfsNo).filter(Boolean)),
+      totalAmount,
+      eventAmount,
+      lastClaim,
+      lastDate,
+      lastDateLabel: lastDate ? germanDateFromIsoDate(lastDate.toISOString()) : lastClaim.date || "-",
+      daysSinceLastInvoice: lastDate ? Math.max(0, Math.floor((todayReference.getTime() - lastDate.getTime()) / 86400000)) : null
+    };
+  }).sort((a, b) => invoiceRiskStatusRank(a.status) - invoiceRiskStatusRank(b.status)
+    || (b.eventAmount || b.totalAmount) - (a.eventAmount || a.totalAmount)
+    || (b.lastDate?.getTime() ?? 0) - (a.lastDate?.getTime() ?? 0)
+    || a.patientName.localeCompare(b.patientName, "de"));
+}
+
+function riskClaimTimestamp(claim: RiskClaim) {
+  return validRiskClaimDate(claim)?.getTime() ?? 0;
+}
+
+function validRiskClaimDate(claim: RiskClaim) {
+  if (!claim.date) return null;
+  const germanDate = parseGermanDate(claim.date);
+  if (!Number.isNaN(germanDate.getTime())) return germanDate;
+  const isoDate = new Date(claim.date);
+  return Number.isNaN(isoDate.getTime()) ? null : isoDate;
+}
+
+function invoiceRiskStatusRank(status: InvoiceRiskPatientStatus) {
+  if (status === "kritisch") return 1;
+  if (status === "beobachten") return 2;
+  return 3;
+}
+
+function statusLabelForInvoiceRisk(status: InvoiceRiskPatientStatus | "alle") {
+  if (status === "kritisch") return "kritisch prüfen";
+  if (status === "beobachten") return "beobachten";
+  if (status === "geklaert") return "geklärt";
+  return "alle Status";
+}
+
+function recommendationForInvoiceRisk(status: InvoiceRiskPatientStatus) {
+  if (status === "kritisch") return "Vor weiterer Behandlung Zahlung/Klärung prüfen";
+  if (status === "beobachten") return "Ausfallschutz und Zahlungsstand vor Termin prüfen";
+  return "Geklärt, bei neuer Behandlung Schutzstatus prüfen";
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
 function matchesNoProtectionClaimSearch(claim: RiskClaim, query: string) {
   return searchHaystack(claim.patientName, claim.invoiceNo, claim.bfsNo, claim.amount, claim.markerReason, claim.assessmentLabel).includes(query);
 }
@@ -12719,7 +14755,7 @@ type CaseSortKey = "priority" | "date" | "patient" | "location" | "invoice" | "b
 type SortDirection = "asc" | "desc";
 
 const caseSortOptions: { value: `${CaseSortKey}:${SortDirection}`; label: string }[] = [
-  { value: "priority:asc", label: "Ampel kritisch zuerst" },
+  { value: "priority:asc", label: "Ampel rot zuerst" },
   { value: "patient:asc", label: "Name A-Z" },
   { value: "patient:desc", label: "Name Z-A" },
   { value: "location:asc", label: "Standort A-Z" },
@@ -12759,7 +14795,7 @@ function defaultCaseSortDirection(key: CaseSortKey): SortDirection {
 }
 
 function compareCaseByKey(a: BfsCase, b: BfsCase, key: CaseSortKey) {
-  if (key === "priority") return operationalCasePriority(a) - operationalCasePriority(b) || trafficSortValue(a.traffic) - trafficSortValue(b.traffic);
+  if (key === "priority") return caseProtectionSortValue(a) - caseProtectionSortValue(b) || operationalCasePriority(a) - operationalCasePriority(b);
   if (key === "date") return caseDateSortValue(a.sourceDate) - caseDateSortValue(b.sourceDate);
   if (key === "patient") return a.patientName.localeCompare(b.patientName, "de");
   if (key === "location") return a.locationName.localeCompare(b.locationName, "de");
@@ -12776,6 +14812,10 @@ function trafficSortValue(value: BfsCase["traffic"]) {
   if (value === "orange") return 2;
   if (value === "yellow") return 3;
   return 4;
+}
+
+function caseProtectionSortValue(fall: BfsCase) {
+  return caseProtectionTraffic(fall) === "red" ? 1 : 2;
 }
 
 function caseDateSortValue(value: string | undefined) {
@@ -12798,11 +14838,11 @@ function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?
   <style>
     @page { size: A4 landscape; margin: 12mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+    body { margin: 0; color: #102a3a; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
     ${printWindowControlStyles()}
     header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #30d5c8; padding-bottom: 10px; margin-bottom: 12px; }
     h1 { margin: 0 0 4px; font-size: 22px; }
-    h2 { margin: 16px 0 8px; font-size: 15px; }
+    h2 { margin: 16px 0 8px; font-size: 14px; }
     p { margin: 0; color: #48606c; line-height: 1.35; }
     .meta { text-align: right; color: #48606c; }
     .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0 12px; }
@@ -12812,14 +14852,25 @@ function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?
     .ausfallhonorar-summary { margin-top: 4px; }
     .ausfallhonorar-summary div { border-color: #94d8d1; background: #f2fbfa; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: 1px solid #d7e3e7; padding: 5px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
-    th { background: #eaf7f6; color: #0f5360; font-size: 9px; text-transform: uppercase; }
+    col.ampel { width: 48px; }
+    col.patient { width: 150px; }
+    col.invoice { width: 58px; }
+    col.bfs { width: 88px; }
+    col.amount { width: 64px; }
+    col.reason { width: 200px; }
+    col.age { width: 56px; }
+    col.status { width: 112px; }
+    col.comment { width: 130px; }
+    col.practice-check { width: 130px; }
+    th, td { border: 1px solid #d7e3e7; padding: 4px 5px; vertical-align: top; text-align: left; overflow-wrap: normal; word-break: normal; hyphens: auto; line-height: 1.2; }
+    th { background: #eaf7f6; color: #0f5360; font-size: 8px; text-transform: uppercase; line-height: 1.1; }
     tr:nth-child(even) td { background: #f8fbfc; }
-    .patient { width: 16%; }
-    .reason { width: 18%; }
-    .comment { width: 16%; }
-    .practice-check { width: 15%; }
-    .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 6px; font-weight: 700; }
+    td.ampel, th.ampel, td.age, th.age, td.amount, th.amount { text-align: center; }
+    td.invoice, td.bfs, td.amount, td.age, td.status-cell { white-space: nowrap; overflow-wrap: normal; word-break: keep-all; hyphens: none; }
+    td.patient, td.reason, td.comment, td.practice-check { overflow-wrap: break-word; word-break: normal; hyphens: auto; }
+    td.bfs { font-size: 9px; }
+    .status { display: inline-block; border-radius: 999px; background: #eaf7f6; color: #0f5360; padding: 2px 5px; font-weight: 700; white-space: nowrap; font-size: 8px; }
+    .as-label { display: inline-block; margin-top: 2px; white-space: nowrap; font-size: 8px; font-weight: 700; color: #102a3a; }
     .traffic { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; background: #30d5c8; }
     .traffic-red { background: #f04438; }
     .traffic-amber { background: #f59e0b; }
@@ -12857,7 +14908,7 @@ function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?
   <h2>Ohne Ausfallschutz</h2>
   <section class="summary ausfallhonorar-summary">
     <div><span>Patienten</span><strong>${integerNumber.format(noProtectionSummary.patientCount)}</strong></div>
-    <div><span>Zahlen regelmäßig</span><strong>${integerNumber.format(noProtectionSummary.regularPaidPatients)}</strong></div>
+    <div><span>Zahlen regelmäßig</span><strong>${integerNumber.format(noProtectionSummary.regularPaidPatients)}</strong><small>100 % sauber bezahlt</small></div>
     <div><span>Regelmäßig-Quote</span><strong>${escapeHtml(formatPercent(noProtectionSummary.regularPaidRate))}</strong></div>
     <div><span>Endgültig storniert</span><strong>${integerNumber.format(noProtectionSummary.finalCancelledPatients)}</strong></div>
   </section>
@@ -12869,18 +14920,30 @@ function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?
   </section>` : ""}
   <h2>Fallliste</h2>
   <table>
+    <colgroup>
+      <col class="ampel" />
+      <col class="patient" />
+      <col class="invoice" />
+      <col class="bfs" />
+      <col class="amount" />
+      <col class="reason" />
+      <col class="age" />
+      <col class="status" />
+      <col class="comment" />
+      <col class="practice-check" />
+    </colgroup>
     <thead>
       <tr>
-        <th>Ampel</th>
-        <th class="patient">Patient</th>
+        <th class="ampel">Ampel</th>
+        <th>Patient</th>
         <th>Re.-Nr.</th>
         <th>BFS-Nr.</th>
-        <th>Betrag</th>
-        <th class="reason">Grund</th>
-        <th>Alter</th>
+        <th class="amount">Betrag</th>
+        <th>Grund</th>
+        <th class="age">Alter</th>
         <th>Status</th>
-        <th class="comment">Kommentar</th>
-        <th class="practice-check">Wenn storniert: in der Praxissoftware ausgebucht?</th>
+        <th>Kommentar</th>
+        <th>Wenn storniert: in Praxissoftware ausgebucht?</th>
       </tr>
     </thead>
     <tbody>
@@ -12902,18 +14965,33 @@ function printCasesReport(rows: BfsCase[], title: string, ausfallhonorarSummary?
 }
 
 function caseReportRowHtml(fall: BfsCase) {
+  const protectionTraffic = caseProtectionTraffic(fall);
+  const protectionLabel = protectionTraffic === "green" ? "ohne AS" : "mit AS";
   return `<tr>
-    <td><span class="traffic traffic-${escapeHtml(fall.traffic)}"></span>${escapeHtml(fall.traffic)}</td>
-    <td><strong>${escapeHtml(fall.patientName)}</strong><br />${escapeHtml(fall.locationName)}</td>
-    <td>${escapeHtml(fall.invoiceNo)}</td>
-    <td>${escapeHtml(fall.bfsNo)}</td>
-    <td>${escapeHtml(exactMoney.format(fall.amount))}</td>
-    <td>${escapeHtml(fall.reason)}</td>
-    <td>${fall.ageDays} Tage</td>
-    <td><span class="status">${escapeHtml(fall.status)}</span></td>
-    <td></td>
-    <td></td>
+    <td class="ampel"><span class="traffic traffic-red"></span><br /><span class="as-label">${escapeHtml(protectionLabel)}</span></td>
+    <td class="patient"><strong>${escapeHtml(fall.patientName)}</strong><br />${escapeHtml(fall.locationName)}</td>
+    <td class="invoice">${escapeHtml(fall.invoiceNo)}</td>
+    <td class="bfs">${escapeHtml(fall.bfsNo)}</td>
+    <td class="amount">${escapeHtml(exactMoney.format(fall.amount))}</td>
+    <td class="reason">${escapeHtml(fall.reason)}</td>
+    <td class="age">${fall.ageDays} T.</td>
+    <td class="status-cell"><span class="status">${escapeHtml(caseReportStatusLabel(fall.status))}</span></td>
+    <td class="comment"></td>
+    <td class="practice-check"></td>
   </tr>`;
+}
+
+function caseReportStatusLabel(status: BfsCase["status"]) {
+  if (status === "praxis_nachfassen") return "Praxis";
+  if (status === "storno_laut_bfs_pruefen") return "Storno";
+  if (status === "bfs_offen_mahnstufe") return "Mahnung";
+  if (status === "bfs_offen_pruefen") return "BFS offen";
+  if (status === "nicht_in_saldo_liste") return "ohne Saldo";
+  if (status === "offen_pruefen") return "prüfen";
+  if (status === "ohne_schutz_offen") return "ohne Schutz";
+  if (status === "mahnstufe_kritisch") return "Mahnung";
+  if (status === "kritisch_offen") return "kritisch";
+  return status.replace(/_/g, " ");
 }
 
 function formatCaseAbrechnungReference(value: string) {
@@ -13194,6 +15272,7 @@ function RecurringRiskView({ standortId, compact = false, importRows = [] }: { s
 }
 
 function PatientClassificationView({ standort, importRows = [] }: { standort?: Standort; importRows?: ImportPreviewRow[] }) {
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCashflowPeriods(), []);
   const [selectedPeriodId, setSelectedPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [selectedStandortFilterId, setSelectedStandortFilterId] = useState(() => standort?.id ?? "alle");
@@ -13225,6 +15304,7 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
   const resolvedNoProtection = riskClaims.filter((claim) => claim.assessment === "erledigt").length;
   const suspiciousNoProtection = riskClaims.filter((claim) => claim.assessment === "auffaellig").length;
   const criticalPatients = profiles.filter((profile) => ["C", "D"].includes(profile.grade));
+  const scopeLabel = selectedStandorte.length === 1 ? selectedStandorte[0].name : "Alle Standorte";
 
   return (
     <div className="content-stack">
@@ -13247,168 +15327,187 @@ function PatientClassificationView({ standort, importRows = [] }: { standort?: S
           </select>
         </label>
         <div>
-          <strong>{selectedStandorte.length === 1 ? selectedStandorte[0].name : "Alle Standorte"}</strong>
+          <strong>{scopeLabel}</strong>
           <span>{selectedPeriod.detail}</span>
         </div>
+        <button
+          className="secondary-button custom-export-action"
+          type="button"
+          onClick={() => printCustomTabPdf(exportRef.current, `Patientenklassifizierung · ${scopeLabel} · ${selectedPeriod.label}`)}
+          disabled={!profiles.length}
+        >
+          <Printer size={16} /> PDF Export
+        </button>
       </section>
-      <section className="priority-grid">
-        <PriorityCard label="Ohne-Schutz-Anteil" value={formatPercent(noProtectionPatients.length ? (noProtectionPatients.length / total) * 100 : 0)} hint={`${noProtectionPatients.length} Patienten`} tone={noProtectionPatients.length ? "amber" : "green"} />
-        <PriorityCard label="Davon auffällig" value={formatPercent(noProtectionPatients.length ? (noProtectionActuallyBad.length / noProtectionPatients.length) * 100 : 0)} hint={`${noProtectionActuallyBad.length} Patienten`} tone={noProtectionActuallyBad.length ? "red" : "green"} />
-        <PriorityCard label="Bezahlt / geklärt" value={String(resolvedNoProtection)} hint="Ohne-Schutz-Claims mit Beleg" tone={resolvedNoProtection ? "green" : "blue"} />
-        <PriorityCard label="Wiederholer ohne Schutz" value={String(recurring.length)} hint={`${recurring.filter((profile) => profile.tone === "red").length} kritisch`} tone={recurring.some((profile) => profile.tone === "red") ? "red" : recurring.length ? "amber" : "green"} />
-        {counts.map(({ grade, count }) => (
-          <PriorityCard
-            key={grade}
-            label={`Klasse ${grade}`}
-            value={formatPercent(total ? (count / total) * 100 : 0)}
-            hint={`${count} Patienten`}
-            tone={grade === "A" ? "green" : grade === "B" ? "blue" : grade === "C" ? "amber" : "red"}
-            info={patientClassInfo(grade, count, total)}
-          />
-        ))}
-      </section>
-      <section className="chart-grid">
-        <div className="panel mini-chart">
-          <h2>Patientenklassen</h2>
-          <CaseColumnChart
-            title="Patientenqualität"
-            values={counts.map(({ grade, count }) => ({ label: `Klasse ${grade}`, value: count }))}
-            valueKind="count"
-          />
-        </div>
-        <div className="panel mini-chart">
-          <h2>Ohne-Schutz-Selektion</h2>
-          <CaseColumnChart title="Ohne-Schutz-Selektion" valueKind="count" values={[
-            { label: "ohne Schutz", value: noProtectionPatients.length },
-            { label: "auffällig", value: noProtectionActuallyBad.length },
-            { label: "erledigt", value: resolvedNoProtection },
-            { label: "Wiederholer", value: recurring.length }
-          ]} />
-        </div>
-      </section>
-      <section className="dashboard-grid">
-        <article className="panel command-panel">
-          <div>
-            <span className="eyebrow">Patientenselektion</span>
-            <h2>{noProtectionActuallyBad.length} von {noProtectionPatients.length} Ohne-Schutz-Patienten wurden auffällig</h2>
-            <p>Unauffällig ohne Schutz: {noProtectionClean.length}. Auffällige Claims aus Risikoabgleich: {suspiciousNoProtection}. Hohes Risiko mit hohem Volumen: {highRiskHighVolume.length} Patient(en).</p>
-          </div>
-        </article>
-        <article className="panel process-panel">
-          <h2>Steuerungslogik</h2>
-          <div className="stacked-checks">
-            <span>Ohne Ausfallschutz ist Selektion, nicht automatisch Klärfall</span>
-            <span>Wiederholer mit negativer Bewegung zuerst mit Standort besprechen</span>
-            <span>Klasse C/D mit hohem Volumen für Vorkasse- oder Sperrprozess prüfen</span>
-          </div>
-        </article>
-      </section>
-      <section className="risk-profile-grid">
-        {recurring.slice(0, 6).map((profile) => (
-          <article className={`risk-profile-card ${profile.tone}`} key={`classification-${profile.id}`}>
+      <div className="content-stack patient-classification-report" ref={exportRef}>
+        <section className="panel invoice-quality-export-summary">
+          <div className="panel-heading">
             <div>
-              <span>{profile.standortName}</span>
-              <strong>{profile.patientName}</strong>
+              <span className="eyebrow">Standortleiter-Report</span>
+              <h2>{standort ? `Patientenklassifizierung ${standort.name}` : "Patientenklassifizierung Gruppe"}</h2>
+              <p>{scopeLabel} · {selectedPeriod.label}. Patienten werden anhand von Zahlungsverhalten, Stornos/Rückgaben, Ausfallschutz und Wiederholungen klassifiziert. Kritisch aktuell: {criticalPatients.length} Patient(en).</p>
             </div>
-            <dl>
-              <div><dt>Einreichungen</dt><dd>{profile.count}</dd></div>
-              <div><dt>Risikosumme</dt><dd>{money.format(profile.total)}</dd></div>
-              <div><dt>Auffälligkeiten</dt><dd>{profile.eventCount}</dd></div>
-              <div><dt>zuletzt</dt><dd>{profile.lastDate}</dd></div>
-            </dl>
-            <StatusBadge status={profile.recommendation} />
+          </div>
+        </section>
+        <section className="priority-grid">
+          <PriorityCard label="Ohne-Schutz-Anteil" value={formatPercent(noProtectionPatients.length ? (noProtectionPatients.length / total) * 100 : 0)} hint={`${noProtectionPatients.length} Patienten`} tone={noProtectionPatients.length ? "amber" : "green"} />
+          <PriorityCard label="Davon auffällig" value={formatPercent(noProtectionPatients.length ? (noProtectionActuallyBad.length / noProtectionPatients.length) * 100 : 0)} hint={`${noProtectionActuallyBad.length} Patienten`} tone={noProtectionActuallyBad.length ? "red" : "green"} />
+          <PriorityCard label="Bezahlt / geklärt" value={String(resolvedNoProtection)} hint="Ohne-Schutz-Claims mit Beleg" tone={resolvedNoProtection ? "green" : "blue"} />
+          <PriorityCard label="Wiederholer ohne Schutz" value={String(recurring.length)} hint={`${recurring.filter((profile) => profile.tone === "red").length} kritisch`} tone={recurring.some((profile) => profile.tone === "red") ? "red" : recurring.length ? "amber" : "green"} />
+          {counts.map(({ grade, count }) => (
+            <PriorityCard
+              key={grade}
+              label={`Klasse ${grade}`}
+              value={formatPercent(total ? (count / total) * 100 : 0)}
+              hint={`${count} Patienten`}
+              tone={grade === "A" ? "green" : grade === "B" ? "blue" : grade === "C" ? "amber" : "red"}
+              info={patientClassInfo(grade, count, total)}
+            />
+          ))}
+        </section>
+        <section className="chart-grid patient-classification-screen-only">
+          <div className="panel mini-chart">
+            <h2>Patientenklassen</h2>
+            <CaseColumnChart
+              title="Patientenqualität"
+              values={counts.map(({ grade, count }) => ({ label: `Klasse ${grade}`, value: count }))}
+              valueKind="count"
+            />
+          </div>
+          <div className="panel mini-chart">
+            <h2>Ohne-Schutz-Selektion</h2>
+            <CaseColumnChart title="Ohne-Schutz-Selektion" valueKind="count" values={[
+              { label: "ohne Schutz", value: noProtectionPatients.length },
+              { label: "auffällig", value: noProtectionActuallyBad.length },
+              { label: "erledigt", value: resolvedNoProtection },
+              { label: "Wiederholer", value: recurring.length }
+            ]} />
+          </div>
+        </section>
+        <section className="dashboard-grid">
+          <article className="panel command-panel">
+            <div>
+              <span className="eyebrow">Patientenselektion</span>
+              <h2>{noProtectionActuallyBad.length} von {noProtectionPatients.length} Ohne-Schutz-Patienten wurden auffällig</h2>
+              <p>Unauffällig ohne Schutz: {noProtectionClean.length}. Auffällige Claims aus Risikoabgleich: {suspiciousNoProtection}. Hohes Risiko mit hohem Volumen: {highRiskHighVolume.length} Patient(en).</p>
+            </div>
           </article>
-        ))}
-        {!recurring.length && (
-          <section className="panel">
-            <p className="empty-state">Keine Wiederholer ohne Ausfallschutz im aktuellen Datenstand.</p>
-          </section>
-        )}
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{standort ? `Patientenklassifizierung ${standort.name}` : "Patientenklassifizierung Gruppe"}</h2>
-            <p>Patienten werden je Standort anhand von Zahlungsverhalten, Stornos/Rückgaben, Ausfallschutz und Wiederholungen klassifiziert. Kritisch aktuell: {criticalPatients.length} Patient(en).</p>
+          <article className="panel process-panel">
+            <h2>Steuerungslogik</h2>
+            <div className="stacked-checks">
+              <span>Ohne Ausfallschutz ist Selektion, nicht automatisch Klärfall</span>
+              <span>Wiederholer mit negativer Bewegung zuerst mit Standort besprechen</span>
+              <span>Klasse C/D mit hohem Volumen für Vorkasse- oder Sperrprozess prüfen</span>
+            </div>
+          </article>
+        </section>
+        <section className="risk-profile-grid patient-classification-screen-only">
+          {recurring.slice(0, 6).map((profile) => (
+            <article className={`risk-profile-card ${profile.tone}`} key={`classification-${profile.id}`}>
+              <div>
+                <span>{profile.standortName}</span>
+                <strong>{profile.patientName}</strong>
+              </div>
+              <dl>
+                <div><dt>Einreichungen</dt><dd>{profile.count}</dd></div>
+                <div><dt>Risikosumme</dt><dd>{money.format(profile.total)}</dd></div>
+                <div><dt>Auffälligkeiten</dt><dd>{profile.eventCount}</dd></div>
+                <div><dt>zuletzt</dt><dd>{profile.lastDate}</dd></div>
+              </dl>
+              <StatusBadge status={profile.recommendation} />
+            </article>
+          ))}
+          {!recurring.length && (
+            <section className="panel">
+              <p className="empty-state">Keine Wiederholer ohne Ausfallschutz im aktuellen Datenstand.</p>
+            </section>
+          )}
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>{standort ? `Patientenklassifizierung ${standort.name}` : "Patientenklassifizierung Gruppe"}</h2>
+              <p>Die Tabelle zeigt die auffälligen Patienten im aktuellen Filter. Sie dient als Gesprächs- und Steuerungsgrundlage für den Standort.</p>
+            </div>
           </div>
-        </div>
-        <div className="table-wrap case-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Klasse</th>
-                <th>Patient</th>
-                <th>Standort</th>
-                <th>Einreichungen</th>
-                <th>Storno/Rückgabe</th>
-                <th>Ohne Schutz</th>
-                <th>Risikosumme</th>
-                <th>Quote</th>
-                <th>Empfehlung</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.slice(0, 100).map((profile) => (
-                <tr key={`${profile.locationName}-${profile.patientName}`}>
-                  <td><StatusBadge status={`Klasse ${profile.grade}`} /></td>
-                  <td><strong>{profile.patientName}</strong><span>Abr.-Nr. {profile.examples.join(", ") || "-"}</span></td>
-                  <td>{profile.locationName}</td>
-                  <td>{profile.claimCount}</td>
-                  <td>{profile.badEventCount}</td>
-                  <td>{profile.noProtectionCount}</td>
-                  <td>{money.format(profile.riskAmount)}</td>
-                  <td>{formatPercent(profile.badRate)}</td>
-                  <td>{profile.recommendation}</td>
+          <div className="table-wrap case-table-scroll patient-classification-table-wrap">
+            <table className="patient-classification-table">
+              <thead>
+                <tr>
+                  <th>Klasse</th>
+                  <th>Patient</th>
+                  <th>Standort</th>
+                  <th>Einreichungen</th>
+                  <th>Storno/Rückgabe</th>
+                  <th>Ohne Schutz</th>
+                  <th>Risikosumme</th>
+                  <th>Quote</th>
+                  <th>Empfehlung</th>
                 </tr>
-              ))}
-              {!profiles.length && (
-                <tr><td colSpan={9}>Keine Patientenklassifizierung im aktuellen Datenstand.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Historie pro Patient</h2>
-            <p>Chronologische Sicht auf erkannte Einreichungen, Stornos, Rückgaben, Rückbelastungen und Ohne-Ausfallschutz-Marker.</p>
+              </thead>
+              <tbody>
+                {profiles.slice(0, 100).map((profile) => (
+                  <tr key={`${profile.locationName}-${profile.patientName}`}>
+                    <td><StatusBadge status={`Klasse ${profile.grade}`} /></td>
+                    <td><strong>{profile.patientName}</strong><span>Abr.-Nr. {profile.examples.join(", ") || "-"}</span></td>
+                    <td>{profile.locationName}</td>
+                    <td>{profile.claimCount}</td>
+                    <td>{profile.badEventCount}</td>
+                    <td>{profile.noProtectionCount}</td>
+                    <td>{money.format(profile.riskAmount)}</td>
+                    <td>{formatPercent(profile.badRate)}</td>
+                    <td>{profile.recommendation}</td>
+                  </tr>
+                ))}
+                {!profiles.length && (
+                  <tr><td colSpan={9}>Keine Patientenklassifizierung im aktuellen Datenstand.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
-        <div className="table-wrap case-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Datum</th>
-                <th>Patient</th>
-                <th>Standort</th>
-                <th>Ereignis</th>
-                <th>Re.-Nr.</th>
-                <th>BFS-Nr.</th>
-                <th>Betrag</th>
-                <th>Hinweis</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patientHistory.slice(0, 200).map((entry) => (
-                <tr key={`${entry.date}-${entry.locationName}-${entry.patientName}-${entry.invoiceNo}-${entry.type}-${entry.amount}`}>
-                  <td>{entry.date}</td>
-                  <td><strong>{entry.patientName}</strong></td>
-                  <td>{entry.locationName}</td>
-                  <td><StatusBadge status={entry.type} /></td>
-                  <td>{entry.invoiceNo}</td>
-                  <td>{entry.bfsNo}</td>
-                  <td>{money.format(entry.amount)}</td>
-                  <td>{entry.note}</td>
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Historie pro Patient</h2>
+              <p>Chronologische Sicht auf erkannte Einreichungen, Stornos, Rückgaben, Rückbelastungen und Ohne-Ausfallschutz-Marker.</p>
+            </div>
+          </div>
+          <div className="table-wrap case-table-scroll patient-classification-table-wrap">
+            <table className="patient-history-table">
+              <thead>
+                <tr>
+                  <th>Datum</th>
+                  <th>Patient</th>
+                  <th>Standort</th>
+                  <th>Ereignis</th>
+                  <th>Re.-Nr.</th>
+                  <th>BFS-Nr.</th>
+                  <th>Betrag</th>
+                  <th>Hinweis</th>
                 </tr>
-              ))}
-              {!patientHistory.length && (
-                <tr><td colSpan={8}>Keine Patientenhistorie im aktuellen Datenstand.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {patientHistory.slice(0, 200).map((entry) => (
+                  <tr key={`${entry.date}-${entry.locationName}-${entry.patientName}-${entry.invoiceNo}-${entry.type}-${entry.amount}`}>
+                    <td>{entry.date}</td>
+                    <td><strong>{entry.patientName}</strong></td>
+                    <td>{entry.locationName}</td>
+                    <td><StatusBadge status={entry.type} /></td>
+                    <td>{entry.invoiceNo}</td>
+                    <td>{entry.bfsNo}</td>
+                    <td>{money.format(entry.amount)}</td>
+                    <td>{entry.note}</td>
+                  </tr>
+                ))}
+                {!patientHistory.length && (
+                  <tr><td colSpan={8}>Keine Patientenhistorie im aktuellen Datenstand.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -13612,6 +15711,7 @@ function UsersView() {
   const [standortId, setStandortId] = useState(standorte[0]?.id ?? "");
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState("");
 
   useEffect(() => {
     void loadUsers();
@@ -13624,7 +15724,7 @@ function UsersView() {
       const body = await response.json().catch(() => null) as { users?: ManagedUser[]; error?: string } | null;
       if (!response.ok) throw new Error(body?.error ?? "Nutzer konnten nicht geladen werden.");
       setManagedUsers(body?.users ?? []);
-      setMessage("Admins legen Nutzer mit temporärem Passwort an. Beim ersten Login muss der Nutzer ein eigenes Passwort setzen.");
+      setMessage("Admins vergeben Login und Passwort. Nutzer können sich damit direkt anmelden.");
     } catch (error) {
       setManagedUsers([]);
       setMessage(error instanceof Error ? error.message : "Nutzer konnten nicht geladen werden.");
@@ -13654,7 +15754,7 @@ function UsersView() {
       setEmail("");
       setFullName("");
       setTemporaryPassword("");
-      setMessage("Nutzer wurde angelegt. Das temporäre Passwort muss dem Nutzer intern mitgeteilt werden.");
+      setMessage("Nutzer wurde angelegt. Login und Passwort können direkt verwendet werden.");
       await loadUsers();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Nutzer konnte nicht angelegt werden.");
@@ -13676,6 +15776,23 @@ function UsersView() {
       await loadUsers();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Status konnte nicht geändert werden.");
+    }
+  }
+
+  async function deleteUser(user: ManagedUser) {
+    const displayName = user.fullName || user.email;
+    if (!window.confirm(`${displayName} wirklich löschen? Der Nutzer kann sich danach nicht mehr anmelden.`)) return;
+    setDeletingUserId(user.id);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Nutzer konnte nicht gelöscht werden.");
+      setMessage(`${displayName} wurde gelöscht.`);
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nutzer konnte nicht gelöscht werden.");
+    } finally {
+      setDeletingUserId("");
     }
   }
 
@@ -13711,7 +15828,7 @@ function UsersView() {
           </select>
         </label>
         <label>
-          Temporäres Passwort
+          Passwort
           <input value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} type="text" required minLength={8} placeholder="mind. 8 Zeichen" />
         </label>
         <button className="primary-button" type="submit" disabled={saving}>
@@ -13736,9 +15853,16 @@ function UsersView() {
                 </td>
                 <td>{formatLastLogin(user.lastLoginAt)}</td>
                 <td>
-                  <button className="secondary-button" onClick={() => toggleActive(user)} type="button">
-                    {user.active ? "Deaktivieren" : "Aktivieren"}
-                  </button>
+                  <div className="user-action-buttons">
+                    <button className="secondary-button" onClick={() => toggleActive(user)} type="button" disabled={deletingUserId === user.id}>
+                      {user.active ? "Deaktivieren" : "Aktivieren"}
+                    </button>
+                    {user.role !== "super_admin" && (
+                      <button className="secondary-button danger-button" onClick={() => void deleteUser(user)} type="button" disabled={deletingUserId === user.id}>
+                        <Trash2 size={16} /> {deletingUserId === user.id ? "Löscht" : "Löschen"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

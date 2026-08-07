@@ -89,15 +89,24 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
   const serviceLines = parseServiceLines(lines);
   const labLines = parseLabLines(lines);
   const labProviders = detectLabProviders(lines);
+  const invoiceTotalAmount = firstAmount(text, /Rechnungsbetrag:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const openAmount = firstAmount(text, /Offener Betrag:?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const totalAmount = invoiceTotalAmount || openAmount;
+  const honorarGoz = firstAmount(text, /(?:Honorar GOZ|ZA-Honorar GOZ):\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i) || (isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount) ? totalAmount : 0);
+  const recognizedNonFactorInvoice = isRecognizedNonFactorInvoice({
+    honorarBema,
+    eigenlaborTotal: eigenlaborTotals.length ? Math.max(...eigenlaborTotals) : 0,
+    labLines
+  });
 
   if (!text.trim()) notes.push("Keine lesbaren Textdaten erkannt.");
   if (bfsNo === "-") notes.push("BFS-Nr. nicht erkannt.");
   if (mandantNo === "-") notes.push("BFS-Mandantennummer nicht erkannt.");
   if (!standort) notes.push("Standort konnte nicht sicher zugeordnet werden.");
   if (invoiceHeader.invoiceNo === "-") notes.push("Rechnungsnummer nicht erkannt.");
-  if (invoiceHeader.invoiceDate === "-") notes.push("Rechnungsdatum nicht erkannt.");
-  if (patientName === "-") notes.push("Patient nicht erkannt.");
-  if (!serviceLines.length && !isRecognizedNonFactorInvoice({ honorarBema, eigenlaborTotal: eigenlaborTotals.length ? Math.max(...eigenlaborTotals) : 0, labLines })) {
+  if (invoiceHeader.invoiceDate === "-" && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) notes.push("Rechnungsdatum nicht erkannt.");
+  if (patientName === "-" && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) notes.push("Patient nicht erkannt.");
+  if (!serviceLines.length && !recognizedNonFactorInvoice && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) {
     notes.push("Keine abrechenbaren Leistungspositionen mit Faktor erkannt.");
   }
 
@@ -119,11 +128,11 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     birthDate: findValueLine(lines, /^Geburtsdatum:\s*(.+)$/i),
     treatmentPeriod,
     integrationDate,
-    totalAmount: firstAmount(text, /Rechnungsbetrag:\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
-    openAmount: firstAmount(text, /Offener Betrag:?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
+    totalAmount,
+    openAmount,
     subsidyAmount: Math.abs(firstAmount(text, /(?:Zuschuss der Krankenkasse|Kassenanteil|abzgl\. Festzuschuss):\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i)),
     honorarBema,
-    honorarGoz: firstAmount(text, /(?:Honorar GOZ|ZA-Honorar GOZ):\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i),
+    honorarGoz,
     eigenlaborTotal: eigenlaborTotals.length ? Math.max(...eigenlaborTotals) : 0,
     fremdlaborNet,
     fremdlaborGross,
@@ -135,7 +144,9 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
     labLines,
     pageCount: meta.pageCount,
     status: notes.length ? "Zu prüfen" : "OK",
-    parseNotes: notes.length ? notes : ["Rechnung wurde ausgelesen und einem Standort zugeordnet."]
+    parseNotes: notes.length ? notes : [isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)
+      ? "Ulmet-Rechnung ohne Positionsauswertung; Endbetrag wurde fuer die Statistik übernommen."
+      : "Rechnung wurde ausgelesen und einem Standort zugeordnet."]
   };
 }
 
@@ -361,6 +372,10 @@ function extractInvoiceHeader(text: string, lines: string[], filePath: string) {
 
 function isRecognizedNonFactorInvoice(invoice: { honorarBema: number; eigenlaborTotal: number; labLines: ParsedInvoiceLine[] }) {
   return invoice.honorarBema > 0 || invoice.eigenlaborTotal > 0 || invoice.labLines.length > 0;
+}
+
+function isUlmetInvoiceWithoutServiceLines(standort: Standort | undefined, serviceLines: ParsedInvoiceLine[], totalAmount: number) {
+  return standort?.id === "ulmet" && !serviceLines.length && totalAmount > 0;
 }
 
 function parseFactorLine(line: string, category: ParsedInvoiceLine["category"], sourceSection: string): ParsedInvoiceLine[] {

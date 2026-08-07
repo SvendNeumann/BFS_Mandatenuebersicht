@@ -343,6 +343,22 @@ test("BFS-Rechnungsparser erkennt Ulmet-615-Ausfallhonorar", () => {
   assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
 });
 
+test("BFS-Rechnungsparser akzeptiert Ulmet-Rechnungen ohne Positionsauswertung mit Endbetrag", () => {
+  const row = parseInvoiceText([
+    "Praxis Dr. Hangx",
+    "BFS-Nr. 5-19260-74122555",
+    "Rechnung",
+    "Rechnungsnummer: 74122555",
+    "Offener Betrag: 33,45"
+  ].join("\n"), { file: "Rechnung_5-19260-74122555.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.standortName, "Ulmet");
+  assert.equal(row.status, "OK");
+  assert.equal(row.serviceLines.length, 0);
+  assert.equal(row.totalAmount, 33.45);
+  assert.equal(row.honorarGoz, 33.45);
+});
+
 test("BFS-Rechnungsparser erkennt Kehl-Ausfallgebuehr mit AG-Code", () => {
   const row = parseInvoiceText([
     "Zahnarztpraxis Zorn de Bulach",

@@ -6,6 +6,7 @@ const shortDatePattern = /^\d{2}\.\d{2}\.\d{2}$/;
 const serviceCodePattern = /^(?:§?\d{1,4}(?:[a-z])?|\d{1,3}\.\d|[a-z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}|[A-Z]{1,4}\d{2,4}[a-z]?|AG|Vers_?|Glasur|Cerkat)$/;
 const bemaFillingCodePattern = /^13[A-Z]0$/i;
 const strongServiceCodePattern = /^(?:13[A-Z]0|Ä\d{1,3}[a-z]?|§?\d{3,4}[a-z]?|\d{1,3}\.\d|[a-zäöü]{1,4}\d{1,4}[a-z]?|Glasur|Cerkat)$/i;
+const siteSpecificBillingCodePattern = /^(?:R|Air|[A-Za-z]{1,6}[_-]\d{1,4}[A-Za-z0-9]*|[A-Za-z]{1,4}\d{1,4}[A-Za-z0-9]*)$/i;
 
 export async function parseInvoiceUploadFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
   const pdfFiles = files.filter(isInvoicePdfUploadFile);
@@ -478,6 +479,7 @@ function findWrappedCode(lines: string[], startIndex: number) {
     const line = lines[index];
     if (!line || isRegionContinuationLine(line)) continue;
     if (strongServiceCodePattern.test(line) && !isZeroOnlyServiceCode(line)) return { index, code: line, nextIndex: index + 1 };
+    if (isSiteSpecificBillingCode(line)) return { index, code: line, nextIndex: index + 1 };
     if (isKnownExpenseCode(line)) {
       const suffix = lines[index + 1];
       if (/^[A-Za-zÄÖÜäöü]$/.test(suffix ?? "") && isKnownExpenseCode(`${line}${suffix}`)) {
@@ -529,7 +531,16 @@ function findServiceCode(tokens: string[]) {
   const strongIndex = tokens.findIndex((token) => strongServiceCodePattern.test(token) && !isZeroOnlyServiceCode(token));
   const bemaIndex = tokens.findIndex((token) => bemaFillingCodePattern.test(token));
   const alphaIndex = tokens.findIndex((token) => isKnownExpenseCode(token));
-  const index = strongIndex >= 0 ? strongIndex : bemaIndex >= 0 ? bemaIndex : alphaIndex >= 0 ? alphaIndex : tokens.findIndex((token) => serviceCodePattern.test(token) && !isZeroOnlyServiceCode(token));
+  const siteSpecificIndex = tokens.findIndex((token) => isSiteSpecificBillingCode(token));
+  const index = strongIndex >= 0
+    ? strongIndex
+    : bemaIndex >= 0
+      ? bemaIndex
+      : alphaIndex >= 0
+        ? alphaIndex
+        : siteSpecificIndex >= 0
+          ? siteSpecificIndex
+          : tokens.findIndex((token) => serviceCodePattern.test(token) && !isZeroOnlyServiceCode(token));
   if (index < 0) return null;
   const token = tokens[index];
   const suffix = tokens[index + 1];
@@ -560,6 +571,12 @@ function isKnownExpenseCode(code: string) {
   return /^(?:gela|termosta|b_selbst)$/i.test(code.trim());
 }
 
+function isSiteSpecificBillingCode(code: string) {
+  const normalizedCode = code.trim();
+  if (!siteSpecificBillingCodePattern.test(normalizedCode)) return false;
+  return !isKnownExpenseCode(normalizedCode);
+}
+
 function normalizeServiceCode(code: string) {
   return code.trim().replace(/^Ä0*(\d+[a-z]?)$/i, "Ä$1");
 }
@@ -572,6 +589,7 @@ function normalizeLineServiceCode(code: string, description: string) {
   const bemaCode = description.match(/\b(13[A-Z]0)\b/i)?.[1];
   if (bemaCode) return bemaCode.toUpperCase();
   const leadingFeeCode = description.match(/^\s*(Ä?\d{3,4}[a-z]?)(?:-\d+)?\b/i)?.[1];
+  if (!leadingFeeCode && isSiteSpecificBillingCode(code)) return code.trim().replace(/[_-]/g, "").toUpperCase();
   return leadingFeeCode ? normalizeServiceCode(leadingFeeCode) : normalizeServiceCode(code);
 }
 

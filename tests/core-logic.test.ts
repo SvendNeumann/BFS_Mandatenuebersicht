@@ -300,6 +300,29 @@ test("BFS-Rechnungsparser erkennt Versaeumnis-Termin als Ausfallhonorar-Position
   assert.equal(isAusfallhonorarDescription(`${row.serviceLines[0].code} ${row.serviceLines[0].description}`), true);
 });
 
+test("BFS-Rechnungsparser erkennt standortspezifische Huettenberg-Kennziffern aus der Nr-Spalte", () => {
+  const row = parseInvoiceText([
+    "Praxis Dr. Krauhausen",
+    "BFS-Nr. 5-19804-74504485",
+    "Frau Andrea Biedebach",
+    "Rechnung",
+    "Rechnungsnummer: 628-093362 Rechnungsdatum: 24.07.2026",
+    "Behandelte Person: Andrea Biedebach",
+    "Behandlungszeitraum von 03.07.2026 bis 03.07.2026",
+    "Datum Region Nr. Leistungsbeschreibung/Auslagen Bgr. Faktor Anz. EUR",
+    "03.07.26 17-26,36-47 Air Air-Flow 1,000 1 21,62",
+    "03.07.26 33-44 mh_35s Optragate 2 Small 1,000 1 8,50",
+    "Zwischensumme Honorar:",
+    "30,12"
+  ].join("\n"), { file: "Rechnung_5-19804-74504485.pdf", fileSizeBytes: 1, pageCount: 1 });
+
+  assert.equal(row.status, "OK");
+  assert.equal(row.serviceLines.length, 2);
+  assert.deepEqual(row.serviceLines.map((line) => line.code), ["AIR", "MH35S"]);
+  assert.deepEqual(row.serviceLines.map((line) => line.description), ["Air-Flow", "Optragate 2 Small"]);
+  assert.deepEqual(row.serviceLines.map((line) => line.category), ["auslage", "auslage"]);
+});
+
 test("BFS-Rechnungsparser erkennt Ulmet-615-Ausfallhonorar", () => {
   const row = parseInvoiceText([
     "Zahnmedizin Westpfalz MVZ",

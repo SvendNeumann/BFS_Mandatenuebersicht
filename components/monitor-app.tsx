@@ -7720,7 +7720,6 @@ const invoiceCatalogEntries: InvoiceCatalogEntry[] = [
 const defaultInvoiceCatalogContext = buildInvoiceCatalogContext([]);
 
 function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChange }: { invoiceRows: ParsedInvoiceDocument[]; catalogMappings: InvoiceCatalogMapping[]; onMappingsChange: (mappings: InvoiceCatalogMapping[]) => void }) {
-  const reportRef = useRef<HTMLDivElement | null>(null);
   const periodOptions = useMemo(() => buildCustomChartPeriods(), []);
   const [periodId, setPeriodId] = useState(() => defaultPeriodId(periodOptions));
   const [standortId, setStandortId] = useState("gruppe");
@@ -7739,6 +7738,11 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
   const kpis = useMemo(() => invoiceCatalogCheckKpis(rows), [rows]);
   const exportScopeLabel = selectedStandort?.name ?? "Alle Standorte";
   const mappingCount = catalogMappings.length;
+  const [pagination, setPagination] = useState({ key: "", page: 0 });
+  const filterKey = JSON.stringify([periodId, standortId, statusFilter, searchTerm]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 100));
+  const page = pagination.key === filterKey ? Math.min(pagination.page, pageCount - 1) : 0;
+  const visibleRows = filteredRows.slice(page * 100, (page + 1) * 100);
 
   const draftForRow = (row: InvoiceCatalogCheckRow) => mappingDrafts[row.key] ?? {
     targetCode: suggestedInvoiceCatalogTargetCode(row),
@@ -7812,7 +7816,7 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
           <button
             className="secondary-button custom-export-action"
             type="button"
-            onClick={() => printCustomTabPdf(reportRef.current, `Katalogprüfung · ${exportScopeLabel} · ${selectedPeriod.label}`)}
+            onClick={() => printCustomTabPdf(invoiceCatalogReportElement(filteredRows), `Katalogprüfung · ${exportScopeLabel} · ${selectedPeriod.label}`)}
             disabled={!filteredRows.length}
           >
             <Printer size={16} /> PDF Export
@@ -7850,11 +7854,16 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
           {mappingMessage || mappingError || `${integerNumber.format(mappingCount)} gespeicherte Katalogregel${mappingCount === 1 ? "" : "n"} aktiv`}
         </div>
       </section>
-      <section className="panel" ref={reportRef}>
+      <section className="panel">
         <div className="panel-heading">
           <div>
             <span className="eyebrow">Prüfliste</span>
             <h2>Katalogabgleich je Leistungszeile</h2>
+          </div>
+          <div className="invoice-preview-pagination">
+            <button className="secondary-button" type="button" aria-label="Vorherige Katalogseite" title="Vorherige Katalogseite" disabled={page === 0} onClick={() => setPagination({ key: filterKey, page: page - 1 })}><ChevronLeft size={18} /></button>
+            <span>{page + 1} / {pageCount} · {integerNumber.format(filteredRows.length)}</span>
+            <button className="secondary-button" type="button" aria-label="Nächste Katalogseite" title="Nächste Katalogseite" disabled={page >= pageCount - 1} onClick={() => setPagination({ key: filterKey, page: page + 1 })}><ChevronRight size={18} /></button>
           </div>
         </div>
         <div className="table-wrap compact-table invoice-services-scroll">
@@ -7874,7 +7883,7 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length ? filteredRows.map((row) => (
+              {visibleRows.length ? visibleRows.map((row) => (
                 <tr key={row.key}>
                   <td><StatusBadge status={invoiceCatalogStatusLabel(row.status)} /></td>
                   <td><strong>{row.originalCode}</strong><br /><small>{row.originalDescription}</small></td>
@@ -7922,6 +7931,15 @@ function InvoiceCatalogCheckView({ invoiceRows, catalogMappings, onMappingsChang
       </section>
     </div>
   );
+}
+
+function invoiceCatalogReportElement(rows: InvoiceCatalogCheckRow[]) {
+  const report = document.createElement("section");
+  report.className = "panel";
+  const headers = ["Status", "Original aus Rechnung", "Verwendet als", "Katalogart", "Katalogtext", "Standort", "Rechnung", "Faktor", "Hinweis"];
+  const body = rows.map((row) => [invoiceCatalogStatusLabel(row.status), `${row.originalCode}: ${row.originalDescription}`, row.catalogCode, row.system, row.catalogDescription, row.standortName, `${row.invoiceNo} (${row.invoiceDate})`, row.factor ? feeRateNumber.format(row.factor) : "-", row.note]);
+  report.innerHTML = `<h2>Katalogabgleich je Leistungszeile</h2><p>${integerNumber.format(rows.length)} Positionen</p><div class="table-wrap"><table class="invoice-catalog-table"><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  return report;
 }
 
 function InvoiceServicesView({ invoiceRows, catalogMappings }: { invoiceRows: ParsedInvoiceDocument[]; catalogMappings: InvoiceCatalogMapping[] }) {

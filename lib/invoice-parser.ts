@@ -24,21 +24,22 @@ export function isInvoicePdfUploadFile(file: File) {
 }
 
 export async function parseInvoicePdfBytes(bytes: ArrayBuffer, meta: { file?: string; fileSizeBytes?: number } = {}) {
+  const fileSizeBytes = meta.fileSizeBytes ?? bytes.byteLength;
   const fileHash = await sha256(bytes);
   const extracted = await extractPdfText(bytes);
   return parseInvoiceText(extracted.text, {
     file: meta.file ?? "Rechnung.pdf",
-    fileSizeBytes: meta.fileSizeBytes ?? bytes.byteLength,
+    fileSizeBytes,
     pageCount: extracted.pageCount,
     fileHash
   });
 }
 
 export async function parsePracticeSoftwareInvoicePdfBytes(bytes: ArrayBuffer, meta: { file?: string; fileSizeBytes?: number; standortId?: string } = {}) {
+  const fileSizeBytes = meta.fileSizeBytes ?? bytes.byteLength;
   const fileHash = await sha256(bytes);
   const extracted = await extractPdfText(bytes);
   const file = meta.file ?? "Praxissoftware-Rechnungsexport.pdf";
-  const fileSizeBytes = meta.fileSizeBytes ?? bytes.byteLength;
   const text = normalizeText(extracted.text);
   const selectedStandort = meta.standortId ? standorte.find((standort) => standort.id === meta.standortId) : undefined;
 
@@ -106,6 +107,7 @@ export function parseInvoiceText(rawText: string, meta: { file: string; fileSize
   if (invoiceHeader.invoiceNo === "-") notes.push("Rechnungsnummer nicht erkannt.");
   if (invoiceHeader.invoiceDate === "-" && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) notes.push("Rechnungsdatum nicht erkannt.");
   if (patientName === "-" && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) notes.push("Patient nicht erkannt.");
+  if (/Behandelte Person:|Rechnungsnummer:|Rechnungsdatum:/i.test(patientName)) notes.push("Patientenfeld enthält vermischte Feldbeschriftungen; Original-PDF prüfen.");
   if (!serviceLines.length && !recognizedNonFactorInvoice && !isUlmetInvoiceWithoutServiceLines(standort, serviceLines, totalAmount)) {
     notes.push("Keine abrechenbaren Leistungspositionen mit Faktor erkannt.");
   }
@@ -365,7 +367,7 @@ function extractInvoiceHeader(text: string, lines: string[], filePath: string) {
     ?? text.match(/\bDatum:\s*(\d{2}\.\d{2}\.\d{4})/i)?.[1];
 
   return {
-    invoiceNo: inlineHeader?.[1]?.trim() ?? splitInvoiceNo?.trim() ?? "-",
+    invoiceNo: [inlineHeader?.[1], splitInvoiceNo].find((value) => value && /\d/.test(value) && !/:|^\d{2}\.\d{2}\.\d{4}$/.test(value))?.trim() ?? "-",
     invoiceDate: inlineHeader?.[2] ?? splitInvoiceDate ?? "-"
   };
 }

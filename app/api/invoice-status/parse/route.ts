@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standorte as appStandorte } from "@/lib/demo-data";
 import { parseInvoiceStatusPdfBytes } from "@/lib/invoice-status-parser";
+import { currentInvoiceStatusRows, mergeInvoiceStatusDocuments } from "@/lib/invoice-status-identity";
 import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow } from "@/lib/types";
 
@@ -96,7 +97,8 @@ export async function PUT(request: NextRequest) {
     const incomingDocuments = Array.isArray(body?.documents) ? body.documents.filter(isParsedInvoiceStatusDocument) : [];
     const currentPayload = await loadLatestInvoiceStatusPayload(supabase);
     const documents = mergeInvoiceStatusDocuments(currentPayload.documents, incomingDocuments);
-    const rowCount = documents.reduce((sum, document) => sum + document.rows.length, 0);
+    if (!incomingDocuments.length) return NextResponse.json({ error: "Keine gültigen Saldo-Listen zur Bestätigung gefunden." }, { status: 400 });
+    const rowCount = currentInvoiceStatusRows(documents).length;
     const payload = {
       documents,
       confirmedAt: new Date().toISOString(),
@@ -180,25 +182,6 @@ async function loadLatestInvoiceStatusPayload(supabase: SupabaseDbClient) {
     .limit(1);
   if (error) throw new Error(error.message);
   return parseStoredInvoiceStatusPayload(data?.[0]?.new_value);
-}
-
-function mergeInvoiceStatusDocuments(currentDocuments: ParsedInvoiceStatusDocument[], nextDocuments: ParsedInvoiceStatusDocument[]) {
-  const byKey = new Map<string, ParsedInvoiceStatusDocument>();
-  [...currentDocuments, ...nextDocuments].forEach((document) => {
-    byKey.set(invoiceStatusDocumentKey(document), document);
-  });
-  return [...byKey.values()];
-}
-
-function invoiceStatusDocumentKey(document: ParsedInvoiceStatusDocument) {
-  if (document.fileHash) return document.fileHash;
-  return [
-    document.file,
-    document.fileSizeBytes,
-    document.pageCount,
-    document.rows[0]?.mandantNo ?? "-",
-    document.rows[0]?.invoiceDate ?? "-"
-  ].join("|");
 }
 
 function filterInvoiceStatusDocumentsByStandort(documents: ParsedInvoiceStatusDocument[], allowedStandortIds: Set<string>) {

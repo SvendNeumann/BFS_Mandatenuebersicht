@@ -59,9 +59,9 @@ export async function requestPasswordReset(email: string) {
   if (error) throw error;
 }
 
-export async function updateOwnPassword(newPassword: string) {
+export async function updateOwnPassword(newPassword: string, recovery = false) {
   if (newPassword.length < 8) throw new Error("Das neue Passwort muss mindestens 8 Zeichen haben.");
-  const serverResponse = await fetch("/api/auth/password", {
+  const serverResponse = recovery ? null : await fetch("/api/auth/password", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ password: newPassword })

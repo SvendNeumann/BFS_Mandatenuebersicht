@@ -12,6 +12,9 @@ const passwordPaths = ["/passwort-aendern"];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // Recovery tokens arrive in the URL fragment and must reach the browser first.
+  // This exposes only the form; password changes still require a valid session.
+  if (pathname === "/passwort-aendern" && request.nextUrl.searchParams.get("reset") === "1") return NextResponse.next();
   if (!isProtectedPath(pathname)) return NextResponse.next();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,13 +40,17 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/passwort-aendern";
     url.search = "";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    session.response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
   }
   if (!profile.must_change_password && pathname === "/passwort-aendern") {
     const url = request.nextUrl.clone();
     url.pathname = profile.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
     url.search = "";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    session.response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
   }
   if (appDashboardPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`)) && !["super_admin", "abrechnungsmanagement"].includes(profile.role)) {
     return redirectToLogin(request, session.response);

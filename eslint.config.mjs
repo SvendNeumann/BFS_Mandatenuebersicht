@@ -18,6 +18,11 @@ const config = [
   {
     ignores: [
       ".next/**",
+      ".vercel/**",
+      ".vercel-home/**",
+      ".tmp-*/**",
+      ".pnpm-*/**",
+      "tmp/**",
       "node_modules/**",
       "out/**",
       "coverage/**",

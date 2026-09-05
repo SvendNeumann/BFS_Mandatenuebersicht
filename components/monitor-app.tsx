@@ -47,6 +47,8 @@ import type { AppRole, BfsCase, ImportPreviewRow, ParsedImportClaim, ParsedImpor
 import { downloadTextFile } from "@/lib/reporting";
 import { enablePasskey, getCurrentSession, getStoredSession, hasSavedPasskey, logout, removePasskey, type DemoSession } from "@/lib/auth";
 import { importRowBusinessIdentity, reconcileImportRows } from "@/lib/import-identity";
+import { currentInvoiceStatusRows, mergeInvoiceStatusDocuments } from "@/lib/invoice-status-identity";
+import { indexResubmissionClaims, resubmissionPatientKey } from "@/lib/resubmission-index";
 import { buildCancelledResolutionKeySet, buildClosedResolutionKeySet, buildPaidResolutionKeySet, buildResubmittedResolutionKeySet, caseResolutionIdentityKeys, caseResolutionKeyFromParts, caseResolutionKeys, isAusfallhonorarDescription, normalizeResolutionPart } from "@/lib/case-resolution";
 import {
   buildInvoiceQualityChainFindings,
@@ -456,7 +458,7 @@ export default function MonitorApp({ lockedRole, initialView = "custom", require
   const privacyScopedImportRows = useMemo(() => scopeImportRowsForRole(liveImportRows, role, permittedStandorte), [liveImportRows, role, permittedStandorte]);
   const hasAssignedStandort = hasGroupAccess || permittedStandorte.length > 0;
   const hasUploadData = privacyScopedImportRows.length > 0;
-  const invoiceStatusRows = useMemo(() => invoiceStatusDocuments.flatMap((document) => document.rows), [invoiceStatusDocuments]);
+  const invoiceStatusRows = useMemo(() => currentInvoiceStatusRows(invoiceStatusDocuments), [invoiceStatusDocuments]);
   const emptyDataAllowedViews = ["upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceRiskPatients", "invoiceLocations", "billingQualityCockpit", "billingQualityChains", "locations", "users", "settings"];
   const groupLevelViews = ["custom", "answers", "benchmark", "claims", "cashflow", "cases", "practiceFollowup", "patientClasses", "locations", "users", "upload", "preview", "history", "invoiceImport", "invoiceServices", "invoiceCatalog", "invoiceBenchmark", "invoiceTrends", "invoicePatients", "invoicePotential", "invoiceRiskPatients", "invoiceLocations", "billingQualityCockpit", "billingQualityChains"];
   const pageScopeLabel = role === "abrechnungsmanagement"
@@ -5521,10 +5523,11 @@ function resubmissionCandidatesFromImportRows(rows: ImportPreviewRow[]) {
       }));
   });
 
+  const claimsByPatient = indexResubmissionClaims(claims);
   const candidates = relevantMovements.flatMap((movement) => {
     const patientKey = normalizePatientName(movement.patientName ?? "");
     if (!patientKey) return [];
-    return claims
+    return (claimsByPatient.get(resubmissionPatientKey(movement.standortId, movement.patientName ?? "")) ?? [])
       .filter((claim) => isResubmissionClaimForMovement(claim, movement, patientKey))
       .slice(0, 3)
       .map((claim) => ({
@@ -6445,7 +6448,7 @@ function UploadView({
   const importConfirmationRetainedAmount = importConfirmationMovements.reduce((sum, movement) => sum + Math.abs(movement.amount ?? 0), 0);
   const displayedStatusDocuments = pendingStatusDocuments ?? statusDocuments;
   const hasPendingStatusImport = pendingStatusDocuments !== null;
-  const statusRows = displayedStatusDocuments.flatMap((document) => document.rows);
+  const statusRows = currentInvoiceStatusRows(displayedStatusDocuments);
   const statusSummary = summarizeInvoiceStatusRows(statusRows, previewRows);
   const nextStatusUploadMode = "append";
 
@@ -6531,7 +6534,7 @@ function UploadView({
       const baseDocuments = pendingStatusDocuments ?? existingDocuments;
       const nextDocuments = mode === "append" ? mergeInvoiceStatusDocuments(baseDocuments, completeParsedDocuments) : completeParsedDocuments;
       setPendingStatusDocuments(nextDocuments);
-      const nextRows = nextDocuments.flatMap((document) => document.rows);
+      const nextRows = currentInvoiceStatusRows(nextDocuments);
       const coverage = summarizeInvoiceStatusCoverage(nextRows);
       const coverageNote = `${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt${coverage.unknownMandantCount ? `, ${integerNumber.format(coverage.unknownMandantCount)} Zeilen ohne Standort` : ""}`;
       const readableDocuments = completeParsedDocuments.filter((document) => document.rows.length);
@@ -6554,7 +6557,7 @@ function UploadView({
       const documentsToSave = mergeInvoiceStatusDocuments(existingDocuments, pendingStatusDocuments);
       const savedDocuments = await saveConfirmedInvoiceStatusDocuments(documentsToSave);
       onStatusDocumentsChange(savedDocuments);
-      const confirmedRows = savedDocuments.flatMap((document) => document.rows);
+      const confirmedRows = currentInvoiceStatusRows(savedDocuments);
       const coverage = summarizeInvoiceStatusCoverage(confirmedRows);
       setPendingStatusDocuments(null);
       setStatusUploadStatus(`Saldo-Import bestätigt: ${integerNumber.format(confirmedRows.length)} Rechnungsstatus-Zeilen übernommen, ${coverage.coveredStandortCount}/${standorte.length} Standorte erkannt`);
@@ -9219,7 +9222,7 @@ function BillingQualityView({ invoiceRows, mode }: { invoiceRows: ParsedInvoiceD
   );
   const reportRows = sortInvoiceQualityRowsForLeaderReport(qualityPatternRows).slice(0, 80);
   const reportKpis = invoiceQualityKpis(reportRows);
-  const qualityContextSummaries = useMemo(() => buildQualityContextSummaries(reportRows), [reportRows]);
+  const qualityContextSummaries = buildQualityContextSummaries(reportRows);
   const chainRows = sortChainRowsForLeaderReport(visibleChainFindings, chainSortMode).slice(0, 25);
   const selectedChain = selectedChainKey ? visibleChainFindings.find((row) => row.key === selectedChainKey) ?? null : null;
   const selectedQualityFinding = selectedQualityKey ? visibleFindings.find((row) => row.key === selectedQualityKey) ?? null : null;
@@ -11678,15 +11681,6 @@ async function parseInvoiceStatusFileChunk(
 
   const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
   throw new Error(errorPayload?.error ?? "Serverseitiger Rechnungsstatus-Import fehlgeschlagen.");
-}
-
-function mergeInvoiceStatusDocuments(currentDocuments: ParsedInvoiceStatusDocument[], nextDocuments: ParsedInvoiceStatusDocument[]) {
-  const byKey = new Map<string, ParsedInvoiceStatusDocument>();
-  [...currentDocuments, ...nextDocuments].forEach((document) => {
-    const key = document.fileHash ?? document.file;
-    byKey.set(key, document);
-  });
-  return [...byKey.values()];
 }
 
 async function parseImportFiles(

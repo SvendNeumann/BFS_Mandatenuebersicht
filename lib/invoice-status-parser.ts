@@ -1,7 +1,7 @@
 import type { ParsedInvoiceStatusDocument, ParsedInvoiceStatusRow } from "./types";
 
-const amountPattern = String.raw`-?\d{1,3}(?:\.\d{3})*,\d{2}`;
-const statusLinePattern = new RegExp(String.raw`^(?<mandantNo>\d{5})\s+(?<bfsNo>5-\d{5}-\d+)\s+(?<patient>.+?)\s+(?<externalPatientNo>\d+)\s+(?<invoiceNo>\S+)\s+(?<invoiceDate>\d{2}\.\d{2}\.\d{4})\s+(?<flags>.*?)\s+(?<amount>${amountPattern})\s€\s+(?<saldo>${amountPattern})\s€?(?:\s+(?<cancelledAmount>${amountPattern})\s€?)?$`);
+const amountPattern = String.raw`-?\d+(?:\.\d{3})*,\d{2}`;
+const statusLinePattern = new RegExp(String.raw`^(?<mandantNo>\d{5})\s+(?<bfsNo>5-\d{5}-\d+)\s+(?<patient>.+?)\s+(?<externalPatientNo>\d+)\s+(?<invoiceNo>\S+)\s+(?<invoiceDate>\d{2}\.\d{2}\.\d{4})\s+(?<flags>.*?)\s+(?<amount>${amountPattern})\s€\s+(?<saldo>${amountPattern})(?:\s€)?(?:\s+(?<cancelledAmount>${amountPattern})(?:\s€)?)?$`);
 
 export async function parseInvoiceStatusUploadFiles(files: File[], onProgress?: (processed: number, total: number, fileName: string) => void) {
   const pdfFiles = files.filter(isInvoiceStatusPdfUploadFile);
@@ -19,17 +19,25 @@ export function isInvoiceStatusPdfUploadFile(file: File) {
 }
 
 export async function parseInvoiceStatusPdfBytes(bytes: ArrayBuffer, meta: { file?: string; fileSizeBytes?: number } = {}) {
+  // PDF.js may transfer the buffer to its worker, detaching the original.
+  const fileHash = await sha256(bytes);
+  const fileSizeBytes = meta.fileSizeBytes ?? bytes.byteLength;
   const extracted = await extractPdfText(bytes);
   return parseInvoiceStatusText(extracted.text, {
     file: meta.file ?? "Rechnungsstatus.pdf",
-    fileSizeBytes: meta.fileSizeBytes ?? bytes.byteLength,
+    fileSizeBytes,
     pageCount: extracted.pageCount,
-    fileHash: await sha256(bytes)
+    fileHash
   });
 }
 
 export function parseInvoiceStatusText(rawText: string, meta: { file: string; fileSizeBytes: number; pageCount: number; fileHash?: string }): ParsedInvoiceStatusDocument {
-  const pages = rawText.split(/\f|\n(?=MDT\s+BFS-NR\.)/i);
+  const pages = rawText.includes("\f") || meta.pageCount === 1
+    ? rawText.split("\f")
+    : rawText.split(/\n(?=MDT\s+BFS-NR\.)/i);
+  if (!rawText.includes("\f") && pages.length > 1 && !/^\d{5}\s+5-\d{5}-\d+/m.test(pages[0])) {
+    pages.splice(0, 2, pages.slice(0, 2).join("\n"));
+  }
   const rows: ParsedInvoiceStatusRow[] = [];
   const notes: string[] = [];
 
@@ -38,6 +46,9 @@ export function parseInvoiceStatusText(rawText: string, meta: { file: string; fi
     lines.forEach((line) => {
       const parsed = parseStatusLine(line, meta.file, pageIndex + 1);
       if (parsed) rows.push(parsed);
+      else if (/^\d{5}\s+5-\d{5}-\d+\b/.test(line)) {
+        notes.push(`Seite ${pageIndex + 1}: Rechnungsstatus-Zeile konnte nicht vollständig gelesen werden.`);
+      }
     });
   });
 

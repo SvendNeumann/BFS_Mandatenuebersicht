@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
-import { updateOwnPassword } from "@/lib/auth";
+import { getStoredSession, updateOwnPassword } from "@/lib/auth";
 
 export default function ChangePasswordPage() {
   const [password, setPassword] = useState("");
@@ -19,8 +19,8 @@ export default function ChangePasswordPage() {
     }
     setSaving(true);
     try {
-      await updateOwnPassword(password);
-      window.location.href = "/dashboard";
+      await updateOwnPassword(password, new URLSearchParams(window.location.search).get("reset") === "1");
+      window.location.href = getStoredSession()?.role === "standortleitung" ? "/standort/dashboard" : "/dashboard";
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Passwort konnte nicht geändert werden.");
       setSaving(false);
@@ -34,7 +34,7 @@ export default function ChangePasswordPage() {
           <Image className="brand-mark" src="/orisus-bfs-mark.svg" alt="Orisus BFS Monitor" width={48} height={48} />
           <div>
             <strong>Orisus BFS Monitor</strong>
-            <span>Erster Login</span>
+            <span>Passwort ändern</span>
           </div>
         </div>
         <h1>Passwort ändern</h1>

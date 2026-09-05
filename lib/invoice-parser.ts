@@ -1,4 +1,5 @@
 import { standorte } from "./demo-data.ts";
+import { withoutObsoleteBfsTemplate } from "./bfs-template-text.ts";
 import type { ParsedInvoiceDocument, ParsedInvoiceLine, Standort } from "./types.ts";
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
@@ -736,7 +737,7 @@ async function extractPdfText(bytes: ArrayBuffer) {
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
-    const lines = groupTextItemsIntoLines(content.items as Array<{ str?: string; transform?: number[] }>);
+    const lines = groupTextItemsIntoLines(withoutObsoleteBfsTemplate(content.items as Array<{ str?: string; transform?: number[] }>));
     pages.push(lines.join("\n"));
   }
 

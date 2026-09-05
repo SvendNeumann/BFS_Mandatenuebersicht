@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isBfsPdfUploadFile, parseDemoImportFiles } from "@/lib/demo-import";
 import { importRowBusinessIdentity } from "@/lib/import-identity";
+import { assertImportDocumentsHaveNoCases } from "@/lib/import-case-protection";
 import { createServiceClient, getRequestProfile } from "@/lib/server-auth";
 import type { ImportPreviewRow, ParsedImportMovement } from "@/lib/types";
 
@@ -473,6 +474,7 @@ async function replaceImportedDocument(
 }
 
 async function clearDocumentChildren(supabase: SupabaseDbClient, documentId: string) {
+  await assertImportDocumentsHaveNoCases(supabase, [documentId]);
   await throwIfSupabaseError(supabase.from("bfs_cases").delete().eq("document_id", documentId));
   await throwIfSupabaseError(supabase.from("bfs_bewegungen").delete().eq("document_id", documentId));
   await throwIfSupabaseError(supabase.from("bfs_forderungen").delete().eq("document_id", documentId));
@@ -480,6 +482,7 @@ async function clearDocumentChildren(supabase: SupabaseDbClient, documentId: str
 }
 
 async function clearDocumentsChildren(supabase: SupabaseDbClient, documentIds: string[]) {
+  await assertImportDocumentsHaveNoCases(supabase, documentIds);
   for (const chunk of chunkArray(documentIds, 200)) {
     await throwIfSupabaseError(supabase.from("import_events").delete().in("document_id", chunk));
     await throwIfSupabaseError(supabase.from("bfs_cases").delete().in("document_id", chunk));

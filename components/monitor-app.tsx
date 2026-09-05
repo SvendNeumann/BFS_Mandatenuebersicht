@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { caseMatchesAusfallhonorarInvoice } from "@/lib/invoice-case-match";
 import type { CSSProperties, DependencyList } from "react";
 import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -15,6 +16,8 @@ import {
   ClipboardCheck,
   ClipboardList,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FolderUp,
   HardDriveUpload,
   Info,
@@ -5187,20 +5190,6 @@ function invoiceHasAusfallhonorarLine(invoice: ParsedInvoiceDocument) {
   return invoice.serviceLines.some(isAusfallhonorarLine);
 }
 
-function caseMatchesAusfallhonorarInvoice(fall: BfsCase, invoice: ParsedInvoiceDocument) {
-  if (sameResolvedField(fall.bfsNo, invoice.bfsNo)) return true;
-  if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && sameResolvedField(fall.patientName, invoice.patientName)) return true;
-  if (sameResolvedField(fall.invoiceNo, invoice.invoiceNo) && (!invoice.standortId || invoice.standortId === fall.standortId)) return true;
-  return sameResolvedField(fall.patientName, invoice.patientName)
-    && (!invoice.standortId || invoice.standortId === fall.standortId);
-}
-
-function sameResolvedField(left: string | undefined, right: string | undefined) {
-  const normalizedLeft = normalizeResolutionPart(left ?? "");
-  const normalizedRight = normalizeResolutionPart(right ?? "");
-  return normalizedLeft !== "-" && normalizedLeft === normalizedRight;
-}
-
 function buildUnifiedOperationalReviewCases(importRows: ImportPreviewRow[], invoiceStatusRows: ParsedInvoiceStatusRow[], manualCaseResolutions: ManualCaseResolution[] = []) {
   const statusCache = operationalCasesCache.get(importRows);
   const resolutionCache = statusCache?.get(invoiceStatusRows);
@@ -10357,6 +10346,16 @@ function groupChainCompanionsByTopic(row: InvoiceQualityChainFinding) {
 }
 
 function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDocument[]; compact?: boolean }) {
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("de");
+    return query ? rows.filter((row) => [row.bfsNo, row.invoiceNo, row.patientName, row.standortName, row.file]
+      .some((value) => value?.toLocaleLowerCase("de").includes(query))) : rows;
+  }, [rows, search]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 100));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleRows = filteredRows.slice(currentPage * 100, (currentPage + 1) * 100);
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -10364,6 +10363,12 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
           <span className="eyebrow">Rechnungsvorschau</span>
           <h2>{compact ? "Eingelesene Rechnungen" : "Erkannte Rechnungen und Zuordnung"}</h2>
           <p>Die PDF-Datei dient als Beleg; die ausgelesenen Daten bleiben später getrennt für Auswertungen erhalten.</p>
+        </div>
+        <div className="invoice-preview-pagination">
+          <input aria-label="Rechnungsvorschau durchsuchen" placeholder="Rechnung, Patient, Standort" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+          <button className="secondary-button" type="button" aria-label="Vorherige Rechnungsseite" title="Vorherige Rechnungsseite" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button>
+          <span>{currentPage + 1} / {pageCount} · {integerNumber.format(filteredRows.length)}</span>
+          <button className="secondary-button" type="button" aria-label="Nächste Rechnungsseite" title="Nächste Rechnungsseite" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button>
         </div>
       </div>
       <div className="table-wrap compact-table invoice-preview-scroll">
@@ -10382,7 +10387,7 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
             </tr>
           </thead>
           <tbody>
-            {rows.length ? rows.map((row) => (
+            {visibleRows.length ? visibleRows.map((row) => (
               <tr key={invoiceRowKey(row)}>
                 <td><StatusBadge status={row.status} /></td>
                 <td><strong>{row.standortName}</strong><small>Mandant {row.mandantNo}</small></td>
@@ -10394,7 +10399,7 @@ function InvoiceImportPreview({ rows, compact = false }: { rows: ParsedInvoiceDo
                 <td>{row.hasEigenlabor || row.hasFremdlabor ? `${row.hasEigenlabor ? "Eigenlabor" : ""}${row.hasEigenlabor && row.hasFremdlabor ? " + " : ""}${row.hasFremdlabor ? "Fremdlabor" : ""}` : "-"}</td>
                 <td><span>{shortFileName(row.file)}</span><small>{integerNumber.format(Math.round(row.fileSizeBytes / 1024))} KB · {row.pageCount} Seiten</small></td>
               </tr>
-            )) : <EmptyTableRow colSpan={9} label="Noch keine Rechnungs-PDFs eingelesen." />}
+            )) : <EmptyTableRow colSpan={9} label={rows.length ? "Keine passenden Rechnungen." : "Noch keine Rechnungs-PDFs eingelesen."} />}
           </tbody>
         </table>
       </div>

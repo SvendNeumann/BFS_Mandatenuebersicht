@@ -3030,6 +3030,31 @@ input {
   min-width: 0;
 }
 
+.invoice-preview-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.invoice-preview-pagination input {
+  width: 240px;
+  max-width: 100%;
+}
+
+.invoice-preview-pagination button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.invoice-preview-pagination span {
+  white-space: nowrap;
+  font-size: 14px;
+}
+
 .panel-subsection {
   margin-top: 18px;
   padding-top: 18px;

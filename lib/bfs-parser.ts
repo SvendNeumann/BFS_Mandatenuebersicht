@@ -23,7 +23,7 @@ export type ParsedBfsDocument = {
 };
 
 const amountPattern = /-?\d{1,3}(?:\.\d{3})*,\d{2}/;
-const invoiceNoPattern = String.raw`(?:\d{2,3}-\d{4,6}|\d{8,10}|\d+(?:\/\d+)+)`;
+const invoiceNoPattern = String.raw`(?:\d{1,3}-\d{4,6}|\d{8,10}|\d+(?:\/\d+)+)`;
 const claimLinePattern = new RegExp(String.raw`^(.+?)\s+(${invoiceNoPattern})\s+(5-\d{5}-\d+)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})(?:\s+(\*[A-ZÄÖÜ]{2}|RS\/A))?$`);
 const shortDatePattern = /\b\d{2}\.\d{2}\.\d{2}\b/;
 

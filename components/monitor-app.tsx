@@ -7938,7 +7938,8 @@ function invoiceCatalogReportElement(rows: InvoiceCatalogCheckRow[]) {
   report.className = "panel";
   const headers = ["Status", "Original aus Rechnung", "Verwendet als", "Katalogart", "Katalogtext", "Standort", "Rechnung", "Faktor", "Hinweis"];
   const body = rows.map((row) => [invoiceCatalogStatusLabel(row.status), `${row.originalCode}: ${row.originalDescription}`, row.catalogCode, row.system, row.catalogDescription, row.standortName, `${row.invoiceNo} (${row.invoiceDate})`, row.factor ? feeRateNumber.format(row.factor) : "-", row.note]);
-  report.innerHTML = `<h2>Katalogabgleich je Leistungszeile</h2><p>${integerNumber.format(rows.length)} Positionen</p><div class="table-wrap"><table class="invoice-catalog-table"><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const columns = [8, 20, 7, 7, 20, 7, 11, 6, 14].map((width) => `<col style="width:${width}%">`).join("");
+  report.innerHTML = `<h2>Katalogabgleich je Leistungszeile</h2><p>${integerNumber.format(rows.length)} Positionen</p><div class="table-wrap"><table class="invoice-catalog-export-table"><colgroup>${columns}</colgroup><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
   return report;
 }
 
@@ -12370,6 +12371,8 @@ function printCustomTabPdf(element: HTMLElement | null, title: string, locationE
     .panel-heading p { font-size: 12px !important; }
     .table-wrap, .invoice-services-scroll, .invoice-services-table-wrap { overflow: visible !important; max-height: none !important; border-radius: 6px !important; }
     .invoice-services-table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+    .invoice-catalog-export-table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+    .invoice-catalog-export-table th, .invoice-catalog-export-table td { white-space: normal !important; overflow-wrap: anywhere !important; }
     .invoice-services-table th:nth-child(1), .invoice-services-table td:nth-child(1) { width: 8% !important; }
     .invoice-services-table th:nth-child(2), .invoice-services-table td:nth-child(2) { width: 28% !important; }
     .invoice-services-table th:nth-child(3), .invoice-services-table td:nth-child(3) { width: 9% !important; }
